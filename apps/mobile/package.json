@@ -1,0 +1,24 @@
+{
+  "name": "@persistent/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Capacitor (Android) wrapper of the web app + the native alarm plugin.",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "sync": "cap sync android",
+    "add:android": "cap add android",
+    "open:android": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/app": "^6.0.2",
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/preferences": "^6.0.3",
+    "@capacitor/push-notifications": "^6.0.4"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.0",
+    "typescript": "^5.8.3"
+  }
+}

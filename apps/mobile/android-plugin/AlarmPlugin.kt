@@ -1,0 +1,139 @@
+package ca.persistent.app.alarm
+
+import android.app.AlarmManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import com.getcapacitor.JSObject
+import com.getcapacitor.Plugin
+import com.getcapacitor.PluginCall
+import com.getcapacitor.PluginMethod
+import com.getcapacitor.annotation.CapacitorPlugin
+import org.json.JSONArray
+
+/**
+ * Native bridge for on-device exact alarms.
+ *
+ * Schedules `AlarmManager.setExactAndAllowWhileIdle` alarms that survive Doze.
+ * When one fires, [AlarmReceiver] starts [AlarmService], which posts an ongoing,
+ * full-screen, looping-sound notification that only "Done" can clear. Schedules
+ * are mirrored in [AlarmStore] so [BootReceiver] can re-arm them after a reboot.
+ *
+ * Place this file under the generated Android project at
+ * android/app/src/main/java/ca/persistent/app/alarm/ and register the plugin in
+ * MainActivity (see README.md).
+ */
+@CapacitorPlugin(name = "AlarmPlugin")
+class AlarmPlugin : Plugin() {
+
+    @PluginMethod
+    fun schedule(call: PluginCall) {
+        val alarm = AlarmSpec.fromCall(call) ?: run {
+            call.reject("Invalid alarm payload")
+            return
+        }
+        AlarmStore.put(context, alarm)
+        armAlarm(context, alarm)
+        call.resolve()
+    }
+
+    @PluginMethod
+    fun scheduleAll(call: PluginCall) {
+        val array: JSONArray = call.getArray("alarms") ?: JSONArray()
+        val incoming = mutableListOf<AlarmSpec>()
+        for (i in 0 until array.length()) {
+            AlarmSpec.fromJson(array.optJSONObject(i))?.let { incoming.add(it) }
+        }
+        // Replace the whole set: cancel everything we knew, then arm the new list.
+        for (existing in AlarmStore.all(context)) cancelAlarm(context, existing.occurrenceId)
+        AlarmStore.replaceAll(context, incoming)
+        for (alarm in incoming) armAlarm(context, alarm)
+        call.resolve()
+    }
+
+    @PluginMethod
+    fun cancel(call: PluginCall) {
+        val occurrenceId = call.getString("occurrenceId") ?: run {
+            call.reject("occurrenceId required")
+            return
+        }
+        cancelAlarm(context, occurrenceId)
+        AlarmStore.remove(context, occurrenceId)
+        AlarmService.stopFor(context, occurrenceId)
+        call.resolve()
+    }
+
+    @PluginMethod
+    fun cancelAll(call: PluginCall) {
+        for (existing in AlarmStore.all(context)) cancelAlarm(context, existing.occurrenceId)
+        AlarmStore.replaceAll(context, emptyList())
+        AlarmService.stopAll(context)
+        call.resolve()
+    }
+
+    @PluginMethod
+    fun canScheduleExactAlarms(call: PluginCall) {
+        val manager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val allowed = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) manager.canScheduleExactAlarms() else true
+        call.resolve(JSObject().put("allowed", allowed))
+    }
+
+    @PluginMethod
+    fun drainPendingAcks(call: PluginCall) {
+        val ids = PendingAckStore.drain(context)
+        val array = JSONArray()
+        for (id in ids) array.put(id)
+        call.resolve(JSObject().put("occurrenceIds", array))
+    }
+
+    @PluginMethod
+    fun requestBatteryExemption(call: PluginCall) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                .setData(Uri.parse("package:${context.packageName}"))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            try {
+                context.startActivity(intent)
+            } catch (_: Exception) {
+                // Some OEMs don't expose this intent; ignore and report not-granted.
+            }
+        }
+        call.resolve(JSObject().put("granted", false))
+    }
+
+    companion object {
+        /** Build the PendingIntent that fires [AlarmReceiver] for an occurrence. */
+        fun firePendingIntent(context: Context, occurrenceId: String): PendingIntent {
+            val intent = Intent(context, AlarmReceiver::class.java).apply {
+                action = AlarmReceiver.ACTION_FIRE
+                putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, occurrenceId)
+            }
+            return PendingIntent.getBroadcast(
+                context,
+                occurrenceId.hashCode(),
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        }
+
+        fun armAlarm(context: Context, alarm: AlarmSpec) {
+            val manager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            val pending = firePendingIntent(context, alarm.occurrenceId)
+            // Exact + allow-while-idle so it fires precisely even in Doze.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !manager.canScheduleExactAlarms()) {
+                // Fall back to a best-effort inexact alarm if exact isn't permitted.
+                manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, alarm.fireAtMs, pending)
+            } else {
+                manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, alarm.fireAtMs, pending)
+            }
+        }
+
+        fun cancelAlarm(context: Context, occurrenceId: String) {
+            val manager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            manager.cancel(firePendingIntent(context, occurrenceId))
+        }
+    }
+}

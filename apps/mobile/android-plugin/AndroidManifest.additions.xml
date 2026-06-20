@@ -1,0 +1,48 @@
+<!--
+  Merge these into the generated android/app/src/main/AndroidManifest.xml.
+  Permissions go at the top level; the service/receivers/activity go inside
+  <application>. See README.md.
+-->
+
+<!-- ===== permissions (top level, before <application>) ===== -->
+<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+<uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+<uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+<uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+<uses-permission android:name="android.permission.WAKE_LOCK" />
+<uses-permission android:name="android.permission.VIBRATE" />
+<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+<uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+<!-- ===== inside <application> ===== -->
+<service
+    android:name="ca.persistent.app.alarm.AlarmService"
+    android:exported="false"
+    android:foregroundServiceType="specialUse">
+    <property
+        android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+        android:value="Reminder alarms that must fire and keep sounding until the user confirms completion." />
+</service>
+
+<activity
+    android:name="ca.persistent.app.alarm.AlarmActivity"
+    android:exported="false"
+    android:showWhenLocked="true"
+    android:turnScreenOn="true"
+    android:excludeFromRecents="true"
+    android:launchMode="singleInstance"
+    android:theme="@android:style/Theme.Material.NoActionBar" />
+
+<receiver
+    android:name="ca.persistent.app.alarm.AlarmReceiver"
+    android:exported="false" />
+
+<receiver
+    android:name="ca.persistent.app.alarm.BootReceiver"
+    android:exported="true">
+    <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED" />
+    </intent-filter>
+</receiver>
