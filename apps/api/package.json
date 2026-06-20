@@ -1,0 +1,40 @@
+{
+  "name": "@persistent/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "predev": "npm run build --workspace @persistent/shared",
+    "dev": "tsx watch --include \"../../packages/shared/dist/**\" src/server.ts",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:validate": "prisma validate"
+  },
+  "dependencies": {
+    "@persistent/shared": "0.1.0",
+    "@prisma/client": "^6.5.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^5.1.0",
+    "google-auth-library": "^9.15.0",
+    "helmet": "^8.1.0",
+    "luxon": "^3.5.0",
+    "web-push": "^3.6.7",
+    "ws": "^8.18.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.1",
+    "@types/luxon": "^3.4.2",
+    "@types/node": "^22.13.14",
+    "@types/web-push": "^3.6.4",
+    "@types/ws": "^8.5.13",
+    "prisma": "^6.5.0",
+    "tsx": "^4.19.3"
+  }
+}

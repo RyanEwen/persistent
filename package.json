@@ -1,0 +1,33 @@
+{
+  "name": "persistent",
+  "version": "0.1.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "workspaces": [
+    "apps/api",
+    "apps/web",
+    "packages/shared"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace @persistent/shared && npm run build --workspace @persistent/api && npm run build --workspace @persistent/web",
+    "dev": "node scripts/dev/run-dev.mjs",
+    "db:generate": "npm run prisma:generate --workspace @persistent/api",
+    "db:migrate": "npm run prisma:migrate:dev --workspace @persistent/api --",
+    "db:migrate:deploy": "npm run prisma:migrate:deploy --workspace @persistent/api",
+    "lint": "eslint .",
+    "test": "node scripts/dev/run-tests.mjs",
+    "typecheck": "npm run typecheck --workspace @persistent/shared && npm run build --workspace @persistent/shared && npm run typecheck --workspace @persistent/api && npm run typecheck --workspace @persistent/web",
+    "validate": "npm run lint && npm run test && npm run typecheck && npm run prisma:validate --workspace @persistent/api"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.24.0",
+    "concurrently": "^9.1.2",
+    "eslint": "^9.24.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.19",
+    "globals": "^16.0.0",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.29.0"
+  }
+}

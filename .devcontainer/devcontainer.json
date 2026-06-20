@@ -1,0 +1,40 @@
+{
+  "name": "persistent",
+  "dockerComposeFile": [
+    "compose.yml",
+    "compose.persist.yml"
+  ],
+  "service": "workspace",
+  "runServices": [
+    "workspace",
+    "db"
+  ],
+  "shutdownAction": "stopCompose",
+  "workspaceFolder": "/workspace/persistent",
+  "remoteUser": "node",
+  "updateRemoteUserUID": true,
+  "remoteEnv": {
+    "DATABASE_URL": "postgresql://postgres:postgres@db:5432/persistent?schema=public",
+    "API_PORT": "4000"
+    // CLIENT_ORIGIN intentionally not set here: devcontainer `${localEnv:VAR:default}`
+    // syntax splits on ":" and truncates colon-containing defaults, so
+    // "http://localhost:5173" collapses to "http". Set CLIENT_ORIGIN in .env to
+    // override; otherwise env.ts defaults to http://localhost:5173.
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "Prisma.prisma",
+        "anthropic.claude-code"
+      ],
+      "settings": {
+        "editor.codeActionsOnSave": {
+          "source.fixAll.eslint": "explicit"
+        },
+        "eslint.useFlatConfig": true
+      }
+    }
+  },
+  "postCreateCommand": ".devcontainer/fix-volume-perms.sh && git config --global --add safe.directory /workspace/persistent && touch .env && npm install && npm run db:generate"
+}

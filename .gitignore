@@ -1,0 +1,33 @@
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# Local env / secrets
+.env
+.env.*.local
+.secrets/
+
+# Runtime data / scratch
+data/
+tmp/
+.backups/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+
+# Capacitor native build outputs
+apps/mobile/android/app/build/
+apps/mobile/android/.gradle/
+apps/mobile/android/local.properties
+apps/mobile/ios/App/build/
+apps/mobile/ios/App/Pods/
+apps/mobile/dist/
+
+# Test output
+coverage/

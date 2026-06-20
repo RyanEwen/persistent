@@ -1,0 +1,189 @@
+// Persistent — data model.
+//
+// Per-user ownership replaces printstream's multi-tenancy: every domain row
+// carries a `userId` and every query MUST filter by the authenticated user.
+// See docs/backend-conventions.md.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Tiny server-wide key/value store (e.g. the generated VAPID keypair). Not
+/// user-scoped — these are global app settings.
+model Setting {
+  key   String @id
+  value String
+}
+
+enum ReminderCategory {
+  MEDICATION
+  TASK
+  APPOINTMENT
+  CUSTOM
+}
+
+enum PersistenceLevel {
+  GENTLE
+  PERSISTENT
+  ALARM
+}
+
+enum OccurrenceStatus {
+  PENDING
+  FIRED
+  ACKNOWLEDGED
+  SNOOZED
+  ESCALATED
+  MISSED
+}
+
+enum PushKind {
+  WEB
+  FCM
+}
+
+enum DevicePlatform {
+  WEB
+  ANDROID
+}
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  displayName String?
+  timeZone    String   @default("UTC")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sessions      Session[]
+  reminders     Reminder[]
+  occurrences   ReminderOccurrence[]
+  subscriptions PushSubscription[]
+  devices       Device[]
+}
+
+/// Cookie-backed session. The raw secret lives only in the cookie; we store a
+/// one-way hash. Mirrors printstream's auth-session pattern.
+model Session {
+  id         String    @id @default(cuid())
+  userId     String
+  secretHash String    @unique
+  userAgent  String?
+  expiresAt  DateTime
+  lastSeenAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// One-time email sign-in code (sign-up + sign-in + verification in one).
+model EmailCode {
+  id         String    @id @default(cuid())
+  email      String
+  codeHash   String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  attempts   Int       @default(0)
+  createdAt  DateTime  @default(now())
+
+  @@index([email])
+}
+
+/// A reminder definition the user manages. Expanded into ReminderOccurrence
+/// rows by the scheduler.
+model Reminder {
+  id       String           @id @default(cuid())
+  userId   String
+  title    String
+  details  String?
+  category ReminderCategory @default(TASK)
+  /// Per-category fields (e.g. medication dose/unit/quantity). See shared categoryDataSchema.
+  categoryData Json         @default("{}")
+  /// Structured recurrence. See shared scheduleSchema.
+  schedule Json
+
+  persistence          PersistenceLevel @default(PERSISTENT)
+  /// null = no repeating sound; otherwise seconds between sound repeats.
+  soundIntervalSeconds Int?
+  escalateAfterMinutes Int?
+  escalateContactEmail String?
+  escalateToOwnDevices Boolean          @default(true)
+
+  active    Boolean   @default(true)
+  /// Calendar date (YYYY-MM-DD) in the user's time zone; anchor for interval schedules.
+  startDate String
+  endDate   String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  occurrences ReminderOccurrence[]
+
+  @@index([userId])
+  @@index([userId, active])
+}
+
+/// A single materialized firing of a reminder. The persistence guarantee =
+/// status FIRED and acknowledgedAt null.
+model ReminderOccurrence {
+  id           String           @id @default(cuid())
+  reminderId   String
+  userId       String
+  scheduledFor DateTime
+  status       OccurrenceStatus @default(PENDING)
+  firedAt      DateTime?
+  acknowledgedAt DateTime?
+  snoozedUntil DateTime?
+  escalatedAt  DateTime?
+  createdAt    DateTime         @default(now())
+
+  reminder Reminder @relation(fields: [reminderId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Idempotent materialization: one occurrence per (reminder, instant).
+  @@unique([reminderId, scheduledFor])
+  @@index([userId, status])
+  @@index([status, scheduledFor])
+}
+
+/// A registered push target (browser Web Push endpoint or native FCM token).
+model PushSubscription {
+  id           String   @id @default(cuid())
+  userId       String
+  kind         PushKind
+  /// WEB: the push service endpoint URL. FCM: the device token.
+  endpoint     String   @unique
+  /// WEB only: { p256dh, auth }.
+  keys         Json?
+  deviceId     String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  device Device? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+}
+
+/// A device the user has linked, used for native schedule sync + targeting.
+model Device {
+  id         String         @id @default(cuid())
+  userId     String
+  platform   DevicePlatform
+  label      String?
+  lastSyncAt DateTime?
+  createdAt  DateTime       @default(now())
+
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscriptions PushSubscription[]
+
+  @@index([userId])
+}

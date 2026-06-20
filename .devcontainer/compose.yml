@@ -1,0 +1,41 @@
+# Dev container compose. Permission hygiene mirrors printstream:
+#
+# 1. We do NOT pin `user:` here. The devcontainer feature
+#    (`updateRemoteUserUID: true` in devcontainer.json) rebuilds the image so the
+#    in-image `node` user's UID/GID match the host user, then runs as
+#    `remoteUser: node`. Pinning `user:` defeats that and leaves root-owned files
+#    in the bind mount on hosts where the host UID is not 1000.
+#
+# 2. The workspace is bind-mounted from the host, so files created inside the
+#    container are owned by the rebuilt `node` user (same UID/GID as the host
+#    user) and editing them outside the container Just Works.
+services:
+  db:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: persistent
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d persistent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres-dev-data:/var/lib/postgresql/data
+
+  workspace:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    command: sleep infinity
+    working_dir: /workspace/persistent
+    group_add:
+      - "${DOCKER_GID:-1001}"
+    volumes:
+      - ..:/workspace/persistent:cached
+
+volumes:
+  postgres-dev-data:
+    name: ${DEVCONTAINER_POSTGRES_VOLUME:-persistent-postgres-dev-data}
