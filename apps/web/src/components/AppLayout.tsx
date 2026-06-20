@@ -8,10 +8,14 @@ import Box from '@mui/joy/Box'
 import Sheet from '@mui/joy/Sheet'
 import Typography from '@mui/joy/Typography'
 import { BottomNav } from './BottomNav.js'
+import { useSettings } from '../settings/useSettings.js'
+import { getTheme, themeSx } from '../settings/themes.js'
 
 export function AppLayout({ children }: { children: ReactNode }) {
+  const { themeId } = useSettings()
+  const theme = getTheme(themeId)
   return (
-    <Box sx={{ minHeight: '100dvh', bgcolor: 'background.body' }}>
+    <Box sx={{ minHeight: '100dvh', bgcolor: 'background.body', ...themeSx(theme) }}>
       <Sheet
         variant="solid"
         sx={{

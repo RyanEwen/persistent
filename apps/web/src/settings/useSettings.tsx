@@ -5,30 +5,35 @@
  */
 import { createContext, useContext, useState, type ReactNode } from 'react'
 import { detectTimeFormat, type TimeFormat } from '../lib/datetime.js'
+import { APP_THEMES, DEFAULT_THEME_ID, type ThemeId } from './themes.js'
 
 const STORAGE_KEY = 'persistent-settings'
 
 interface Settings {
   timeFormat: TimeFormat
+  themeId: ThemeId
 }
 
 interface SettingsContextValue extends Settings {
   setTimeFormat: (format: TimeFormat) => void
+  setThemeId: (id: ThemeId) => void
 }
 
 function loadSettings(): Settings {
+  const defaults: Settings = { timeFormat: detectTimeFormat(), themeId: DEFAULT_THEME_ID }
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<Settings>
-      if (parsed.timeFormat === '12h' || parsed.timeFormat === '24h') {
-        return { timeFormat: parsed.timeFormat }
+      return {
+        timeFormat: parsed.timeFormat === '12h' || parsed.timeFormat === '24h' ? parsed.timeFormat : defaults.timeFormat,
+        themeId: APP_THEMES.some((t) => t.id === parsed.themeId) ? (parsed.themeId as ThemeId) : defaults.themeId
       }
     }
   } catch {
-    /* fall through to the detected default */
+    /* fall through to defaults */
   }
-  return { timeFormat: detectTimeFormat() }
+  return defaults
 }
 
 const SettingsContext = createContext<SettingsContextValue | null>(null)
@@ -36,9 +41,9 @@ const SettingsContext = createContext<SettingsContextValue | null>(null)
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<Settings>(loadSettings)
 
-  function setTimeFormat(timeFormat: TimeFormat) {
+  function update(patch: Partial<Settings>) {
     setSettings((prev) => {
-      const next = { ...prev, timeFormat }
+      const next = { ...prev, ...patch }
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
       } catch {
@@ -48,7 +53,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     })
   }
 
-  return <SettingsContext.Provider value={{ ...settings, setTimeFormat }}>{children}</SettingsContext.Provider>
+  const value: SettingsContextValue = {
+    ...settings,
+    setTimeFormat: (timeFormat) => update({ timeFormat }),
+    setThemeId: (themeId) => update({ themeId })
+  }
+
+  return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>
 }
 
 export function useSettings(): SettingsContextValue {

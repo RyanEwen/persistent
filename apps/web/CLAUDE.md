@@ -29,5 +29,10 @@
   (`public/push-handler.js`) renders notifications and handles Done/Snooze
   actions + best-effort re-fire. Remember the web is intentionally best-effort —
   the hard alarm is the native app.
+- **Client display prefs** (time format, theme) live in `settings/useSettings.tsx`
+  (localStorage-backed, per-device — not server-synced). Themes are defined in
+  `settings/themes.ts` and applied as a background pattern + accent CSS variables
+  by `components/AppLayout.tsx`. Format dates/times via `lib/datetime.ts`, never
+  `toLocaleString` directly.
 - **No native dialogs:** don't use `alert`/`confirm`/`prompt` (eslint enforces).
 - `verbatimModuleSyntax` is on — use `import type` for type-only imports.

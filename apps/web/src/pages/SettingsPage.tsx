@@ -16,11 +16,12 @@ import { extractErrorMessage } from '@persistent/shared'
 import { useAuth } from '../auth/useAuth.js'
 import { enablePush, disablePush, pushSupported, notificationPermission } from '../lib/push.js'
 import { useSettings } from '../settings/useSettings.js'
+import { APP_THEMES } from '../settings/themes.js'
 import { formatDateTime } from '../lib/datetime.js'
 
 export function SettingsPage() {
   const { user, logout } = useAuth()
-  const { timeFormat, setTimeFormat } = useSettings()
+  const { timeFormat, setTimeFormat, themeId, setThemeId } = useSettings()
   const [permission, setPermission] = useState(notificationPermission())
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -62,6 +63,21 @@ export function SettingsPage() {
   return (
     <Stack spacing={2}>
       <Typography level="title-lg">Settings</Typography>
+
+      <Card variant="outlined">
+        <Typography level="title-sm">Appearance</Typography>
+        <FormControl>
+          <FormLabel>Theme</FormLabel>
+          <Select value={themeId} onChange={(_e, value) => value && setThemeId(value)}>
+            {APP_THEMES.map((t) => (
+              <Option key={t.id} value={t.id}>
+                {t.name}
+              </Option>
+            ))}
+          </Select>
+        </FormControl>
+        <Typography level="body-xs">Sets the background pattern across the app.</Typography>
+      </Card>
 
       <Card variant="outlined">
         <Typography level="title-sm">Browser notifications</Typography>

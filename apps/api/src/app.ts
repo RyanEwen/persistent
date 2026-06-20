@@ -54,7 +54,9 @@ export function createApp() {
   const webDir = env.WEB_DIST_DIR?.trim()
   if (webDir && existsSync(webDir)) {
     app.use(express.static(webDir, { index: false }))
-    app.get('*', (request, response, next) => {
+    // SPA fallback. Express 5 (path-to-regexp v8) rejects the bare '*' string
+    // route, so match with a RegExp and skip API/WS paths.
+    app.get(/.*/, (request, response, next) => {
       if (request.path.startsWith('/api') || request.path === '/ws') return next()
       response.sendFile(path.join(webDir, 'index.html'))
     })

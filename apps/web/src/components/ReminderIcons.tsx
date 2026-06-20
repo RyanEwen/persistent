@@ -33,7 +33,8 @@ const CATEGORY_TITLE: Record<ReminderCategory, string> = {
 
 export function CategoryIcon({ category, fontSize = 'small' }: { category: ReminderCategory; fontSize?: IconSize }) {
   const Icon = CATEGORY_ICON[category]
-  return <Icon fontSize={fontSize} titleAccess={CATEGORY_TITLE[category]} />
+  // aria-label (not titleAccess) so no <title> text leaks into e.g. Select values.
+  return <Icon fontSize={fontSize} role="img" aria-label={CATEGORY_TITLE[category]} />
 }
 
 const STATUS_ICON: Record<OccurrenceStatus, SvgIconComponent> = {
@@ -56,5 +57,5 @@ const STATUS_TITLE: Record<OccurrenceStatus, string> = {
 
 export function StatusIcon({ status, fontSize = 'small' }: { status: OccurrenceStatus; fontSize?: IconSize }) {
   const Icon = STATUS_ICON[status]
-  return <Icon fontSize={fontSize} titleAccess={STATUS_TITLE[status]} />
+  return <Icon fontSize={fontSize} role="img" aria-label={STATUS_TITLE[status]} />
 }
