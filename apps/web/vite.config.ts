@@ -30,6 +30,9 @@ export default defineConfig({
     })
   ],
   server: {
+    // Bind all interfaces (IPv4 + IPv6), not just ::1. Devcontainer/WSL2 port
+    // forwarding reaches the server over 127.0.0.1; an IPv6-only bind refuses it.
+    host: true,
     port: 5173,
     proxy: {
       '/api': { target: 'http://localhost:4000', changeOrigin: true },

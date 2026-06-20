@@ -50,6 +50,21 @@ npm run validate   # lint + test + typecheck + prisma validate
 Local auth works without mail infra: `DEMO_MODE=true` returns the sign-in code in
 the API response instead of emailing it.
 
+## Deployment
+
+Production runs a single Docker image (built from `Dockerfile`) that serves the
+API and the built web app on one origin, plus Postgres — see `compose.server.yml`.
+The server holds a git checkout and a filled-in `.env.server` (`.env.server.example`)
+behind a TLS reverse proxy. Deploy from a clean, pushed tree with:
+
+```bash
+npm run deploy:prod            # SSH + docker compose up --build; migrations run on start
+npm run deploy:prod -- --dry-run
+```
+
+Deploy target comes from your local `.env` (`DEPLOY_SSH_HOST`, `DEPLOY_REPO_PATH`,
+`DEPLOY_BRANCH`). The `/deploy` slash command wraps review + commit + push + deploy.
+
 ## License
 
 UNLICENSED — private.

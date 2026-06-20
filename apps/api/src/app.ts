@@ -3,10 +3,12 @@
  * resolver, the API routers, and the JSON error handler. The HTTP server +
  * WebSocket hub + scheduler are started in server.ts.
  */
+import { existsSync } from 'node:fs'
+import path from 'node:path'
 import express, { type NextFunction, type Request, type Response } from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
-import { clientOrigins } from './lib/env.js'
+import { clientOrigins, env } from './lib/env.js'
 import { attachUser } from './lib/auth-middleware.js'
 import { HttpError } from './lib/http-error.js'
 import { logger } from './lib/logger.js'
@@ -46,6 +48,17 @@ export function createApp() {
   app.use('/api', (_request, response) => {
     response.status(404).json({ error: 'Not found.' })
   })
+
+  // In production, serve the built web app from the same origin (no CORS, cookies
+  // are first-party). The service worker is served with no-cache so updates land.
+  const webDir = env.WEB_DIST_DIR?.trim()
+  if (webDir && existsSync(webDir)) {
+    app.use(express.static(webDir, { index: false }))
+    app.get('*', (request, response, next) => {
+      if (request.path.startsWith('/api') || request.path === '/ws') return next()
+      response.sendFile(path.join(webDir, 'index.html'))
+    })
+  }
 
   // Centralized JSON error handler.
   app.use((error: unknown, _request: Request, response: Response, _next: NextFunction) => {

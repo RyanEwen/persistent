@@ -88,3 +88,6 @@ directory guide `apps/api/CLAUDE.md`.
 - Cross-cutting contracts live in `docs/`: `auth-architecture.md`,
   `data-event-contract.md`, `alarm-architecture.md`. Read the relevant one before
   related work.
+- Repeatable workflows are `.claude/commands/` slash commands: `/commit`
+  (review + validate + commit), `/deploy` (commit + push + SSH-Docker deploy),
+  `/audit-docs` (resync docs with the code).

@@ -12,6 +12,8 @@
   "scripts": {
     "build": "npm run build --workspace @persistent/shared && npm run build --workspace @persistent/api && npm run build --workspace @persistent/web",
     "dev": "node scripts/dev/run-dev.mjs",
+    "start:prod": "npm run prisma:migrate:deploy --workspace @persistent/api && node apps/api/dist/server.js",
+    "deploy:prod": "node --env-file=.env scripts/deploy/deploy-over-ssh.mjs",
     "db:generate": "npm run prisma:generate --workspace @persistent/api",
     "db:migrate": "npm run prisma:migrate:dev --workspace @persistent/api --",
     "db:migrate:deploy": "npm run prisma:migrate:deploy --workspace @persistent/api",

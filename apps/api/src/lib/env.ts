@@ -17,6 +17,9 @@ const envSchema = z.object({
   API_PORT: z.coerce.number().int().positive().default(4000),
   CLIENT_ORIGIN: z.string().default('http://localhost:5173'),
   DEMO_MODE: booleanish,
+  // In production a single container can serve the built web app from this dir
+  // (same origin as the API). Unset in dev, where Vite serves the web.
+  WEB_DIST_DIR: z.string().optional(),
 
   CLOUDFLARE_EMAIL_ACCOUNT_ID: z.string().optional(),
   CLOUDFLARE_EMAIL_API_TOKEN: z.string().optional(),

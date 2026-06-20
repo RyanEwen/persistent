@@ -1,0 +1,48 @@
+# Production compose: Postgres + the single API/web container.
+# Deployed by scripts/deploy/deploy-over-ssh.mjs (`npm run deploy:prod`).
+# Reads secrets/config from .env.server on the host (see .env.server.example).
+#
+#   docker compose -f compose.server.yml --env-file .env.server up -d --build
+services:
+  db:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-persistent}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.server}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-persistent}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - persistent-data:/var/lib/postgresql/data
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-persistent}?schema=public
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN:?set CLIENT_ORIGIN (the public URL) in .env.server}
+      DEMO_MODE: "false"
+      CLOUDFLARE_EMAIL_ACCOUNT_ID: ${CLOUDFLARE_EMAIL_ACCOUNT_ID:-}
+      CLOUDFLARE_EMAIL_API_TOKEN: ${CLOUDFLARE_EMAIL_API_TOKEN:-}
+      CLOUDFLARE_EMAIL_FROM_EMAIL: ${CLOUDFLARE_EMAIL_FROM_EMAIL:-}
+      CLOUDFLARE_EMAIL_FROM_NAME: ${CLOUDFLARE_EMAIL_FROM_NAME:-Persistent}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:persistent@local}
+      FCM_SERVICE_ACCOUNT_FILE: ${FCM_SERVICE_ACCOUNT_FILE:-}
+      FCM_PROJECT_ID: ${FCM_PROJECT_ID:-}
+    ports:
+      # Bind to localhost; put a TLS-terminating reverse proxy (nginx/Caddy) in front.
+      - "127.0.0.1:4000:4000"
+
+volumes:
+  persistent-data:
