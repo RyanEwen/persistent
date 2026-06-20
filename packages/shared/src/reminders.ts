@@ -9,7 +9,9 @@ import { z } from 'zod'
 
 // --- Enums (kept in sync with the Prisma enums of the same name) ---
 
-export const reminderCategories = ['MEDICATION', 'TASK', 'APPOINTMENT', 'CUSTOM'] as const
+// Order here drives the category picker order in the UI: none first (the
+// default), then task, then medication, then the rest.
+export const reminderCategories = ['NONE', 'TASK', 'MEDICATION', 'APPOINTMENT'] as const
 export const reminderCategorySchema = z.enum(reminderCategories)
 export type ReminderCategory = (typeof reminderCategories)[number]
 
@@ -72,13 +74,22 @@ export type Schedule = z.infer<typeof scheduleSchema>
 
 // --- Category-specific data ---
 
-/** Medication details surfaced when category = MEDICATION. */
+/** A single medication on a reminder; the dose itself is quantity + unit. */
 export const medicationDataSchema = z.object({
-  dose: z.string().trim().max(60).optional(),
+  // The medication's name (e.g. "Ibuprofen").
+  name: z.string().trim().max(120).optional(),
   unit: z.string().trim().max(20).optional(),
   quantity: z.number().min(0).max(10_000).optional()
 })
 export type MedicationData = z.infer<typeof medicationDataSchema>
+
+/**
+ * A medication reminder can cover several medications taken together. Stored in
+ * categoryData under `medications`. (Legacy rows may instead carry a single
+ * name/unit/quantity at the top level — readers should fall back to that.)
+ */
+export const medicationListSchema = z.array(medicationDataSchema).max(20)
+export type MedicationList = z.infer<typeof medicationListSchema>
 
 /** Loose JSON bag for per-category fields; medication uses `medicationDataSchema`. */
 export const categoryDataSchema = z.record(z.unknown())
@@ -101,6 +112,12 @@ export const reminderSchema = z.object({
   active: z.boolean(),
   startDate: z.string(),
   endDate: z.string().nullable(),
+  // Status of the most recent occurrence at or before now (done/snoozed/etc.),
+  // for the list view. Null when nothing has fired yet.
+  lastOccurrence: z
+    .object({ status: occurrenceStatusSchema, scheduledFor: z.string().datetime() })
+    .nullable()
+    .default(null),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime()
 })
@@ -113,7 +130,7 @@ export const reminderInputSchema = z
   .object({
     title: z.string().trim().min(1).max(200),
     details: z.string().trim().max(2000).optional().nullable(),
-    category: reminderCategorySchema.default('TASK'),
+    category: reminderCategorySchema.default('NONE'),
     categoryData: categoryDataSchema.default({}),
     schedule: scheduleSchema,
     persistence: persistenceLevelSchema.default('PERSISTENT'),

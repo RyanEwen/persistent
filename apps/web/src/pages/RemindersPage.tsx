@@ -13,12 +13,31 @@ import Divider from '@mui/joy/Divider'
 import { useReminders } from '../data/reminders.js'
 import { useActiveOccurrences, useAckOccurrence, useSnoozeOccurrence } from '../data/occurrences.js'
 import { scheduleSummary } from '../lib/scheduleSummary.js'
+import { formatDateTime } from '../lib/datetime.js'
+import { useSettings } from '../settings/useSettings.js'
+import { CategoryIcon, StatusIcon } from '../components/ReminderIcons.js'
+import type { Reminder } from '@persistent/shared'
+
+const SNOOZE_PRESETS = [10, 15, 30, 60] // minutes
+
+function snoozeLabel(minutes: number): string {
+  return minutes % 60 === 0 ? `${minutes / 60}h` : `${minutes}m`
+}
+
+// A one-time reminder that's been done (acknowledged) is finished — it lives in
+// History, not the Current list. Missed/snoozed are still actionable, so they
+// stay current, and repeating reminders always do (they keep recurring).
+function isFinished(reminder: Reminder): boolean {
+  return reminder.schedule.kind === 'once' && reminder.lastOccurrence?.status === 'ACKNOWLEDGED'
+}
 
 export function RemindersPage() {
   const reminders = useReminders()
   const active = useActiveOccurrences()
   const ack = useAckOccurrence()
   const snooze = useSnoozeOccurrence()
+  const { timeFormat } = useSettings()
+  const currentReminders = reminders.data?.filter((r) => !isFinished(r)) ?? []
 
   return (
     <Stack spacing={3}>
@@ -32,18 +51,20 @@ export function RemindersPage() {
               <Card key={occurrence.id} color="warning" variant="soft">
                 <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
                   <Box>
-                    <Typography level="title-md">{occurrence.reminder.title}</Typography>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <CategoryIcon category={occurrence.reminder.category} />
+                      <Typography level="title-md">{occurrence.reminder.title}</Typography>
+                      <StatusIcon status={occurrence.status} />
+                    </Stack>
                     {occurrence.reminder.details && (
                       <Typography level="body-sm">{occurrence.reminder.details}</Typography>
                     )}
                     <Typography level="body-xs" sx={{ mt: 0.5 }}>
-                      {new Date(occurrence.scheduledFor).toLocaleString()}
-                      {occurrence.status === 'ESCALATED' && ' · escalated'}
-                      {occurrence.status === 'SNOOZED' && ' · snoozed'}
+                      {formatDateTime(occurrence.scheduledFor, timeFormat)}
                     </Typography>
                   </Box>
                 </Stack>
-                <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center" sx={{ mt: 1 }}>
                   <Button
                     color="success"
                     loading={ack.isPending}
@@ -51,14 +72,19 @@ export function RemindersPage() {
                   >
                     Done
                   </Button>
-                  <Button
-                    variant="outlined"
-                    color="neutral"
-                    loading={snooze.isPending}
-                    onClick={() => snooze.mutate({ id: occurrence.id, arg: 10 })}
-                  >
-                    Snooze 10m
-                  </Button>
+                  <Typography level="body-xs">Snooze</Typography>
+                  {SNOOZE_PRESETS.map((minutes) => (
+                    <Button
+                      key={minutes}
+                      size="sm"
+                      variant="outlined"
+                      color="neutral"
+                      loading={snooze.isPending}
+                      onClick={() => snooze.mutate({ id: occurrence.id, arg: minutes })}
+                    >
+                      {snoozeLabel(minutes)}
+                    </Button>
+                  ))}
                 </Stack>
               </Card>
             ))}
@@ -76,12 +102,12 @@ export function RemindersPage() {
         </Stack>
 
         {reminders.isLoading && <Typography level="body-sm">Loading…</Typography>}
-        {reminders.data && reminders.data.length === 0 && (
-          <Typography level="body-sm">No reminders yet. Add your first one.</Typography>
+        {reminders.data && currentReminders.length === 0 && (
+          <Typography level="body-sm">No current reminders. Add one, or check History.</Typography>
         )}
 
         <Stack spacing={1.5}>
-          {reminders.data?.map((reminder) => (
+          {currentReminders.map((reminder) => (
             <Card
               key={reminder.id}
               component={RouterLink}
@@ -89,21 +115,22 @@ export function RemindersPage() {
               variant="outlined"
               sx={{ textDecoration: 'none' }}
             >
-              <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-                <Box>
-                  <Typography level="title-sm">{reminder.title}</Typography>
-                  <Typography level="body-xs">{scheduleSummary(reminder.schedule)}</Typography>
-                </Box>
-                <Stack direction="row" spacing={0.5}>
-                  <Chip size="sm" variant="soft">
-                    {reminder.category.toLowerCase()}
-                  </Chip>
-                  {!reminder.active && (
-                    <Chip size="sm" color="neutral" variant="outlined">
-                      paused
-                    </Chip>
-                  )}
+              <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <CategoryIcon category={reminder.category} />
+                  <Box>
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                      <Typography level="title-sm">{reminder.title}</Typography>
+                      {reminder.lastOccurrence && <StatusIcon status={reminder.lastOccurrence.status} />}
+                    </Stack>
+                    <Typography level="body-xs">{scheduleSummary(reminder.schedule, timeFormat)}</Typography>
+                  </Box>
                 </Stack>
+                {!reminder.active && (
+                  <Chip size="sm" color="neutral" variant="outlined">
+                    paused
+                  </Chip>
+                )}
               </Stack>
             </Card>
           ))}

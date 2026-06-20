@@ -9,6 +9,12 @@ All data loads over guarded HTTP via `apiFetch` (`apps/web/src/lib/apiClient.ts`
 wrapped in TanStack Query hooks (`apps/web/src/data/`). Responses match the Zod
 schemas in `@persistent/shared`.
 
+The query cache is persisted to localStorage (`apps/web/src/lib/persistQuery.ts`)
+so reminders/occurrences render offline; reminder writes apply optimistically and
+queue while offline, replaying on reconnect via mutation defaults registered in
+`lib/queryClient.ts` (`resumePausedMutations`). Auth/push queries are excluded
+from persistence.
+
 ## Live updates (WebSocket `/ws`)
 
 One reconnecting socket per signed-in client (`apps/web/src/lib/wsClient.ts`),
@@ -25,9 +31,9 @@ Event types (`packages/shared/src/ws-events.ts`):
 
 | Event | Meaning | Client reaction |
 |---|---|---|
-| `occurrence.fired` | an occurrence became due | invalidate active/upcoming occurrences |
-| `occurrence.changed` | status changed (ack/snooze/escalate/miss) | invalidate active/upcoming occurrences |
-| `reminder.changed` | a reminder was created/updated/deleted | invalidate reminders + occurrences |
+| `occurrence.fired` | an occurrence became due | invalidate active/upcoming/history occurrences + reminders (the list shows each reminder's latest-occurrence status) |
+| `occurrence.changed` | status changed (ack/snooze/escalate/miss) | invalidate active/upcoming/history occurrences + reminders |
+| `reminder.changed` | a reminder was created/updated/deleted | invalidate reminders + occurrences (active/upcoming/history) |
 | `dismiss` | clear a shown notification everywhere | service worker / native closes it |
 | `ping` | heartbeat | ignored |
 

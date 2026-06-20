@@ -21,10 +21,10 @@ model Setting {
 }
 
 enum ReminderCategory {
-  MEDICATION
+  NONE
   TASK
+  MEDICATION
   APPOINTMENT
-  CUSTOM
 }
 
 enum PersistenceLevel {
@@ -104,7 +104,7 @@ model Reminder {
   userId   String
   title    String
   details  String?
-  category ReminderCategory @default(TASK)
+  category ReminderCategory @default(NONE)
   /// Per-category fields (e.g. medication dose/unit/quantity). See shared categoryDataSchema.
   categoryData Json         @default("{}")
   /// Structured recurrence. See shared scheduleSchema.

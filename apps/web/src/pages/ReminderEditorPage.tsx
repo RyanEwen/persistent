@@ -1,5 +1,5 @@
 /**
- * Create / edit a reminder: details, category (medication surfaces dose fields),
+ * Create / edit a reminder: details, category (medication surfaces name + dose fields),
  * the schedule builder, persistence + sound interval, and escalation settings.
  */
 import { useMemo, useState, type FormEvent } from 'react'
@@ -9,6 +9,7 @@ import Typography from '@mui/joy/Typography'
 import FormControl from '@mui/joy/FormControl'
 import FormLabel from '@mui/joy/FormLabel'
 import Input from '@mui/joy/Input'
+import Autocomplete from '@mui/joy/Autocomplete'
 import Textarea from '@mui/joy/Textarea'
 import Select from '@mui/joy/Select'
 import Option from '@mui/joy/Option'
@@ -18,6 +19,10 @@ import Button from '@mui/joy/Button'
 import IconButton from '@mui/joy/IconButton'
 import Alert from '@mui/joy/Alert'
 import Divider from '@mui/joy/Divider'
+import Tabs from '@mui/joy/Tabs'
+import TabList from '@mui/joy/TabList'
+import Tab from '@mui/joy/Tab'
+import TabPanel from '@mui/joy/TabPanel'
 import {
   extractErrorMessage,
   reminderCategories,
@@ -31,21 +36,51 @@ import {
   type Schedule
 } from '@persistent/shared'
 import { useReminders, useCreateReminder, useUpdateReminder, useDeleteReminder } from '../data/reminders.js'
+import { titleCase } from '../lib/format.js'
+import { CategoryIcon } from '../components/ReminderIcons.js'
+import { COMMON_MEDICATIONS } from '../data/medications.js'
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+const SCHEDULE_KIND_LABELS: Record<ScheduleKind, string> = {
+  once: 'No repeat',
+  daily: 'Daily',
+  weekly: 'Weekly',
+  interval: 'Every N days',
+  custom: 'Custom days'
+}
+
+// Tappable presets for how often the alarm sound repeats, in minutes.
+const SOUND_INTERVAL_PRESETS = [1, 2, 5, 10, 15, 30]
 
 function todayLocal(): string {
   const now = new Date()
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 }
 
+/** Current local time rounded up to the next 5-minute mark, as "HH:mm". */
+function nextFiveMinuteTime(): string {
+  const now = new Date()
+  now.setSeconds(0, 0)
+  now.setMinutes(Math.ceil(now.getMinutes() / 5) * 5) // 60+ rolls into the next hour
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+}
+
+interface MedicationRow {
+  name: string
+  unit: string
+  quantity: string
+}
+
+function emptyMedication(): MedicationRow {
+  return { name: '', unit: '', quantity: '' }
+}
+
 interface FormState {
   title: string
   details: string
   category: ReminderCategory
-  dose: string
-  unit: string
-  quantity: string
+  medications: MedicationRow[]
   kind: ScheduleKind
   timesOfDay: string[]
   daysOfWeek: number[]
@@ -53,7 +88,7 @@ interface FormState {
   skipWeekends: boolean
   persistence: PersistenceLevel
   repeatSound: boolean
-  soundIntervalSeconds: string
+  soundIntervalMinutes: number
   escalate: boolean
   escalateAfterMinutes: string
   escalateContactEmail: string
@@ -63,22 +98,25 @@ interface FormState {
   active: boolean
 }
 
+// New reminders default to no repeat; medications repeat daily (the common case).
+function defaultKindForCategory(category: ReminderCategory): ScheduleKind {
+  return category === 'MEDICATION' ? 'daily' : 'once'
+}
+
 function emptyForm(): FormState {
   return {
     title: '',
     details: '',
-    category: 'TASK',
-    dose: '',
-    unit: '',
-    quantity: '',
-    kind: 'daily',
-    timesOfDay: ['08:00'],
+    category: 'NONE',
+    medications: [emptyMedication()],
+    kind: defaultKindForCategory('NONE'),
+    timesOfDay: [nextFiveMinuteTime()],
     daysOfWeek: [1, 2, 3, 4, 5],
     everyNDays: '2',
     skipWeekends: false,
     persistence: 'PERSISTENT',
     repeatSound: false,
-    soundIntervalSeconds: '60',
+    soundIntervalMinutes: 1,
     escalate: false,
     escalateAfterMinutes: '15',
     escalateContactEmail: '',
@@ -112,11 +150,54 @@ export function ReminderEditorPage() {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
+  function setMedication(index: number, key: keyof MedicationRow, value: string) {
+    setForm((prev) => ({
+      ...prev,
+      medications: prev.medications.map((m, i) => (i === index ? { ...m, [key]: value } : m))
+    }))
+  }
+
+  function addMedication() {
+    setForm((prev) => ({ ...prev, medications: [...prev.medications, emptyMedication()] }))
+  }
+
+  function removeMedication(index: number) {
+    setForm((prev) => ({ ...prev, medications: prev.medications.filter((_m, i) => i !== index) }))
+  }
+
+  // For a new reminder, the repeat default tracks the category until the user
+  // edits Repeat themselves. Existing reminders keep their saved schedule.
+  function setCategory(category: ReminderCategory) {
+    setForm((prev) => ({
+      ...prev,
+      category,
+      ...(id ? {} : { kind: defaultKindForCategory(category) })
+    }))
+  }
+
+  // A one-time reminder fires once, so collapse multiple times down to one.
+  function setKind(kind: ScheduleKind) {
+    setForm((prev) => ({
+      ...prev,
+      kind,
+      timesOfDay: kind === 'once' ? prev.timesOfDay.slice(0, 1) : prev.timesOfDay,
+      endDate: kind === 'once' ? '' : prev.endDate
+    }))
+  }
+
   async function onSubmit(event: FormEvent) {
     event.preventDefault()
     setError(null)
+    const input = toInput(form)
+    // Offline, the mutation is queued (optimistically applied to the cache) and
+    // replayed on reconnect — so navigate immediately instead of awaiting it.
+    if (!navigator.onLine) {
+      if (id) update.mutate({ id, input })
+      else create.mutate(input)
+      navigate('/')
+      return
+    }
     try {
-      const input = toInput(form)
       if (id) await update.mutateAsync({ id, input })
       else await create.mutateAsync(input)
       navigate('/')
@@ -127,11 +208,21 @@ export function ReminderEditorPage() {
 
   async function onDelete() {
     if (!id) return
-    await remove.mutateAsync(id)
-    navigate('/')
+    if (!navigator.onLine) {
+      remove.mutate(id)
+      navigate('/')
+      return
+    }
+    try {
+      await remove.mutateAsync(id)
+      navigate('/')
+    } catch (err) {
+      setError(extractErrorMessage(err))
+    }
   }
 
   const busy = create.isPending || update.isPending
+  const isOnce = form.kind === 'once'
   const needsDays = form.kind === 'weekly' || form.kind === 'custom'
   const needsInterval = form.kind === 'interval'
   const canSkipWeekends = form.kind === 'daily' || form.kind === 'interval'
@@ -154,92 +245,145 @@ export function ReminderEditorPage() {
 
         <FormControl>
           <FormLabel>Category</FormLabel>
-          <Select value={form.category} onChange={(_e, value) => value && set('category', value)}>
+          <Select
+            value={form.category}
+            onChange={(_e, value) => value && setCategory(value)}
+            startDecorator={<CategoryIcon category={form.category} />}
+          >
             {reminderCategories.map((c) => (
               <Option key={c} value={c}>
-                {c.toLowerCase()}
+                <CategoryIcon category={c} />
+                {titleCase(c)}
               </Option>
             ))}
           </Select>
         </FormControl>
 
         {form.category === 'MEDICATION' && (
-          <Stack direction="row" spacing={1}>
-            <FormControl sx={{ flex: 2 }}>
-              <FormLabel>Dose</FormLabel>
-              <Input value={form.dose} onChange={(e) => set('dose', e.target.value)} placeholder="Ibuprofen" />
-            </FormControl>
-            <FormControl sx={{ flex: 1 }}>
-              <FormLabel>Qty</FormLabel>
-              <Input
-                type="number"
-                value={form.quantity}
-                onChange={(e) => set('quantity', e.target.value)}
-                placeholder="200"
-              />
-            </FormControl>
-            <FormControl sx={{ flex: 1 }}>
-              <FormLabel>Unit</FormLabel>
-              <Input value={form.unit} onChange={(e) => set('unit', e.target.value)} placeholder="mg" />
-            </FormControl>
+          <Stack spacing={2}>
+            {form.medications.map((med, index) => (
+              <Stack key={index} spacing={1}>
+                <FormControl>
+                  <FormLabel>{form.medications.length > 1 ? `Medication ${index + 1}` : 'Medication'}</FormLabel>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Autocomplete
+                      sx={{ flex: 1, minWidth: 0 }}
+                      freeSolo
+                      autoComplete
+                      options={COMMON_MEDICATIONS}
+                      placeholder="Ibuprofen"
+                      value={med.name}
+                      onChange={(_e, value) => setMedication(index, 'name', value ?? '')}
+                      inputValue={med.name}
+                      onInputChange={(_e, value) => setMedication(index, 'name', value)}
+                    />
+                    {form.medications.length > 1 && (
+                      <IconButton variant="outlined" color="danger" onClick={() => removeMedication(index)}>
+                        ✕
+                      </IconButton>
+                    )}
+                  </Stack>
+                </FormControl>
+                <Stack direction="row" spacing={1}>
+                  <FormControl sx={{ flex: 1, minWidth: 0 }}>
+                    <FormLabel>Qty</FormLabel>
+                    <Input
+                      type="number"
+                      value={med.quantity}
+                      onChange={(e) => setMedication(index, 'quantity', e.target.value)}
+                      placeholder="200"
+                    />
+                  </FormControl>
+                  <FormControl sx={{ flex: 1, minWidth: 0 }}>
+                    <FormLabel>Unit</FormLabel>
+                    <Input
+                      value={med.unit}
+                      onChange={(e) => setMedication(index, 'unit', e.target.value)}
+                      placeholder="mg"
+                    />
+                  </FormControl>
+                </Stack>
+              </Stack>
+            ))}
+            <Button variant="outlined" size="sm" onClick={addMedication} sx={{ alignSelf: 'flex-start' }}>
+              Add medication
+            </Button>
           </Stack>
         )}
 
-        <Divider />
-        <Typography level="title-sm">Schedule</Typography>
+        <Tabs defaultValue="schedule" variant="outlined" sx={{ borderRadius: 'sm', bgcolor: 'transparent' }}>
+          <TabList>
+            <Tab value="schedule">Schedule</Tab>
+            <Tab value="nagging">Nagging</Tab>
+            <Tab value="escalation">Escalation</Tab>
+          </TabList>
+
+          <TabPanel value="schedule" keepMounted>
+            <Stack spacing={2}>
 
         <FormControl>
           <FormLabel>Repeat</FormLabel>
-          <Select value={form.kind} onChange={(_e, value) => value && set('kind', value)}>
+          <Select value={form.kind} onChange={(_e, value) => value && setKind(value)}>
             {scheduleKinds.map((k) => (
               <Option key={k} value={k}>
-                {k}
+                {SCHEDULE_KIND_LABELS[k]}
               </Option>
             ))}
           </Select>
         </FormControl>
 
-        <FormControl>
-          <FormLabel>Times of day</FormLabel>
-          <Stack spacing={1}>
-            {form.timesOfDay.map((time, index) => (
-              <Stack key={index} direction="row" spacing={1} alignItems="center">
-                <Input
-                  type="time"
-                  value={time}
-                  onChange={(e) =>
-                    set(
-                      'timesOfDay',
-                      form.timesOfDay.map((t, i) => (i === index ? e.target.value : t))
-                    )
-                  }
-                  sx={{ flex: 1 }}
-                />
-                {form.timesOfDay.length > 1 && (
-                  <IconButton
-                    variant="outlined"
-                    color="danger"
-                    onClick={() =>
+        {isOnce ? (
+          <FormControl>
+            <FormLabel>Time</FormLabel>
+            <Input
+              type="time"
+              value={form.timesOfDay[0] ?? '08:00'}
+              onChange={(e) => set('timesOfDay', [e.target.value])}
+            />
+          </FormControl>
+        ) : (
+          <FormControl>
+            <FormLabel>Times of day</FormLabel>
+            <Stack spacing={1}>
+              {form.timesOfDay.map((time, index) => (
+                <Stack key={index} direction="row" spacing={1} alignItems="center">
+                  <Input
+                    type="time"
+                    value={time}
+                    onChange={(e) =>
                       set(
                         'timesOfDay',
-                        form.timesOfDay.filter((_t, i) => i !== index)
+                        form.timesOfDay.map((t, i) => (i === index ? e.target.value : t))
                       )
                     }
-                  >
-                    ✕
-                  </IconButton>
-                )}
-              </Stack>
-            ))}
-            <Button
-              variant="outlined"
-              size="sm"
-              onClick={() => set('timesOfDay', [...form.timesOfDay, '12:00'])}
-            >
-              Add time
-            </Button>
-          </Stack>
-        </FormControl>
+                    sx={{ flex: 1 }}
+                  />
+                  {form.timesOfDay.length > 1 && (
+                    <IconButton
+                      variant="outlined"
+                      color="danger"
+                      onClick={() =>
+                        set(
+                          'timesOfDay',
+                          form.timesOfDay.filter((_t, i) => i !== index)
+                        )
+                      }
+                    >
+                      ✕
+                    </IconButton>
+                  )}
+                </Stack>
+              ))}
+              <Button
+                variant="outlined"
+                size="sm"
+                onClick={() => set('timesOfDay', [...form.timesOfDay, '12:00'])}
+              >
+                Add time
+              </Button>
+            </Stack>
+          </FormControl>
+        )}
 
         {needsDays && (
           <FormControl>
@@ -284,19 +428,29 @@ export function ReminderEditorPage() {
           />
         )}
 
-        <Stack direction="row" spacing={1}>
-          <FormControl sx={{ flex: 1 }}>
-            <FormLabel>Start date</FormLabel>
+        {isOnce ? (
+          <FormControl>
+            <FormLabel>Date</FormLabel>
             <Input type="date" value={form.startDate} onChange={(e) => set('startDate', e.target.value)} />
           </FormControl>
-          <FormControl sx={{ flex: 1 }}>
-            <FormLabel>End date (optional)</FormLabel>
-            <Input type="date" value={form.endDate} onChange={(e) => set('endDate', e.target.value)} />
-          </FormControl>
-        </Stack>
+        ) : (
+          <Stack direction="row" spacing={1}>
+            <FormControl sx={{ flex: 1 }}>
+              <FormLabel>Start date</FormLabel>
+              <Input type="date" value={form.startDate} onChange={(e) => set('startDate', e.target.value)} />
+            </FormControl>
+            <FormControl sx={{ flex: 1 }}>
+              <FormLabel>End date (optional)</FormLabel>
+              <Input type="date" value={form.endDate} onChange={(e) => set('endDate', e.target.value)} />
+            </FormControl>
+          </Stack>
+        )}
 
-        <Divider />
-        <Typography level="title-sm">Nagging</Typography>
+            </Stack>
+          </TabPanel>
+
+          <TabPanel value="nagging" keepMounted>
+            <Stack spacing={2}>
 
         <FormControl>
           <FormLabel>Persistence</FormLabel>
@@ -316,18 +470,28 @@ export function ReminderEditorPage() {
         />
         {form.repeatSound && (
           <FormControl>
-            <FormLabel>Sound interval (seconds)</FormLabel>
-            <Input
-              type="number"
-              value={form.soundIntervalSeconds}
-              onChange={(e) => set('soundIntervalSeconds', e.target.value)}
-              slotProps={{ input: { min: 5, max: 3600 } }}
-            />
+            <FormLabel>Repeat sound every</FormLabel>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {SOUND_INTERVAL_PRESETS.map((minutes) => (
+                <Button
+                  key={minutes}
+                  size="sm"
+                  variant={form.soundIntervalMinutes === minutes ? 'solid' : 'outlined'}
+                  onClick={() => set('soundIntervalMinutes', minutes)}
+                >
+                  {minutes} min
+                </Button>
+              ))}
+            </Stack>
           </FormControl>
         )}
 
-        <Divider />
-        <Typography level="title-sm">Escalation</Typography>
+            </Stack>
+          </TabPanel>
+
+          <TabPanel value="escalation" keepMounted>
+            <Stack spacing={2}>
+
         <Checkbox
           label="Escalate if ignored"
           checked={form.escalate}
@@ -362,6 +526,10 @@ export function ReminderEditorPage() {
             </FormControl>
           </Stack>
         )}
+
+            </Stack>
+          </TabPanel>
+        </Tabs>
 
         <Divider />
         <FormControl orientation="horizontal" sx={{ justifyContent: 'space-between' }}>
@@ -401,9 +569,13 @@ function toInput(form: FormState): ReminderInput {
   const categoryData: Record<string, unknown> =
     form.category === 'MEDICATION'
       ? {
-          ...(form.dose ? { dose: form.dose } : {}),
-          ...(form.unit ? { unit: form.unit } : {}),
-          ...(form.quantity ? { quantity: Number(form.quantity) } : {})
+          medications: form.medications
+            .map((m) => ({
+              ...(m.name ? { name: m.name } : {}),
+              ...(m.unit ? { unit: m.unit } : {}),
+              ...(m.quantity ? { quantity: Number(m.quantity) } : {})
+            }))
+            .filter((m) => Object.keys(m).length > 0)
         }
       : {}
 
@@ -414,7 +586,7 @@ function toInput(form: FormState): ReminderInput {
     categoryData,
     schedule: buildSchedule(form),
     persistence: form.persistence,
-    soundIntervalSeconds: form.repeatSound ? Number(form.soundIntervalSeconds) || 60 : null,
+    soundIntervalSeconds: form.repeatSound ? form.soundIntervalMinutes * 60 : null,
     escalateAfterMinutes: form.escalate ? Number(form.escalateAfterMinutes) || 15 : null,
     escalateContactEmail: form.escalate && form.escalateContactEmail ? form.escalateContactEmail : null,
     escalateToOwnDevices: form.escalateToOwnDevices,
@@ -426,14 +598,29 @@ function toInput(form: FormState): ReminderInput {
 
 function fromReminder(reminder: Reminder): FormState {
   const schedule = reminder.schedule
-  const med = reminder.categoryData as { dose?: string; unit?: string; quantity?: number }
+  const data = reminder.categoryData as {
+    medications?: { name?: string; unit?: string; quantity?: number }[]
+    name?: string
+    unit?: string
+    quantity?: number
+  }
+  // Prefer the medications array; fall back to a legacy single-medication row.
+  const meds =
+    data.medications && data.medications.length > 0
+      ? data.medications
+      : data.name || data.unit || data.quantity != null
+        ? [{ name: data.name, unit: data.unit, quantity: data.quantity }]
+        : []
+  const medications: MedicationRow[] = (meds.length ? meds : [{}]).map((m) => ({
+    name: m.name ?? '',
+    unit: m.unit ?? '',
+    quantity: m.quantity != null ? String(m.quantity) : ''
+  }))
   return {
     title: reminder.title,
     details: reminder.details ?? '',
     category: reminder.category,
-    dose: med.dose ?? '',
-    unit: med.unit ?? '',
-    quantity: med.quantity != null ? String(med.quantity) : '',
+    medications,
     kind: schedule.kind,
     timesOfDay: schedule.timesOfDay.length ? schedule.timesOfDay : ['08:00'],
     daysOfWeek: schedule.daysOfWeek ?? [1, 2, 3, 4, 5],
@@ -441,7 +628,8 @@ function fromReminder(reminder: Reminder): FormState {
     skipWeekends: schedule.skipWeekends ?? false,
     persistence: reminder.persistence,
     repeatSound: reminder.soundIntervalSeconds != null,
-    soundIntervalSeconds: reminder.soundIntervalSeconds != null ? String(reminder.soundIntervalSeconds) : '60',
+    soundIntervalMinutes:
+      reminder.soundIntervalSeconds != null ? Math.max(1, Math.round(reminder.soundIntervalSeconds / 60)) : 1,
     escalate: reminder.escalateAfterMinutes != null,
     escalateAfterMinutes: reminder.escalateAfterMinutes != null ? String(reminder.escalateAfterMinutes) : '15',
     escalateContactEmail: reminder.escalateContactEmail ?? '',

@@ -15,7 +15,10 @@ export function toSessionUser(user: User): SessionUser {
   }
 }
 
-export function toReminder(row: ReminderRow): Reminder {
+export function toReminder(
+  row: ReminderRow,
+  lastOccurrence?: Pick<ReminderOccurrence, 'status' | 'scheduledFor'> | null
+): Reminder {
   return {
     id: row.id,
     title: row.title,
@@ -31,6 +34,9 @@ export function toReminder(row: ReminderRow): Reminder {
     active: row.active,
     startDate: row.startDate,
     endDate: row.endDate,
+    lastOccurrence: lastOccurrence
+      ? { status: lastOccurrence.status, scheduledFor: lastOccurrence.scheduledFor.toISOString() }
+      : null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString()
   }

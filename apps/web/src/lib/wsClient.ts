@@ -21,11 +21,15 @@ function handleEvent(event: WsEvent): void {
     case 'occurrence.changed':
       void queryClient.invalidateQueries({ queryKey: queryKeys.occurrencesActive })
       void queryClient.invalidateQueries({ queryKey: queryKeys.occurrencesUpcoming })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.occurrencesHistory })
+      // The list shows each reminder's latest-occurrence status, so refresh it too.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.reminders })
       break
     case 'reminder.changed':
       void queryClient.invalidateQueries({ queryKey: queryKeys.reminders })
       void queryClient.invalidateQueries({ queryKey: queryKeys.occurrencesActive })
       void queryClient.invalidateQueries({ queryKey: queryKeys.occurrencesUpcoming })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.occurrencesHistory })
       break
     case 'dismiss':
     case 'ping':

@@ -20,9 +20,18 @@ remindersRouter.get('/', async (request, response) => {
   const userId = requireUserId(request)
   const reminders = await prisma.reminder.findMany({
     where: { userId },
-    orderBy: { createdAt: 'desc' }
+    orderBy: { createdAt: 'desc' },
+    // Latest occurrence at/before now, so the list can show its state (done,
+    // snoozed, escalated, missed, due). Future PENDING ones are ignored here.
+    include: {
+      occurrences: {
+        where: { scheduledFor: { lte: new Date() } },
+        orderBy: { scheduledFor: 'desc' },
+        take: 1
+      }
+    }
   })
-  response.json({ reminders: reminders.map(toReminder) })
+  response.json({ reminders: reminders.map((r) => toReminder(r, r.occurrences[0] ?? null)) })
 })
 
 remindersRouter.post('/', async (request, response) => {

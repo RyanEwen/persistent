@@ -20,15 +20,20 @@ occurrencesRouter.use(requireUser)
 
 /** Statuses that still need user attention. */
 const ACTIVE_STATUSES: OccurrenceStatus[] = ['FIRED', 'ESCALATED', 'SNOOZED']
+/** Past entries: handled or expired. */
+const HISTORY_STATUSES: OccurrenceStatus[] = ['ACKNOWLEDGED', 'MISSED']
 
-// GET /api/occurrences?scope=active|upcoming
+// GET /api/occurrences?scope=active|upcoming|history
 occurrencesRouter.get('/', async (request, response) => {
   const userId = requireUserId(request)
-  const scope = request.query.scope === 'upcoming' ? 'upcoming' : 'active'
+  const scope =
+    request.query.scope === 'upcoming' ? 'upcoming' : request.query.scope === 'history' ? 'history' : 'active'
   const where =
     scope === 'upcoming'
       ? { userId, status: 'PENDING' as OccurrenceStatus }
-      : { userId, status: { in: ACTIVE_STATUSES } }
+      : scope === 'history'
+        ? { userId, status: { in: HISTORY_STATUSES } }
+        : { userId, status: { in: ACTIVE_STATUSES } }
 
   const occurrences = await prisma.reminderOccurrence.findMany({
     where,

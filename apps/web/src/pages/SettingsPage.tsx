@@ -8,12 +8,19 @@ import Card from '@mui/joy/Card'
 import Typography from '@mui/joy/Typography'
 import Button from '@mui/joy/Button'
 import Alert from '@mui/joy/Alert'
+import Select from '@mui/joy/Select'
+import Option from '@mui/joy/Option'
+import FormControl from '@mui/joy/FormControl'
+import FormLabel from '@mui/joy/FormLabel'
 import { extractErrorMessage } from '@persistent/shared'
 import { useAuth } from '../auth/useAuth.js'
 import { enablePush, disablePush, pushSupported, notificationPermission } from '../lib/push.js'
+import { useSettings } from '../settings/useSettings.js'
+import { formatDateTime } from '../lib/datetime.js'
 
 export function SettingsPage() {
   const { user, logout } = useAuth()
+  const { timeFormat, setTimeFormat } = useSettings()
   const [permission, setPermission] = useState(notificationPermission())
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -73,6 +80,18 @@ export function SettingsPage() {
             {permission === 'denied' ? 'Notifications blocked in browser' : 'Enable notifications'}
           </Button>
         )}
+      </Card>
+
+      <Card variant="outlined">
+        <Typography level="title-sm">Date &amp; time</Typography>
+        <FormControl>
+          <FormLabel>Time format</FormLabel>
+          <Select value={timeFormat} onChange={(_e, value) => value && setTimeFormat(value)}>
+            <Option value="12h">12-hour (1:30 PM)</Option>
+            <Option value="24h">24-hour (13:30)</Option>
+          </Select>
+        </FormControl>
+        <Typography level="body-xs">Example: {formatDateTime(new Date(), timeFormat)}</Typography>
       </Card>
 
       <Card variant="outlined">

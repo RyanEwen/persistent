@@ -6,9 +6,13 @@
   "description": "Capacitor (Android) wrapper of the web app + the native alarm plugin.",
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "sync": "cap sync android",
+    "build:web": "npm --prefix ../.. run build --workspace @persistent/shared && npm --prefix ../.. run build --workspace @persistent/web",
     "add:android": "cap add android",
-    "open:android": "cap open android"
+    "setup:android": "node scripts/setup-android.mjs",
+    "sync": "cap sync android",
+    "open:android": "cap open android",
+    "assemble:android": "cd android && ./gradlew assembleDebug",
+    "prepare:android": "npm run build:web && npm run add:android && npm run setup:android && npm run sync"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.0",
