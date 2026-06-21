@@ -4,7 +4,7 @@
  * packages/shared/src/reminders.ts (once/daily/weekly/interval/custom) closely
  * enough for a preview; the server scheduler remains the source of truth.
  */
-import type { Schedule, ScheduleKind } from '@persistent/shared'
+import type { Reminder, Schedule, ScheduleKind } from '@persistent/shared'
 import { formatTimeOfDay, formatDate, type TimeFormat } from './datetime.js'
 
 export interface SchedulePreviewInput {
@@ -84,6 +84,24 @@ export function nextFire(input: SchedulePreviewInput, now: Date = new Date()): D
     if (input.kind === 'once') break // only fires on startDate
   }
   return null
+}
+
+/** The next fire instant for a reminder (null if paused or no upcoming fire). */
+export function reminderNextFire(reminder: Reminder, now: Date = new Date()): Date | null {
+  if (!reminder.active) return null
+  const s = reminder.schedule
+  return nextFire(
+    {
+      kind: s.kind,
+      timesOfDay: s.timesOfDay,
+      daysOfWeek: s.daysOfWeek ?? [],
+      everyNDays: s.everyNDays ?? 1,
+      skipWeekends: s.skipWeekends ?? false,
+      startDate: reminder.startDate,
+      endDate: reminder.endDate ?? ''
+    },
+    now
+  )
 }
 
 function hhmm(d: Date): string {

@@ -202,17 +202,20 @@ export function ReminderEditorPage() {
     setError(null)
     const input = toInput(form)
     const savedMessage = id ? 'Saved' : 'Created'
+    // Capture the edit time now (survives offline queueing) so the server can
+    // apply last-edit-wins on replay.
+    const editedAt = new Date().toISOString()
     // Offline, the mutation is queued (optimistically applied to the cache) and
     // replayed on reconnect — so navigate immediately instead of awaiting it.
     if (!navigator.onLine) {
-      if (id) update.mutate({ id, input })
+      if (id) update.mutate({ id, input, editedAt })
       else create.mutate(input)
       toast(savedMessage)
       navigate('/')
       return
     }
     try {
-      if (id) await update.mutateAsync({ id, input })
+      if (id) await update.mutateAsync({ id, input, editedAt })
       else await create.mutateAsync(input)
       toast(savedMessage)
       navigate('/')
@@ -267,22 +270,28 @@ export function ReminderEditorPage() {
           <TabList
             disableUnderline
             sx={{
-              p: 0.5,
-              gap: 0.5,
-              borderRadius: 'lg',
-              bgcolor: 'background.level1',
+              gap: 1,
+              borderBottom: '1px solid',
+              borderColor: 'divider',
               [`& .${tabClasses.root}`]: {
                 flex: 1,
                 minWidth: 0,
+                px: 0,
                 fontSize: 'sm',
                 fontWeight: 'md',
-                borderRadius: 'md'
-              },
-              [`& .${tabClasses.root}.${tabClasses.selected}`]: {
-                bgcolor: 'background.surface',
-                boxShadow: 'sm',
-                color: 'primary.plainColor',
-                fontWeight: 'lg'
+                color: 'text.tertiary',
+                bgcolor: 'transparent',
+                // Underline indicator that sits on the TabList's bottom border.
+                borderBottom: '2px solid transparent',
+                marginBottom: '-1px',
+                borderRadius: 0,
+                '&:hover': { bgcolor: 'transparent', color: 'text.secondary' },
+                [`&.${tabClasses.selected}`]: {
+                  color: 'primary.plainColor',
+                  fontWeight: 'lg',
+                  borderColor: 'primary.500',
+                  bgcolor: 'transparent'
+                }
               }
             }}
           >

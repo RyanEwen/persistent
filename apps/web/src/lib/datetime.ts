@@ -48,6 +48,27 @@ export function formatDateTime(value: string | Date, format: TimeFormat): string
   }).format(date)
 }
 
+/**
+ * Compact relative day + time, e.g. "Today, 9:00 AM" / "Tomorrow, 9:00 AM" /
+ * "Yesterday, 8:00 PM" / "Jun 24, 9:00 AM". Used in the reminder lists.
+ */
+export function formatWhen(value: string | Date, format: TimeFormat): string {
+  const date = typeof value === 'string' ? new Date(value) : value
+  if (Number.isNaN(date.getTime())) return ''
+  const time = new Intl.DateTimeFormat(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: format === '12h'
+  }).format(date)
+
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  const dayDiff = Math.round((startOfDay(date) - startOfDay(new Date())) / 86_400_000)
+  if (dayDiff === 0) return `Today, ${time}`
+  if (dayDiff === 1) return `Tomorrow, ${time}`
+  if (dayDiff === -1) return `Yesterday, ${time}`
+  return `${formatDate(date)}, ${time}`
+}
+
 /** Format an instant as date only. */
 export function formatDate(value: string | Date): string {
   const date = typeof value === 'string' ? new Date(value) : value

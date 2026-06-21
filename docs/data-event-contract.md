@@ -15,6 +15,13 @@ queue while offline, replaying on reconnect via mutation defaults registered in
 `lib/queryClient.ts` (`resumePausedMutations`). Auth/push queries are excluded
 from persistence.
 
+Conflict resolution is **last-edit-wins**: an update sends `clientEditedAt` (the
+wall time the edit was made, captured at submit so it survives offline queueing).
+The PUT route ignores a write whose `clientEditedAt` predates the stored row's
+`updatedAt` (`lib/conflict.ts`), so a late-replayed stale edit can't clobber a
+newer one; the stale client reconciles on its next refetch. Creates always apply
+(new id, no conflict).
+
 ## Live updates (WebSocket `/ws`)
 
 One reconnecting socket per signed-in client (`apps/web/src/lib/wsClient.ts`),

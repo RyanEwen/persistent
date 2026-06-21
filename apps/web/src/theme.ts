@@ -12,6 +12,19 @@ export const theme = extendTheme({
           solidBg: '#3b82f6',
           solidHoverBg: '#2f6fe0'
         },
+        // Joy's default dark "warning" soft reads as muddy brown; use a clean amber
+        // so the "needs confirmation" cards look intentional.
+        warning: {
+          plainColor: '#fcd34d',
+          softColor: '#fde68a',
+          softBg: 'rgba(245, 158, 11, 0.14)',
+          softHoverBg: 'rgba(245, 158, 11, 0.22)',
+          softActiveBg: 'rgba(245, 158, 11, 0.28)',
+          outlinedColor: '#fcd34d',
+          outlinedBorder: 'rgba(245, 158, 11, 0.4)',
+          solidBg: '#d97706',
+          solidHoverBg: '#b45f05'
+        },
         background: {
           body: '#0b0f19',
           surface: '#111726'

@@ -21,7 +21,7 @@ export function useCreateReminder() {
 }
 
 export function useUpdateReminder() {
-  return useMutation<{ reminder: Reminder }, Error, { id: string; input: ReminderInput }>({
+  return useMutation<{ reminder: Reminder }, Error, { id: string; input: ReminderInput; editedAt?: string }>({
     mutationKey: mutationKeys.updateReminder
   })
 }

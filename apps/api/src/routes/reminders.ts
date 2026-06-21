@@ -10,6 +10,7 @@ import { prisma } from '../lib/prisma.js'
 import { requireUser, requireUserId } from '../lib/auth-middleware.js'
 import { badRequest, notFound } from '../lib/http-error.js'
 import { toReminder } from '../lib/serializers.js'
+import { isStaleWrite } from '../lib/conflict.js'
 import { materializeReminder } from '../lib/scheduler.js'
 import { broadcast } from '../lib/realtime.js'
 import { dispatchToUser } from '../lib/delivery/index.js'
@@ -57,6 +58,14 @@ remindersRouter.put('/:id', async (request, response) => {
 
   const existing = await prisma.reminder.findFirst({ where: { id: request.params.id, userId } })
   if (!existing) throw notFound('Reminder not found.')
+
+  // Last-edit-wins: ignore an offline edit that predates the stored version (a
+  // newer edit already landed). The stale client reconciles on its next refetch.
+  const clientEditedAt = typeof request.body?.clientEditedAt === 'string' ? request.body.clientEditedAt : null
+  if (isStaleWrite(clientEditedAt, existing.updatedAt)) {
+    response.json({ reminder: toReminder(existing) })
+    return
+  }
 
   const reminder = await prisma.reminder.update({
     where: { id: existing.id },

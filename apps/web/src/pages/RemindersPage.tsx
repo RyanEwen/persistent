@@ -13,9 +13,11 @@ import Divider from '@mui/joy/Divider'
 import { useReminders } from '../data/reminders.js'
 import { useActiveOccurrences, useAckOccurrence, useSnoozeOccurrence } from '../data/occurrences.js'
 import { scheduleSummary } from '../lib/scheduleSummary.js'
-import { formatDateTime } from '../lib/datetime.js'
+import { formatWhen } from '../lib/datetime.js'
+import { reminderNextFire } from '../lib/schedule-preview.js'
 import { useSettings } from '../settings/useSettings.js'
 import { CategoryIcon, StatusIcon } from '../components/ReminderIcons.js'
+import { ReminderListItem } from '../components/ReminderListItem.js'
 import type { Reminder } from '@persistent/shared'
 
 const SNOOZE_PRESETS = [10, 15, 30, 60] // minutes
@@ -37,7 +39,10 @@ export function RemindersPage() {
   const ack = useAckOccurrence()
   const snooze = useSnoozeOccurrence()
   const { timeFormat } = useSettings()
-  const currentReminders = reminders.data?.filter((r) => !isFinished(r)) ?? []
+  // Soonest first; reminders with no upcoming fire (paused/finished) sink to the bottom.
+  const currentReminders = (reminders.data?.filter((r) => !isFinished(r)) ?? [])
+    .map((r) => ({ reminder: r, next: reminderNextFire(r) }))
+    .sort((a, b) => (a.next?.getTime() ?? Infinity) - (b.next?.getTime() ?? Infinity))
 
   return (
     <Stack spacing={3}>
@@ -60,7 +65,7 @@ export function RemindersPage() {
                       <Typography level="body-sm">{occurrence.reminder.details}</Typography>
                     )}
                     <Typography level="body-xs" sx={{ mt: 0.5 }}>
-                      {formatDateTime(occurrence.scheduledFor, timeFormat)}
+                      {formatWhen(occurrence.scheduledFor, timeFormat)}
                     </Typography>
                   </Box>
                 </Stack>
@@ -107,33 +112,28 @@ export function RemindersPage() {
         )}
 
         <Stack spacing={1.5}>
-          {currentReminders.map((reminder) => (
-            <Card
-              key={reminder.id}
-              component={RouterLink}
-              to={`/reminders/${reminder.id}`}
-              variant="outlined"
-              sx={{ textDecoration: 'none' }}
-            >
-              <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
-                <Stack direction="row" spacing={1.5} alignItems="center">
-                  <CategoryIcon category={reminder.category} size={32} />
-                  <Box>
-                    <Stack direction="row" spacing={0.5} alignItems="center">
-                      <Typography level="title-sm">{reminder.title}</Typography>
-                      {reminder.lastOccurrence && <StatusIcon status={reminder.lastOccurrence.status} />}
-                    </Stack>
-                    <Typography level="body-xs">{scheduleSummary(reminder.schedule, timeFormat)}</Typography>
-                  </Box>
-                </Stack>
-                {!reminder.active && (
-                  <Chip size="sm" color="neutral" variant="outlined">
-                    paused
-                  </Chip>
-                )}
-              </Stack>
-            </Card>
-          ))}
+          {currentReminders.map(({ reminder, next }) => {
+            const isRepeating = reminder.schedule.kind !== 'once'
+            const when = next ? formatWhen(next, timeFormat) : 'Paused'
+            return (
+              <ReminderListItem
+                key={reminder.id}
+                to={`/reminders/${reminder.id}`}
+                category={reminder.category}
+                title={reminder.title}
+                status={reminder.lastOccurrence?.status}
+                subtitle={when}
+                secondary={isRepeating ? scheduleSummary(reminder.schedule, timeFormat) : undefined}
+                trailing={
+                  !reminder.active ? (
+                    <Chip size="sm" color="neutral" variant="outlined">
+                      paused
+                    </Chip>
+                  ) : undefined
+                }
+              />
+            )
+          })}
         </Stack>
       </Box>
     </Stack>

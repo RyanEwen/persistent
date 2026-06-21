@@ -112,9 +112,15 @@ export function registerMutationDefaults(): void {
   })
 
   queryClient.setMutationDefaults(mutationKeys.updateReminder, {
-    mutationFn: ({ id, input }: { id: string; input: ReminderInput }) =>
-      apiFetch<{ reminder: Reminder }>(`/api/reminders/${id}`, { method: 'PUT', body: JSON.stringify(input) }),
-    onMutate: async ({ id, input }: { id: string; input: ReminderInput }): Promise<RemindersSnapshot> => {
+    // clientEditedAt (captured at submit, preserved while queued offline) lets the
+    // server apply last-edit-wins so a late-replayed stale edit can't clobber a
+    // newer one.
+    mutationFn: ({ id, input, editedAt }: { id: string; input: ReminderInput; editedAt?: string }) =>
+      apiFetch<{ reminder: Reminder }>(`/api/reminders/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ ...input, clientEditedAt: editedAt ?? new Date().toISOString() })
+      }),
+    onMutate: async ({ id, input }: { id: string; input: ReminderInput; editedAt?: string }): Promise<RemindersSnapshot> => {
       await queryClient.cancelQueries({ queryKey: queryKeys.reminders })
       const previous = reminders()
       queryClient.setQueryData<Reminder[]>(
