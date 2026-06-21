@@ -55,7 +55,9 @@ export function createApp() {
   // are first-party). The service worker is served with no-cache so updates land.
   const webDir = env.WEB_DIST_DIR?.trim()
   if (webDir && existsSync(webDir)) {
-    app.use(express.static(webDir, { index: false }))
+    // `dotfiles: 'allow'` so /.well-known/assetlinks.json (passkey app linking)
+    // is served instead of falling through to the SPA handler.
+    app.use(express.static(webDir, { index: false, dotfiles: 'allow' }))
     // SPA fallback. Express 5 (path-to-regexp v8) rejects the bare '*' string
     // route, so match with a RegExp and skip API/WS paths.
     app.get(/.*/, (request, response, next) => {
