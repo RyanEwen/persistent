@@ -51,8 +51,9 @@ drives them lives in `apps/web/src/native`.
     optionally re-posts + re-sounds every N minutes (`soundIntervalSeconds`).
   - **Alarm (`ALARM`)** — full-screen intent + **continuously looping** the chosen
     alarm sound + vibration (no interval; it's relentless).
-  - Swiping the notification away **re-posts it** (delete-intent) so it can't be
-    casually dismissed; only Done/Snooze clear it.
+  - Swiping a notification away **re-posts all active ones** (delete-intent) so
+    they can't be casually dismissed (even when several are swiped together); only
+    Done/Snooze clear them.
   - Each occurrence gets its **own notification id**, so multiple due reminders
     show at once (the foreground service rebinds to a remaining one as they clear).
   - **Snooze** opens a small duration picker (`SnoozePickerActivity`); the chosen

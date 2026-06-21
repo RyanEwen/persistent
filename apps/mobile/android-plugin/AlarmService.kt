@@ -68,15 +68,15 @@ class AlarmService : Service() {
             }
             ACTION_RESHOW -> {
                 // The user swiped a notification away (Android 14+ allows this for
-                // foreground services). It isn't acknowledged, so re-post it.
-                val occurrenceId = intent.getStringExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID)
-                val spec = occurrenceId?.let { active[it] }
-                if (spec != null) {
-                    bindForeground(spec)
-                } else if (active.isEmpty()) {
+                // foreground services). None are acknowledged, so re-post *all* the
+                // active ones — when several are swiped together only one delete
+                // intent may reach us, but every reminder must come back.
+                if (active.isEmpty()) {
                     // Satisfy the FGS start contract, then stop cleanly.
                     startForeground(SENTINEL_ID, placeholderNotification())
                     clearAll()
+                } else {
+                    repostActive()
                 }
             }
         }
@@ -110,6 +110,21 @@ class AlarmService : Service() {
     private fun bindForeground(spec: AlarmSpec) {
         foregroundId = spec.occurrenceId
         startForeground(notifId(spec.occurrenceId), buildNotification(spec))
+    }
+
+    /** Re-post every active notification (one bound to the foreground service). */
+    private fun repostActive() {
+        var bound = false
+        for ((id, spec) in active) {
+            val notif = buildNotification(spec)
+            if (!bound) {
+                foregroundId = id
+                startForeground(notifId(id), notif)
+                bound = true
+            } else {
+                nm.notify(notifId(id), notif)
+            }
+        }
     }
 
     private fun resolveUri(uriStr: String, defaultType: Int): android.net.Uri =
