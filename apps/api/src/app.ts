@@ -23,7 +23,21 @@ export function createApp() {
   const app = express()
   // Behind a reverse proxy in production: trust X-Forwarded-* for req.ip and secure cookies.
   app.set('trust proxy', 1)
-  app.use(helmet())
+  // CSP locked to same-origin, plus Google Identity Services (Sign in with Google)
+  // which loads a cross-origin script + iframe and connects to accounts.google.com.
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        useDefaults: true,
+        directives: {
+          'script-src': ["'self'", 'https://accounts.google.com/gsi/client'],
+          'connect-src': ["'self'", 'https://accounts.google.com/gsi/'],
+          'frame-src': ["'self'", 'https://accounts.google.com/gsi/'],
+          'img-src': ["'self'", 'data:', 'https://*.googleusercontent.com']
+        }
+      }
+    })
+  )
   app.use(
     cors({
       origin: clientOrigins.length > 0 ? clientOrigins : true,
