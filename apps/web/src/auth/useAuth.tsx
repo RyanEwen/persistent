@@ -62,11 +62,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ email })
       }),
     verifyCode: async (email, code) => {
-      await apiFetch<AuthState>('/api/auth/verify-code', {
+      const result = await apiFetch<AuthState>('/api/auth/verify-code', {
         method: 'POST',
         body: JSON.stringify({ email, code, timeZone: guessTimeZone() })
       })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.auth })
+      // Seed auth state from the response (authoritative) instead of refetching
+      // /me, which can race the just-set session cookie and read back null.
+      await queryClient.cancelQueries({ queryKey: queryKeys.auth })
+      queryClient.setQueryData<AuthState>(queryKeys.auth, result)
     },
     loginWithPasskey: async () => {
       const begin = await apiFetch<{ options: PublicKeyCredentialRequestOptionsJSON }>(
@@ -74,18 +77,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         { method: 'POST' }
       )
       const assertion = await passkeyAuthenticate(begin.options)
-      await apiFetch<AuthState>('/api/auth/passkey/authenticate/verify', {
+      const result = await apiFetch<AuthState>('/api/auth/passkey/authenticate/verify', {
         method: 'POST',
         body: JSON.stringify({ response: assertion })
       })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.auth })
+      await queryClient.cancelQueries({ queryKey: queryKeys.auth })
+      queryClient.setQueryData<AuthState>(queryKeys.auth, result)
     },
     loginWithGoogle: async (credential) => {
-      await apiFetch<AuthState>('/api/auth/google', {
+      const result = await apiFetch<AuthState>('/api/auth/google', {
         method: 'POST',
         body: JSON.stringify({ credential, timeZone: guessTimeZone() })
       })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.auth })
+      await queryClient.cancelQueries({ queryKey: queryKeys.auth })
+      queryClient.setQueryData<AuthState>(queryKeys.auth, result)
     },
     logout: async () => {
       // Optimistically drop the session so the UI returns to sign-in immediately,
