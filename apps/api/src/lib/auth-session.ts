@@ -11,7 +11,10 @@ import { prisma } from './prisma.js'
 import { clientOrigins } from './env.js'
 
 export const AUTH_COOKIE_NAME = 'persistent_auth'
-const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30 // 30 days
+// Sliding 7-day window: every authenticated request (in-app action, or a
+// notification ack/snooze/sync) refreshes expiry to now + 7 days, throttled by
+// LAST_SEEN_REFRESH_MS. Idle longer than a week -> signed out.
+const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7 // 7 days
 const LAST_SEEN_REFRESH_MS = 5 * 60 * 1000
 
 export function hashSecret(secret: string): string {

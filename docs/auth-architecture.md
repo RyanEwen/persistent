@@ -43,7 +43,9 @@ the email code (the passkey button falls back gracefully).
 
 Cookie-backed (`lib/auth-session.ts`). A random secret lives only in the
 `persistent_auth` cookie (HttpOnly, SameSite=Lax, Secure on HTTPS); the database
-stores its SHA-256 hash. Sessions idle-refresh (sliding 30-day expiry). The
+stores its SHA-256 hash. Sessions idle-refresh on a **sliding 7-day** window:
+every authenticated request (in-app action, or a notification ack/snooze/sync)
+extends expiry to now + 7 days (throttled to ~5 min); a week idle signs out. The
 `/ws` upgrade authenticates with the same cookie.
 
 `attachUser` middleware resolves the cookie into `request.userId` for every
