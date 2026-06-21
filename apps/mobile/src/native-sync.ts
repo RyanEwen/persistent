@@ -21,7 +21,7 @@ interface SyncOccurrence {
   reminder: {
     title: string
     details: string | null
-    persistence: 'GENTLE' | 'PERSISTENT' | 'ALARM'
+    persistence: 'PERSISTENT' | 'ALARM'
     soundIntervalSeconds: number | null
   }
 }

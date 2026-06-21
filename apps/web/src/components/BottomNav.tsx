@@ -2,6 +2,7 @@
  * Fixed bottom tab bar: switch between the current view, history (past/done),
  * and settings. Mobile-first primary navigation.
  */
+import { useEffect, useState } from 'react'
 import { Link as RouterLink, useLocation } from 'react-router-dom'
 import type { SvgIconComponent } from '@mui/icons-material'
 import Sheet from '@mui/joy/Sheet'
@@ -24,9 +25,32 @@ const ITEMS: NavItem[] = [
   { to: '/settings', label: 'Settings', icon: SettingsIcon }
 ]
 
+/** True while a text field is focused (i.e. the on-screen keyboard is likely up). */
+function useKeyboardOpen(): boolean {
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    const isTextField = (el: EventTarget | null) => {
+      if (!(el instanceof HTMLElement)) return false
+      const tag = el.tagName
+      return tag === 'TEXTAREA' || (tag === 'INPUT' && el.getAttribute('type') !== 'checkbox') || el.isContentEditable
+    }
+    const onFocusIn = (e: FocusEvent) => isTextField(e.target) && setOpen(true)
+    const onFocusOut = () => setOpen(false)
+    document.addEventListener('focusin', onFocusIn)
+    document.addEventListener('focusout', onFocusOut)
+    return () => {
+      document.removeEventListener('focusin', onFocusIn)
+      document.removeEventListener('focusout', onFocusOut)
+    }
+  }, [])
+  return open
+}
+
 export function BottomNav() {
   const { pathname } = useLocation()
   const isActive = (to: string) => (to === '/' ? pathname === '/' : pathname.startsWith(to))
+  // Hide the bar while typing so the keyboard doesn't push it up over the content.
+  if (useKeyboardOpen()) return null
 
   return (
     <Sheet

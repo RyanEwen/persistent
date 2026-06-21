@@ -10,6 +10,16 @@ let socket: WebSocket | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let started = false
 
+// Extra listeners (beyond cache invalidation) — e.g. the native layer re-syncing
+// on-device alarms when reminders/occurrences change, so the device stays live.
+type WsListener = (event: WsEvent) => void
+const listeners = new Set<WsListener>()
+
+export function subscribeWs(listener: WsListener): () => void {
+  listeners.add(listener)
+  return () => listeners.delete(listener)
+}
+
 function wsUrl(): string {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   return `${protocol}//${window.location.host}/ws`
@@ -34,6 +44,13 @@ function handleEvent(event: WsEvent): void {
     case 'dismiss':
     case 'ping':
       break
+  }
+  for (const listener of listeners) {
+    try {
+      listener(event)
+    } catch {
+      // a listener failure must not break event handling
+    }
   }
 }
 

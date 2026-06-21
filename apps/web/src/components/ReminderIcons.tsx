@@ -31,10 +31,26 @@ const CATEGORY_TITLE: Record<ReminderCategory, string> = {
   APPOINTMENT: 'Appointment'
 }
 
-export function CategoryIcon({ category, fontSize = 'small' }: { category: ReminderCategory; fontSize?: IconSize }) {
+export function CategoryIcon({
+  category,
+  fontSize = 'small',
+  size
+}: {
+  category: ReminderCategory
+  fontSize?: IconSize
+  /** Explicit pixel size; overrides fontSize when set. */
+  size?: number
+}) {
   const Icon = CATEGORY_ICON[category]
   // aria-label (not titleAccess) so no <title> text leaks into e.g. Select values.
-  return <Icon fontSize={fontSize} role="img" aria-label={CATEGORY_TITLE[category]} />
+  return (
+    <Icon
+      fontSize={fontSize}
+      sx={size ? { fontSize: size } : undefined}
+      role="img"
+      aria-label={CATEGORY_TITLE[category]}
+    />
+  )
 }
 
 const STATUS_ICON: Record<OccurrenceStatus, SvgIconComponent> = {

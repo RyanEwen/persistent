@@ -4,13 +4,17 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.app.Activity
+import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.activity.result.ActivityResult
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
+import com.getcapacitor.annotation.ActivityCallback
 import com.getcapacitor.annotation.CapacitorPlugin
 import org.json.JSONArray
 
@@ -87,6 +91,35 @@ class AlarmPlugin : Plugin() {
         val array = JSONArray()
         for (id in ids) array.put(id)
         call.resolve(JSObject().put("occurrenceIds", array))
+    }
+
+    /** Open the system ringtone picker so the user can choose a sound. */
+    @PluginMethod
+    fun pickSound(call: PluginCall) {
+        val ringtoneType =
+            if (call.getString("type") == "notification") RingtoneManager.TYPE_NOTIFICATION else RingtoneManager.TYPE_ALARM
+        val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+            putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, ringtoneType)
+            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+            putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Choose sound")
+            call.getString("current")?.takeIf { it.isNotEmpty() }?.let {
+                putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, Uri.parse(it))
+            }
+        }
+        startActivityForResult(call, intent, "soundPicked")
+    }
+
+    @ActivityCallback
+    private fun soundPicked(call: PluginCall, result: ActivityResult) {
+        if (result.resultCode != Activity.RESULT_OK) {
+            call.resolve(JSObject().put("cancelled", true))
+            return
+        }
+        @Suppress("DEPRECATION")
+        val uri: Uri? = result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+        val title = uri?.let { RingtoneManager.getRingtone(context, it)?.getTitle(context) } ?: "Default"
+        call.resolve(JSObject().put("uri", uri?.toString() ?: "").put("title", title))
     }
 
     @PluginMethod

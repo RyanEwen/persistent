@@ -1,7 +1,7 @@
 # Persistence overlay merged into the base compose by the devcontainer CLI.
-# Keeps shell history, ~/.config, ~/.claude, and the VS Code server extensions
-# in named volumes so they survive container rebuilds. Mounts the host SSH dir
-# read-only for git/gh.
+# Keeps shell history, ~/.config, ~/.claude, the VS Code server extensions, and
+# ~/.android (the adb auth key) in named volumes so they survive container
+# rebuilds. Mounts the host SSH dir read-only for git/gh.
 services:
   workspace:
     environment:
@@ -9,6 +9,7 @@ services:
       PROMPT_COMMAND: 'history -a; history -c; history -r'
     volumes:
       - persistent-config-data:/home/node/.config
+      - persistent-android-data:/home/node/.android
       - persistent-claude-data:/home/node/.claude
       - persistent-vscode-server:/home/node/.vscode-server/extensions
       - persistent-bash-history:/commandhistory
@@ -16,6 +17,8 @@ services:
 volumes:
   persistent-config-data:
     name: ${DEVCONTAINER_CONFIG_VOLUME:-persistent-config-data}
+  persistent-android-data:
+    name: ${DEVCONTAINER_ANDROID_DATA_VOLUME:-persistent-android-data}
   persistent-claude-data:
     name: ${DEVCONTAINER_CLAUDE_DATA_VOLUME:-persistent-claude-data}
   persistent-vscode-server:

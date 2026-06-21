@@ -25,7 +25,6 @@
     "vscode": {
       "extensions": [
         "dbaeumer.vscode-eslint",
-        "Prisma.prisma",
         "anthropic.claude-code"
       ],
       "settings": {
@@ -36,5 +35,9 @@
       }
     }
   },
-  "postCreateCommand": ".devcontainer/fix-volume-perms.sh && git config --global --add safe.directory /workspace/persistent && touch .env && npm install && npm run db:generate"
+  "postCreateCommand": ".devcontainer/fix-volume-perms.sh && git config --global --add safe.directory /workspace/persistent && touch .env && npm install && npm run db:generate",
+  // Runs on create AND every start/reopen: re-establish any wireless adb targets
+  // listed in ADB_CONNECT (env or .env). No-op when unset. The adb auth key
+  // itself persists via the ~/.android volume (compose.persist.yml).
+  "postStartCommand": ".devcontainer/adb-connect.sh"
 }

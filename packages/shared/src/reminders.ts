@@ -17,11 +17,10 @@ export type ReminderCategory = (typeof reminderCategories)[number]
 
 /**
  * How hard the reminder nags:
- * - GENTLE: a normal notification.
- * - PERSISTENT: re-fires after dismissal until acknowledged (web best-effort; native ongoing).
+ * - PERSISTENT: a notification that re-appears until acknowledged (sounds once).
  * - ALARM: persistent + looping sound/vibration (native full-screen alarm).
  */
-export const persistenceLevels = ['GENTLE', 'PERSISTENT', 'ALARM'] as const
+export const persistenceLevels = ['PERSISTENT', 'ALARM'] as const
 export const persistenceLevelSchema = z.enum(persistenceLevels)
 export type PersistenceLevel = (typeof persistenceLevels)[number]
 
@@ -107,8 +106,9 @@ export const reminderSchema = z.object({
   persistence: persistenceLevelSchema,
   soundIntervalSeconds: z.number().int().nullable(),
   escalateAfterMinutes: z.number().int().nullable(),
-  escalateContactEmail: z.string().nullable(),
-  escalateToOwnDevices: z.boolean(),
+  // Escalate (always to an alarm) either N minutes after firing, or at a specific
+  // wall-clock time ("HH:mm") on the occurrence's day. At most one is set.
+  escalateAtTime: z.string().nullable(),
   active: z.boolean(),
   startDate: z.string(),
   endDate: z.string().nullable(),
@@ -137,8 +137,7 @@ export const reminderInputSchema = z
     // null = no repeating sound; otherwise seconds between sound repeats.
     soundIntervalSeconds: z.number().int().min(5).max(3600).nullable().default(null),
     escalateAfterMinutes: z.number().int().min(1).max(1440).nullable().default(null),
-    escalateContactEmail: z.string().trim().toLowerCase().email().max(254).nullable().default(null),
-    escalateToOwnDevices: z.boolean().default(true),
+    escalateAtTime: timeOfDaySchema.nullable().default(null),
     active: z.boolean().default(true),
     startDate: calendarDateSchema,
     endDate: calendarDateSchema.nullable().default(null)

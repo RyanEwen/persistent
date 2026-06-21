@@ -141,7 +141,14 @@ function accentVars(accent: AccentRamp): Record<string, string> {
 export function themeSx(theme: AppTheme): SxProps {
   return {
     ...(theme.background ? { backgroundColor: theme.background } : {}),
-    ...(theme.doodle ? { backgroundImage: doodleTile(theme.doodle), backgroundAttachment: 'fixed' } : {}),
+    ...(theme.doodle
+      ? {
+          backgroundImage: doodleTile(theme.doodle),
+          // Render the 156px tile smaller so the doodles sit closer together (denser).
+          backgroundSize: '104px 104px',
+          backgroundAttachment: 'fixed'
+        }
+      : {}),
     ...(theme.accent ? accentVars(theme.accent) : {})
   }
 }

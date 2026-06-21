@@ -12,6 +12,8 @@ import { badRequest, notFound } from '../lib/http-error.js'
 import { toReminder } from '../lib/serializers.js'
 import { materializeReminder } from '../lib/scheduler.js'
 import { broadcast } from '../lib/realtime.js'
+import { dispatchToUser } from '../lib/delivery/index.js'
+import { logger } from '../lib/logger.js'
 
 export const remindersRouter = Router()
 remindersRouter.use(requireUser)
@@ -72,12 +74,32 @@ remindersRouter.delete('/:id', async (request, response) => {
   const userId = requireUserId(request)
   const existing = await prisma.reminder.findFirst({ where: { id: request.params.id, userId } })
   if (!existing) throw notFound('Reminder not found.')
+
+  // Collect occurrences that may have a live notification/alarm so we can clear
+  // them everywhere after the cascade delete.
+  const active = await prisma.reminderOccurrence.findMany({
+    where: { reminderId: existing.id, userId, status: { in: ['FIRED', 'ESCALATED', 'SNOOZED'] } },
+    select: { id: true }
+  })
+
   await prisma.reminder.delete({ where: { id: existing.id } })
   broadcast(userId, { type: 'reminder.changed', reminderId: existing.id })
+
+  // Dismiss any active notification/alarm for the deleted reminder on every device.
+  for (const occurrence of active) {
+    broadcast(userId, { type: 'dismiss', occurrenceId: occurrence.id })
+    await dispatchToUser(userId, { type: 'dismiss', occurrenceId: occurrence.id }).catch((error) =>
+      logger.warn('delete dismiss dispatch failed', { error: String(error), occurrenceId: occurrence.id })
+    )
+  }
   response.json({ ok: true })
 })
 
-function toReminderData(input: ReturnType<typeof reminderInputSchema.parse>): Prisma.ReminderUncheckedCreateInput {
+// Shared column mapping for create + update. Excludes userId: create adds it, and
+// update must never reassign ownership.
+function toReminderData(
+  input: ReturnType<typeof reminderInputSchema.parse>
+): Omit<Prisma.ReminderUncheckedCreateInput, 'userId'> {
   return {
     title: input.title,
     details: input.details ?? null,
@@ -87,13 +109,10 @@ function toReminderData(input: ReturnType<typeof reminderInputSchema.parse>): Pr
     persistence: input.persistence,
     soundIntervalSeconds: input.soundIntervalSeconds,
     escalateAfterMinutes: input.escalateAfterMinutes,
-    escalateContactEmail: input.escalateContactEmail,
-    escalateToOwnDevices: input.escalateToOwnDevices,
+    escalateAtTime: input.escalateAtTime,
     active: input.active,
     startDate: input.startDate,
-    endDate: input.endDate,
-    // userId filled by caller
-    userId: ''
+    endDate: input.endDate
   }
 }
 

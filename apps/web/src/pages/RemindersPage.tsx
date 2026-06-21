@@ -116,8 +116,8 @@ export function RemindersPage() {
               sx={{ textDecoration: 'none' }}
             >
               <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <CategoryIcon category={reminder.category} />
+                <Stack direction="row" spacing={1.5} alignItems="center">
+                  <CategoryIcon category={reminder.category} size={32} />
                   <Box>
                     <Stack direction="row" spacing={0.5} alignItems="center">
                       <Typography level="title-sm">{reminder.title}</Typography>

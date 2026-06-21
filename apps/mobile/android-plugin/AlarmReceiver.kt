@@ -22,6 +22,8 @@ class AlarmReceiver : BroadcastReceiver() {
                     putExtra("body", spec.body)
                     putExtra("soundIntervalSeconds", spec.soundIntervalSeconds)
                     putExtra("alarm", spec.alarm)
+                    putExtra("ongoing", spec.ongoing)
+                    putExtra("soundUri", spec.soundUri)
                 }
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     context.startForegroundService(serviceIntent)
@@ -37,6 +39,16 @@ class AlarmReceiver : BroadcastReceiver() {
             ACTION_SNOOZE -> {
                 AlarmService.snooze(context, occurrenceId)
             }
+            ACTION_RESHOW -> {
+                val serviceIntent = Intent(context, AlarmService::class.java)
+                    .setAction(AlarmService.ACTION_RESHOW)
+                    .putExtra(EXTRA_OCCURRENCE_ID, occurrenceId)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(serviceIntent)
+                } else {
+                    context.startService(serviceIntent)
+                }
+            }
         }
     }
 
@@ -44,6 +56,7 @@ class AlarmReceiver : BroadcastReceiver() {
         const val ACTION_FIRE = "ca.persistent.app.ALARM_FIRE"
         const val ACTION_DONE = "ca.persistent.app.ALARM_DONE"
         const val ACTION_SNOOZE = "ca.persistent.app.ALARM_SNOOZE"
+        const val ACTION_RESHOW = "ca.persistent.app.ALARM_RESHOW"
         const val EXTRA_OCCURRENCE_ID = "occurrenceId"
     }
 }

@@ -28,7 +28,6 @@ enum ReminderCategory {
 }
 
 enum PersistenceLevel {
-  GENTLE
   PERSISTENT
   ALARM
 }
@@ -113,9 +112,10 @@ model Reminder {
   persistence          PersistenceLevel @default(PERSISTENT)
   /// null = no repeating sound; otherwise seconds between sound repeats.
   soundIntervalSeconds Int?
+  /// Escalation (always to an alarm): N minutes after firing, OR at a specific
+  /// wall-clock time ("HH:mm") on the occurrence's day. At most one is set.
   escalateAfterMinutes Int?
-  escalateContactEmail String?
-  escalateToOwnDevices Boolean          @default(true)
+  escalateAtTime       String?
 
   active    Boolean   @default(true)
   /// Calendar date (YYYY-MM-DD) in the user's time zone; anchor for interval schedules.

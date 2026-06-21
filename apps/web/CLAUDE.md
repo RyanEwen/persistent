@@ -34,5 +34,9 @@
   `settings/themes.ts` and applied as a background pattern + accent CSS variables
   by `components/AppLayout.tsx`. Format dates/times via `lib/datetime.ts`, never
   `toLocaleString` directly.
+- **Native bridge:** `src/native/` (bundled into this app, which Capacitor loads)
+  drives the on-device alarm plugin — schedules alarms from `/api/sync/occurrences`,
+  re-syncs live on WS events, and exposes `pickSound`. Guard every call behind
+  `isNative()`; it's a no-op on the web. Started from `useAuth` after sign-in.
 - **No native dialogs:** don't use `alert`/`confirm`/`prompt` (eslint enforces).
 - `verbatimModuleSyntax` is on — use `import type` for type-only imports.

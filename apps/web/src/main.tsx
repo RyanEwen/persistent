@@ -6,6 +6,7 @@ import React from 'react'
 import { createRoot } from 'react-dom/client'
 import { CssVarsProvider } from '@mui/joy/styles'
 import CssBaseline from '@mui/joy/CssBaseline'
+import GlobalStyles from '@mui/joy/GlobalStyles'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { BrowserRouter } from 'react-router-dom'
 import { registerSW } from 'virtual:pwa-register'
@@ -14,6 +15,8 @@ import { queryClient, registerMutationDefaults } from './lib/queryClient.js'
 import { persistOptions } from './lib/persistQuery.js'
 import { AuthProvider } from './auth/useAuth.js'
 import { SettingsProvider } from './settings/useSettings.js'
+import { ToastProvider } from './components/ToastProvider.js'
+import { ErrorBoundary } from './components/ErrorBoundary.js'
 import { App } from './App.js'
 
 // Auto-apply SW updates so stale code never lingers in long-lived PWA installs.
@@ -29,6 +32,9 @@ createRoot(container).render(
   <React.StrictMode>
     <CssVarsProvider theme={theme} defaultMode="dark">
       <CssBaseline />
+      {/* Scale all rem-based typography up 10% overall. */}
+      <GlobalStyles styles={{ html: { fontSize: '110%' } }} />
+      <ErrorBoundary>
       <PersistQueryClientProvider
         client={queryClient}
         persistOptions={persistOptions}
@@ -40,11 +46,14 @@ createRoot(container).render(
         <BrowserRouter>
           <AuthProvider>
             <SettingsProvider>
-              <App />
+              <ToastProvider>
+                <App />
+              </ToastProvider>
             </SettingsProvider>
           </AuthProvider>
         </BrowserRouter>
       </PersistQueryClientProvider>
+      </ErrorBoundary>
     </CssVarsProvider>
   </React.StrictMode>
 )

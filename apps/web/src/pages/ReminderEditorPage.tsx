@@ -19,6 +19,7 @@ import Button from '@mui/joy/Button'
 import IconButton from '@mui/joy/IconButton'
 import Alert from '@mui/joy/Alert'
 import Divider from '@mui/joy/Divider'
+import Sheet from '@mui/joy/Sheet'
 import Tabs from '@mui/joy/Tabs'
 import TabList from '@mui/joy/TabList'
 import Tab from '@mui/joy/Tab'
@@ -39,6 +40,7 @@ import { useReminders, useCreateReminder, useUpdateReminder, useDeleteReminder }
 import { titleCase } from '../lib/format.js'
 import { CategoryIcon } from '../components/ReminderIcons.js'
 import { COMMON_MEDICATIONS } from '../data/medications.js'
+import { useToast } from '../components/ToastProvider.js'
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -50,8 +52,14 @@ const SCHEDULE_KIND_LABELS: Record<ScheduleKind, string> = {
   custom: 'Custom days'
 }
 
-// Tappable presets for how often the alarm sound repeats, in minutes.
-const SOUND_INTERVAL_PRESETS = [1, 2, 5, 10, 15, 30]
+// Shared minute presets for the "repeat sound every" and escalation "how late"
+// controls (both also allow a custom value).
+const MINUTE_PRESETS = [5, 10, 15, 30, 60]
+
+const PERSISTENCE_LABELS: Record<PersistenceLevel, string> = {
+  PERSISTENT: 'Notification',
+  ALARM: 'Alarm'
+}
 
 function todayLocal(): string {
   const now = new Date()
@@ -87,12 +95,11 @@ interface FormState {
   everyNDays: string
   skipWeekends: boolean
   persistence: PersistenceLevel
-  repeatSound: boolean
   soundIntervalMinutes: number
   escalate: boolean
+  escalateMode: 'after' | 'at'
   escalateAfterMinutes: string
-  escalateContactEmail: string
-  escalateToOwnDevices: boolean
+  escalateAtTime: string
   startDate: string
   endDate: string
   active: boolean
@@ -115,12 +122,11 @@ function emptyForm(): FormState {
     everyNDays: '2',
     skipWeekends: false,
     persistence: 'PERSISTENT',
-    repeatSound: false,
-    soundIntervalMinutes: 1,
+    soundIntervalMinutes: 0, // 0 = sound once (no re-sound)
     escalate: false,
+    escalateMode: 'after',
     escalateAfterMinutes: '15',
-    escalateContactEmail: '',
-    escalateToOwnDevices: true,
+    escalateAtTime: '09:00',
     startDate: todayLocal(),
     endDate: '',
     active: true
@@ -135,6 +141,9 @@ export function ReminderEditorPage() {
   const update = useUpdateReminder()
   const remove = useDeleteReminder()
   const [error, setError] = useState<string | null>(null)
+  const [escalateCustomOpen, setEscalateCustomOpen] = useState(false)
+  const [soundCustomOpen, setSoundCustomOpen] = useState(false)
+  const toast = useToast()
 
   const existing = useMemo(() => reminders.data?.find((r) => r.id === id), [reminders.data, id])
   const [form, setForm] = useState<FormState>(() => (existing ? fromReminder(existing) : emptyForm()))
@@ -189,17 +198,20 @@ export function ReminderEditorPage() {
     event.preventDefault()
     setError(null)
     const input = toInput(form)
+    const savedMessage = id ? 'Saved' : 'Created'
     // Offline, the mutation is queued (optimistically applied to the cache) and
     // replayed on reconnect — so navigate immediately instead of awaiting it.
     if (!navigator.onLine) {
       if (id) update.mutate({ id, input })
       else create.mutate(input)
+      toast(savedMessage)
       navigate('/')
       return
     }
     try {
       if (id) await update.mutateAsync({ id, input })
       else await create.mutateAsync(input)
+      toast(savedMessage)
       navigate('/')
     } catch (err) {
       setError(extractErrorMessage(err))
@@ -210,11 +222,13 @@ export function ReminderEditorPage() {
     if (!id) return
     if (!navigator.onLine) {
       remove.mutate(id)
+      toast('Deleted', 'neutral')
       navigate('/')
       return
     }
     try {
       await remove.mutateAsync(id)
+      toast('Deleted', 'neutral')
       navigate('/')
     } catch (err) {
       setError(extractErrorMessage(err))
@@ -229,9 +243,21 @@ export function ReminderEditorPage() {
 
   return (
     <form onSubmit={onSubmit}>
+      <Sheet variant="outlined" sx={{ p: 2, borderRadius: 'md', bgcolor: 'background.surface' }}>
       <Stack spacing={2}>
         <Typography level="title-lg">{id ? 'Edit reminder' : 'New reminder'}</Typography>
         {error && <Alert color="danger">{error}</Alert>}
+
+        <Tabs defaultValue="details" variant="outlined" sx={{ borderRadius: 'sm', bgcolor: 'transparent' }}>
+          <TabList>
+            <Tab value="details">Details</Tab>
+            <Tab value="schedule">Schedule</Tab>
+            <Tab value="nagging">Nagging</Tab>
+            <Tab value="escalation">Escalation</Tab>
+          </TabList>
+
+          <TabPanel value="details" keepMounted>
+            <Stack spacing={2}>
 
         <FormControl required>
           <FormLabel>Title</FormLabel>
@@ -311,25 +337,26 @@ export function ReminderEditorPage() {
           </Stack>
         )}
 
-        <Tabs defaultValue="schedule" variant="outlined" sx={{ borderRadius: 'sm', bgcolor: 'transparent' }}>
-          <TabList>
-            <Tab value="schedule">Schedule</Tab>
-            <Tab value="nagging">Nagging</Tab>
-            <Tab value="escalation">Escalation</Tab>
-          </TabList>
+            </Stack>
+          </TabPanel>
 
           <TabPanel value="schedule" keepMounted>
             <Stack spacing={2}>
 
         <FormControl>
           <FormLabel>Repeat</FormLabel>
-          <Select value={form.kind} onChange={(_e, value) => value && setKind(value)}>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
             {scheduleKinds.map((k) => (
-              <Option key={k} value={k}>
+              <Button
+                key={k}
+                size="sm"
+                variant={form.kind === k ? 'solid' : 'outlined'}
+                onClick={() => setKind(k)}
+              >
                 {SCHEDULE_KIND_LABELS[k]}
-              </Option>
+              </Button>
             ))}
-          </Select>
+          </Stack>
         </FormControl>
 
         {isOnce ? (
@@ -453,36 +480,75 @@ export function ReminderEditorPage() {
             <Stack spacing={2}>
 
         <FormControl>
-          <FormLabel>Persistence</FormLabel>
-          <Select value={form.persistence} onChange={(_e, value) => value && set('persistence', value)}>
+          <FormLabel>How it notifies</FormLabel>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
             {persistenceLevels.map((p) => (
-              <Option key={p} value={p}>
-                {p.toLowerCase()}
-              </Option>
+              <Button
+                key={p}
+                size="sm"
+                variant={form.persistence === p ? 'solid' : 'outlined'}
+                onClick={() => set('persistence', p)}
+              >
+                {PERSISTENCE_LABELS[p]}
+              </Button>
             ))}
-          </Select>
+          </Stack>
+          <Typography level="body-xs" sx={{ mt: 0.5 }}>
+            {form.persistence === 'ALARM'
+              ? 'Rings continuously until you tap Done.'
+              : 'A notification that stays until done. Choose whether it re-sounds to nag you.'}
+          </Typography>
         </FormControl>
 
-        <Checkbox
-          label="Repeat sound until confirmed"
-          checked={form.repeatSound}
-          onChange={(e) => set('repeatSound', e.target.checked)}
-        />
-        {form.repeatSound && (
+        {form.persistence === 'PERSISTENT' && (
           <FormControl>
-            <FormLabel>Repeat sound every</FormLabel>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              {SOUND_INTERVAL_PRESETS.map((minutes) => (
-                <Button
-                  key={minutes}
-                  size="sm"
-                  variant={form.soundIntervalMinutes === minutes ? 'solid' : 'outlined'}
-                  onClick={() => set('soundIntervalMinutes', minutes)}
-                >
-                  {minutes} min
-                </Button>
-              ))}
-            </Stack>
+            <FormLabel>Re-sound</FormLabel>
+            {(() => {
+              const showCustom =
+                soundCustomOpen || (form.soundIntervalMinutes > 0 && !MINUTE_PRESETS.includes(form.soundIntervalMinutes))
+              return (
+                <>
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    <Button
+                      size="sm"
+                      variant={!showCustom && form.soundIntervalMinutes === 0 ? 'solid' : 'outlined'}
+                      onClick={() => {
+                        setSoundCustomOpen(false)
+                        set('soundIntervalMinutes', 0)
+                      }}
+                    >
+                      Once
+                    </Button>
+                    {MINUTE_PRESETS.map((minutes) => (
+                      <Button
+                        key={minutes}
+                        size="sm"
+                        variant={!showCustom && form.soundIntervalMinutes === minutes ? 'solid' : 'outlined'}
+                        onClick={() => {
+                          setSoundCustomOpen(false)
+                          set('soundIntervalMinutes', minutes)
+                        }}
+                      >
+                        {minutes} min
+                      </Button>
+                    ))}
+                    <Button size="sm" variant={showCustom ? 'solid' : 'outlined'} onClick={() => setSoundCustomOpen(true)}>
+                      Custom
+                    </Button>
+                  </Stack>
+                  {showCustom && (
+                    <Input
+                      type="number"
+                      value={form.soundIntervalMinutes}
+                      onChange={(e) => set('soundIntervalMinutes', Number(e.target.value) || 1)}
+                      slotProps={{ input: { min: 1, max: 60 } }}
+                      endDecorator="mins"
+                      sx={{ mt: 1 }}
+                    />
+                  )}
+                </>
+              )
+            })()}
           </FormControl>
         )}
 
@@ -493,37 +559,85 @@ export function ReminderEditorPage() {
             <Stack spacing={2}>
 
         <Checkbox
-          label="Escalate if ignored"
+          label="Escalate to an alarm if ignored"
           checked={form.escalate}
           onChange={(e) => set('escalate', e.target.checked)}
         />
         {form.escalate && (
           <Stack spacing={2}>
+            <Typography level="body-xs">
+              If still not done, it rings an alarm (sound until done) on your devices.
+            </Typography>
             <FormControl>
-              <FormLabel>Escalate after (minutes)</FormLabel>
-              <Input
-                type="number"
-                value={form.escalateAfterMinutes}
-                onChange={(e) => set('escalateAfterMinutes', e.target.value)}
-                slotProps={{ input: { min: 1, max: 1440 } }}
-              />
+              <FormLabel>Escalate</FormLabel>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Button
+                  size="sm"
+                  variant={form.escalateMode === 'after' ? 'solid' : 'outlined'}
+                  onClick={() => set('escalateMode', 'after')}
+                >
+                  After a delay
+                </Button>
+                <Button
+                  size="sm"
+                  variant={form.escalateMode === 'at' ? 'solid' : 'outlined'}
+                  onClick={() => set('escalateMode', 'at')}
+                >
+                  At a specific time
+                </Button>
+              </Stack>
             </FormControl>
-            <FormControl>
-              <FormLabel>Alarm my own devices</FormLabel>
-              <Switch
-                checked={form.escalateToOwnDevices}
-                onChange={(e) => set('escalateToOwnDevices', e.target.checked)}
-              />
-            </FormControl>
-            <FormControl>
-              <FormLabel>Also email a contact (optional)</FormLabel>
-              <Input
-                type="email"
-                value={form.escalateContactEmail}
-                onChange={(e) => set('escalateContactEmail', e.target.value)}
-                placeholder="caregiver@example.com"
-              />
-            </FormControl>
+            {form.escalateMode === 'after' ? (
+              <FormControl>
+                <FormLabel>How late</FormLabel>
+                {(() => {
+                  const showCustom =
+                    escalateCustomOpen || !MINUTE_PRESETS.includes(Number(form.escalateAfterMinutes))
+                  return (
+                    <>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        {MINUTE_PRESETS.map((minutes) => (
+                          <Button
+                            key={minutes}
+                            size="sm"
+                            variant={!showCustom && Number(form.escalateAfterMinutes) === minutes ? 'solid' : 'outlined'}
+                            onClick={() => {
+                              setEscalateCustomOpen(false)
+                              set('escalateAfterMinutes', String(minutes))
+                            }}
+                          >
+                            {minutes} min
+                          </Button>
+                        ))}
+                        <Button
+                          size="sm"
+                          variant={showCustom ? 'solid' : 'outlined'}
+                          onClick={() => setEscalateCustomOpen(true)}
+                        >
+                          Custom
+                        </Button>
+                      </Stack>
+                      {showCustom && (
+                        <Input
+                          type="number"
+                          value={form.escalateAfterMinutes}
+                          onChange={(e) => set('escalateAfterMinutes', e.target.value)}
+                          slotProps={{ input: { min: 1, max: 1440 } }}
+                          placeholder="Minutes late"
+                          endDecorator="mins"
+                          sx={{ mt: 1 }}
+                        />
+                      )}
+                    </>
+                  )
+                })()}
+              </FormControl>
+            ) : (
+              <FormControl>
+                <FormLabel>Escalate at</FormLabel>
+                <Input type="time" value={form.escalateAtTime} onChange={(e) => set('escalateAtTime', e.target.value)} />
+              </FormControl>
+            )}
           </Stack>
         )}
 
@@ -551,6 +665,7 @@ export function ReminderEditorPage() {
           </Button>
         )}
       </Stack>
+      </Sheet>
     </form>
   )
 }
@@ -586,10 +701,12 @@ function toInput(form: FormState): ReminderInput {
     categoryData,
     schedule: buildSchedule(form),
     persistence: form.persistence,
-    soundIntervalSeconds: form.repeatSound ? form.soundIntervalMinutes * 60 : null,
-    escalateAfterMinutes: form.escalate ? Number(form.escalateAfterMinutes) || 15 : null,
-    escalateContactEmail: form.escalate && form.escalateContactEmail ? form.escalateContactEmail : null,
-    escalateToOwnDevices: form.escalateToOwnDevices,
+    // Alarm rings continuously (no interval). Notification re-sounds every N
+    // minutes; 0 = sound once.
+    soundIntervalSeconds:
+      form.persistence === 'PERSISTENT' && form.soundIntervalMinutes > 0 ? form.soundIntervalMinutes * 60 : null,
+    escalateAfterMinutes: form.escalate && form.escalateMode === 'after' ? Number(form.escalateAfterMinutes) || 15 : null,
+    escalateAtTime: form.escalate && form.escalateMode === 'at' ? form.escalateAtTime : null,
     active: form.active,
     startDate: form.startDate,
     endDate: form.endDate || null
@@ -627,13 +744,12 @@ function fromReminder(reminder: Reminder): FormState {
     everyNDays: schedule.everyNDays != null ? String(schedule.everyNDays) : '2',
     skipWeekends: schedule.skipWeekends ?? false,
     persistence: reminder.persistence,
-    repeatSound: reminder.soundIntervalSeconds != null,
     soundIntervalMinutes:
-      reminder.soundIntervalSeconds != null ? Math.max(1, Math.round(reminder.soundIntervalSeconds / 60)) : 1,
-    escalate: reminder.escalateAfterMinutes != null,
+      reminder.soundIntervalSeconds != null ? Math.max(1, Math.round(reminder.soundIntervalSeconds / 60)) : 0,
+    escalate: reminder.escalateAfterMinutes != null || reminder.escalateAtTime != null,
+    escalateMode: reminder.escalateAtTime != null ? 'at' : 'after',
     escalateAfterMinutes: reminder.escalateAfterMinutes != null ? String(reminder.escalateAfterMinutes) : '15',
-    escalateContactEmail: reminder.escalateContactEmail ?? '',
-    escalateToOwnDevices: reminder.escalateToOwnDevices,
+    escalateAtTime: reminder.escalateAtTime ?? '09:00',
     startDate: reminder.startDate,
     endDate: reminder.endDate ?? '',
     active: reminder.active

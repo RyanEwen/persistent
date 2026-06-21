@@ -10,7 +10,13 @@ data class AlarmSpec(
     val title: String,
     val body: String,
     val soundIntervalSeconds: Int,
-    val alarm: Boolean
+    // true = full alarm (looping sound + full-screen until Done); false = a normal
+    // notification that sounds once.
+    val alarm: Boolean,
+    // true = stays put / re-appears if swiped away; false = ordinary dismissable.
+    val ongoing: Boolean,
+    // Chosen sound URI ("" = system default for the alarm/notification type).
+    val soundUri: String
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("occurrenceId", occurrenceId)
@@ -19,6 +25,8 @@ data class AlarmSpec(
         .put("body", body)
         .put("soundIntervalSeconds", soundIntervalSeconds)
         .put("alarm", alarm)
+        .put("ongoing", ongoing)
+        .put("soundUri", soundUri)
 
     companion object {
         fun fromCall(call: PluginCall): AlarmSpec? {
@@ -30,7 +38,9 @@ data class AlarmSpec(
                 title = call.getString("title") ?: "Reminder",
                 body = call.getString("body") ?: "",
                 soundIntervalSeconds = call.getInt("soundIntervalSeconds") ?: 0,
-                alarm = call.getBoolean("alarm") ?: true
+                alarm = call.getBoolean("alarm") ?: false,
+                ongoing = call.getBoolean("ongoing") ?: true,
+                soundUri = call.getString("soundUri") ?: ""
             )
         }
 
@@ -44,7 +54,9 @@ data class AlarmSpec(
                 title = json.optString("title", "Reminder"),
                 body = json.optString("body", ""),
                 soundIntervalSeconds = json.optInt("soundIntervalSeconds", 0),
-                alarm = json.optBoolean("alarm", true)
+                alarm = json.optBoolean("alarm", false),
+                ongoing = json.optBoolean("ongoing", true),
+                soundUri = json.optString("soundUri", "")
             )
         }
     }

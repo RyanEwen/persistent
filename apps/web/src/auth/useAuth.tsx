@@ -8,6 +8,7 @@ import type { AuthState, RequestCodeResponse, SessionUser } from '@persistent/sh
 import { apiFetch } from '../lib/apiClient.js'
 import { queryKeys } from '../lib/queryClient.js'
 import { startWs, stopWs } from '../lib/wsClient.js'
+import { initNative } from '../native/nativeSync.js'
 
 interface AuthContextValue {
   user: SessionUser | null
@@ -38,8 +39,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const user = data?.user ?? null
 
   useEffect(() => {
-    if (user) startWs()
-    else stopWs()
+    if (user) {
+      startWs()
+      // Native client: schedule on-device alarms + live re-sync (no-op on web).
+      void initNative()
+    } else {
+      stopWs()
+    }
   }, [user])
 
   const value: AuthContextValue = {

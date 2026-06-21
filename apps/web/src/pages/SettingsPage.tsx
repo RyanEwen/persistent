@@ -4,6 +4,7 @@
  */
 import { useEffect, useState } from 'react'
 import Stack from '@mui/joy/Stack'
+import Box from '@mui/joy/Box'
 import Card from '@mui/joy/Card'
 import Typography from '@mui/joy/Typography'
 import Button from '@mui/joy/Button'
@@ -15,13 +16,25 @@ import FormLabel from '@mui/joy/FormLabel'
 import { extractErrorMessage } from '@persistent/shared'
 import { useAuth } from '../auth/useAuth.js'
 import { enablePush, disablePush, pushSupported, notificationPermission } from '../lib/push.js'
-import { useSettings } from '../settings/useSettings.js'
+import { useSettings, type SoundChoice } from '../settings/useSettings.js'
 import { APP_THEMES } from '../settings/themes.js'
 import { formatDateTime } from '../lib/datetime.js'
+import { AlarmPlugin, isNative } from '../native/alarmBridge.js'
 
 export function SettingsPage() {
   const { user, logout } = useAuth()
-  const { timeFormat, setTimeFormat, themeId, setThemeId } = useSettings()
+  const { timeFormat, setTimeFormat, themeId, setThemeId, alarmSound, notificationSound, setAlarmSound, setNotificationSound } =
+    useSettings()
+
+  async function chooseSound(type: 'alarm' | 'notification', current: SoundChoice, apply: (s: SoundChoice) => void) {
+    try {
+      const result = await AlarmPlugin.pickSound({ type, current: current.uri })
+      if (result.cancelled) return
+      apply({ uri: result.uri ?? '', title: result.title || 'Default' })
+    } catch {
+      /* picker unavailable */
+    }
+  }
   const [permission, setPermission] = useState(notificationPermission())
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -77,6 +90,38 @@ export function SettingsPage() {
           </Select>
         </FormControl>
         <Typography level="body-xs">Sets the background pattern across the app.</Typography>
+      </Card>
+
+      <Card variant="outlined">
+        <Typography level="title-sm">Sounds</Typography>
+        {isNative() ? (
+          <Stack spacing={1.5}>
+            <FormControl orientation="horizontal" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+              <Box>
+                <FormLabel>Notification sound</FormLabel>
+                <Typography level="body-xs">{notificationSound.title}</Typography>
+              </Box>
+              <Button
+                size="sm"
+                variant="outlined"
+                onClick={() => chooseSound('notification', notificationSound, setNotificationSound)}
+              >
+                Choose
+              </Button>
+            </FormControl>
+            <FormControl orientation="horizontal" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+              <Box>
+                <FormLabel>Alarm sound</FormLabel>
+                <Typography level="body-xs">{alarmSound.title}</Typography>
+              </Box>
+              <Button size="sm" variant="outlined" onClick={() => chooseSound('alarm', alarmSound, setAlarmSound)}>
+                Choose
+              </Button>
+            </FormControl>
+          </Stack>
+        ) : (
+          <Typography level="body-sm">Choosing sounds is available in the Android app.</Typography>
+        )}
       </Card>
 
       <Card variant="outlined">

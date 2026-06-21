@@ -19,32 +19,46 @@ So we split responsibilities:
 | Surface | Role | Guarantee |
 |---|---|---|
 | Web / PWA | manage reminders; soft nags | **best-effort** (`requireInteraction` + re-fire on dismissal in the service worker) |
-| Android native (Capacitor) | the alarm | **hard**: ongoing/full-screen notification + looping sound until "Done" |
+| Android native (Capacitor) | notifications + alarms | **hard**: an ongoing notification that re-sounds (Notification level) or a full-screen, continuously-ringing Alarm — until "Done" |
 
 ## Model: device-scheduled + server backup
 
 - **Server is the source of truth.** `apps/api` materializes `ReminderOccurrence`
   rows from each reminder's schedule (timezone-correct, `lib/schedule-expand.ts`)
   and fires due ones (tick loop), broadcasting over `/ws` and via push.
-- **The device schedules its own alarms.** The native client pulls upcoming
+- **The device schedules its own alarms.** The JS bridge (`apps/web/src/native/`,
+  bundled into the web app and started after sign-in by `useAuth`) pulls upcoming
   occurrences from `GET /api/sync/occurrences` and schedules on-device exact
   alarms, so reminders fire **even offline** and even if the server is
-  unreachable. Re-sync on launch, on a `reminder.changed`/`sync` FCM push, and on
-  a periodic background tick. Re-schedule on device reboot (`BOOT_COMPLETED`).
+  unreachable. It re-syncs **live on every WS event** (`reminder.changed` /
+  `occurrence.*`) and on app resume; reboots re-schedule via `BOOT_COMPLETED`.
+  Ack/snooze/delete elsewhere broadcast `dismiss`, which the bridge turns into a
+  native cancel so a cleared/deleted reminder's alarm stops on every device.
 - **Server push is the backup**, not the primary fire path for native: it covers
   cross-device delivery, ad-hoc/just-created reminders, and escalation.
 
-## Native alarm plugin (`apps/mobile`, Phase 4)
+## Native alarm plugin (`apps/mobile/android-plugin`, Kotlin)
 
-A custom Capacitor plugin (Kotlin) provides what `@capacitor/local-notifications`
-cannot:
+A custom Capacitor plugin provides what `@capacitor/local-notifications` cannot.
+The Kotlin sources live in `apps/mobile/android-plugin` and are wired into the
+generated Android project by `apps/mobile/scripts/setup-android.mjs`; the JS that
+drives them lives in `apps/web/src/native`.
 
 - `AlarmManager.setExactAndAllowWhileIdle` for exact, Doze-surviving alarms.
-- On fire: a **foreground service** posting an **ongoing** notification
-  (`setOngoing(true)`, `setAutoCancel(false)`) with a **full-screen intent**, and
-  looping the alarm sound/vibration on the reminder's `soundIntervalSeconds`.
-- Stops **only** when the user taps **Done** ("I took it"), which cancels the
-  service + sound and `POST`s the ack to the API (queued if offline).
+- On fire, a **foreground service** posts an ongoing notification and, by
+  persistence level:
+  - **Notification (`PERSISTENT`)** — plays the chosen notification sound once;
+    optionally re-posts + re-sounds every N minutes (`soundIntervalSeconds`).
+  - **Alarm (`ALARM`)** — full-screen intent + **continuously looping** the chosen
+    alarm sound + vibration (no interval; it's relentless).
+  - Swiping the notification away **re-posts it** (delete-intent) so it can't be
+    casually dismissed; only Done/Snooze clear it.
+- **Sounds are user-chosen** (per device): `pickSound` opens the system ringtone
+  picker; the chosen URIs are stored in settings and passed through as the
+  alarm/notification tone (system default otherwise). The service plays audio
+  itself (silent channel) so each tone is honored.
+- Stops **only** on **Done**, which cancels the service + sound and `POST`s the
+  ack (queued offline via `PendingAckStore`).
 - A `BOOT_COMPLETED` receiver re-schedules pending alarms from the local mirror.
 
 Permissions: `SCHEDULE_EXACT_ALARM`/`USE_EXACT_ALARM`, `POST_NOTIFICATIONS`,
@@ -60,10 +74,12 @@ Permissions: `SCHEDULE_EXACT_ALARM`/`USE_EXACT_ALARM`, `POST_NOTIFICATIONS`,
 
 ## Escalation
 
-A reminder may escalate after N unacknowledged minutes (`lib/scheduler.ts`
-sweep): re-push with an `alarm` flag to the user's own devices and/or email a
-contact via Cloudflare (`lib/escalation-email.ts`). After a longer cutoff an
-unacknowledged occurrence is marked `MISSED`.
+A reminder may **escalate to an alarm** if unacknowledged — either N minutes
+after firing (`escalateAfterMinutes`) or at a specific wall-clock time
+(`escalateAtTime`, user-tz aware), via the `lib/scheduler.ts` sweep. Escalation
+always rings an alarm on the user's own devices (the contact-email/own-devices
+toggle was removed). After a longer cutoff an unacknowledged occurrence is marked
+`MISSED`.
 
 ## Residual risk
 

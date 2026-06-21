@@ -8,9 +8,10 @@
  * (`resumePausedMutations`). Reminder writes also apply optimistically so the UI
  * reflects them immediately, even with no network.
  */
-import { QueryClient } from '@tanstack/react-query'
-import type { Reminder, ReminderInput } from '@persistent/shared'
+import { QueryClient, QueryCache, MutationCache } from '@tanstack/react-query'
+import { extractErrorMessage, type Reminder, type ReminderInput } from '@persistent/shared'
 import { apiFetch } from './apiClient.js'
+import { notify } from './toast.js'
 
 // Persisted entries are dropped once garbage-collected, so keep them around long
 // enough to outlive offline stretches (must be >= the persister maxAge).
@@ -24,7 +25,15 @@ export const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
       retry: 1
     }
-  }
+  },
+  // Surface background failures cleanly instead of swallowing them. Offline-paused
+  // mutations don't error, so this only fires on genuine failures.
+  queryCache: new QueryCache({
+    onError: (error) => notify(extractErrorMessage(error, "Couldn't load data."), 'danger')
+  }),
+  mutationCache: new MutationCache({
+    onError: (error) => notify(extractErrorMessage(error, 'Something went wrong.'), 'danger')
+  })
 })
 
 export const queryKeys = {
@@ -63,8 +72,7 @@ function optimisticReminder(input: ReminderInput, id = tempId()): Reminder {
     persistence: input.persistence ?? 'PERSISTENT',
     soundIntervalSeconds: input.soundIntervalSeconds ?? null,
     escalateAfterMinutes: input.escalateAfterMinutes ?? null,
-    escalateContactEmail: input.escalateContactEmail ?? null,
-    escalateToOwnDevices: input.escalateToOwnDevices ?? true,
+    escalateAtTime: input.escalateAtTime ?? null,
     active: input.active ?? true,
     startDate: input.startDate,
     endDate: input.endDate ?? null,

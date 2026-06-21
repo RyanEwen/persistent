@@ -15,7 +15,7 @@ import { logger } from './logger.js'
 import { expandSchedule } from './schedule-expand.js'
 import { notificationTitle, notificationBody } from './notification-format.js'
 import { dispatchToUser } from './delivery/index.js'
-import { sendEscalationEmail } from './escalation-email.js'
+import { DateTime } from 'luxon'
 import { toOccurrence } from './serializers.js'
 import { broadcast } from './realtime.js'
 
@@ -129,15 +129,20 @@ async function sweep(): Promise<void> {
   // Escalate fires that have gone unacknowledged past their threshold.
   const fired = await prisma.reminderOccurrence.findMany({
     where: { status: 'FIRED', firedAt: { not: null } },
-    include: { reminder: true },
+    include: { reminder: true, user: { select: { timeZone: true } } },
     take: 200
   })
   for (const occurrence of fired) {
     const reminder = occurrence.reminder
     const firedAt = occurrence.firedAt as Date
     const ageMs = now.getTime() - firedAt.getTime()
+    const tz = occurrence.user?.timeZone ?? 'UTC'
 
-    if (reminder.escalateAfterMinutes && ageMs >= reminder.escalateAfterMinutes * 60_000) {
+    const escalateNow =
+      (reminder.escalateAfterMinutes != null && ageMs >= reminder.escalateAfterMinutes * 60_000) ||
+      (reminder.escalateAtTime != null && now >= escalationInstant(occurrence.scheduledFor, reminder.escalateAtTime, tz))
+
+    if (escalateNow) {
       const updated = await prisma.reminderOccurrence.update({
         where: { id: occurrence.id },
         data: { status: 'ESCALATED', escalatedAt: now },
@@ -181,15 +186,20 @@ function fireNotification(userId: string, reminder: Reminder, occurrenceId: stri
   )
 }
 
+/** Escalation always rings an alarm on the user's own devices. */
 async function escalate(userId: string, reminder: Reminder, occurrenceId: string, scheduledFor: Date): Promise<void> {
-  if (reminder.escalateToOwnDevices) {
-    await dispatchToUser(userId, buildPayload('escalate', reminder, occurrenceId, scheduledFor, true)).catch((error) =>
-      logger.warn('escalate dispatch failed', { error: String(error) })
-    )
-  }
-  if (reminder.escalateContactEmail) {
-    await sendEscalationEmail(reminder, scheduledFor).catch((error) =>
-      logger.warn('escalation email failed', { error: String(error) })
-    )
-  }
+  await dispatchToUser(userId, buildPayload('escalate', reminder, occurrenceId, scheduledFor, true)).catch((error) =>
+    logger.warn('escalate dispatch failed', { error: String(error) })
+  )
+}
+
+/** Absolute escalation instant: the occurrence's local day at "HH:mm" in the user's zone. */
+function escalationInstant(scheduledFor: Date, hhmm: string, tz: string): Date {
+  const [hs, ms] = hhmm.split(':')
+  const hour = Number(hs)
+  const minute = Number(ms)
+  if (Number.isNaN(hour) || Number.isNaN(minute)) return new Date(8.64e15) // never (far future)
+  return DateTime.fromJSDate(scheduledFor, { zone: tz })
+    .set({ hour, minute, second: 0, millisecond: 0 })
+    .toJSDate()
 }
