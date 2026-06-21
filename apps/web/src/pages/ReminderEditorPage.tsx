@@ -282,7 +282,9 @@ export function ReminderEditorPage() {
                 fontWeight: 'md',
                 color: 'text.tertiary',
                 bgcolor: 'transparent',
-                // Underline indicator that sits on the TabList's bottom border.
+                // Only a bottom edge — kill the default all-sides border so the
+                // active color can't paint a full box.
+                border: 'none',
                 borderBottom: '2px solid transparent',
                 marginBottom: '-1px',
                 borderRadius: 0,
@@ -292,7 +294,7 @@ export function ReminderEditorPage() {
                 [`&.${tabClasses.selected}`]: {
                   color: 'primary.plainColor',
                   fontWeight: 'lg',
-                  borderColor: 'primary.500',
+                  borderBottomColor: 'primary.500',
                   bgcolor: 'transparent'
                 }
               }
