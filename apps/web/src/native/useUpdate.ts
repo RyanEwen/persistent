@@ -11,9 +11,9 @@
  */
 import { useCallback, useEffect, useState } from 'react'
 import type { PluginListenerHandle } from '@capacitor/core'
+import { apiFetch } from '../lib/apiClient.js'
 import { NativeApp, UpdatePlugin, isNative, type UpdateState } from './alarmBridge.js'
 
-const REPO = 'RyanEwen/persistent'
 const WEB_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : '0.0.0'
 
 export interface ReleaseInfo {
@@ -54,25 +54,13 @@ async function resolveCurrentVersion(): Promise<string> {
 }
 
 /**
- * Fetch the latest published release + its APK asset. Returns null only when
- * there genuinely is no release yet (GitHub 404); throws on any other failure so
- * callers can distinguish "up to date" from "couldn't check".
+ * Fetch the latest release via our own API (which proxies + caches GitHub, so the
+ * check is same-origin and avoids GitHub's unauthenticated per-IP rate limit).
+ * Returns null when there's no release yet; throws on failure so callers can
+ * distinguish "up to date" from "couldn't check".
  */
 export async function fetchLatestRelease(): Promise<ReleaseInfo | null> {
-  const r = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
-    headers: { accept: 'application/vnd.github+json' },
-    cache: 'no-store'
-  })
-  if (r.status === 404) return null // no releases published yet
-  if (!r.ok) throw new Error(`GitHub responded ${r.status}`)
-  const rel = (await r.json()) as {
-    tag_name?: string
-    body?: string
-    assets?: { name?: string; browser_download_url?: string }[]
-  }
-  const apk = rel.assets?.find((a) => a.name?.endsWith('.apk'))
-  if (!apk?.browser_download_url || !rel.tag_name) return null
-  return { version: rel.tag_name.replace(/^v/, ''), notes: rel.body ?? '', apkUrl: apk.browser_download_url }
+  return apiFetch<ReleaseInfo | null>('/api/app/latest-release', { cache: 'no-store' })
 }
 
 export function useUpdate() {

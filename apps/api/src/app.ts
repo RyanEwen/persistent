@@ -17,6 +17,7 @@ import { remindersRouter } from './routes/reminders.js'
 import { occurrencesRouter } from './routes/occurrences.js'
 import { pushRouter } from './routes/push.js'
 import { syncRouter } from './routes/sync.js'
+import { appReleaseRouter } from './routes/app-release.js'
 
 export function createApp() {
   const app = express()
@@ -43,6 +44,7 @@ export function createApp() {
   app.use('/api/occurrences', occurrencesRouter)
   app.use('/api/push', pushRouter)
   app.use('/api/sync', syncRouter)
+  app.use('/api/app', appReleaseRouter)
 
   // 404 for unknown API routes.
   app.use('/api', (_request, response) => {
