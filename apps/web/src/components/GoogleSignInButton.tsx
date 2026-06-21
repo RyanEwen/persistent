@@ -60,12 +60,15 @@ export function GoogleSignInButton({ clientId, onError }: { clientId: string; on
             loginWithGoogle(credential).catch((err) => onError(extractErrorMessage(err, "Couldn't sign in with Google.")))
           }
         })
+        const width = Math.min(400, Math.max(200, Math.floor(webButtonRef.current.clientWidth) || 320))
         gis.accounts.id.renderButton(webButtonRef.current, {
-          theme: 'filled_blue',
+          type: 'standard',
+          theme: 'outline',
           size: 'large',
-          shape: 'pill',
+          shape: 'rectangular',
           text: 'continue_with',
-          width: 320
+          logo_alignment: 'left',
+          width
         })
       })
       .catch((err) => onError(extractErrorMessage(err, "Couldn't load Google sign-in.")))
@@ -95,6 +98,6 @@ export function GoogleSignInButton({ clientId, onError }: { clientId: string; on
     )
   }
 
-  // Web: GIS renders its own button into this element.
-  return <div ref={webButtonRef} style={{ display: 'flex', justifyContent: 'center' }} />
+  // Web: GIS renders its own button into this full-width element.
+  return <div ref={webButtonRef} style={{ width: '100%', display: 'flex', justifyContent: 'center' }} />
 }
