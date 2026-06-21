@@ -271,6 +271,7 @@ export function ReminderEditorPage() {
             disableUnderline
             sx={{
               gap: 1,
+              borderRadius: 0,
               borderBottom: '1px solid',
               borderColor: 'divider',
               [`& .${tabClasses.root}`]: {
