@@ -7,6 +7,7 @@ import { Router } from 'express'
 import { prisma } from '../lib/prisma.js'
 import { requireUser, requireUserId } from '../lib/auth-middleware.js'
 import { toOccurrence } from '../lib/serializers.js'
+import { escalateAtFor } from '../lib/scheduler.js'
 
 export const syncRouter = Router()
 syncRouter.use(requireUser)
@@ -29,9 +30,19 @@ syncRouter.get('/occurrences', async (request, response) => {
   })
 
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { timeZone: true } })
+  const tz = user?.timeZone ?? 'UTC'
+
   response.json({
     serverTime: now.toISOString(),
-    timeZone: user?.timeZone ?? 'UTC',
-    occurrences: occurrences.map(toOccurrence)
+    timeZone: tz,
+    occurrences: occurrences.map((o) => {
+      // Base the "after N minutes" threshold on the same fire instant the device
+      // schedules the main alarm for (snoozed -> revive time, fired -> firedAt,
+      // else the scheduled time). Already-escalated occurrences need no future
+      // escalation alarm (the device rings immediately for those).
+      const base = o.status === 'SNOOZED' && o.snoozedUntil ? o.snoozedUntil : (o.firedAt ?? o.scheduledFor)
+      const escalateAt = o.status === 'ESCALATED' ? null : escalateAtFor(base, o.scheduledFor, o.reminder, tz)
+      return { ...toOccurrence(o), escalateAt: escalateAt?.toISOString() ?? null }
+    })
   })
 })

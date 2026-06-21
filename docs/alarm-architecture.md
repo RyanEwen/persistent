@@ -76,10 +76,20 @@ Permissions: `SCHEDULE_EXACT_ALARM`/`USE_EXACT_ALARM`, `POST_NOTIFICATIONS`,
 
 A reminder may **escalate to an alarm** if unacknowledged — either N minutes
 after firing (`escalateAfterMinutes`) or at a specific wall-clock time
-(`escalateAtTime`, user-tz aware), via the `lib/scheduler.ts` sweep. Escalation
-always rings an alarm on the user's own devices (the contact-email/own-devices
-toggle was removed). After a longer cutoff an unacknowledged occurrence is marked
-`MISSED`.
+(`escalateAtTime`, user-tz aware). Escalation always rings an alarm on the user's
+own devices (the contact-email/own-devices toggle was removed). After a longer
+cutoff an unacknowledged occurrence is marked `MISSED`.
+
+The escalation instant is computed once (`escalateAtFor` in `lib/scheduler.ts`)
+and used in two places so it fires regardless of connectivity:
+
+- **Server sweep** flips the occurrence to `ESCALATED` and dispatches an alarm
+  push — the cross-device / web path.
+- **`/api/sync`** returns the same instant as `occurrence.escalateAt`, so the
+  native client schedules the escalation as a **second on-device exact alarm**
+  (keyed `<occurrenceId>::esc`, looping alarm). This is the path that actually
+  fires on Android without FCM and while offline; it's cancelled together with
+  the main alarm on ack/dismiss, and a Done on it acks the underlying occurrence.
 
 ## Residual risk
 

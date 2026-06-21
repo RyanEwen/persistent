@@ -36,10 +36,15 @@ function chosenSoundUri(kind: 'alarmSound' | 'notificationSound'): string {
   return ''
 }
 
+// The escalation alarm is a second device alarm keyed off the occurrence id with
+// this suffix, so it can be scheduled/cancelled/acked alongside the main one.
+const ESC_SUFFIX = '::esc'
+
 function toAlarm(occurrence: Occurrence): ScheduledAlarm {
   const { reminder } = occurrence
   const fireAt = occurrence.status === 'SNOOZED' && occurrence.snoozedUntil ? occurrence.snoozedUntil : occurrence.scheduledFor
-  const alarm = reminder.persistence === 'ALARM'
+  // ALARM persistence always rings; an already-escalated occurrence also rings.
+  const alarm = reminder.persistence === 'ALARM' || occurrence.status === 'ESCALATED'
   return {
     occurrenceId: occurrence.id,
     fireAtMs: new Date(fireAt).getTime(),
@@ -54,10 +59,33 @@ function toAlarm(occurrence: Occurrence): ScheduledAlarm {
   }
 }
 
+/** The main alarm plus, if escalation is configured and pending, the escalation alarm. */
+function buildAlarms(occurrence: Occurrence): ScheduledAlarm[] {
+  const main = toAlarm(occurrence)
+  const alarms = [main]
+  // Escalation can't ride server push on devices without FCM, so schedule it
+  // on-device: a looping alarm at the computed instant, cancelled together with
+  // the main alarm on ack/dismiss.
+  if (occurrence.escalateAt && occurrence.status !== 'ESCALATED') {
+    alarms.push({
+      ...main,
+      occurrenceId: main.occurrenceId + ESC_SUFFIX,
+      fireAtMs: new Date(occurrence.escalateAt).getTime(),
+      alarm: true,
+      soundIntervalSeconds: 0,
+      soundUri: chosenSoundUri('alarmSound'),
+      body: main.body ? `${main.body} (escalated)` : 'Escalated'
+    })
+  }
+  return alarms
+}
+
 /** POST any acks the user confirmed natively while the WebView wasn't running. */
 async function drainPendingAcks(): Promise<void> {
   const { occurrenceIds } = await AlarmPlugin.drainPendingAcks()
-  for (const id of occurrenceIds) {
+  // A Done on the escalation alarm acks the underlying occurrence.
+  const baseIds = new Set(occurrenceIds.map((id) => (id.endsWith(ESC_SUFFIX) ? id.slice(0, -ESC_SUFFIX.length) : id)))
+  for (const id of baseIds) {
     await apiFetch(`/api/occurrences/${id}/ack`, { method: 'POST' }).catch(() => {})
   }
 }
@@ -67,7 +95,7 @@ export async function syncAlarms(): Promise<void> {
   if (!isNative()) return
   await drainPendingAcks().catch(() => {})
   const data = await apiFetch<SyncResponse>('/api/sync/occurrences')
-  await AlarmPlugin.scheduleAll({ alarms: data.occurrences.map(toAlarm) })
+  await AlarmPlugin.scheduleAll({ alarms: data.occurrences.flatMap(buildAlarms) })
 }
 
 // Coalesce bursts of WS events / resumes into a single re-sync.
@@ -108,8 +136,10 @@ export async function initNative(): Promise<void> {
   subscribeWs((event) => {
     if (event.type === 'dismiss') {
       // Ack/snooze (from any device or the in-app Done button) clears the alarm:
-      // stop the on-device sound/notification for that occurrence immediately.
+      // stop the on-device sound/notification for that occurrence immediately,
+      // including its escalation alarm.
       void AlarmPlugin.cancel({ occurrenceId: event.occurrenceId }).catch(() => {})
+      void AlarmPlugin.cancel({ occurrenceId: event.occurrenceId + ESC_SUFFIX }).catch(() => {})
       scheduleResync()
     } else if (
       event.type === 'reminder.changed' ||

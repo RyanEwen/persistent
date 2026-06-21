@@ -161,6 +161,12 @@ export const occurrenceSchema = z.object({
   acknowledgedAt: z.string().datetime().nullable(),
   snoozedUntil: z.string().datetime().nullable(),
   escalatedAt: z.string().datetime().nullable(),
+  // Instant this occurrence escalates to an alarm if still unacknowledged, or
+  // null when no escalation is configured. Computed server-side and populated by
+  // /api/sync so native clients can schedule the escalation alarm on-device
+  // (server push is otherwise the only escalation path). Optional: only the sync
+  // endpoint sets it.
+  escalateAt: z.string().datetime().nullable().optional(),
   // Denormalized snapshot of the parent reminder for the "due now" list.
   reminder: reminderSchema.pick({
     title: true,

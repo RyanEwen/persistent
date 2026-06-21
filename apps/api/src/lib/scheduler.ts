@@ -138,9 +138,8 @@ async function sweep(): Promise<void> {
     const ageMs = now.getTime() - firedAt.getTime()
     const tz = occurrence.user?.timeZone ?? 'UTC'
 
-    const escalateNow =
-      (reminder.escalateAfterMinutes != null && ageMs >= reminder.escalateAfterMinutes * 60_000) ||
-      (reminder.escalateAtTime != null && now >= escalationInstant(occurrence.scheduledFor, reminder.escalateAtTime, tz))
+    const escalateAt = escalateAtFor(firedAt, occurrence.scheduledFor, reminder, tz)
+    const escalateNow = escalateAt != null && now.getTime() >= escalateAt.getTime()
 
     if (escalateNow) {
       const updated = await prisma.reminderOccurrence.update({
@@ -191,6 +190,27 @@ async function escalate(userId: string, reminder: Reminder, occurrenceId: string
   await dispatchToUser(userId, buildPayload('escalate', reminder, occurrenceId, scheduledFor, true)).catch((error) =>
     logger.warn('escalate dispatch failed', { error: String(error) })
   )
+}
+
+/**
+ * When an occurrence escalates to an alarm, or null if no escalation is set.
+ * `firedBase` is the fire instant the "after N minutes" threshold counts from
+ * (the occurrence's firedAt once fired, else its scheduled time). Shared by the
+ * server sweep and the /api/sync endpoint (which schedules the alarm on-device).
+ */
+export function escalateAtFor(
+  firedBase: Date,
+  scheduledFor: Date,
+  reminder: { escalateAfterMinutes: number | null; escalateAtTime: string | null },
+  tz: string
+): Date | null {
+  if (reminder.escalateAfterMinutes != null) {
+    return new Date(firedBase.getTime() + reminder.escalateAfterMinutes * 60_000)
+  }
+  if (reminder.escalateAtTime != null) {
+    return escalationInstant(scheduledFor, reminder.escalateAtTime, tz)
+  }
+  return null
 }
 
 /** Absolute escalation instant: the occurrence's local day at "HH:mm" in the user's zone. */
