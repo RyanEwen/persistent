@@ -14,7 +14,7 @@
  * Requires the Android project to exist (a JDK + Android SDK are needed to then
  * build it; this script only edits source files).
  */
-import { existsSync, readFileSync, writeFileSync, copyFileSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync, copyFileSync, cpSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -130,6 +130,15 @@ if (!appGradle.includes("apply plugin: 'kotlin-android'")) {
   )
   writeFileSync(appGradlePath, appGradle)
   console.log("[setup-android] applied kotlin-android plugin in android/app/build.gradle")
+}
+
+// --- 4b. Launcher icons -----------------------------------------------------
+// Overlay our app icon (the bell, generated from apps/mobile/assets/*.svg into
+// android-res/) onto the generated res/, replacing Capacitor's default icon.
+const iconOverlay = join(mobileRoot, 'android-res')
+if (existsSync(iconOverlay)) {
+  cpSync(iconOverlay, join(androidApp, 'res'), { recursive: true })
+  console.log('[setup-android] applied custom launcher icons')
 }
 
 // --- 5. Release signing (when a keystore is provided via env) ---------------
