@@ -21,6 +21,8 @@ export interface ScheduledAlarm {
   ongoing: boolean
   /** Chosen sound URI; '' = system default for the type. */
   soundUri: string
+  /** Parent reminder id, so tapping the notification opens its editor. */
+  reminderId: string
 }
 
 export interface AlarmPluginPlugin {
@@ -37,6 +39,8 @@ export interface AlarmPluginPlugin {
     cancelled?: boolean
   }>
   drainPendingAcks(): Promise<{ occurrenceIds: string[] }>
+  /** Reminder id from a tapped notification (cleared on read); '' if none. */
+  consumePendingNavigation(): Promise<{ reminderId: string }>
 }
 
 export const AlarmPlugin = registerPlugin<AlarmPluginPlugin>('AlarmPlugin')

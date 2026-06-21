@@ -48,7 +48,8 @@ class AlarmService : Service() {
                     soundIntervalSeconds = intent.getIntExtra("soundIntervalSeconds", 0),
                     alarm = intent.getBooleanExtra("alarm", false),
                     ongoing = intent.getBooleanExtra("ongoing", true),
-                    soundUri = intent.getStringExtra("soundUri") ?: ""
+                    soundUri = intent.getStringExtra("soundUri") ?: "",
+                    reminderId = intent.getStringExtra("reminderId") ?: ""
                 )
                 startAlarm(spec)
             }
@@ -77,6 +78,8 @@ class AlarmService : Service() {
     private fun startAlarm(spec: AlarmSpec) {
         ensureChannels()
         active[spec.occurrenceId] = spec
+        activeIds.add(spec.occurrenceId)
+        if (spec.alarm) alarmIds.add(spec.occurrenceId) else alarmIds.remove(spec.occurrenceId)
         // We always play the chosen sound ourselves (so each reminder can use its
         // own sound), so the notification channel is silent.
         startForeground(NOTIFICATION_ID, buildNotification(spec))
@@ -95,12 +98,15 @@ class AlarmService : Service() {
         // The notification never carries audio — we play the chosen sound via
         // MediaPlayer — so it always uses the silent channel.
         val channelId = CHANNEL_SILENT
-        val openApp = packageManager.getLaunchIntentForPackage(packageName)
-            ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        val contentPending = PendingIntent.getActivity(
+        // Tapping the body opens the app to this reminder's editor (via ACTION_OPEN,
+        // which records the target then launches the app).
+        val contentPending = PendingIntent.getBroadcast(
             this,
             ("open:" + spec.occurrenceId).hashCode(),
-            openApp ?: Intent(this, AlarmActivity::class.java),
+            Intent(this, AlarmReceiver::class.java)
+                .setAction(AlarmReceiver.ACTION_OPEN)
+                .putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, spec.occurrenceId)
+                .putExtra(AlarmReceiver.EXTRA_REMINDER_ID, spec.reminderId),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val fullScreen = PendingIntent.getActivity(
@@ -248,20 +254,31 @@ class AlarmService : Service() {
 
     private fun clear(occurrenceId: String) {
         active.remove(occurrenceId)
+        activeIds.remove(occurrenceId)
+        alarmIds.remove(occurrenceId)
         AlarmPlugin.cancelAlarm(this, occurrenceId)
         AlarmStore.remove(this, occurrenceId)
+        // Also drop any pending escalation timer for this occurrence (e.g. acked
+        // offline before it escalated, so there's no WS dismiss to cancel it).
+        val escId = occurrenceId + AlarmReceiver.ESC_SUFFIX
+        AlarmPlugin.cancelAlarm(this, escId)
+        AlarmStore.remove(this, escId)
         if (active.isEmpty()) {
             clearAll()
         } else {
-            // Show the next still-active alarm (silent — it's a continuation).
+            // Another occurrence is still active: restart its sound (the cleared one
+            // may have owned the player) and show it.
             val next = active.values.last()
             startForeground(NOTIFICATION_ID, buildNotification(next))
+            if (next.alarm) startContinuousAlarm(next.soundUri) else stopSound()
         }
     }
 
     private fun clearAll() {
         stopSound()
         active.clear()
+        activeIds.clear()
+        alarmIds.clear()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -303,6 +320,16 @@ class AlarmService : Service() {
         private const val CHANNEL_NOTIF = "reminders"
         private const val CHANNEL_SILENT = "reminders_silent"
         private const val NOTIFICATION_ID = 4201
+
+        // What's currently showing (and which of those are ringing as an alarm), so
+        // a resync can re-arm future alarms without re-firing ones already on screen.
+        val activeIds: MutableSet<String> = java.util.Collections.synchronizedSet(LinkedHashSet())
+        val alarmIds: MutableSet<String> = java.util.Collections.synchronizedSet(LinkedHashSet())
+        fun isActive(occurrenceId: String): Boolean = activeIds.contains(occurrenceId)
+        fun isAlarmActive(occurrenceId: String): Boolean = alarmIds.contains(occurrenceId)
+
+        /** Bring the WebView app to the foreground (used by the notification tap). */
+        fun launchAppPublic(context: Context) = launchApp(context)
 
         /** Called by the Done action: queue the ack and stop the alarm + launch app. */
         fun markDone(context: Context, occurrenceId: String) {

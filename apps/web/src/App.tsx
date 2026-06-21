@@ -2,7 +2,8 @@
  * Top-level routing. Unauthenticated users see the sign-in screen; everyone else
  * gets the app shell (reminders list, editor, settings).
  */
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import CircularProgress from '@mui/joy/CircularProgress'
 import Box from '@mui/joy/Box'
 import { useAuth } from './auth/useAuth.js'
@@ -13,9 +14,14 @@ import { ReminderEditorPage } from './pages/ReminderEditorPage.js'
 import { HistoryPage } from './pages/HistoryPage.js'
 import { SettingsPage } from './pages/SettingsPage.js'
 import { UpdateCheck } from './native/UpdateCheck.js'
+import { registerNavHandler } from './native/navTo.js'
 
 export function App() {
   const { user, loading } = useAuth()
+  const navigate = useNavigate()
+
+  // Let native code (notification taps) drive navigation.
+  useEffect(() => registerNavHandler((path) => navigate(path)), [navigate])
 
   if (loading) {
     return (

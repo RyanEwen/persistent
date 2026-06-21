@@ -16,7 +16,9 @@ data class AlarmSpec(
     // true = stays put / re-appears if swiped away; false = ordinary dismissable.
     val ongoing: Boolean,
     // Chosen sound URI ("" = system default for the alarm/notification type).
-    val soundUri: String
+    val soundUri: String,
+    // Parent reminder id, so tapping the notification can open its editor.
+    val reminderId: String = ""
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("occurrenceId", occurrenceId)
@@ -27,6 +29,7 @@ data class AlarmSpec(
         .put("alarm", alarm)
         .put("ongoing", ongoing)
         .put("soundUri", soundUri)
+        .put("reminderId", reminderId)
 
     companion object {
         fun fromCall(call: PluginCall): AlarmSpec? {
@@ -40,7 +43,8 @@ data class AlarmSpec(
                 soundIntervalSeconds = call.getInt("soundIntervalSeconds") ?: 0,
                 alarm = call.getBoolean("alarm") ?: false,
                 ongoing = call.getBoolean("ongoing") ?: true,
-                soundUri = call.getString("soundUri") ?: ""
+                soundUri = call.getString("soundUri") ?: "",
+                reminderId = call.getString("reminderId") ?: ""
             )
         }
 
@@ -56,7 +60,8 @@ data class AlarmSpec(
                 soundIntervalSeconds = json.optInt("soundIntervalSeconds", 0),
                 alarm = json.optBoolean("alarm", false),
                 ongoing = json.optBoolean("ongoing", true),
-                soundUri = json.optString("soundUri", "")
+                soundUri = json.optString("soundUri", ""),
+                reminderId = json.optString("reminderId", "")
             )
         }
     }

@@ -15,6 +15,7 @@ import type { Occurrence } from '@persistent/shared'
 import { apiFetch } from '../lib/apiClient.js'
 import { subscribeWs } from '../lib/wsClient.js'
 import { AlarmPlugin, isNative, type ScheduledAlarm } from './alarmBridge.js'
+import { navigateApp } from './navTo.js'
 
 interface SyncResponse {
   serverTime: string
@@ -55,7 +56,8 @@ function toAlarm(occurrence: Occurrence): ScheduledAlarm {
     alarm,
     // Both persistence levels stay put / re-appear if swiped.
     ongoing: true,
-    soundUri: alarm ? chosenSoundUri('alarmSound') : chosenSoundUri('notificationSound')
+    soundUri: alarm ? chosenSoundUri('alarmSound') : chosenSoundUri('notificationSound'),
+    reminderId: occurrence.reminderId
   }
 }
 
@@ -98,6 +100,12 @@ export async function syncAlarms(): Promise<void> {
   await AlarmPlugin.scheduleAll({ alarms: data.occurrences.flatMap(buildAlarms) })
 }
 
+/** If the user tapped a notification, navigate to that reminder's editor. */
+async function consumePendingNavigation(): Promise<void> {
+  const { reminderId } = await AlarmPlugin.consumePendingNavigation()
+  if (reminderId) navigateApp(`/reminders/${reminderId}`)
+}
+
 // Coalesce bursts of WS events / resumes into a single re-sync.
 let resyncTimer: ReturnType<typeof setTimeout> | null = null
 function scheduleResync(): void {
@@ -131,6 +139,7 @@ export async function initNative(): Promise<void> {
   started = true
   await requestPermissions()
   await syncAlarms().catch(() => {})
+  await consumePendingNavigation().catch(() => {})
 
   // Live updates: react to the server's WS stream.
   subscribeWs((event) => {
@@ -149,5 +158,8 @@ export async function initNative(): Promise<void> {
       scheduleResync()
     }
   })
-  void App.addListener('resume', () => scheduleResync())
+  void App.addListener('resume', () => {
+    void consumePendingNavigation().catch(() => {})
+    scheduleResync()
+  })
 }

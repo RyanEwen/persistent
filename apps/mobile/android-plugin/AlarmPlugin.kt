@@ -54,7 +54,19 @@ class AlarmPlugin : Plugin() {
         // Replace the whole set: cancel everything we knew, then arm the new list.
         for (existing in AlarmStore.all(context)) cancelAlarm(context, existing.occurrenceId)
         AlarmStore.replaceAll(context, incoming)
-        for (alarm in incoming) armAlarm(context, alarm)
+        val now = System.currentTimeMillis()
+        for (alarm in incoming) {
+            // Don't re-fire a past-due alarm that's already on screen — otherwise
+            // every resync (resume / WS event) would re-show & re-sound it. Future
+            // alarms always arm; a due one only (re)fires if it isn't already active.
+            if (alarm.fireAtMs <= now) {
+                val base = alarm.occurrenceId.removeSuffix(AlarmReceiver.ESC_SUFFIX)
+                val isEsc = base != alarm.occurrenceId
+                val alreadyHandled = if (isEsc) AlarmService.isAlarmActive(base) else AlarmService.isActive(base)
+                if (alreadyHandled) continue
+            }
+            armAlarm(context, alarm)
+        }
         call.resolve()
     }
 
@@ -91,6 +103,13 @@ class AlarmPlugin : Plugin() {
         val array = JSONArray()
         for (id in ids) array.put(id)
         call.resolve(JSObject().put("occurrenceIds", array))
+    }
+
+    /** Return + clear the reminder id from a tapped notification, if any. */
+    @PluginMethod
+    fun consumePendingNavigation(call: PluginCall) {
+        val reminderId = PendingNavStore.consume(context)
+        call.resolve(JSObject().put("reminderId", reminderId ?: ""))
     }
 
     /** Open the system ringtone picker so the user can choose a sound. */
