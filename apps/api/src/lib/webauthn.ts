@@ -12,14 +12,21 @@ export const RP_NAME = 'Persistent'
 const CHALLENGE_COOKIE = 'persistent_pk_challenge'
 const CHALLENGE_MAX_AGE_SECONDS = 60 * 10
 
+// The native app reports its origin as android:apk-key-hash:<base64url(sha256(cert))>
+// instead of the https URL, so it must be an accepted origin too. This is the
+// base64url of the release signing cert — keep it in sync with the SHA-256 in
+// apps/web/public/.well-known/assetlinks.json (env override for other builds).
+const ANDROID_APP_ORIGIN =
+  process.env.ANDROID_APP_ORIGIN?.trim() || 'android:apk-key-hash:TeqrYvSE9JO8zCVuXNwiUkDQKT7CsnFR1ss1TWHGpf0'
+
 type ChallengeKind = 'registration' | 'authentication'
 
-/** Relying-party id (hostname) + the allowed origins, from CLIENT_ORIGIN. */
+/** Relying-party id (hostname) + the allowed origins (web + the native app). */
 export function relyingParty(): { id: string; origins: string[] } {
   const origins = clientOrigins.map((o) => o.trim()).filter(Boolean)
   const first = origins[0]
   if (!first) throw new Error('CLIENT_ORIGIN must include at least one origin for passkeys.')
-  return { id: new URL(first).hostname, origins }
+  return { id: new URL(first).hostname, origins: [...origins, ANDROID_APP_ORIGIN] }
 }
 
 export function setChallengeCookie(response: Response, kind: ChallengeKind, challenge: string): void {

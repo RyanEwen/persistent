@@ -33,7 +33,10 @@ the `Passkey` model.
 - The in-flight challenge is held in a short HttpOnly cookie
   (`persistent_pk_challenge`), validated on verify.
 - **Relying party**: RP ID + allowed origins derive from `CLIENT_ORIGIN`
-  (hostname = RP ID). The login UI offers passkey first, with email as fallback.
+  (hostname = RP ID). The native app's origin is `android:apk-key-hash:<…>` (not
+  the https URL), so that origin is also accepted (`ANDROID_APP_ORIGIN` in
+  `webauthn.ts`, kept in sync with the cert in `assetlinks.json`). The login UI
+  offers passkey first, with email as fallback.
 
 Native app: the WebView has no `navigator.credentials`, so the native
 `PasskeyPlugin` (androidx.credentials Credential Manager) performs the ceremony —
