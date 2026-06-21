@@ -5,7 +5,10 @@
 // See docs/backend-conventions.md.
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // "native" for local dev; the Debian openssl-3.0 target matches the production
+  // runtime image (bookworm) so the query engine is found there.
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {

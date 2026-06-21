@@ -7,6 +7,11 @@
 # --- build stage ---
 FROM node:20-bookworm-slim AS build
 WORKDIR /app
+# OpenSSL so `prisma generate` detects the right engine (debian-openssl-3.0.x),
+# matching the runtime image.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends openssl \
+ && rm -rf /var/lib/apt/lists/*
 
 # Install deps first (better layer caching). Copy the lockfile + every workspace
 # manifest, then `npm ci` so the workspace symlinks resolve.
