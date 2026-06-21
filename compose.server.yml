@@ -23,6 +23,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # Use host networking during the build: the default build bridge resolves
+      # registry.npmjs.org to IPv6-only and `npm ci` then can't connect.
+      network: host
     container_name: persistent-api
     restart: unless-stopped
     depends_on:
