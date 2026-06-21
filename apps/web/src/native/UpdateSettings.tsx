@@ -15,7 +15,7 @@ import { isNative } from './alarmBridge.js'
 import { useUpdate } from './useUpdate.js'
 
 export function UpdateSettings() {
-  const { available, checking, checkedClean, install, check, start, currentVersion } = useUpdate()
+  const { available, checking, checkedClean, checkFailed, install, check, start, currentVersion } = useUpdate()
   const [notesOpen, setNotesOpen] = useState(false)
 
   return (
@@ -66,6 +66,7 @@ export function UpdateSettings() {
                   You're on the latest version.
                 </Typography>
               )}
+              {checkFailed && <Alert color="danger">Couldn't check for updates. Try again.</Alert>}
             </>
           )}
         </Stack>

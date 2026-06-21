@@ -53,6 +53,9 @@ export interface UpdatePluginPlugin {
 
 export const UpdatePlugin = registerPlugin<UpdatePluginPlugin>('Update')
 
+/** Minimal proxy to @capacitor/app's getInfo — the installed APK's versionName. */
+export const NativeApp = registerPlugin<{ getInfo(): Promise<{ version: string; build: string }> }>('App')
+
 export function isNative(): boolean {
   return Capacitor.isNativePlatform()
 }
