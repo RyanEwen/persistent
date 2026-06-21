@@ -3,7 +3,7 @@
  * resolver, the API routers, and the JSON error handler. The HTTP server +
  * WebSocket hub + scheduler are started in server.ts.
  */
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import express, { type NextFunction, type Request, type Response } from 'express'
 import cors from 'cors'
@@ -55,6 +55,18 @@ export function createApp() {
   // are first-party). The service worker is served with no-cache so updates land.
   const webDir = env.WEB_DIST_DIR?.trim()
   if (webDir && existsSync(webDir)) {
+    // Serve the passkey asset-links with an EXACT `application/json` content type
+    // (no charset). Play Services' on-device Digital Asset Links validator is
+    // stricter than Google's crawler and rejects `application/json; charset=utf-8`
+    // with "RP ID cannot be validated", which express.static would otherwise send.
+    const assetLinksPath = path.join(webDir, '.well-known', 'assetlinks.json')
+    if (existsSync(assetLinksPath)) {
+      app.get('/.well-known/assetlinks.json', (_request, response) => {
+        response.setHeader('Content-Type', 'application/json')
+        response.setHeader('Cache-Control', 'public, max-age=300')
+        response.send(readFileSync(assetLinksPath))
+      })
+    }
     // `dotfiles: 'allow'` so /.well-known/assetlinks.json (passkey app linking)
     // is served instead of falling through to the SPA handler.
     app.use(express.static(webDir, { index: false, dotfiles: 'allow' }))
