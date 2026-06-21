@@ -285,6 +285,8 @@ export function ReminderEditorPage() {
                 borderBottom: '2px solid transparent',
                 marginBottom: '-1px',
                 borderRadius: 0,
+                // No focus/selected box — the bottom underline is the only indicator.
+                '&:focus, &:focus-visible': { outline: 'none' },
                 '&:hover': { bgcolor: 'transparent', color: 'text.secondary' },
                 [`&.${tabClasses.selected}`]: {
                   color: 'primary.plainColor',
