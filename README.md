@@ -4,22 +4,26 @@ A reminder/notification app whose defining feature is **persistence**: a reminde
 keeps nagging — a notification that won't dismiss, re-fires after dismissal, and
 can play sound on an interval — until you *explicitly confirm completion*. Built
 for medication reminders, todos, and anything you must not forget, with optional
-**escalation** of ignored reminders (your own devices + an email contact).
+**escalation**: if an ignored reminder isn't acknowledged in time it rings a
+full alarm on your own devices. Escalation is a hard backstop — anchored to the
+first fire, so snoozing can't push it past the deadline.
 
 It runs as a hosted web service (public sign-ups, any device) and syncs to a
 native Android client (Capacitor) where the hard alarm guarantees actually live.
 
 > Architecture and conventions are borrowed, thinned, from the sibling
-> `printstream` monorepo. See `docs/` and `.claude/guides/`.
+> `printstream` monorepo. Cross-cutting contracts live in `docs/`; repeatable
+> workflows are `.claude/commands/` slash commands.
 
 ## Stack
 
 - **`apps/api`** — Express + Prisma + PostgreSQL + WebSocket + the scheduling/
   escalation engine.
 - **`apps/web`** — Vite + React + Joy UI PWA (the single UI codebase).
-- **`apps/mobile`** — Capacitor (Android) wrapper of the web build + a custom
-  native alarm plugin (foreground service + exact alarms + full-screen + looping
-  sound). *(Phase 4.)*
+- **`apps/mobile`** — Capacitor (Android) wrapper that loads the web UI and adds
+  the native plugins: a custom alarm plugin (foreground service + exact alarms +
+  full-screen + looping sound), an in-app updater, and a passkey/Credential
+  Manager bridge. See `apps/mobile/README.md`.
 - **`packages/shared`** — Zod schemas + inferred types shared by API and web.
 
 ## The persistence reality
@@ -35,11 +39,29 @@ Reminders fire reliably even offline via **device-scheduled local alarms** synce
 from the server (the source of truth); server push is the cross-device /
 escalation / ad-hoc backup. See `docs/alarm-architecture.md`.
 
+## Auth
+
+Passwordless: request a one-time **email code** (sign-up and sign-in are the same
+flow), or register a **passkey** and sign in with a single biometric/PIN gesture.
+Sessions are a sliding 7-day window (any in-app action or notification
+ack/snooze/sync extends them). See `docs/auth-architecture.md`.
+
+## Sync model
+
+The server owns the truth; clients hold a mirror. Reminder reads/writes go over
+HTTP (TanStack Query, cache persisted for offline reads); writes apply
+optimistically and **queue while offline**, replaying on reconnect. Conflicts
+resolve **last-edit-wins** (each edit carries its client timestamp). Live updates
+arrive over a per-user WebSocket and invalidate caches. The native client also
+pulls occurrences to schedule on-device alarms and drains acks/snoozes back to
+the server. See `docs/data-event-contract.md`.
+
 ## Development (devcontainer-only)
 
 This project is developed exclusively inside its **dev container** (VS Code:
 "Reopen in Container"). The container provides Node 20, PostgreSQL (`db`
-service), and all tooling; `DATABASE_URL`/`API_PORT` are injected automatically.
+service), the Android SDK/JDK, and all tooling; `DATABASE_URL`/`API_PORT` are
+injected automatically.
 
 ```bash
 npm run dev        # shared (watch) + api + web, concurrently
@@ -49,6 +71,8 @@ npm run validate   # lint + test + typecheck + prisma validate
 
 Local auth works without mail infra: `DEMO_MODE=true` returns the sign-in code in
 the API response instead of emailing it.
+
+For the Android app (build, wireless adb, signing), see `apps/mobile/README.md`.
 
 ## Deployment
 
@@ -63,7 +87,24 @@ npm run deploy:prod -- --dry-run
 ```
 
 Deploy target comes from your local `.env` (`DEPLOY_SSH_HOST`, `DEPLOY_REPO_PATH`,
-`DEPLOY_BRANCH`). The `/deploy` slash command wraps review + commit + push + deploy.
+`DEPLOY_BRANCH`).
+
+## Releases & updates
+
+Pushing a `vX.Y.Z` tag runs `.github/workflows/release.yml`, which builds the web
+bundle, assembles a **signed** APK, and publishes a GitHub Release with the APK
+attached. The app checks GitHub on launch (and from Settings → About) and offers
+an in-app download/install of a newer APK. Because the APK loads the UI from
+production, web-only changes ship via a deploy with no new APK — release a new
+APK only for native changes (alarm/update/passkey plugins, manifest, icon).
+
+## Slash commands (`.claude/commands/`)
+
+- `/commit` — review (docs + data-isolation + logging) + validate + commit.
+- `/deploy` — `/commit` then push + SSH-Docker deploy.
+- `/release` — derive the next version from changes since the last release, tag,
+  and let CI build the signed APK + GitHub Release.
+- `/audit-docs` — resync all docs with the code.
 
 ## License
 

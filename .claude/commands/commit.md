@@ -11,19 +11,40 @@ Requirements:
 - Review both staged and unstaged changes before deciding on the final commit scope.
 - If there are no staged or unstaged changes, inform the user and exit without committing.
 - Stage only changes that belong in the commit. Never stage generated or secret files — `dist/`, `**/node_modules/`, `.env*`, `apps/mobile/android/`, `apps/web/dist/`, coverage. If such files appear in the diff, fix `.gitignore` instead of staging them.
-- Perform a mandatory documentation review before committing (see below).
+- Perform a mandatory, exhaustive documentation review before committing (see below). Treat doc drift as a defect that blocks the commit: update what's stale.
 - Perform a mandatory data-isolation review before committing (see below).
 - Perform a mandatory logging-coverage review before committing (see below).
 - Draft the commit message before running `git commit`.
 - Do not ask for confirmation before committing unless the invocation explicitly requests a pause.
 - Treat an explicit `push` request as approval to run `git push` after a successful commit. Otherwise ask before pushing.
 
-Documentation review scope:
-- `README.md` for setup, workflow, or user-visible behavior changes.
-- Root `CLAUDE.md` and the directory guides (`apps/api/CLAUDE.md`, `apps/web/CLAUDE.md`, `packages/shared/CLAUDE.md`) for area-specific guidance that may now be stale.
-- `docs/` contracts (`auth-architecture.md`, `data-event-contract.md`, `alarm-architecture.md`) whenever auth, the HTTP/WS data flow, or the notification/alarm model changed.
-- `.claude/commands/` when command behavior or workflow expectations changed.
-- Shared contract notes whenever `packages/shared` or the API/web boundary changed.
+Documentation review scope — this is MANDATORY and EXHAUSTIVE. For every change in
+the commit, open the docs that describe the touched area and reconcile them; do
+not gate this on whether the change "feels user-visible". Drift is a bug. Review
+**all documentation surfaces** and update any that no longer match the code:
+
+- `README.md` (root) — stack, features, auth, sync model, dev/deploy workflow,
+  releases, the slash-command list.
+- `apps/mobile/README.md` — the Android build/run/sign/update flow and native plugins.
+- Every `CLAUDE.md`: root plus the directory guides `apps/api/CLAUDE.md`,
+  `apps/web/CLAUDE.md`, `packages/shared/CLAUDE.md` — conventions, model lists,
+  helper inventories, and "do/don't" rules that the change affects.
+- `docs/` contracts — `auth-architecture.md`, `data-event-contract.md`,
+  `alarm-architecture.md` — whenever auth/sessions/passkeys, the HTTP/WS data
+  flow + offline sync, or the notification/alarm/escalation model changed.
+- `.claude/commands/` (`commit.md`, `deploy.md`, `release.md`, `audit-docs.md`) —
+  when a workflow, script, or expectation referenced by a command changed.
+- `.env.example` — when any env var / config key is added, renamed, or removed.
+- Build/deploy descriptors — `Dockerfile`, `compose.server.yml`,
+  `.github/workflows/*`, root/workspace `package.json` scripts — keep referenced
+  commands and behavior accurate.
+- In-code docs — the JSDoc header / comments of each non-trivial module you
+  changed (it must still name what the module owns and any invariants), and any
+  inline comment that the change invalidates.
+
+In the commit summary, state explicitly which doc surfaces you reviewed and which
+you updated; if a surface needed no change, say so. "I didn't check docs" or
+silently skipping a surface is not acceptable.
 
 Data-isolation review scope (the one rule — see `docs/auth-architecture.md`):
 - Every new or changed query that reads/writes a domain row (`Reminder`, `ReminderOccurrence`, `PushSubscription`, `Device`) MUST filter by the authenticated `userId` (`requireUserId(request)`). Edit/delete must first re-fetch `{ id, userId }` and 404 if missing — never trust a path id alone.
@@ -38,7 +59,7 @@ Logging-coverage review scope (operational logs go through `apps/api/src/lib/log
 Recommended steps:
 1. `git diff --stat` and `git diff --cached --stat`.
 2. Inspect changed files and stage only the intended scope with selective `git add <path>`, or `git add -A` then `git reset <path>` for anything that must stay unstaged.
-3. Run the documentation, data-isolation, and logging reviews above; make any needed updates. Explicitly confirm when none are needed.
+3. Run the documentation, data-isolation, and logging reviews above. For docs, walk every surface in the (exhaustive) Documentation review scope, update what drifted, and report per-surface what you reviewed/updated (or why none was needed) — never skip a surface silently.
 4. Draft a commit message in imperative mood with a short subject; add a short body if the change is non-trivial.
 5. Run `npm run validate` and fix any failures before committing.
 6. Run `git commit`. End the message with the trailer: `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.

@@ -10,7 +10,7 @@ Invocation input (optional): $ARGUMENTS
 Requirements:
 - Review both staged and unstaged changes before deciding on the final commit scope.
 - Stage relevant tracked changes by default with `git add -A`, then unstage build output, secrets, or unrelated generated files (`dist/`, `**/node_modules/`, `.env*`, `apps/web/dist/`, `apps/mobile/android/`).
-- Perform the mandatory documentation, data-isolation, and logging-coverage reviews from `/commit` before committing.
+- Perform the mandatory, **exhaustive** documentation review plus the data-isolation and logging-coverage reviews from `/commit` before committing — walk every documentation surface and update what drifted (deploying stale docs is a defect).
 - Draft the commit message before running `git commit`.
 - Do not ask for confirmation before committing unless the invocation explicitly requests a pause, review-only, or dry-run.
 - Treat the invocation as approval to `git push` after a successful commit unless it says not to.
@@ -18,12 +18,14 @@ Requirements:
 - Use the production deploy path by default: `npm run deploy:prod` (SSH + Docker Compose; see `scripts/deploy/deploy-over-ssh.mjs`).
 - Pass through any explicit deploy args: `--dry-run`, `--host`, `--repo-path`, `--branch`, `--skip-validate`.
 
-Reviews before committing: run the documentation, data-isolation, and logging-coverage reviews exactly as defined in `.claude/commands/commit.md`. (There is no open-core/export step in this project.)
+Reviews before committing: run the documentation (exhaustive — every surface),
+data-isolation, and logging-coverage reviews exactly as defined in
+`.claude/commands/commit.md`. (There is no open-core/export step in this project.)
 
 Recommended steps:
 1. `git diff --stat` and `git diff --cached --stat`.
 2. Inspect changed files; stage the intended set and unstage anything generated/secret.
-3. Run the documentation + data-isolation + logging reviews; update what's stale. Explicitly confirm when nothing needs changing.
+3. Run the documentation + data-isolation + logging reviews; for docs, walk every surface in `/commit`'s exhaustive Documentation review scope and update what drifted, reporting per-surface what you reviewed/updated. Never skip a surface silently.
 4. Run `npm run validate`; fix failures before continuing.
 5. Draft a commit message (imperative subject; short body if non-trivial); end with the `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>` trailer.
 6. If the invocation requested a pause/review/dry-run-only, show the message and stop before `git commit`.
