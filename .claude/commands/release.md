@@ -8,9 +8,10 @@ Cut a new app release.
 Invocation input (optional): $ARGUMENTS
 
 The release pipeline is `.github/workflows/release.yml`: pushing a `vX.Y.Z` tag
-builds the web bundle, assembles a **signed** APK, and publishes a GitHub Release
-with the APK attached. This command decides the next version, records it, and
-pushes the tag.
+builds the web bundle, assembles a **signed** APK, generates changelog notes from
+the commits since the previous tag, and publishes a GitHub Release (APK + notes).
+The app surfaces those notes in the in-app update prompt. This command decides the
+next version, records it, and pushes the tag.
 
 Requirements:
 - The working tree must be clean and `HEAD` must equal `origin/<default branch>`

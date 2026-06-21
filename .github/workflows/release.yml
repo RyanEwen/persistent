@@ -23,6 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history + tags so we can build a changelog
 
       - name: Resolve version
         id: ver
@@ -30,6 +32,24 @@ jobs:
           TAG="${{ github.event.inputs.version || github.ref_name }}"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "name=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate release notes
+        run: |
+          TAG="${{ github.event.inputs.version || github.ref_name }}"
+          PREV=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)
+          RANGE="${TAG}"
+          [ -n "$PREV" ] && RANGE="${PREV}..${TAG}"
+          {
+            echo "## What's changed"
+            echo
+            git log --no-merges --pretty=format:'- %s' "$RANGE" | grep -v '^- Bump version' || true
+            echo
+            if [ -n "$PREV" ]; then
+              echo
+              echo "**Full changelog**: https://github.com/${{ github.repository }}/compare/${PREV}...${TAG}"
+            fi
+          } > RELEASE_NOTES.md
+          cat RELEASE_NOTES.md
 
       - uses: actions/setup-node@v4
         with:
@@ -83,5 +103,5 @@ jobs:
         with:
           tag_name: ${{ steps.ver.outputs.tag }}
           name: ${{ steps.ver.outputs.tag }}
-          generate_release_notes: true
+          body_path: RELEASE_NOTES.md
           files: persistent-*.apk
