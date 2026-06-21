@@ -113,10 +113,10 @@ export async function syncAlarms(): Promise<void> {
   await AlarmPlugin.scheduleAll({ alarms: data.occurrences.flatMap(buildAlarms) })
 }
 
-/** If the user tapped a notification, navigate to that reminder's editor. */
+/** If the user tapped a notification, open the app to the main list. */
 async function consumePendingNavigation(): Promise<void> {
   const { reminderId } = await AlarmPlugin.consumePendingNavigation()
-  if (reminderId) navigateApp(`/reminders/${reminderId}`)
+  if (reminderId) navigateApp('/')
 }
 
 // Coalesce bursts of WS events / resumes into a single re-sync.
