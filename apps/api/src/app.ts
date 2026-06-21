@@ -35,7 +35,11 @@ export function createApp() {
           'frame-src': ["'self'", 'https://accounts.google.com/gsi/'],
           'img-src': ["'self'", 'data:', 'https://*.googleusercontent.com']
         }
-      }
+      },
+      // Google Identity Services signs in via a popup that must postMessage the
+      // credential back to us; the default COOP 'same-origin' severs that link
+      // (leaving a blank accounts.google.com/gsi/transform popup).
+      crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' }
     })
   )
   app.use(
