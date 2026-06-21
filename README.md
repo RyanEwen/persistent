@@ -54,7 +54,7 @@ the API response instead of emailing it.
 
 Production runs a single Docker image (built from `Dockerfile`) that serves the
 API and the built web app on one origin, plus Postgres — see `compose.server.yml`.
-The server holds a git checkout and a filled-in `.env.server` (`.env.server.example`)
+The server holds a git checkout and a filled-in `.env` (`.env.example`)
 behind a TLS reverse proxy. Deploy from a clean, pushed tree with:
 
 ```bash

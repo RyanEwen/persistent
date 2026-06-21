@@ -3,7 +3,7 @@
  * Deploy the current `origin/<branch>` to a server over SSH using Docker Compose.
  *
  * The server holds a git checkout at DEPLOY_REPO_PATH and a filled-in
- * `.env.server` next to `compose.server.yml`. This script verifies the local
+ * `.env` next to `compose.server.yml`. This script verifies the local
  * tree is clean and matches the remote branch, then on the server: fetches,
  * hard-resets to the pushed commit, and rebuilds + restarts the stack. Prisma
  * migrations run on container start (`npm run start:prod`).
@@ -74,7 +74,7 @@ const remoteScript = [
   `cd ${repoPath}`,
   `git fetch origin ${branch}`,
   `git reset --hard origin/${branch}`,
-  `docker compose -f compose.server.yml --env-file .env.server up -d --build`,
+  `docker compose -f compose.server.yml up -d --build`,
   `docker image prune -f`
 ].join(' && ')
 

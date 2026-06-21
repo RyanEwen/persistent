@@ -33,7 +33,7 @@ Recommended steps:
 10. Summarize the exact push + deploy commands used and any errors.
 
 Notes:
-- Deploy target comes from `.env` (`DEPLOY_SSH_HOST`, `DEPLOY_REPO_PATH`, `DEPLOY_BRANCH`); the server holds a filled-in `.env.server` next to `compose.server.yml`.
+- Deploy target comes from `.env` (`DEPLOY_SSH_HOST`, `DEPLOY_REPO_PATH`, `DEPLOY_BRANCH`); the server holds a filled-in `.env` next to `compose.server.yml`.
 - Production data lives in the `persistent-data` Docker volume on the server. Never destroy it without explicit user confirmation.
 - Prisma migrations run automatically on container start (`npm run start:prod`); no separate migrate step.
 - The API serves the built web app on the same origin behind your TLS reverse proxy (the container binds `127.0.0.1:4000`).
