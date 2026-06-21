@@ -5,6 +5,7 @@
  */
 import Stack from '@mui/joy/Stack'
 import Typography from '@mui/joy/Typography'
+import { reminderBodyText } from '@persistent/shared'
 import { usePastOccurrences } from '../data/occurrences.js'
 import { formatWhen } from '../lib/datetime.js'
 import { useSettings } from '../settings/useSettings.js'
@@ -31,6 +32,7 @@ export function HistoryPage() {
             category={occurrence.reminder.category}
             title={occurrence.reminder.title}
             status={occurrence.status}
+            description={reminderBodyText(occurrence.reminder)}
             subtitle={formatWhen(occurrence.scheduledFor, timeFormat)}
           />
         ))}

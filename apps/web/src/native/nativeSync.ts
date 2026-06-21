@@ -11,7 +11,7 @@
  */
 import { App } from '@capacitor/app'
 import { PushNotifications } from '@capacitor/push-notifications'
-import type { Occurrence } from '@persistent/shared'
+import { reminderBodyText, type Occurrence } from '@persistent/shared'
 import { apiFetch } from '../lib/apiClient.js'
 import { subscribeWs } from '../lib/wsClient.js'
 import { AlarmPlugin, isNative, type ScheduledAlarm } from './alarmBridge.js'
@@ -50,7 +50,7 @@ function toAlarm(occurrence: Occurrence): ScheduledAlarm {
     occurrenceId: occurrence.id,
     fireAtMs: new Date(fireAt).getTime(),
     title: reminder.title,
-    body: reminder.details ?? '',
+    body: reminderBodyText(reminder),
     soundIntervalSeconds: reminder.soundIntervalSeconds ?? 0,
     // ALARM = looping alarm; PERSISTENT = a notification (sounds once).
     alarm,

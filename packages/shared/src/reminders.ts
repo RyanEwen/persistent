@@ -94,6 +94,45 @@ export type MedicationList = z.infer<typeof medicationListSchema>
 export const categoryDataSchema = z.record(z.unknown())
 export type CategoryData = z.infer<typeof categoryDataSchema>
 
+// --- Display text shared by notifications + cards ---
+
+/** One medication -> "Ibuprofen 200 mg" (missing pieces dropped). */
+export function formatMedication(med: MedicationData): string {
+  const dose = [med.quantity, med.unit].filter(Boolean).join(' ')
+  return [med.name, dose].filter(Boolean).join(' ')
+}
+
+/** Medications on a reminder's categoryData (the `medications` array, or a legacy single row). */
+export function medicationList(categoryData: CategoryData): MedicationData[] {
+  const data = (categoryData ?? {}) as { medications?: MedicationData[] } & MedicationData
+  const meds = data.medications?.length
+    ? data.medications
+    : data.name || data.unit || data.quantity != null
+      ? [data]
+      : []
+  return meds.filter((m) => formatMedication(m) !== '')
+}
+
+/** "Ibuprofen 200 mg, Tylenol 500 mg" or '' when there are none. */
+export function formatMedications(categoryData: CategoryData): string {
+  return medicationList(categoryData).map(formatMedication).join(', ')
+}
+
+/** Description for notifications + list cards: medications (if any) then details. */
+export function reminderBodyText(source: {
+  category: ReminderCategory
+  categoryData: CategoryData
+  details: string | null
+}): string {
+  const parts: string[] = []
+  if (source.category === 'MEDICATION') {
+    const meds = formatMedications(source.categoryData)
+    if (meds) parts.push(meds)
+  }
+  if (source.details) parts.push(source.details)
+  return parts.join(' · ')
+}
+
 // --- Reminder DTO + create/update inputs ---
 
 export const reminderSchema = z.object({

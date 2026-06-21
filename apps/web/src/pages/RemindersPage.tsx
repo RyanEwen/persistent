@@ -11,6 +11,7 @@ import Typography from '@mui/joy/Typography'
 import Button from '@mui/joy/Button'
 import Chip from '@mui/joy/Chip'
 import Divider from '@mui/joy/Divider'
+import { reminderBodyText } from '@persistent/shared'
 import { useReminders } from '../data/reminders.js'
 import { useActiveOccurrences, useAckOccurrence, useSnoozeOccurrence } from '../data/occurrences.js'
 import { scheduleSummary } from '../lib/scheduleSummary.js'
@@ -58,8 +59,8 @@ export function RemindersPage() {
                       <Typography level="title-md">{occurrence.reminder.title}</Typography>
                       <StatusIcon status={occurrence.status} />
                     </Stack>
-                    {occurrence.reminder.details && (
-                      <Typography level="body-sm">{occurrence.reminder.details}</Typography>
+                    {reminderBodyText(occurrence.reminder) && (
+                      <Typography level="body-sm">{reminderBodyText(occurrence.reminder)}</Typography>
                     )}
                     <Typography level="body-xs" sx={{ mt: 0.5 }}>
                       {formatWhen(occurrence.scheduledFor, timeFormat)}
@@ -109,6 +110,7 @@ export function RemindersPage() {
                 category={reminder.category}
                 title={reminder.title}
                 status={reminder.lastOccurrence?.status}
+                description={reminderBodyText(reminder)}
                 subtitle={when}
                 secondary={isRepeating ? scheduleSummary(reminder.schedule, timeFormat) : undefined}
                 trailing={

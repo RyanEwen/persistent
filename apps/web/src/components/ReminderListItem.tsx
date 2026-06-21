@@ -18,6 +18,7 @@ export function ReminderListItem({
   category,
   title,
   status,
+  description,
   subtitle,
   secondary,
   trailing
@@ -26,6 +27,7 @@ export function ReminderListItem({
   category: ReminderCategory
   title: string
   status?: OccurrenceStatus | null
+  description?: string
   subtitle?: string
   secondary?: string
   trailing?: ReactNode
@@ -42,6 +44,19 @@ export function ReminderListItem({
               </Typography>
               {status && <StatusIcon status={status} />}
             </Stack>
+            {description && (
+              <Typography
+                level="body-sm"
+                sx={{
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden'
+                }}
+              >
+                {description}
+              </Typography>
+            )}
             {subtitle && <Typography level="body-xs">{subtitle}</Typography>}
             {secondary && (
               <Typography level="body-xs" sx={{ color: 'text.tertiary' }}>
