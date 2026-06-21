@@ -109,6 +109,11 @@ export const reminderSchema = z.object({
   // Escalate (always to an alarm) either N minutes after firing, or at a specific
   // wall-clock time ("HH:mm") on the occurrence's day. At most one is set.
   escalateAtTime: z.string().nullable(),
+  // Optional independent email escalation: email this address (with a custom
+  // message) once it's this many minutes overdue.
+  escalateEmail: z.string().nullable(),
+  escalateEmailMessage: z.string().nullable(),
+  escalateEmailAfterMinutes: z.number().int().nullable(),
   active: z.boolean(),
   startDate: z.string(),
   endDate: z.string().nullable(),
@@ -134,10 +139,14 @@ export const reminderInputSchema = z
     categoryData: categoryDataSchema.default({}),
     schedule: scheduleSchema,
     persistence: persistenceLevelSchema.default('PERSISTENT'),
-    // null = no repeating sound; otherwise seconds between sound repeats.
-    soundIntervalSeconds: z.number().int().min(5).max(3600).nullable().default(null),
-    escalateAfterMinutes: z.number().int().min(1).max(1440).nullable().default(null),
+    // null = no repeating sound; otherwise seconds between sound repeats (up to ~1 year).
+    soundIntervalSeconds: z.number().int().min(5).max(31_536_000).nullable().default(null),
+    // Minutes after firing before escalating to an alarm (up to ~1 year).
+    escalateAfterMinutes: z.number().int().min(1).max(525_600).nullable().default(null),
     escalateAtTime: timeOfDaySchema.nullable().default(null),
+    escalateEmail: z.string().trim().toLowerCase().email().max(254).nullable().default(null),
+    escalateEmailMessage: z.string().trim().max(2000).nullable().default(null),
+    escalateEmailAfterMinutes: z.number().int().min(1).max(525_600).nullable().default(null),
     active: z.boolean().default(true),
     startDate: calendarDateSchema,
     endDate: calendarDateSchema.nullable().default(null)
@@ -145,6 +154,17 @@ export const reminderInputSchema = z
   .superRefine((value, ctx) => {
     if (value.endDate && value.endDate < value.startDate) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['endDate'], message: 'End date must be on or after the start date.' })
+    }
+    // An ALARM already rings continuously until done, so escalation is redundant.
+    if (
+      value.persistence === 'ALARM' &&
+      (value.escalateAfterMinutes != null || value.escalateAtTime != null || value.escalateEmailAfterMinutes != null)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['persistence'],
+        message: 'Alarm reminders already ring continuously — escalation does not apply.'
+      })
     }
   })
 export type ReminderInput = z.input<typeof reminderInputSchema>

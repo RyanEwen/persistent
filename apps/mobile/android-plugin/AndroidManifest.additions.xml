@@ -36,6 +36,15 @@
     android:launchMode="singleInstance"
     android:theme="@android:style/Theme.Material.NoActionBar" />
 
+<activity
+    android:name="ca.persistent.app.alarm.SnoozePickerActivity"
+    android:exported="false"
+    android:showWhenLocked="true"
+    android:turnScreenOn="true"
+    android:excludeFromRecents="true"
+    android:launchMode="singleInstance"
+    android:theme="@android:style/Theme.Material.Dialog.NoActionBar" />
+
 <receiver
     android:name="ca.persistent.app.alarm.AlarmReceiver"
     android:exported="false" />

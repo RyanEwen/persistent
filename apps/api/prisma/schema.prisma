@@ -139,6 +139,11 @@ model Reminder {
   /// wall-clock time ("HH:mm") on the occurrence's day. At most one is set.
   escalateAfterMinutes Int?
   escalateAtTime       String?
+  /// Optional independent email escalation: email this address (custom message)
+  /// once it's `escalateEmailAfterMinutes` overdue.
+  escalateEmail            String?
+  escalateEmailMessage     String?
+  escalateEmailAfterMinutes Int?
 
   active    Boolean   @default(true)
   /// Calendar date (YYYY-MM-DD) in the user's time zone; anchor for interval schedules.
@@ -166,6 +171,8 @@ model ReminderOccurrence {
   acknowledgedAt DateTime?
   snoozedUntil DateTime?
   escalatedAt  DateTime?
+  /// When the escalation email was sent (once-only guard for the email pass).
+  escalationEmailedAt DateTime?
   createdAt    DateTime         @default(now())
 
   reminder Reminder @relation(fields: [reminderId], references: [id], onDelete: Cascade)

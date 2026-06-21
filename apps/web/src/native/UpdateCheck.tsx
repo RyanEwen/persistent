@@ -6,7 +6,6 @@
  * updates itself via the service worker, so this only acts on the native app.
  */
 import { useEffect, useState } from 'react'
-import Modal from '@mui/joy/Modal'
 import ModalDialog from '@mui/joy/ModalDialog'
 import DialogTitle from '@mui/joy/DialogTitle'
 import DialogContent from '@mui/joy/DialogContent'
@@ -15,6 +14,7 @@ import Button from '@mui/joy/Button'
 import Stack from '@mui/joy/Stack'
 import { isNative } from './alarmBridge.js'
 import { useUpdate, type ReleaseInfo } from './useUpdate.js'
+import { BackAwareModal } from '../components/BackAwareModal.js'
 
 const LAST_SEEN_KEY = 'persistent-last-seen-version'
 
@@ -50,7 +50,7 @@ export function UpdateCheck() {
   if (!prompt) return null
   const notes = cleanNotes(prompt.notes)
   return (
-    <Modal open onClose={dismiss}>
+    <BackAwareModal open onClose={dismiss}>
       <ModalDialog>
         <DialogTitle>Version {prompt.version} available</DialogTitle>
         <DialogContent>
@@ -67,6 +67,6 @@ export function UpdateCheck() {
           </Button>
         </Stack>
       </ModalDialog>
-    </Modal>
+    </BackAwareModal>
   )
 }

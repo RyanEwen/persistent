@@ -8,6 +8,7 @@ import Box from '@mui/joy/Box'
 import Sheet from '@mui/joy/Sheet'
 import Typography from '@mui/joy/Typography'
 import { BottomNav } from './BottomNav.js'
+import { GetTheAppButton, NativePromoBanner } from './GetTheApp.js'
 import { useSettings } from '../settings/useSettings.js'
 import { getTheme, themeSx } from '../settings/themes.js'
 
@@ -32,9 +33,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
         <Typography component={RouterLink} to="/" level="title-lg" sx={{ textDecoration: 'none' }}>
           Persistent
         </Typography>
+        <Box sx={{ flex: 1 }} />
+        <GetTheAppButton />
       </Sheet>
       {/* pb leaves room for the fixed bottom nav. */}
-      <Box sx={{ maxWidth: 640, mx: 'auto', px: 2, py: 2, pb: 10 }}>{children}</Box>
+      <Box sx={{ maxWidth: 640, mx: 'auto', px: 2, py: 2, pb: 10 }}>
+        <NativePromoBanner />
+        {children}
+      </Box>
       <BottomNav />
     </Box>
   )

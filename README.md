@@ -5,8 +5,10 @@ keeps nagging — a notification that won't dismiss, re-fires after dismissal, a
 can play sound on an interval — until you *explicitly confirm completion*. Built
 for medication reminders, todos, and anything you must not forget, with optional
 **escalation**: if an ignored reminder isn't acknowledged in time it rings a
-full alarm on your own devices. Escalation is a hard backstop — anchored to the
-first fire, so snoozing can't push it past the deadline.
+full alarm on your own devices (and can optionally email a contact with a custom
+message). Escalation is a hard backstop — anchored to the first fire, so snoozing
+can't push it past the deadline. (Alarm-type reminders already ring continuously,
+so escalation doesn't apply to them.)
 
 It runs as a hosted web service (public sign-ups, any device) and syncs to a
 native Android client (Capacitor) where the hard alarm guarantees actually live.

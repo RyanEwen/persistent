@@ -45,7 +45,7 @@ Recommended steps:
    level, and the notable commits driving it.
 4. If `confirm first` / `dry run`: print the summary and stop.
 5. Otherwise bump `apps/web/package.json` to the new version and commit it
-   (`Bump version to X.Y.Z`, with the standard `Co-Authored-By` trailer).
+   (`Bump version to X.Y.Z`; no `Co-Authored-By` trailer or AI attribution).
    Run `npm run validate` first; fix failures before continuing.
 6. `git push`, then `git tag vX.Y.Z && git push origin vX.Y.Z`.
 7. Watch the workflow: `gh run watch <id> --exit-status` (find it via

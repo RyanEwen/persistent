@@ -55,7 +55,8 @@ class AlarmReceiver : BroadcastReceiver() {
                 AlarmService.markDone(context, occurrenceId)
             }
             ACTION_SNOOZE -> {
-                AlarmService.snooze(context, occurrenceId)
+                val minutes = intent.getIntExtra(EXTRA_MINUTES, AlarmService.DEFAULT_SNOOZE_MINUTES)
+                AlarmService.snooze(context, occurrenceId, minutes)
             }
             ACTION_RESHOW -> {
                 val serviceIntent = Intent(context, AlarmService::class.java)
@@ -78,6 +79,7 @@ class AlarmReceiver : BroadcastReceiver() {
         const val ACTION_OPEN = "ca.persistent.app.ALARM_OPEN"
         const val EXTRA_OCCURRENCE_ID = "occurrenceId"
         const val EXTRA_REMINDER_ID = "reminderId"
+        const val EXTRA_MINUTES = "minutes"
         /** Suffix marking the escalation timer for an occurrence (see nativeSync.ts). */
         const val ESC_SUFFIX = "::esc"
     }

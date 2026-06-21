@@ -62,7 +62,7 @@ Recommended steps:
 3. Run the documentation, data-isolation, and logging reviews above. For docs, walk every surface in the (exhaustive) Documentation review scope, update what drifted, and report per-surface what you reviewed/updated (or why none was needed) — never skip a surface silently.
 4. Draft a commit message in imperative mood with a short subject; add a short body if the change is non-trivial.
 5. Run `npm run validate` and fix any failures before committing.
-6. Run `git commit`. End the message with the trailer: `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
+6. Run `git commit`. Do NOT add any `Co-Authored-By` trailer or other AI/agent attribution to the message.
 7. If the invocation asked for `push`, run `git push`.
 
 Notes:

@@ -15,6 +15,7 @@ import { logger } from './logger.js'
 import { expandSchedule } from './schedule-expand.js'
 import { notificationTitle, notificationBody } from './notification-format.js'
 import { dispatchToUser } from './delivery/index.js'
+import { sendCloudflareEmail } from './cloudflare-email.js'
 import { DateTime } from 'luxon'
 import { toOccurrence } from './serializers.js'
 import { broadcast } from './realtime.js'
@@ -132,6 +133,31 @@ async function sweep(): Promise<void> {
     }
   }
 
+  // 1b) Email escalation — independent of the alarm escalation, with its own
+  // "how late". Sent once per occurrence (escalationEmailedAt guard), anchored to
+  // the original fire.
+  const emailable = await prisma.reminderOccurrence.findMany({
+    where: {
+      status: { in: ['FIRED', 'SNOOZED', 'ESCALATED'] },
+      firedAt: { not: null },
+      escalationEmailedAt: null,
+      reminder: { is: { escalateEmail: { not: null }, escalateEmailAfterMinutes: { not: null } } }
+    },
+    include: { reminder: true },
+    take: 200
+  })
+  for (const occurrence of emailable) {
+    const r = occurrence.reminder
+    if (r.escalateEmailAfterMinutes == null || !r.escalateEmail) continue
+    const emailAt = (occurrence.firedAt as Date).getTime() + r.escalateEmailAfterMinutes * 60_000
+    if (now.getTime() < emailAt) continue
+    // Mark first so a slow send can't double-fire across overlapping sweeps.
+    await prisma.reminderOccurrence.update({ where: { id: occurrence.id }, data: { escalationEmailedAt: now } })
+    await sendEscalationEmail(r).catch((error) =>
+      logger.warn('escalate email failed', { error: String(error), reminderId: r.id })
+    )
+  }
+
   // 2) Revive elapsed snoozes that didn't escalate. Keep the original firedAt so
   // the escalation backstop stays anchored to the first fire.
   const snoozed = await prisma.reminderOccurrence.findMany({
@@ -192,11 +218,20 @@ function fireNotification(userId: string, reminder: Reminder, occurrenceId: stri
   )
 }
 
-/** Escalation always rings an alarm on the user's own devices. */
+/** The alarm escalation: ring an alarm on the user's own devices. */
 async function escalate(userId: string, reminder: Reminder, occurrenceId: string, scheduledFor: Date): Promise<void> {
   await dispatchToUser(userId, buildPayload('escalate', reminder, occurrenceId, scheduledFor, true)).catch((error) =>
     logger.warn('escalate dispatch failed', { error: String(error) })
   )
+}
+
+/** Send the (independent) escalation email with the user's custom message, or a default. */
+async function sendEscalationEmail(reminder: Reminder): Promise<void> {
+  const to = reminder.escalateEmail
+  if (!to) return
+  const message =
+    reminder.escalateEmailMessage?.trim() || `The reminder "${reminder.title}" is overdue and hasn't been confirmed.`
+  await sendCloudflareEmail({ to, subject: `Reminder overdue: ${reminder.title}`, text: message })
 }
 
 /**

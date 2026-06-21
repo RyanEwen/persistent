@@ -119,6 +119,9 @@ function toReminderData(
     soundIntervalSeconds: input.soundIntervalSeconds,
     escalateAfterMinutes: input.escalateAfterMinutes,
     escalateAtTime: input.escalateAtTime,
+    escalateEmail: input.escalateEmail,
+    escalateEmailMessage: input.escalateEmailMessage,
+    escalateEmailAfterMinutes: input.escalateEmailAfterMinutes,
     active: input.active,
     startDate: input.startDate,
     endDate: input.endDate

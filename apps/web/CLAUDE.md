@@ -41,4 +41,7 @@
   same folder holds the GitHub update check (`useUpdate`/`UpdateCheck`/
   `UpdateSettings`), which installs newer APKs via the native `Update` plugin.
 - **No native dialogs:** don't use `alert`/`confirm`/`prompt` (eslint enforces).
+- **Dialogs are back-aware:** build modals with `components/BackAwareModal.tsx`
+  (not raw Joy `Modal`) so Android/browser Back closes the top dialog and dialogs
+  don't linger in history. Pages are routes (Back navigates normally).
 - `verbatimModuleSyntax` is on — use `import type` for type-only imports.

@@ -42,6 +42,10 @@ function handleEvent(event: WsEvent): void {
       void queryClient.invalidateQueries({ queryKey: queryKeys.occurrencesHistory })
       break
     case 'dismiss':
+      // Another device acked/snoozed/deleted: clear any OS notification we're
+      // showing for it (web/PWA). Native clients also cancel via nativeSync.
+      closeDeviceNotification(event.occurrenceId)
+      break
     case 'ping':
       break
   }
@@ -52,6 +56,15 @@ function handleEvent(event: WsEvent): void {
       // a listener failure must not break event handling
     }
   }
+}
+
+/** Close any service-worker notification tagged with this occurrence id. */
+function closeDeviceNotification(occurrenceId: string): void {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return
+  navigator.serviceWorker.ready
+    .then((registration) => registration.getNotifications({ tag: occurrenceId }))
+    .then((list) => list.forEach((n) => n.close()))
+    .catch(() => {})
 }
 
 function connect(): void {

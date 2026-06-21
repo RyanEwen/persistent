@@ -41,6 +41,7 @@ import { fireSummary } from '../lib/schedule-preview.js'
 import { useSettings } from '../settings/useSettings.js'
 import { titleCase } from '../lib/format.js'
 import { CategoryIcon } from '../components/ReminderIcons.js'
+import { DurationField } from '../components/DurationField.js'
 import { COMMON_MEDICATIONS } from '../data/medications.js'
 import { useToast } from '../components/ToastProvider.js'
 
@@ -53,10 +54,6 @@ const SCHEDULE_KIND_LABELS: Record<ScheduleKind, string> = {
   interval: 'Every N days',
   custom: 'Custom days'
 }
-
-// Shared minute presets for the "repeat sound every" and escalation "how late"
-// controls (both also allow a custom value).
-const MINUTE_PRESETS = [5, 10, 15, 30, 60]
 
 const PERSISTENCE_LABELS: Record<PersistenceLevel, string> = {
   PERSISTENT: 'Notification',
@@ -102,6 +99,10 @@ interface FormState {
   escalateMode: 'after' | 'at'
   escalateAfterMinutes: string
   escalateAtTime: string
+  escalateEmailEnabled: boolean
+  escalateEmail: string
+  escalateEmailMessage: string
+  escalateEmailAfterMinutes: string
   startDate: string
   endDate: string
   active: boolean
@@ -129,6 +130,10 @@ function emptyForm(): FormState {
     escalateMode: 'after',
     escalateAfterMinutes: '15',
     escalateAtTime: '09:00',
+    escalateEmailEnabled: false,
+    escalateEmail: '',
+    escalateEmailMessage: '',
+    escalateEmailAfterMinutes: '60',
     startDate: todayLocal(),
     endDate: '',
     active: true
@@ -143,8 +148,6 @@ export function ReminderEditorPage() {
   const update = useUpdateReminder()
   const remove = useDeleteReminder()
   const [error, setError] = useState<string | null>(null)
-  const [escalateCustomOpen, setEscalateCustomOpen] = useState(false)
-  const [soundCustomOpen, setSoundCustomOpen] = useState(false)
   const toast = useToast()
   const { timeFormat } = useSettings()
 
@@ -309,7 +312,7 @@ export function ReminderEditorPage() {
               Schedule
             </Tab>
             <Tab value="nagging" disableIndicator>
-              Nagging
+              Notifications
             </Tab>
             <Tab value="escalation" disableIndicator>
               Escalation
@@ -572,53 +575,12 @@ export function ReminderEditorPage() {
 
         {form.persistence === 'PERSISTENT' && (
           <FormControl>
-            <FormLabel>Re-sound</FormLabel>
-            {(() => {
-              const showCustom =
-                soundCustomOpen || (form.soundIntervalMinutes > 0 && !MINUTE_PRESETS.includes(form.soundIntervalMinutes))
-              return (
-                <>
-                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                    <Button
-                      size="sm"
-                      variant={!showCustom && form.soundIntervalMinutes === 0 ? 'solid' : 'outlined'}
-                      onClick={() => {
-                        setSoundCustomOpen(false)
-                        set('soundIntervalMinutes', 0)
-                      }}
-                    >
-                      Once
-                    </Button>
-                    {MINUTE_PRESETS.map((minutes) => (
-                      <Button
-                        key={minutes}
-                        size="sm"
-                        variant={!showCustom && form.soundIntervalMinutes === minutes ? 'solid' : 'outlined'}
-                        onClick={() => {
-                          setSoundCustomOpen(false)
-                          set('soundIntervalMinutes', minutes)
-                        }}
-                      >
-                        {minutes} min
-                      </Button>
-                    ))}
-                    <Button size="sm" variant={showCustom ? 'solid' : 'outlined'} onClick={() => setSoundCustomOpen(true)}>
-                      Custom
-                    </Button>
-                  </Stack>
-                  {showCustom && (
-                    <Input
-                      type="number"
-                      value={form.soundIntervalMinutes}
-                      onChange={(e) => set('soundIntervalMinutes', Number(e.target.value) || 1)}
-                      slotProps={{ input: { min: 1, max: 60 } }}
-                      endDecorator="mins"
-                      sx={{ mt: 1 }}
-                    />
-                  )}
-                </>
-              )
-            })()}
+            <FormLabel>Nag</FormLabel>
+            <DurationField
+              value={form.soundIntervalMinutes}
+              onChange={(m) => set('soundIntervalMinutes', m)}
+              extra={{ label: 'Once', value: 0 }}
+            />
           </FormControl>
         )}
 
@@ -628,6 +590,13 @@ export function ReminderEditorPage() {
           <TabPanel value="escalation" keepMounted>
             <Stack spacing={2}>
 
+        {form.persistence === 'ALARM' ? (
+          <Alert color="neutral" variant="soft">
+            This reminder already rings an alarm continuously until done, so escalation doesn't apply. Switch the
+            notification type to a Notification (Notifications tab) to use escalation.
+          </Alert>
+        ) : (
+          <>
         <Checkbox
           label="Escalate to an alarm if ignored"
           checked={form.escalate}
@@ -660,47 +629,10 @@ export function ReminderEditorPage() {
             {form.escalateMode === 'after' ? (
               <FormControl>
                 <FormLabel>How late</FormLabel>
-                {(() => {
-                  const showCustom =
-                    escalateCustomOpen || !MINUTE_PRESETS.includes(Number(form.escalateAfterMinutes))
-                  return (
-                    <>
-                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                        {MINUTE_PRESETS.map((minutes) => (
-                          <Button
-                            key={minutes}
-                            size="sm"
-                            variant={!showCustom && Number(form.escalateAfterMinutes) === minutes ? 'solid' : 'outlined'}
-                            onClick={() => {
-                              setEscalateCustomOpen(false)
-                              set('escalateAfterMinutes', String(minutes))
-                            }}
-                          >
-                            {minutes} min
-                          </Button>
-                        ))}
-                        <Button
-                          size="sm"
-                          variant={showCustom ? 'solid' : 'outlined'}
-                          onClick={() => setEscalateCustomOpen(true)}
-                        >
-                          Custom
-                        </Button>
-                      </Stack>
-                      {showCustom && (
-                        <Input
-                          type="number"
-                          value={form.escalateAfterMinutes}
-                          onChange={(e) => set('escalateAfterMinutes', e.target.value)}
-                          slotProps={{ input: { min: 1, max: 1440 } }}
-                          placeholder="Minutes late"
-                          endDecorator="mins"
-                          sx={{ mt: 1 }}
-                        />
-                      )}
-                    </>
-                  )
-                })()}
+                <DurationField
+                  value={Number(form.escalateAfterMinutes) || 15}
+                  onChange={(m) => set('escalateAfterMinutes', String(m))}
+                />
               </FormControl>
             ) : (
               <FormControl>
@@ -709,6 +641,45 @@ export function ReminderEditorPage() {
               </FormControl>
             )}
           </Stack>
+        )}
+
+        <Divider />
+
+        <Checkbox
+          label="Email a contact if ignored"
+          checked={form.escalateEmailEnabled}
+          onChange={(e) => set('escalateEmailEnabled', e.target.checked)}
+        />
+        {form.escalateEmailEnabled && (
+          <Stack spacing={2}>
+            <FormControl>
+              <FormLabel>Email address</FormLabel>
+              <Input
+                type="email"
+                placeholder="name@example.com"
+                value={form.escalateEmail}
+                onChange={(e) => set('escalateEmail', e.target.value)}
+              />
+            </FormControl>
+            <FormControl>
+              <FormLabel>How late</FormLabel>
+              <DurationField
+                value={Number(form.escalateEmailAfterMinutes) || 60}
+                onChange={(m) => set('escalateEmailAfterMinutes', String(m))}
+              />
+            </FormControl>
+            <FormControl>
+              <FormLabel>Email message (optional)</FormLabel>
+              <Textarea
+                minRows={2}
+                placeholder={`The reminder "${form.title || 'this reminder'}" is overdue and hasn't been confirmed.`}
+                value={form.escalateEmailMessage}
+                onChange={(e) => set('escalateEmailMessage', e.target.value)}
+              />
+            </FormControl>
+          </Stack>
+        )}
+          </>
         )}
 
             </Stack>
@@ -744,7 +715,14 @@ export function ReminderEditorPage() {
           </Button>
         </Stack>
         {id && (
-          <Button variant="soft" color="danger" loading={remove.isPending} onClick={onDelete}>
+          <Button
+            variant="plain"
+            color="danger"
+            size="sm"
+            loading={remove.isPending}
+            onClick={onDelete}
+            sx={{ alignSelf: 'center', mt: 0.5 }}
+          >
             Delete reminder
           </Button>
         )}
@@ -778,6 +756,10 @@ function toInput(form: FormState): ReminderInput {
         }
       : {}
 
+  const canEscalate = form.persistence !== 'ALARM'
+  const escalating = form.escalate && canEscalate
+  const emailing = canEscalate && form.escalateEmailEnabled && Boolean(form.escalateEmail.trim())
+
   return {
     title: form.title,
     details: form.details || null,
@@ -789,8 +771,12 @@ function toInput(form: FormState): ReminderInput {
     // minutes; 0 = sound once.
     soundIntervalSeconds:
       form.persistence === 'PERSISTENT' && form.soundIntervalMinutes > 0 ? form.soundIntervalMinutes * 60 : null,
-    escalateAfterMinutes: form.escalate && form.escalateMode === 'after' ? Number(form.escalateAfterMinutes) || 15 : null,
-    escalateAtTime: form.escalate && form.escalateMode === 'at' ? form.escalateAtTime : null,
+    // ALARM already rings continuously, so escalation doesn't apply there.
+    escalateAfterMinutes: escalating && form.escalateMode === 'after' ? Number(form.escalateAfterMinutes) || 15 : null,
+    escalateAtTime: escalating && form.escalateMode === 'at' ? form.escalateAtTime : null,
+    escalateEmail: emailing ? form.escalateEmail.trim() : null,
+    escalateEmailMessage: emailing && form.escalateEmailMessage.trim() ? form.escalateEmailMessage.trim() : null,
+    escalateEmailAfterMinutes: emailing ? Number(form.escalateEmailAfterMinutes) || 60 : null,
     active: form.active,
     startDate: form.startDate,
     endDate: form.endDate || null
@@ -834,6 +820,10 @@ function fromReminder(reminder: Reminder): FormState {
     escalateMode: reminder.escalateAtTime != null ? 'at' : 'after',
     escalateAfterMinutes: reminder.escalateAfterMinutes != null ? String(reminder.escalateAfterMinutes) : '15',
     escalateAtTime: reminder.escalateAtTime ?? '09:00',
+    escalateEmailEnabled: reminder.escalateEmail != null,
+    escalateEmail: reminder.escalateEmail ?? '',
+    escalateEmailMessage: reminder.escalateEmailMessage ?? '',
+    escalateEmailAfterMinutes: reminder.escalateEmailAfterMinutes != null ? String(reminder.escalateEmailAfterMinutes) : '60',
     startDate: reminder.startDate,
     endDate: reminder.endDate ?? '',
     active: reminder.active

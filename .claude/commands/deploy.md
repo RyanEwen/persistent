@@ -27,7 +27,7 @@ Recommended steps:
 2. Inspect changed files; stage the intended set and unstage anything generated/secret.
 3. Run the documentation + data-isolation + logging reviews; for docs, walk every surface in `/commit`'s exhaustive Documentation review scope and update what drifted, reporting per-surface what you reviewed/updated. Never skip a surface silently.
 4. Run `npm run validate`; fix failures before continuing.
-5. Draft a commit message (imperative subject; short body if non-trivial); end with the `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>` trailer.
+5. Draft a commit message (imperative subject; short body if non-trivial). Do NOT add any `Co-Authored-By` trailer or AI/agent attribution.
 6. If the invocation requested a pause/review/dry-run-only, show the message and stop before `git commit`.
 7. Otherwise show the message and run `git commit`. If it fails, report the full error and stop.
 8. Run `git push` unless disabled. If it fails, suggest `git pull --rebase` before retrying.

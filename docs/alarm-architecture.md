@@ -53,6 +53,10 @@ drives them lives in `apps/web/src/native`.
     alarm sound + vibration (no interval; it's relentless).
   - Swiping the notification away **re-posts it** (delete-intent) so it can't be
     casually dismissed; only Done/Snooze clear it.
+  - Each occurrence gets its **own notification id**, so multiple due reminders
+    show at once (the foreground service rebinds to a remaining one as they clear).
+  - **Snooze** opens a small duration picker (`SnoozePickerActivity`); the chosen
+    minutes are re-armed locally and queued to the server (`PendingSnoozeStore`).
 - **Sounds are user-chosen** (per device): `pickSound` opens the system ringtone
   picker; the chosen URIs are stored in settings and passed through as the
   alarm/notification tone (system default otherwise). The service plays audio
@@ -77,8 +81,11 @@ Permissions: `SCHEDULE_EXACT_ALARM`/`USE_EXACT_ALARM`, `POST_NOTIFICATIONS`,
 A reminder may **escalate to an alarm** if unacknowledged — either N minutes
 after firing (`escalateAfterMinutes`) or at a specific wall-clock time
 (`escalateAtTime`, user-tz aware). Escalation always rings an alarm on the user's
-own devices (the contact-email/own-devices toggle was removed). After a longer
-cutoff an unacknowledged occurrence is marked `MISSED`.
+own devices and may **also email a contact** (`escalateEmail` +
+`escalateEmailMessage`, sent once via `sendCloudflareEmail` on escalation). It
+does **not** apply to `ALARM`-persistence reminders (they already ring
+continuously — enforced in the shared schema). After a longer cutoff an
+unacknowledged occurrence is marked `MISSED`.
 
 The escalation instant is computed once (`escalateAtFor` in `lib/scheduler.ts`)
 and used in two places so it fires regardless of connectivity:

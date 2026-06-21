@@ -59,9 +59,15 @@ class AlarmActivity : Activity() {
             }
         })
         root.addView(Button(this).apply {
-            text = "Snooze 10 min"
+            text = "Snooze…"
             setOnClickListener {
-                sendAction(AlarmReceiver.ACTION_SNOOZE)
+                occurrenceId?.let { id ->
+                    startActivity(
+                        Intent(this@AlarmActivity, SnoozePickerActivity::class.java)
+                            .putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, id)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                }
                 finish()
             }
         })

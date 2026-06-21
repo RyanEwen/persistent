@@ -2,6 +2,7 @@
  * Main view: a "Due now / needs confirmation" feed (fired/escalated/snoozed
  * occurrences with big Done/Snooze buttons) above the list of reminders.
  */
+import { useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import Stack from '@mui/joy/Stack'
 import Box from '@mui/joy/Box'
@@ -18,13 +19,8 @@ import { reminderNextFire } from '../lib/schedule-preview.js'
 import { useSettings } from '../settings/useSettings.js'
 import { CategoryIcon, StatusIcon } from '../components/ReminderIcons.js'
 import { ReminderListItem } from '../components/ReminderListItem.js'
+import { SnoozeDialog } from '../components/SnoozeDialog.js'
 import type { Reminder } from '@persistent/shared'
-
-const SNOOZE_PRESETS = [10, 15, 30, 60] // minutes
-
-function snoozeLabel(minutes: number): string {
-  return minutes % 60 === 0 ? `${minutes / 60}h` : `${minutes}m`
-}
 
 // A one-time reminder that's been done (acknowledged) is finished — it lives in
 // History, not the Current list. Missed/snoozed are still actionable, so they
@@ -39,6 +35,7 @@ export function RemindersPage() {
   const ack = useAckOccurrence()
   const snooze = useSnoozeOccurrence()
   const { timeFormat } = useSettings()
+  const [snoozeFor, setSnoozeFor] = useState<string | null>(null)
   // Soonest first; reminders with no upcoming fire (paused/finished) sink to the bottom.
   const currentReminders = (reminders.data?.filter((r) => !isFinished(r)) ?? [])
     .map((r) => ({ reminder: r, next: reminderNextFire(r) }))
@@ -77,19 +74,9 @@ export function RemindersPage() {
                   >
                     Done
                   </Button>
-                  <Typography level="body-xs">Snooze</Typography>
-                  {SNOOZE_PRESETS.map((minutes) => (
-                    <Button
-                      key={minutes}
-                      size="sm"
-                      variant="outlined"
-                      color="neutral"
-                      loading={snooze.isPending}
-                      onClick={() => snooze.mutate({ id: occurrence.id, arg: minutes })}
-                    >
-                      {snoozeLabel(minutes)}
-                    </Button>
-                  ))}
+                  <Button variant="outlined" color="neutral" onClick={() => setSnoozeFor(occurrence.id)}>
+                    Snooze
+                  </Button>
                 </Stack>
               </Card>
             ))}
@@ -136,6 +123,16 @@ export function RemindersPage() {
           })}
         </Stack>
       </Box>
+
+      <SnoozeDialog
+        open={snoozeFor !== null}
+        busy={snooze.isPending}
+        onClose={() => setSnoozeFor(null)}
+        onSnooze={(minutes) => {
+          if (snoozeFor) snooze.mutate({ id: snoozeFor, arg: minutes })
+          setSnoozeFor(null)
+        }}
+      />
     </Stack>
   )
 }

@@ -18,10 +18,11 @@ import android.os.Vibrator
 import androidx.core.app.NotificationCompat
 
 /**
- * Foreground service that runs the actual alarm: an ongoing, non-dismissable,
- * full-screen notification plus looping sound/vibration that stops ONLY when the
- * user taps "Done". Multiple occurrences can be active at once; we keep the
- * service alive until the last one is cleared.
+ * Foreground service that runs the actual alarms: ongoing, non-dismissable,
+ * full-screen notifications plus looping sound/vibration that stop ONLY when the
+ * user taps "Done". Multiple occurrences can be active at once — each gets its
+ * own notification (distinct id) so they all show simultaneously; the service
+ * stays alive until the last one is cleared.
  *
  * "Done" is authoritative locally (stops the alarm immediately) and enqueues a
  * pending ack that the WebView delivers to the server (it holds the cookie).
@@ -29,45 +30,52 @@ import androidx.core.app.NotificationCompat
 class AlarmService : Service() {
 
     private val active = LinkedHashMap<String, AlarmSpec>()
+    private val loops = HashMap<String, Runnable>()
     private var player: MediaPlayer? = null
+    private var continuousAlarm = false
     private var vibrator: Vibrator? = null
     private val handler = Handler(Looper.getMainLooper())
-    private var loopRunnable: Runnable? = null
+    // The occurrence whose notification the foreground service is bound to.
+    private var foregroundId: String? = null
+
+    private val nm get() = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    private fun notifId(occurrenceId: String): Int = occurrenceId.hashCode()
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
                 val occurrenceId = intent.getStringExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID) ?: return START_STICKY
-                val spec = AlarmSpec(
-                    occurrenceId = occurrenceId,
-                    fireAtMs = 0,
-                    title = intent.getStringExtra("title") ?: "Reminder",
-                    body = intent.getStringExtra("body") ?: "",
-                    soundIntervalSeconds = intent.getIntExtra("soundIntervalSeconds", 0),
-                    alarm = intent.getBooleanExtra("alarm", false),
-                    ongoing = intent.getBooleanExtra("ongoing", true),
-                    soundUri = intent.getStringExtra("soundUri") ?: "",
-                    reminderId = intent.getStringExtra("reminderId") ?: ""
+                startAlarm(
+                    AlarmSpec(
+                        occurrenceId = occurrenceId,
+                        fireAtMs = 0,
+                        title = intent.getStringExtra("title") ?: "Reminder",
+                        body = intent.getStringExtra("body") ?: "",
+                        soundIntervalSeconds = intent.getIntExtra("soundIntervalSeconds", 0),
+                        alarm = intent.getBooleanExtra("alarm", false),
+                        ongoing = intent.getBooleanExtra("ongoing", true),
+                        soundUri = intent.getStringExtra("soundUri") ?: "",
+                        reminderId = intent.getStringExtra("reminderId") ?: ""
+                    )
                 )
-                startAlarm(spec)
             }
             ACTION_STOP -> {
                 val occurrenceId = intent.getStringExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID)
                 if (occurrenceId != null) clear(occurrenceId) else clearAll()
             }
             ACTION_RESHOW -> {
-                // The user swiped the notification away (Android 14+ allows this for
-                // foreground services). The alarm isn't acknowledged, so re-post it
-                // — the sound loop kept running underneath.
+                // The user swiped a notification away (Android 14+ allows this for
+                // foreground services). It isn't acknowledged, so re-post it.
                 val occurrenceId = intent.getStringExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID)
-                val spec = occurrenceId?.let { active[it] } ?: active.values.lastOrNull()
+                val spec = occurrenceId?.let { active[it] }
                 if (spec != null) {
-                    startForeground(NOTIFICATION_ID, buildNotification(spec))
-                } else {
-                    // Nothing active — satisfy the FGS start contract, then stop cleanly.
-                    startForeground(NOTIFICATION_ID, buildNotification(AlarmSpec(occurrenceId ?: "", 0, "Reminder", "", 0, alarm = false, ongoing = false, soundUri = "")))
+                    bindForeground(spec)
+                } else if (active.isEmpty()) {
+                    // Satisfy the FGS start contract, then stop cleanly.
+                    startForeground(SENTINEL_ID, placeholderNotification())
                     clearAll()
                 }
             }
@@ -80,26 +88,44 @@ class AlarmService : Service() {
         active[spec.occurrenceId] = spec
         activeIds.add(spec.occurrenceId)
         if (spec.alarm) alarmIds.add(spec.occurrenceId) else alarmIds.remove(spec.occurrenceId)
-        // We always play the chosen sound ourselves (so each reminder can use its
-        // own sound), so the notification channel is silent.
-        startForeground(NOTIFICATION_ID, buildNotification(spec))
+
+        val notif = buildNotification(spec)
+        if (foregroundId == null) {
+            foregroundId = spec.occurrenceId
+            startForeground(notifId(spec.occurrenceId), notif)
+        } else {
+            nm.notify(notifId(spec.occurrenceId), notif)
+        }
+
         if (spec.alarm) {
-            startContinuousAlarm(spec.soundUri)
+            if (!continuousAlarm) startContinuousAlarm(spec.soundUri)
         } else {
             playNotificationSound(spec.soundUri)
+            loops.remove(spec.occurrenceId)?.let { handler.removeCallbacks(it) }
             if (spec.soundIntervalSeconds > 0) startReNotifyLoop(spec)
         }
+    }
+
+    /** (Re)bind the foreground notification to a specific occurrence. */
+    private fun bindForeground(spec: AlarmSpec) {
+        foregroundId = spec.occurrenceId
+        startForeground(notifId(spec.occurrenceId), buildNotification(spec))
     }
 
     private fun resolveUri(uriStr: String, defaultType: Int): android.net.Uri =
         if (uriStr.isNotEmpty()) android.net.Uri.parse(uriStr) else RingtoneManager.getDefaultUri(defaultType)
 
+    private fun placeholderNotification(): android.app.Notification {
+        ensureChannels()
+        return NotificationCompat.Builder(this, CHANNEL_SILENT)
+            .setContentTitle("Reminder")
+            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+            .build()
+    }
+
     private fun buildNotification(spec: AlarmSpec): android.app.Notification {
         // The notification never carries audio — we play the chosen sound via
         // MediaPlayer — so it always uses the silent channel.
-        val channelId = CHANNEL_SILENT
-        // Tapping the body opens the app to this reminder's editor (via ACTION_OPEN,
-        // which records the target then launches the app).
         val contentPending = PendingIntent.getBroadcast(
             this,
             ("open:" + spec.occurrenceId).hashCode(),
@@ -119,7 +145,6 @@ class AlarmService : Service() {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-
         val donePending = PendingIntent.getBroadcast(
             this,
             ("done:" + spec.occurrenceId).hashCode(),
@@ -128,16 +153,15 @@ class AlarmService : Service() {
                 .putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, spec.occurrenceId),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val snoozePending = PendingIntent.getBroadcast(
+        // Snooze opens a small picker so the user chooses how long.
+        val snoozePending = PendingIntent.getActivity(
             this,
             ("snooze:" + spec.occurrenceId).hashCode(),
-            Intent(this, AlarmReceiver::class.java)
-                .setAction(AlarmReceiver.ACTION_SNOOZE)
-                .putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, spec.occurrenceId),
+            Intent(this, SnoozePickerActivity::class.java)
+                .putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, spec.occurrenceId)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        // If the user swipes the notification away, bring it back — the alarm is
-        // only cleared by Done/Snooze, not by dismissal.
         val reshowPending = PendingIntent.getBroadcast(
             this,
             ("reshow:" + spec.occurrenceId).hashCode(),
@@ -147,24 +171,22 @@ class AlarmService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val builder = NotificationCompat.Builder(this, channelId)
+        val builder = NotificationCompat.Builder(this, CHANNEL_SILENT)
             .setContentTitle(spec.title)
             .setContentText(spec.body)
             .setSmallIcon(android.R.drawable.ic_popup_reminder)
             .setCategory(if (spec.alarm) NotificationCompat.CATEGORY_ALARM else NotificationCompat.CATEGORY_REMINDER)
             .setPriority(if (spec.alarm) NotificationCompat.PRIORITY_MAX else NotificationCompat.PRIORITY_HIGH)
-            .setOngoing(spec.ongoing)        // persistent ones can't be casually swiped
+            .setOngoing(spec.ongoing)
             .setAutoCancel(!spec.ongoing)
-            // No onlyAlertOnce: re-notify (sounding channel) must re-alert; silent
-            // re-shows stay quiet because they use the silent channel.
             .setContentIntent(contentPending)
             .addAction(0, "Done", donePending)
-            .addAction(0, "Snooze 10m", snoozePending)
+            .addAction(0, "Snooze", snoozePending)
         if (spec.alarm) {
-            builder.setFullScreenIntent(fullScreen, true) // wakes the screen with the alarm UI
+            builder.setFullScreenIntent(fullScreen, true)
         }
         if (spec.ongoing) {
-            builder.setDeleteIntent(reshowPending) // swipe-away re-posts persistent ones
+            builder.setDeleteIntent(reshowPending)
         }
         return builder.build()
     }
@@ -185,6 +207,7 @@ class AlarmService : Service() {
                 prepare()
                 start()
             }
+            continuousAlarm = true
         } catch (_: Exception) {
             // ignore playback failures; the visual alarm still stands
         }
@@ -194,12 +217,13 @@ class AlarmService : Service() {
                 handler.postDelayed(this, 3000L)
             }
         }
-        loopRunnable = vib
+        loops[VIBRATE_KEY] = vib
         handler.post(vib)
     }
 
-    /** Notification: play the chosen notification tone once. */
+    /** Notification: play the chosen notification tone once (unless an alarm is ringing). */
     private fun playNotificationSound(soundUri: String) {
+        if (continuousAlarm) return // don't interrupt a ringing alarm
         try {
             player?.release()
             player = MediaPlayer().apply {
@@ -226,13 +250,12 @@ class AlarmService : Service() {
         val runnable = object : Runnable {
             override fun run() {
                 val current = active[spec.occurrenceId] ?: return
-                val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                manager.notify(NOTIFICATION_ID, buildNotification(current))
+                nm.notify(notifId(current.occurrenceId), buildNotification(current))
                 playNotificationSound(current.soundUri)
                 handler.postDelayed(this, intervalMs)
             }
         }
-        loopRunnable = runnable
+        loops[spec.occurrenceId] = runnable
         handler.postDelayed(runnable, intervalMs)
     }
 
@@ -245,62 +268,65 @@ class AlarmService : Service() {
         }
     }
 
+    /** Stop the shared player + the vibration loop (not the per-occurrence re-notify loops). */
     private fun stopSound() {
-        loopRunnable?.let { handler.removeCallbacks(it) }
-        loopRunnable = null
+        loops.remove(VIBRATE_KEY)?.let { handler.removeCallbacks(it) }
         player?.release()
         player = null
+        continuousAlarm = false
     }
 
     private fun clear(occurrenceId: String) {
         active.remove(occurrenceId)
         activeIds.remove(occurrenceId)
         alarmIds.remove(occurrenceId)
+        loops.remove(occurrenceId)?.let { handler.removeCallbacks(it) }
+        nm.cancel(notifId(occurrenceId))
         AlarmPlugin.cancelAlarm(this, occurrenceId)
         AlarmStore.remove(this, occurrenceId)
-        // Also drop any pending escalation timer for this occurrence (e.g. acked
-        // offline before it escalated, so there's no WS dismiss to cancel it).
+        // Also drop any pending escalation timer for this occurrence.
         val escId = occurrenceId + AlarmReceiver.ESC_SUFFIX
         AlarmPlugin.cancelAlarm(this, escId)
         AlarmStore.remove(this, escId)
+
         if (active.isEmpty()) {
             clearAll()
-        } else {
-            // Another occurrence is still active: restart its sound (the cleared one
-            // may have owned the player) and show it.
-            val next = active.values.last()
-            startForeground(NOTIFICATION_ID, buildNotification(next))
-            if (next.alarm) startContinuousAlarm(next.soundUri) else stopSound()
+            return
+        }
+        // Re-bind the foreground notification if the cleared one was holding it.
+        if (foregroundId == occurrenceId) {
+            active.values.lastOrNull()?.let { bindForeground(it) }
+        }
+        // Keep a ringing alarm going if any alarm occurrence remains; otherwise
+        // stop the continuous sound (per-occurrence notification loops continue).
+        val nextAlarm = active.values.firstOrNull { it.alarm }
+        if (nextAlarm != null) {
+            if (!continuousAlarm) startContinuousAlarm(nextAlarm.soundUri)
+        } else if (continuousAlarm) {
+            stopSound()
         }
     }
 
     private fun clearAll() {
         stopSound()
+        for (r in loops.values) handler.removeCallbacks(r)
+        loops.clear()
         active.clear()
         activeIds.clear()
         alarmIds.clear()
+        foregroundId = null
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
     private fun ensureChannels() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        // Sounding channel for ordinary notifications (one default sound on post).
-        if (manager.getNotificationChannel(CHANNEL_NOTIF) == null) {
-            manager.createNotificationChannel(
-                NotificationChannel(CHANNEL_NOTIF, "Reminders", NotificationManager.IMPORTANCE_HIGH).apply {
-                    description = "Reminder notifications"
-                    setBypassDnd(true)
-                }
-            )
-        }
-        // Silent channel for alarms (we loop our own alarm sound) and for re-shows.
+        val manager = nm
         if (manager.getNotificationChannel(CHANNEL_SILENT) == null) {
             manager.createNotificationChannel(
-                NotificationChannel(CHANNEL_SILENT, "Alarms", NotificationManager.IMPORTANCE_HIGH).apply {
-                    description = "Persistent reminder alarms"
-                    setSound(null, null)
+                NotificationChannel(CHANNEL_SILENT, "Reminders", NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = "Persistent reminders and alarms"
+                    setSound(null, null) // we play our own sound via MediaPlayer
                     enableVibration(false)
                     setBypassDnd(true)
                 }
@@ -310,6 +336,8 @@ class AlarmService : Service() {
 
     override fun onDestroy() {
         stopSound()
+        for (r in loops.values) handler.removeCallbacks(r)
+        loops.clear()
         super.onDestroy()
     }
 
@@ -317,9 +345,10 @@ class AlarmService : Service() {
         const val ACTION_START = "ca.persistent.app.SERVICE_START"
         const val ACTION_STOP = "ca.persistent.app.SERVICE_STOP"
         const val ACTION_RESHOW = "ca.persistent.app.SERVICE_RESHOW"
-        private const val CHANNEL_NOTIF = "reminders"
+        const val DEFAULT_SNOOZE_MINUTES = 10
         private const val CHANNEL_SILENT = "reminders_silent"
-        private const val NOTIFICATION_ID = 4201
+        private const val SENTINEL_ID = 4201
+        private const val VIBRATE_KEY = "__vibrate__"
 
         // What's currently showing (and which of those are ringing as an alarm), so
         // a resync can re-arm future alarms without re-firing ones already on screen.
@@ -338,20 +367,18 @@ class AlarmService : Service() {
             launchApp(context)
         }
 
-        private const val SNOOZE_MINUTES = 10
-
         /**
-         * Snooze: re-arm the local alarm and stop the current sound, and queue the
-         * snooze for the server (drained by the WebView) so it's authoritative and
-         * syncs across devices. The escalation backstop stays server-anchored to the
-         * original fire.
+         * Snooze for `minutes`: re-arm the local alarm and stop the current sound,
+         * and queue the snooze for the server (drained by the WebView) so it's
+         * authoritative and syncs across devices. The escalation backstop stays
+         * server-anchored to the original fire.
          */
-        fun snooze(context: Context, occurrenceId: String) {
+        fun snooze(context: Context, occurrenceId: String, minutes: Int) {
             val spec = AlarmStore.find(context, occurrenceId)
-            PendingSnoozeStore.add(context, occurrenceId, SNOOZE_MINUTES)
+            PendingSnoozeStore.add(context, occurrenceId, minutes)
             stopFor(context, occurrenceId)
             if (spec != null) {
-                val snoozed = spec.copy(fireAtMs = System.currentTimeMillis() + SNOOZE_MINUTES * 60_000L)
+                val snoozed = spec.copy(fireAtMs = System.currentTimeMillis() + minutes * 60_000L)
                 AlarmStore.put(context, snoozed)
                 AlarmPlugin.armAlarm(context, snoozed)
             }
