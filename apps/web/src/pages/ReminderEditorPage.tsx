@@ -277,7 +277,9 @@ export function ReminderEditorPage() {
               [`& .${tabClasses.root}`]: {
                 flex: 1,
                 minWidth: 0,
-                px: 0,
+                px: 1,
+                py: 1.25,
+                minHeight: 48, // comfortable touch target
                 fontSize: 'sm',
                 fontWeight: 'md',
                 color: 'text.tertiary',
@@ -290,7 +292,7 @@ export function ReminderEditorPage() {
                 borderRadius: 0,
                 // No focus/selected box — the bottom underline is the only indicator.
                 '&:focus, &:focus-visible': { outline: 'none' },
-                '&:hover': { bgcolor: 'transparent', color: 'text.secondary' },
+                '&:hover': { bgcolor: 'transparent', color: 'primary.plainColor' },
                 [`&.${tabClasses.selected}`]: {
                   color: 'primary.plainColor',
                   fontWeight: 'lg',
