@@ -11,7 +11,7 @@ import Stack from '@mui/joy/Stack'
 import Box from '@mui/joy/Box'
 import Typography from '@mui/joy/Typography'
 import type { OccurrenceStatus, ReminderCategory } from '@persistent/shared'
-import { CategoryIcon, StatusIcon } from './ReminderIcons.js'
+import { CategoryIcon, StatusChip } from './ReminderIcons.js'
 
 export function ReminderListItem({
   to,
@@ -38,12 +38,9 @@ export function ReminderListItem({
         <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0 }}>
           <CategoryIcon category={category} size={32} />
           <Box sx={{ minWidth: 0 }}>
-            <Stack direction="row" spacing={0.5} alignItems="center">
-              <Typography level="title-sm" noWrap>
-                {title}
-              </Typography>
-              {status && <StatusIcon status={status} />}
-            </Stack>
+            <Typography level="title-sm" noWrap>
+              {title}
+            </Typography>
             {description && (
               <Typography
                 level="body-sm"
@@ -65,7 +62,10 @@ export function ReminderListItem({
             )}
           </Box>
         </Stack>
-        {trailing}
+        <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexShrink: 0 }}>
+          {status && <StatusChip status={status} />}
+          {trailing}
+        </Stack>
       </Stack>
     </Card>
   )

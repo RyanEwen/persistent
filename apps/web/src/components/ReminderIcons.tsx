@@ -3,6 +3,8 @@
  * (doneness / snoozed / escalated). Centralized so the mapping stays consistent
  * wherever reminders/occurrences are listed.
  */
+import Chip from '@mui/joy/Chip'
+import type { ColorPaletteProp } from '@mui/joy/styles'
 import type { SvgIconComponent } from '@mui/icons-material'
 import MedicationIcon from '@mui/icons-material/Medication'
 import EventIcon from '@mui/icons-material/Event'
@@ -74,4 +76,28 @@ const STATUS_TITLE: Record<OccurrenceStatus, string> = {
 export function StatusIcon({ status, fontSize = 'small' }: { status: OccurrenceStatus; fontSize?: IconSize }) {
   const Icon = STATUS_ICON[status]
   return <Icon fontSize={fontSize} role="img" aria-label={STATUS_TITLE[status]} />
+}
+
+const STATUS_COLOR: Record<OccurrenceStatus, ColorPaletteProp> = {
+  PENDING: 'neutral',
+  FIRED: 'warning',
+  ACKNOWLEDGED: 'success',
+  SNOOZED: 'primary',
+  ESCALATED: 'danger',
+  MISSED: 'danger'
+}
+
+/** A colored, labeled status chip (e.g. green "Done", red "Missed") for list rows. */
+export function StatusChip({ status }: { status: OccurrenceStatus }) {
+  const Icon = STATUS_ICON[status]
+  return (
+    <Chip
+      size="sm"
+      variant="soft"
+      color={STATUS_COLOR[status]}
+      startDecorator={<Icon sx={{ fontSize: 16 }} />}
+    >
+      {STATUS_TITLE[status]}
+    </Chip>
+  )
 }

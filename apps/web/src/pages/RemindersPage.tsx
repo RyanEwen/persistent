@@ -18,7 +18,7 @@ import { scheduleSummary } from '../lib/scheduleSummary.js'
 import { formatWhen } from '../lib/datetime.js'
 import { reminderNextFire } from '../lib/schedule-preview.js'
 import { useSettings } from '../settings/useSettings.js'
-import { CategoryIcon, StatusIcon } from '../components/ReminderIcons.js'
+import { CategoryIcon, StatusChip } from '../components/ReminderIcons.js'
 import { ReminderListItem } from '../components/ReminderListItem.js'
 import { SnoozeDialog } from '../components/SnoozeDialog.js'
 import { PullToRefresh } from '../components/PullToRefresh.js'
@@ -54,12 +54,11 @@ export function RemindersPage() {
           <Stack spacing={1.5}>
             {active.data.map((occurrence) => (
               <Card key={occurrence.id} color="warning" variant="soft">
-                <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-                  <Box>
+                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                  <Box sx={{ minWidth: 0 }}>
                     <Stack direction="row" spacing={1} alignItems="center">
                       <CategoryIcon category={occurrence.reminder.category} />
                       <Typography level="title-md">{occurrence.reminder.title}</Typography>
-                      <StatusIcon status={occurrence.status} />
                     </Stack>
                     {reminderBodyText(occurrence.reminder) && (
                       <Typography level="body-sm">{reminderBodyText(occurrence.reminder)}</Typography>
@@ -67,6 +66,9 @@ export function RemindersPage() {
                     <Typography level="body-xs" sx={{ mt: 0.5 }}>
                       {formatWhen(occurrence.scheduledFor, timeFormat)}
                     </Typography>
+                  </Box>
+                  <Box sx={{ flexShrink: 0 }}>
+                    <StatusChip status={occurrence.status} />
                   </Box>
                 </Stack>
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center" sx={{ mt: 1 }}>
