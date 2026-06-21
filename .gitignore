@@ -8,8 +8,8 @@ dist/
 .env.*.local
 .secrets/
 
-# Runtime data / scratch
-data/
+# Runtime data / scratch (root only — must not match apps/web/src/data)
+/data/
 tmp/
 .backups/
 
