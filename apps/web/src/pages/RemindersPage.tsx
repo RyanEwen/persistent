@@ -21,6 +21,7 @@ import { useSettings } from '../settings/useSettings.js'
 import { CategoryIcon, StatusIcon } from '../components/ReminderIcons.js'
 import { ReminderListItem } from '../components/ReminderListItem.js'
 import { SnoozeDialog } from '../components/SnoozeDialog.js'
+import { PullToRefresh } from '../components/PullToRefresh.js'
 import type { Reminder } from '@persistent/shared'
 
 // A one-time reminder that's been done (acknowledged) is finished — it lives in
@@ -43,6 +44,7 @@ export function RemindersPage() {
     .sort((a, b) => (a.next?.getTime() ?? Infinity) - (b.next?.getTime() ?? Infinity))
 
   return (
+    <PullToRefresh onRefresh={() => Promise.all([reminders.refetch(), active.refetch()])}>
     <Stack spacing={3}>
       {active.data && active.data.length > 0 && (
         <Box>
@@ -136,5 +138,6 @@ export function RemindersPage() {
         }}
       />
     </Stack>
+    </PullToRefresh>
   )
 }

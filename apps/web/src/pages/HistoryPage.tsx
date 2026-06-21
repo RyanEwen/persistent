@@ -10,12 +10,14 @@ import { usePastOccurrences } from '../data/occurrences.js'
 import { formatWhen } from '../lib/datetime.js'
 import { useSettings } from '../settings/useSettings.js'
 import { ReminderListItem } from '../components/ReminderListItem.js'
+import { PullToRefresh } from '../components/PullToRefresh.js'
 
 export function HistoryPage() {
   const past = usePastOccurrences()
   const { timeFormat } = useSettings()
 
   return (
+    <PullToRefresh onRefresh={() => past.refetch()}>
     <Stack spacing={2}>
       <Typography level="title-lg">History</Typography>
 
@@ -38,5 +40,6 @@ export function HistoryPage() {
         ))}
       </Stack>
     </Stack>
+    </PullToRefresh>
   )
 }
