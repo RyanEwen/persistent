@@ -5,10 +5,11 @@
 import { createContext, useContext, useEffect, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/browser'
-import type { AuthState, RequestCodeResponse, SessionUser } from '@persistent/shared'
+import { extractErrorMessage, type AuthState, type RequestCodeResponse, type SessionUser } from '@persistent/shared'
 import { apiFetch } from '../lib/apiClient.js'
 import { passkeyAuthenticate } from '../native/passkeyClient.js'
 import { queryKeys } from '../lib/queryClient.js'
+import { notify } from '../lib/toast.js'
 import { startWs, stopWs } from '../lib/wsClient.js'
 import { initNative } from '../native/nativeSync.js'
 
@@ -87,8 +88,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await queryClient.invalidateQueries({ queryKey: queryKeys.auth })
     },
     logout: async () => {
-      await apiFetch('/api/auth/logout', { method: 'POST' })
+      // Optimistically drop the session so the UI returns to sign-in immediately,
+      // regardless of how the network call goes.
       stopWs()
+      queryClient.setQueryData<AuthState>(queryKeys.auth, { user: null })
+      try {
+        await apiFetch('/api/auth/logout', { method: 'POST' })
+      } catch (error) {
+        notify(extractErrorMessage(error, "Couldn't reach the server to sign out."), 'danger')
+      }
       queryClient.clear()
       await queryClient.invalidateQueries({ queryKey: queryKeys.auth })
     }
