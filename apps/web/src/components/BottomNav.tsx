@@ -25,22 +25,30 @@ const ITEMS: NavItem[] = [
   { to: '/settings', label: 'Settings', icon: SettingsIcon }
 ]
 
-/** True while a text field is focused (i.e. the on-screen keyboard is likely up). */
+/**
+ * True while the on-screen keyboard is up. Detected from the viewport shrinking
+ * rather than focus, so the nav reliably reappears when the keyboard closes even
+ * if the input keeps focus. Uses visualViewport when available, else innerHeight
+ * vs a running max baseline.
+ */
 function useKeyboardOpen(): boolean {
   const [open, setOpen] = useState(false)
   useEffect(() => {
-    const isTextField = (el: EventTarget | null) => {
-      if (!(el instanceof HTMLElement)) return false
-      const tag = el.tagName
-      return tag === 'TEXTAREA' || (tag === 'INPUT' && el.getAttribute('type') !== 'checkbox') || el.isContentEditable
+    const vv = window.visualViewport
+    let baseline = vv?.height ?? window.innerHeight
+    const measure = () => {
+      const h = vv?.height ?? window.innerHeight
+      baseline = Math.max(baseline, h)
+      setOpen(baseline - h > 150)
     }
-    const onFocusIn = (e: FocusEvent) => isTextField(e.target) && setOpen(true)
-    const onFocusOut = () => setOpen(false)
-    document.addEventListener('focusin', onFocusIn)
-    document.addEventListener('focusout', onFocusOut)
+    measure()
+    vv?.addEventListener('resize', measure)
+    window.addEventListener('resize', measure)
+    window.addEventListener('orientationchange', measure)
     return () => {
-      document.removeEventListener('focusin', onFocusIn)
-      document.removeEventListener('focusout', onFocusOut)
+      vv?.removeEventListener('resize', measure)
+      window.removeEventListener('resize', measure)
+      window.removeEventListener('orientationchange', measure)
     }
   }, [])
   return open
