@@ -49,6 +49,19 @@ export const authStateSchema = z.object({
 })
 export type AuthState = z.infer<typeof authStateSchema>
 
+/** Public auth config the client reads to decide which methods to offer. */
+export const authConfigSchema = z.object({
+  googleClientId: z.string().nullable()
+})
+export type AuthConfig = z.infer<typeof authConfigSchema>
+
+/** Body for POST /api/auth/google — a Google ID token (JWT credential). */
+export const googleLoginSchema = z.object({
+  credential: z.string().min(1),
+  timeZone: z.string().max(64).optional()
+})
+export type GoogleLoginInput = z.infer<typeof googleLoginSchema>
+
 // --- Passkeys (WebAuthn) ---
 
 /** A registered passkey as surfaced to the client (no key material). */

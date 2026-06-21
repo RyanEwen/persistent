@@ -21,7 +21,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^5.1.0",
-    "google-auth-library": "^9.15.0",
+    "google-auth-library": "^10.7.0",
     "helmet": "^8.1.0",
     "luxon": "^3.5.0",
     "web-push": "^3.6.7",

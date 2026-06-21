@@ -15,8 +15,11 @@ import Alert from '@mui/joy/Alert'
 import Link from '@mui/joy/Link'
 import Divider from '@mui/joy/Divider'
 import KeyRoundedIcon from '@mui/icons-material/KeyRounded'
-import { extractErrorMessage } from '@persistent/shared'
+import { useQuery } from '@tanstack/react-query'
+import { extractErrorMessage, type AuthConfig } from '@persistent/shared'
 import { useAuth } from '../auth/useAuth.js'
+import { apiFetch } from '../lib/apiClient.js'
+import { GoogleSignInButton } from '../components/GoogleSignInButton.js'
 
 export function SignInPage() {
   const { requestCode, verifyCode, loginWithPasskey } = useAuth()
@@ -28,6 +31,10 @@ export function SignInPage() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [passkeyBusy, setPasskeyBusy] = useState(false)
+  const { data: config } = useQuery({
+    queryKey: ['auth-config'],
+    queryFn: () => apiFetch<AuthConfig>('/api/auth/config')
+  })
 
   async function onPasskey() {
     setError(null)
@@ -88,6 +95,11 @@ export function SignInPage() {
 
         {step === 'email' ? (
           <>
+            {config?.googleClientId && (
+              <Box sx={{ mb: 1.5, display: 'flex', justifyContent: 'center' }}>
+                <GoogleSignInButton clientId={config.googleClientId} onError={setError} />
+              </Box>
+            )}
             <Button
               variant="soft"
               color="primary"

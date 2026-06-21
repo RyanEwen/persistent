@@ -46,6 +46,20 @@ from `apps/web/public`) listing the app package + release-cert SHA-256, which
 authorizes the app for the RP. Update that fingerprint if the signing key
 changes.
 
+## Sign in with Google
+
+Optional third method (enabled when `GOOGLE_CLIENT_ID` is set; the client reads
+`GET /api/auth/config` to decide whether to show it). The client obtains a Google
+**ID token** — web via Google Identity Services, native via the Credential Manager
+Google ID option (`GoogleAuthPlugin`) — and posts it to `POST /api/auth/google`,
+which verifies it (`google-auth-library`, audience = `GOOGLE_CLIENT_ID`), requires
+a verified email, upserts the user **by email** (so it links to the same account
+as the email-code / passkey methods), and starts the usual session.
+
+Native requires an Android OAuth client registered for the package + signing
+SHA-1; the web client id is passed as the `serverClientId`. Like passkeys, the
+SHA-1 changes under Play App Signing.
+
 ## Sessions
 
 Cookie-backed (`lib/auth-session.ts`). A random secret lives only in the

@@ -14,13 +14,16 @@ import {
   verifyRegistrationResponse
 } from '@simplewebauthn/server'
 import type { AuthenticationResponseJSON, AuthenticatorTransportFuture, RegistrationResponseJSON } from '@simplewebauthn/server'
+import { OAuth2Client } from 'google-auth-library'
 import {
+  googleLoginSchema,
   passkeyListResponseSchema,
   passkeyRegisterFinishSchema,
   requestCodeSchema,
   verifyCodeSchema
 } from '@persistent/shared'
 import { prisma } from '../lib/prisma.js'
+import { env } from '../lib/env.js'
 import { badRequest, notFound, tooManyRequests, unauthorized } from '../lib/http-error.js'
 import { issueEmailCode, verifyEmailCode } from '../lib/email-code.js'
 import { createSession, revokeSession, setSessionCookie, clearSessionCookie } from '../lib/auth-session.js'
@@ -65,6 +68,49 @@ authRouter.post('/verify-code', async (request, response) => {
       email,
       timeZone: timeZone ?? 'UTC',
       displayName: displayName ?? null
+    }
+  })
+
+  const session = await createSession(user.id, request)
+  setSessionCookie(response, session.secret, session.expiresAt)
+  response.json({ user: toSessionUser(user) })
+})
+
+// Public config so the client knows which auth methods to offer.
+authRouter.get('/config', (_request, response) => {
+  response.json({ googleClientId: env.GOOGLE_WEB_CLIENT_ID || null })
+})
+
+const googleClient = new OAuth2Client()
+
+// Sign in with Google: verify the ID token, upsert the user by email, start a session.
+authRouter.post('/google', async (request, response) => {
+  if (!env.GOOGLE_WEB_CLIENT_ID) throw badRequest('Google sign-in is not configured.')
+  const parsed = googleLoginSchema.safeParse(request.body)
+  if (!parsed.success) throw badRequest('Invalid Google credential.')
+
+  let payload
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken: parsed.data.credential,
+      audience: env.GOOGLE_WEB_CLIENT_ID
+    })
+    payload = ticket.getPayload()
+  } catch {
+    throw unauthorized('Could not verify the Google sign-in.')
+  }
+  if (!payload?.email || !payload.email_verified) throw unauthorized('Google account email is not verified.')
+
+  const user = await prisma.user.upsert({
+    where: { email: payload.email },
+    update: {
+      ...(parsed.data.timeZone ? { timeZone: parsed.data.timeZone } : {}),
+      ...(payload.name ? { displayName: payload.name } : {})
+    },
+    create: {
+      email: payload.email,
+      timeZone: parsed.data.timeZone ?? 'UTC',
+      displayName: payload.name ?? null
     }
   })
 

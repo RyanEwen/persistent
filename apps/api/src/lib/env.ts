@@ -31,7 +31,13 @@ const envSchema = z.object({
   VAPID_SUBJECT: z.string().optional(),
 
   FCM_SERVICE_ACCOUNT_FILE: z.string().optional(),
-  FCM_PROJECT_ID: z.string().optional()
+  FCM_PROJECT_ID: z.string().optional(),
+
+  // Google OAuth WEB client id. When set, "Continue with Google" is offered and
+  // ID tokens are verified against it (it's also the native serverClientId). The
+  // Android client id only needs to exist in the Cloud project (package + SHA-1);
+  // it isn't read here. Empty disables Google login.
+  GOOGLE_WEB_CLIENT_ID: z.string().optional()
 })
 
 const parsed = envSchema.safeParse(process.env)

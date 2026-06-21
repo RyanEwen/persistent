@@ -18,6 +18,7 @@ interface AuthContextValue {
   requestCode: (email: string) => Promise<RequestCodeResponse>
   verifyCode: (email: string, code: string) => Promise<void>
   loginWithPasskey: () => Promise<void>
+  loginWithGoogle: (credential: string) => Promise<void>
   logout: () => Promise<void>
 }
 
@@ -75,6 +76,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await apiFetch<AuthState>('/api/auth/passkey/authenticate/verify', {
         method: 'POST',
         body: JSON.stringify({ response: assertion })
+      })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.auth })
+    },
+    loginWithGoogle: async (credential) => {
+      await apiFetch<AuthState>('/api/auth/google', {
+        method: 'POST',
+        body: JSON.stringify({ credential, timeZone: guessTimeZone() })
       })
       await queryClient.invalidateQueries({ queryKey: queryKeys.auth })
     },

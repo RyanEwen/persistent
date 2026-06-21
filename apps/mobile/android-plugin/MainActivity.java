@@ -11,6 +11,7 @@ import com.getcapacitor.BridgeActivity;
 import ca.persistent.app.alarm.AlarmPlugin;
 import ca.persistent.app.alarm.UpdatePlugin;
 import ca.persistent.app.alarm.PasskeyPlugin;
+import ca.persistent.app.alarm.GoogleAuthPlugin;
 
 public class MainActivity extends BridgeActivity {
     @Override
@@ -18,6 +19,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(AlarmPlugin.class);
         registerPlugin(UpdatePlugin.class);
         registerPlugin(PasskeyPlugin.class);
+        registerPlugin(GoogleAuthPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

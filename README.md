@@ -44,7 +44,9 @@ escalation / ad-hoc backup. See `docs/alarm-architecture.md`.
 ## Auth
 
 Passwordless: request a one-time **email code** (sign-up and sign-in are the same
-flow), or register a **passkey** and sign in with a single biometric/PIN gesture.
+flow), register a **passkey** and sign in with a single biometric/PIN gesture, or
+use **Sign in with Google** (when `GOOGLE_CLIENT_ID` is configured). All resolve
+to the same account by email.
 Sessions are a sliding 7-day window (any in-app action or notification
 ack/snooze/sync extends them). See `docs/auth-architecture.md`.
 

@@ -74,6 +74,13 @@ export interface PasskeyNativePlugin {
 
 export const PasskeyNative = registerPlugin<PasskeyNativePlugin>('Passkey')
 
+/** Native Sign in with Google via Credential Manager; returns an ID token (JWT). */
+export interface GoogleAuthNativePlugin {
+  signIn(options: { serverClientId: string }): Promise<{ idToken: string }>
+}
+
+export const GoogleAuthNative = registerPlugin<GoogleAuthNativePlugin>('GoogleAuth')
+
 export function isNative(): boolean {
   return Capacitor.isNativePlatform()
 }
