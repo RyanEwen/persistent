@@ -4,9 +4,10 @@
  */
 import { createContext, useContext, useEffect, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { startAuthentication, type PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/browser'
+import type { PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/browser'
 import type { AuthState, RequestCodeResponse, SessionUser } from '@persistent/shared'
 import { apiFetch } from '../lib/apiClient.js'
+import { passkeyAuthenticate } from '../native/passkeyClient.js'
 import { queryKeys } from '../lib/queryClient.js'
 import { startWs, stopWs } from '../lib/wsClient.js'
 import { initNative } from '../native/nativeSync.js'
@@ -70,7 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         '/api/auth/passkey/authenticate/options',
         { method: 'POST' }
       )
-      const assertion = await startAuthentication({ optionsJSON: begin.options })
+      const assertion = await passkeyAuthenticate(begin.options)
       await apiFetch<AuthState>('/api/auth/passkey/authenticate/verify', {
         method: 'POST',
         body: JSON.stringify({ response: assertion })

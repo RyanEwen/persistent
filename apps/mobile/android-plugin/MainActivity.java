@@ -10,12 +10,14 @@ import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;
 import ca.persistent.app.alarm.AlarmPlugin;
 import ca.persistent.app.alarm.UpdatePlugin;
+import ca.persistent.app.alarm.PasskeyPlugin;
 
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(AlarmPlugin.class);
         registerPlugin(UpdatePlugin.class);
+        registerPlugin(PasskeyPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

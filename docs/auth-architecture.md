@@ -35,9 +35,13 @@ the `Passkey` model.
 - **Relying party**: RP ID + allowed origins derive from `CLIENT_ORIGIN`
   (hostname = RP ID). The login UI offers passkey first, with email as fallback.
 
-Note: passkeys work in browsers/PWA. The Capacitor WebView would need Credential
-Manager + assetlinks wiring to use them natively; until then the native app uses
-the email code (the passkey button falls back gracefully).
+Native app: the WebView has no `navigator.credentials`, so the native
+`PasskeyPlugin` (androidx.credentials Credential Manager) performs the ceremony —
+`passkeyClient.ts` routes to it when `isNative()`, else to the browser API. This
+requires a Digital Asset Links file at `/.well-known/assetlinks.json` (served
+from `apps/web/public`) listing the app package + release-cert SHA-256, which
+authorizes the app for the RP. Update that fingerprint if the signing key
+changes.
 
 ## Sessions
 

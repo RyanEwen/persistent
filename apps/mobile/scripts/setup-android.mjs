@@ -141,6 +141,23 @@ if (existsSync(iconOverlay)) {
   console.log('[setup-android] applied custom launcher icons')
 }
 
+// --- 4c. Credential Manager (passkeys in the WebView) -----------------------
+// androidx.credentials lets PasskeyPlugin bridge WebAuthn to the system passkey
+// UI (the WebView has no navigator.credentials).
+{
+  let g = readFileSync(appGradlePath, 'utf8')
+  if (!g.includes('androidx.credentials:credentials')) {
+    g = g.replace(
+      /dependencies\s*\{/,
+      `dependencies {
+    implementation "androidx.credentials:credentials:1.3.0"
+    implementation "androidx.credentials:credentials-play-services-auth:1.3.0"`
+    )
+    writeFileSync(appGradlePath, g)
+    console.log('[setup-android] added androidx.credentials dependencies')
+  }
+}
+
 // --- 5. Release signing (when a keystore is provided via env) ---------------
 // Local builds set ANDROID_KEYSTORE_* in .env; CI decodes the keystore secret to
 // a file and sets the same vars. Passwords are read by Gradle from the env at

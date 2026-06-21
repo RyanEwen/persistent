@@ -19,10 +19,11 @@ import DevicesRoundedIcon from '@mui/icons-material/DevicesRounded'
 import PhoneIphoneRoundedIcon from '@mui/icons-material/PhoneIphoneRounded'
 import UsbRoundedIcon from '@mui/icons-material/UsbRounded'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { startRegistration, type PublicKeyCredentialCreationOptionsJSON } from '@simplewebauthn/browser'
+import type { PublicKeyCredentialCreationOptionsJSON } from '@simplewebauthn/browser'
 import { extractErrorMessage, type PasskeyListResponse } from '@persistent/shared'
 import { apiFetch } from '../lib/apiClient.js'
 import { formatDate } from '../lib/datetime.js'
+import { passkeyRegister } from '../native/passkeyClient.js'
 import { describePasskey, type PasskeyVisualKind } from '../lib/passkeyMetadata.js'
 import { useToast } from './ToastProvider.js'
 
@@ -57,7 +58,7 @@ export function PasskeysCard() {
         '/api/auth/passkey/register/options',
         { method: 'POST' }
       )
-      const registration = await startRegistration({ optionsJSON: begin.options })
+      const registration = await passkeyRegister(begin.options)
       await apiFetch('/api/auth/passkey/register/verify', {
         method: 'POST',
         body: JSON.stringify({ response: registration })

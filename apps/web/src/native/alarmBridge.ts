@@ -62,6 +62,18 @@ export const UpdatePlugin = registerPlugin<UpdatePluginPlugin>('Update')
 /** Minimal proxy to @capacitor/app's getInfo — the installed APK's versionName. */
 export const NativeApp = registerPlugin<{ getInfo(): Promise<{ version: string; build: string }> }>('App')
 
+/**
+ * Native passkey bridge to Android's Credential Manager (the WebView lacks
+ * navigator.credentials). Takes WebAuthn options JSON, returns the credential
+ * response JSON for the server to verify.
+ */
+export interface PasskeyNativePlugin {
+  createPasskey(options: { options: string }): Promise<{ response: string }>
+  getPasskey(options: { options: string }): Promise<{ response: string }>
+}
+
+export const PasskeyNative = registerPlugin<PasskeyNativePlugin>('Passkey')
+
 export function isNative(): boolean {
   return Capacitor.isNativePlatform()
 }

@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.get_login_creds"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "ca.persistent.app",
+      "sha256_cert_fingerprints": [
+        "4D:EA:AB:62:F4:84:F4:93:BC:CC:25:6E:5C:DC:22:52:40:D0:29:3E:C2:B2:71:51:D6:CB:35:4D:61:C6:A5:FD"
+      ]
+    }
+  }
+]
