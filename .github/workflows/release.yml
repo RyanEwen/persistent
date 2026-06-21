@@ -1,0 +1,87 @@
+name: release
+
+# Build a signed Android APK and attach it to a GitHub Release whenever a
+# `v*` tag is pushed (e.g. `git tag v0.2.0 && git push origin v0.2.0`).
+# The in-app update check (apps/web/src/native/UpdateCheck.tsx) reads the
+# latest release and prompts users to download the new APK.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (e.g. v0.2.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: ver
+        run: |
+          TAG="${{ github.event.inputs.version || github.ref_name }}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "name=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install workspace deps
+        run: npm ci
+
+      - name: Build web bundle
+        run: |
+          npm run build --workspace @persistent/shared
+          npm run build --workspace @persistent/web
+
+      - name: Install mobile deps
+        working-directory: apps/mobile
+        run: npm ci
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Decode release keystore
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.keystore"
+
+      - name: Build signed APK
+        working-directory: apps/mobile
+        env:
+          ANDROID_KEYSTORE_FILE: ${{ runner.temp }}/release.keystore
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_VERSION_NAME: ${{ steps.ver.outputs.name }}
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+        run: |
+          npx cap add android
+          npm run setup:android
+          npx cap sync android
+          npm run assemble:release
+
+      - name: Stage APK
+        run: |
+          cp apps/mobile/android/app/build/outputs/apk/release/app-release.apk \
+             "persistent-${{ steps.ver.outputs.name }}.apk"
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: ${{ steps.ver.outputs.tag }}
+          generate_release_notes: true
+          files: persistent-*.apk

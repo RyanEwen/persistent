@@ -20,6 +20,7 @@ import { useSettings, type SoundChoice } from '../settings/useSettings.js'
 import { APP_THEMES } from '../settings/themes.js'
 import { formatDateTime } from '../lib/datetime.js'
 import { AlarmPlugin, isNative } from '../native/alarmBridge.js'
+import { UpdateSettings } from '../native/UpdateSettings.js'
 
 export function SettingsPage() {
   const { user, logout } = useAuth()
@@ -124,24 +125,28 @@ export function SettingsPage() {
         )}
       </Card>
 
-      <Card variant="outlined">
-        <Typography level="title-sm">Browser notifications</Typography>
-        <Typography level="body-sm">
-          Best-effort on the web. For undismissable alarms with repeating sound, install the Android app.
-        </Typography>
-        {error && <Alert color="danger">{error}</Alert>}
-        {!pushSupported() ? (
-          <Alert color="warning">This browser doesn't support push notifications.</Alert>
-        ) : subscribed ? (
-          <Button variant="outlined" color="neutral" loading={busy} onClick={onDisable}>
-            Disable notifications
-          </Button>
-        ) : (
-          <Button loading={busy} onClick={onEnable} disabled={permission === 'denied'}>
-            {permission === 'denied' ? 'Notifications blocked in browser' : 'Enable notifications'}
-          </Button>
-        )}
-      </Card>
+      {/* Web Push is best-effort and only relevant on the web; the native app
+          uses on-device alarms, so this section is hidden there. */}
+      {!isNative() && (
+        <Card variant="outlined">
+          <Typography level="title-sm">Browser notifications</Typography>
+          <Typography level="body-sm">
+            Best-effort on the web. For undismissable alarms with repeating sound, install the Android app.
+          </Typography>
+          {error && <Alert color="danger">{error}</Alert>}
+          {!pushSupported() ? (
+            <Alert color="warning">This browser doesn't support push notifications.</Alert>
+          ) : subscribed ? (
+            <Button variant="outlined" color="neutral" loading={busy} onClick={onDisable}>
+              Disable notifications
+            </Button>
+          ) : (
+            <Button loading={busy} onClick={onEnable} disabled={permission === 'denied'}>
+              {permission === 'denied' ? 'Notifications blocked in browser' : 'Enable notifications'}
+            </Button>
+          )}
+        </Card>
+      )}
 
       <Card variant="outlined">
         <Typography level="title-sm">Date &amp; time</Typography>
@@ -163,6 +168,8 @@ export function SettingsPage() {
           Sign out
         </Button>
       </Card>
+
+      <UpdateSettings />
     </Stack>
   )
 }

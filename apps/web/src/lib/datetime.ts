@@ -9,9 +9,13 @@ export type TimeFormat = '12h' | '24h'
 /** The locale's natural default, used when the user hasn't picked one. */
 export function detectTimeFormat(): TimeFormat {
   try {
-    return new Intl.DateTimeFormat().resolvedOptions().hour12 ? '12h' : '24h'
+    // `hour12`/`hourCycle` are only resolved when an hour field is requested; an
+    // optionless DateTimeFormat leaves them undefined (which wrongly read as 24h).
+    const resolved = new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions()
+    if (resolved.hour12 !== undefined) return resolved.hour12 ? '12h' : '24h'
+    return resolved.hourCycle === 'h11' || resolved.hourCycle === 'h12' ? '12h' : '24h'
   } catch {
-    return '24h'
+    return '12h'
   }
 }
 

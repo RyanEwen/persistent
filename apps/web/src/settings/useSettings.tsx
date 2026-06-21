@@ -21,6 +21,15 @@ interface Settings {
   notificationSound: SoundChoice
 }
 
+/**
+ * Persisted state. `timeFormat` is only stored once the user explicitly picks
+ * one; until then we re-detect from the locale on every load (so a corrected
+ * detection takes effect and isn't pinned by an earlier auto-captured value).
+ */
+interface StoredState extends Settings {
+  timeFormatChosen: boolean
+}
+
 interface SettingsContextValue extends Settings {
   setTimeFormat: (format: TimeFormat) => void
   setThemeId: (id: ThemeId) => void
@@ -38,9 +47,10 @@ function toSound(value: unknown): SoundChoice {
   return DEFAULT_SOUND
 }
 
-function loadSettings(): Settings {
-  const defaults: Settings = {
+function loadSettings(): StoredState {
+  const defaults: StoredState = {
     timeFormat: detectTimeFormat(),
+    timeFormatChosen: false,
     themeId: DEFAULT_THEME_ID,
     alarmSound: DEFAULT_SOUND,
     notificationSound: DEFAULT_SOUND
@@ -48,9 +58,14 @@ function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
-      const parsed = JSON.parse(raw) as Partial<Settings>
+      const parsed = JSON.parse(raw) as Partial<StoredState>
+      const chosen =
+        parsed.timeFormatChosen === true && (parsed.timeFormat === '12h' || parsed.timeFormat === '24h')
       return {
-        timeFormat: parsed.timeFormat === '12h' || parsed.timeFormat === '24h' ? parsed.timeFormat : defaults.timeFormat,
+        // Honor an explicit choice; otherwise re-detect (ignores values that were
+        // auto-captured by an unrelated setting change).
+        timeFormat: chosen ? (parsed.timeFormat as TimeFormat) : defaults.timeFormat,
+        timeFormatChosen: chosen,
         themeId: APP_THEMES.some((t) => t.id === parsed.themeId) ? (parsed.themeId as ThemeId) : defaults.themeId,
         alarmSound: toSound(parsed.alarmSound),
         notificationSound: toSound(parsed.notificationSound)
@@ -65,9 +80,9 @@ function loadSettings(): Settings {
 const SettingsContext = createContext<SettingsContextValue | null>(null)
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
-  const [settings, setSettings] = useState<Settings>(loadSettings)
+  const [settings, setSettings] = useState<StoredState>(loadSettings)
 
-  function update(patch: Partial<Settings>) {
+  function update(patch: Partial<StoredState>) {
     setSettings((prev) => {
       const next = { ...prev, ...patch }
       try {
@@ -81,7 +96,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const value: SettingsContextValue = {
     ...settings,
-    setTimeFormat: (timeFormat) => update({ timeFormat }),
+    setTimeFormat: (timeFormat) => update({ timeFormat, timeFormatChosen: true }),
     setThemeId: (themeId) => update({ themeId }),
     setAlarmSound: (alarmSound) => update({ alarmSound }),
     setNotificationSound: (notificationSound) => update({ notificationSound })

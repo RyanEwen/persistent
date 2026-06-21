@@ -1,9 +1,15 @@
+import { readFileSync } from 'node:fs'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// App version, surfaced to the client (the native update check compares it to the
+// latest GitHub release).
+const appVersion = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version as string
+
 // Dev proxies /api and /ws to the API server so the browser talks to one origin.
 export default defineConfig({
+  define: { __APP_VERSION__: JSON.stringify(appVersion) },
   plugins: [
     react(),
     VitePWA({

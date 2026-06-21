@@ -37,6 +37,8 @@
 - **Native bridge:** `src/native/` (bundled into this app, which Capacitor loads)
   drives the on-device alarm plugin — schedules alarms from `/api/sync/occurrences`,
   re-syncs live on WS events, and exposes `pickSound`. Guard every call behind
-  `isNative()`; it's a no-op on the web. Started from `useAuth` after sign-in.
+  `isNative()`; it's a no-op on the web. Started from `useAuth` after sign-in. The
+  same folder holds the GitHub update check (`useUpdate`/`UpdateCheck`/
+  `UpdateSettings`), which installs newer APKs via the native `Update` plugin.
 - **No native dialogs:** don't use `alert`/`confirm`/`prompt` (eslint enforces).
 - `verbatimModuleSyntax` is on — use `import type` for type-only imports.

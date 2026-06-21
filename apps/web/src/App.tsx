@@ -12,6 +12,7 @@ import { RemindersPage } from './pages/RemindersPage.js'
 import { ReminderEditorPage } from './pages/ReminderEditorPage.js'
 import { HistoryPage } from './pages/HistoryPage.js'
 import { SettingsPage } from './pages/SettingsPage.js'
+import { UpdateCheck } from './native/UpdateCheck.js'
 
 export function App() {
   const { user, loading } = useAuth()
@@ -30,6 +31,7 @@ export function App() {
 
   return (
     <AppLayout>
+      <UpdateCheck />
       <Routes>
         <Route path="/" element={<RemindersPage />} />
         <Route path="/reminders/new" element={<ReminderEditorPage />} />

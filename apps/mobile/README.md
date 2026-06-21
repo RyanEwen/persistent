@@ -12,15 +12,17 @@ SDK; add them to the devcontainer image or use Android Studio).
 
 ## Layout
 
-- `capacitor.config.ts` — app id/name; `webDir` points at the web build.
+- `capacitor.config.ts` — app id/name; `server.url` loads the UI from production
+  (so web changes ship without a new APK), with `webDir` as the offline fallback.
 - `src/alarm/` — TypeScript bridge to the native plugin (`registerPlugin`).
 - `src/native-sync.ts` — pulls `/api/sync/occurrences`, schedules on-device
   alarms, registers FCM, drains native acks. Realizes "device-scheduled + server
   backup".
 - `src/main.ts` — `initNative()` bootstrap; call it from the web app behind a
   `Capacitor.isNativePlatform()` check.
-- `android-plugin/` — the Kotlin sources for the AlarmPlugin (copied into the
-  generated Android project — see below) plus `AndroidManifest.additions.xml`.
+- `android-plugin/` — the Kotlin sources for the AlarmPlugin + `UpdatePlugin`
+  (in-app APK download/install), copied into the generated Android project — see
+  below — plus `AndroidManifest.additions.xml`.
 
 ## First-time setup
 
@@ -35,11 +37,15 @@ npm run prepare:android   # build web -> cap add android -> wire plugin -> cap s
 1. `build:web` — build `@persistent/shared` then `@persistent/web` (produces `apps/web/dist`).
 2. `add:android` — `cap add android` to generate the `android/` project.
 3. `setup:android` — run `scripts/setup-android.mjs`, which wires the native
-   plugin into the generated project (idempotent):
+   plugins into the generated project (idempotent):
    - copies `android-plugin/*.kt` into `android/.../ca/persistent/app/alarm/`,
    - merges `AndroidManifest.additions.xml` into the app manifest (guarded by
      `persistent-alarm` marker comments),
-   - installs `android-plugin/MainActivity.java` (registers `AlarmPlugin`).
+   - installs `android-plugin/MainActivity.java` (registers `AlarmPlugin` +
+     `UpdatePlugin`),
+   - if `ANDROID_KEYSTORE_FILE` is set, copies the keystore in and injects a
+     release `signingConfig` (passwords read from env at build time), plus
+     `versionName`/`versionCode` from `ANDROID_VERSION_NAME`/`_CODE`.
 4. `sync` — `cap sync android` to copy the web bundle + Capacitor plugins.
 
 One remaining manual step (Firebase account-specific): add `google-services.json`
@@ -91,6 +97,29 @@ npm run build:web     # rebuild the web bundle
 npm run setup:android # re-wire the plugin (cap sync can regenerate files)
 npm run sync          # copy web + plugins into android/
 npm run open:android  # build/run in Android Studio
+```
+
+## Releases & in-app updates
+
+Tagging `v*` (e.g. `git tag v0.2.0 && git push origin v0.2.0`) triggers
+`.github/workflows/release.yml`, which builds a signed APK and attaches it to a
+GitHub Release. The keystore is decoded from the `ANDROID_KEYSTORE_BASE64` secret
+and signed with `ANDROID_KEYSTORE_PASSWORD` / `ANDROID_KEY_ALIAS` /
+`ANDROID_KEY_PASSWORD`; the same key must be used every time or updates won't
+install over each other.
+
+The app checks GitHub for a newer release on launch (and from Settings → About):
+`UpdatePlugin` downloads the APK and launches the installer. Because the UI loads
+from `server.url`, web-only changes reach devices via a prod deploy with no new
+APK — rebuild the APK only for native changes (alarm/update plugins, manifest).
+
+To build a signed release locally, set the `ANDROID_*` vars (see `.env.example`)
+in the workspace `.env`, then:
+
+```bash
+set -a; . ../../.env; set +a
+npm run prepare:android
+npm run assemble:release   # -> android/app/build/outputs/apk/release/app-release.apk
 ```
 
 ## Verifying the guarantee

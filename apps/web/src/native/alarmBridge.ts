@@ -41,6 +41,18 @@ export interface AlarmPluginPlugin {
 
 export const AlarmPlugin = registerPlugin<AlarmPluginPlugin>('AlarmPlugin')
 
+/** State emitted by the native Update plugin while downloading/installing an APK. */
+export interface UpdateState {
+  state: 'downloading' | 'ready' | 'failed'
+}
+
+export interface UpdatePluginPlugin {
+  /** Download the APK at `url` and launch the system installer when it finishes. */
+  downloadAndInstall(options: { url: string }): Promise<void>
+}
+
+export const UpdatePlugin = registerPlugin<UpdatePluginPlugin>('Update')
+
 export function isNative(): boolean {
   return Capacitor.isNativePlatform()
 }

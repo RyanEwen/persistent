@@ -132,4 +132,51 @@ if (!appGradle.includes("apply plugin: 'kotlin-android'")) {
   console.log("[setup-android] applied kotlin-android plugin in android/app/build.gradle")
 }
 
+// --- 5. Release signing (when a keystore is provided via env) ---------------
+// Local builds set ANDROID_KEYSTORE_* in .env; CI decodes the keystore secret to
+// a file and sets the same vars. Passwords are read by Gradle from the env at
+// build time (never written into the project).
+const keystoreEnv = process.env.ANDROID_KEYSTORE_FILE
+if (keystoreEnv) {
+  // Relative keystore paths (local .env) are resolved from the repo root, two
+  // levels above apps/mobile; CI passes an absolute path.
+  const ksSrc = keystoreEnv.startsWith('/') ? keystoreEnv : join(mobileRoot, '..', '..', keystoreEnv)
+  if (existsSync(ksSrc)) {
+    copyFileSync(ksSrc, join(mobileRoot, 'android', 'app', 'release.keystore'))
+    let g = readFileSync(appGradlePath, 'utf8')
+    if (!g.includes('signingConfigs')) {
+      g = g.replace(
+        /android\s*\{/,
+        `android {
+    signingConfigs {
+        release {
+            storeFile file("release.keystore")
+            storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            keyAlias System.getenv("ANDROID_KEY_ALIAS")
+            keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+        }
+    }`
+      )
+      g = g.replace(/(buildTypes\s*\{\s*\n\s*release\s*\{)/, `$1\n            signingConfig signingConfigs.release`)
+      writeFileSync(appGradlePath, g)
+      console.log('[setup-android] configured release signing')
+    }
+  } else {
+    console.log(`[setup-android] ANDROID_KEYSTORE_FILE set but not found: ${ksSrc}`)
+  }
+}
+
+// --- 6. App version from env (CI derives it from the git tag) ----------------
+if (process.env.ANDROID_VERSION_NAME || process.env.ANDROID_VERSION_CODE) {
+  let g = readFileSync(appGradlePath, 'utf8')
+  if (process.env.ANDROID_VERSION_CODE) {
+    g = g.replace(/versionCode\s+\d+/, `versionCode ${Number(process.env.ANDROID_VERSION_CODE)}`)
+  }
+  if (process.env.ANDROID_VERSION_NAME) {
+    g = g.replace(/versionName\s+"[^"]*"/, `versionName "${process.env.ANDROID_VERSION_NAME}"`)
+  }
+  writeFileSync(appGradlePath, g)
+  console.log('[setup-android] set app version from env')
+}
+
 console.log('\n[setup-android] done. Next: `npm run sync` then build in Android Studio.\n')

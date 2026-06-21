@@ -22,7 +22,7 @@ import Divider from '@mui/joy/Divider'
 import Sheet from '@mui/joy/Sheet'
 import Tabs from '@mui/joy/Tabs'
 import TabList from '@mui/joy/TabList'
-import Tab from '@mui/joy/Tab'
+import Tab, { tabClasses } from '@mui/joy/Tab'
 import TabPanel from '@mui/joy/TabPanel'
 import {
   extractErrorMessage,
@@ -37,6 +37,8 @@ import {
   type Schedule
 } from '@persistent/shared'
 import { useReminders, useCreateReminder, useUpdateReminder, useDeleteReminder } from '../data/reminders.js'
+import { fireSummary } from '../lib/schedule-preview.js'
+import { useSettings } from '../settings/useSettings.js'
 import { titleCase } from '../lib/format.js'
 import { CategoryIcon } from '../components/ReminderIcons.js'
 import { COMMON_MEDICATIONS } from '../data/medications.js'
@@ -144,6 +146,7 @@ export function ReminderEditorPage() {
   const [escalateCustomOpen, setEscalateCustomOpen] = useState(false)
   const [soundCustomOpen, setSoundCustomOpen] = useState(false)
   const toast = useToast()
+  const { timeFormat } = useSettings()
 
   const existing = useMemo(() => reminders.data?.find((r) => r.id === id), [reminders.data, id])
   const [form, setForm] = useState<FormState>(() => (existing ? fromReminder(existing) : emptyForm()))
@@ -236,6 +239,18 @@ export function ReminderEditorPage() {
   }
 
   const busy = create.isPending || update.isPending
+  const fireSummaryText = fireSummary(
+    {
+      kind: form.kind,
+      timesOfDay: form.timesOfDay,
+      daysOfWeek: form.daysOfWeek,
+      everyNDays: Number(form.everyNDays) || 1,
+      skipWeekends: form.skipWeekends,
+      startDate: form.startDate,
+      endDate: form.endDate
+    },
+    timeFormat
+  )
   const isOnce = form.kind === 'once'
   const needsDays = form.kind === 'weekly' || form.kind === 'custom'
   const needsInterval = form.kind === 'interval'
@@ -248,12 +263,41 @@ export function ReminderEditorPage() {
         <Typography level="title-lg">{id ? 'Edit reminder' : 'New reminder'}</Typography>
         {error && <Alert color="danger">{error}</Alert>}
 
-        <Tabs defaultValue="details" variant="outlined" sx={{ borderRadius: 'sm', bgcolor: 'transparent' }}>
-          <TabList>
-            <Tab value="details">Details</Tab>
-            <Tab value="schedule">Schedule</Tab>
-            <Tab value="nagging">Nagging</Tab>
-            <Tab value="escalation">Escalation</Tab>
+        <Tabs defaultValue="details" sx={{ bgcolor: 'transparent' }}>
+          <TabList
+            disableUnderline
+            sx={{
+              p: 0.5,
+              gap: 0.5,
+              borderRadius: 'lg',
+              bgcolor: 'background.level1',
+              [`& .${tabClasses.root}`]: {
+                flex: 1,
+                minWidth: 0,
+                fontSize: 'sm',
+                fontWeight: 'md',
+                borderRadius: 'md'
+              },
+              [`& .${tabClasses.root}.${tabClasses.selected}`]: {
+                bgcolor: 'background.surface',
+                boxShadow: 'sm',
+                color: 'primary.plainColor',
+                fontWeight: 'lg'
+              }
+            }}
+          >
+            <Tab value="details" disableIndicator>
+              Details
+            </Tab>
+            <Tab value="schedule" disableIndicator>
+              Schedule
+            </Tab>
+            <Tab value="nagging" disableIndicator>
+              Nagging
+            </Tab>
+            <Tab value="escalation" disableIndicator>
+              Escalation
+            </Tab>
           </TabList>
 
           <TabPanel value="details" keepMounted>
@@ -461,14 +505,24 @@ export function ReminderEditorPage() {
             <Input type="date" value={form.startDate} onChange={(e) => set('startDate', e.target.value)} />
           </FormControl>
         ) : (
-          <Stack direction="row" spacing={1}>
-            <FormControl sx={{ flex: 1 }}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+            <FormControl sx={{ flex: 1, minWidth: 0 }}>
               <FormLabel>Start date</FormLabel>
-              <Input type="date" value={form.startDate} onChange={(e) => set('startDate', e.target.value)} />
+              <Input
+                type="date"
+                value={form.startDate}
+                onChange={(e) => set('startDate', e.target.value)}
+                sx={{ minWidth: 0 }}
+              />
             </FormControl>
-            <FormControl sx={{ flex: 1 }}>
+            <FormControl sx={{ flex: 1, minWidth: 0 }}>
               <FormLabel>End date (optional)</FormLabel>
-              <Input type="date" value={form.endDate} onChange={(e) => set('endDate', e.target.value)} />
+              <Input
+                type="date"
+                value={form.endDate}
+                onChange={(e) => set('endDate', e.target.value)}
+                sx={{ minWidth: 0 }}
+              />
             </FormControl>
           </Stack>
         )}
@@ -650,6 +704,20 @@ export function ReminderEditorPage() {
           <FormLabel>Active</FormLabel>
           <Switch checked={form.active} onChange={(e) => set('active', e.target.checked)} />
         </FormControl>
+
+        {!form.active ? (
+          <Alert color="neutral" variant="soft" size="sm">
+            Inactive — won't fire until you turn it on.
+          </Alert>
+        ) : fireSummaryText ? (
+          <Alert color="primary" variant="soft" size="sm">
+            {fireSummaryText}
+          </Alert>
+        ) : (
+          <Alert color="warning" variant="soft" size="sm">
+            No upcoming fire — check the date and time.
+          </Alert>
+        )}
 
         <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
           <Button type="submit" loading={busy} sx={{ flex: 1 }}>

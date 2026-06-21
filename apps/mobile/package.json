@@ -12,6 +12,7 @@
     "sync": "cap sync android",
     "open:android": "cap open android",
     "assemble:android": "cd android && ./gradlew assembleDebug",
+    "assemble:release": "cd android && ./gradlew assembleRelease",
     "prepare:android": "npm run build:web && npm run add:android && npm run setup:android && npm run sync"
   },
   "dependencies": {

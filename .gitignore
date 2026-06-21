@@ -29,3 +29,7 @@ apps/mobile/dist/
 
 # Test output
 coverage/
+
+# Android release keystore (kept out of git; CI uses the base64 secret)
+apps/mobile/release.keystore
+*.keystore
