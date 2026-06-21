@@ -55,6 +55,8 @@ export type AuthState = z.infer<typeof authStateSchema>
 export const passkeyInfoSchema = z.object({
   id: z.string(),
   name: z.string().nullable(),
+  aaguid: z.string().nullable(),
+  transports: z.array(z.string()),
   backedUp: z.boolean(),
   createdAt: z.string().datetime(),
   lastUsedAt: z.string().datetime().nullable()

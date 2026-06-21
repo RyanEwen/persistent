@@ -78,6 +78,7 @@ model Passkey {
   publicKey    Bytes
   counter      Int       @default(0)
   transports   String? // CSV of authenticator transports
+  aaguid       String? // authenticator model id (maps to a provider name/logo)
   backedUp     Boolean   @default(false)
   name         String?
   createdAt    DateTime  @default(now())

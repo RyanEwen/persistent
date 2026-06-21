@@ -146,6 +146,7 @@ authRouter.post('/passkey/register/verify', async (request, response) => {
       publicKey: Buffer.from(credential.publicKey),
       counter: credential.counter,
       transports: transportsToCsv(credential.transports),
+      aaguid: verification.registrationInfo.aaguid,
       backedUp: credentialBackedUp,
       name: parsed.data.name ?? null
     }

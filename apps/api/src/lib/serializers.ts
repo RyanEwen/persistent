@@ -9,6 +9,8 @@ export function toPasskey(row: Passkey): PasskeyInfo {
   return {
     id: row.id,
     name: row.name,
+    aaguid: row.aaguid,
+    transports: row.transports ? row.transports.split(',').filter(Boolean) : [],
     backedUp: row.backedUp,
     createdAt: row.createdAt.toISOString(),
     lastUsedAt: row.lastUsedAt?.toISOString() ?? null
