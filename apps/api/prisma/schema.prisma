@@ -67,6 +67,25 @@ model User {
   occurrences   ReminderOccurrence[]
   subscriptions PushSubscription[]
   devices       Device[]
+  passkeys      Passkey[]
+}
+
+/// A WebAuthn credential (passkey) registered to a user.
+model Passkey {
+  id           String    @id @default(cuid())
+  userId       String
+  credentialId String    @unique // base64url credential id
+  publicKey    Bytes
+  counter      Int       @default(0)
+  transports   String? // CSV of authenticator transports
+  backedUp     Boolean   @default(false)
+  name         String?
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 /// Cookie-backed session. The raw secret lives only in the cookie; we store a

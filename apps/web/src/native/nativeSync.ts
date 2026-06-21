@@ -92,10 +92,23 @@ async function drainPendingAcks(): Promise<void> {
   }
 }
 
+/** POST snoozes the user made from the native notification to the server. */
+async function drainPendingSnoozes(): Promise<void> {
+  const { snoozes } = await AlarmPlugin.drainPendingSnoozes()
+  for (const { occurrenceId, minutes } of snoozes) {
+    const id = occurrenceId.endsWith(ESC_SUFFIX) ? occurrenceId.slice(0, -ESC_SUFFIX.length) : occurrenceId
+    await apiFetch(`/api/occurrences/${id}/snooze`, {
+      method: 'POST',
+      body: JSON.stringify({ minutes })
+    }).catch(() => {})
+  }
+}
+
 /** Pull the server's occurrence set and replace the device's local alarms. */
 export async function syncAlarms(): Promise<void> {
   if (!isNative()) return
   await drainPendingAcks().catch(() => {})
+  await drainPendingSnoozes().catch(() => {})
   const data = await apiFetch<SyncResponse>('/api/sync/occurrences')
   await AlarmPlugin.scheduleAll({ alarms: data.occurrences.flatMap(buildAlarms) })
 }

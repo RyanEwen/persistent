@@ -112,6 +112,16 @@ class AlarmPlugin : Plugin() {
         call.resolve(JSObject().put("reminderId", reminderId ?: ""))
     }
 
+    /** Drain native snoozes awaiting POST to the server. */
+    @PluginMethod
+    fun drainPendingSnoozes(call: PluginCall) {
+        val array = JSONArray()
+        for ((id, minutes) in PendingSnoozeStore.drain(context)) {
+            array.put(JSObject().put("occurrenceId", id).put("minutes", minutes))
+        }
+        call.resolve(JSObject().put("snoozes", array))
+    }
+
     /** Open the system ringtone picker so the user can choose a sound. */
     @PluginMethod
     fun pickSound(call: PluginCall) {

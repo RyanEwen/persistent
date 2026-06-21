@@ -39,6 +39,8 @@ export interface AlarmPluginPlugin {
     cancelled?: boolean
   }>
   drainPendingAcks(): Promise<{ occurrenceIds: string[] }>
+  /** Snoozes made from the native notification, awaiting POST to the server. */
+  drainPendingSnoozes(): Promise<{ snoozes: { occurrenceId: string; minutes: number }[] }>
   /** Reminder id from a tapped notification (cleared on read); '' if none. */
   consumePendingNavigation(): Promise<{ reminderId: string }>
 }

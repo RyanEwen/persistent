@@ -48,3 +48,24 @@ export const authStateSchema = z.object({
   user: sessionUserSchema.nullable()
 })
 export type AuthState = z.infer<typeof authStateSchema>
+
+// --- Passkeys (WebAuthn) ---
+
+/** A registered passkey as surfaced to the client (no key material). */
+export const passkeyInfoSchema = z.object({
+  id: z.string(),
+  name: z.string().nullable(),
+  backedUp: z.boolean(),
+  createdAt: z.string().datetime(),
+  lastUsedAt: z.string().datetime().nullable()
+})
+export type PasskeyInfo = z.infer<typeof passkeyInfoSchema>
+
+export const passkeyListResponseSchema = z.object({ passkeys: z.array(passkeyInfoSchema) })
+export type PasskeyListResponse = z.infer<typeof passkeyListResponseSchema>
+
+/** Optional nickname when finishing a passkey registration. */
+export const passkeyRegisterFinishSchema = z.object({
+  response: z.unknown(),
+  name: z.string().trim().max(60).optional()
+})

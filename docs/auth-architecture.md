@@ -16,6 +16,29 @@ auth: no tenancy, no roles, no service accounts.
 Rate limiting: per-email (`lib/email-code.ts`) and per-IP (`lib/rate-limit.ts`)
 on code requests; capped verify attempts per code.
 
+## Passkeys (WebAuthn)
+
+An alternative to the email code: a signed-in user can register a passkey
+(Settings → Passkeys), then sign in with a single biometric/PIN gesture — no
+email round-trip. Implemented with `@simplewebauthn/server` + `/browser`
+(`lib/webauthn.ts`, routes under `/api/auth/passkey/*`), credentials stored in
+the `Passkey` model.
+
+- **Registration** (authenticated): `register/options` → browser
+  `startRegistration` → `register/verify` stores the credential's public key.
+- **Authentication** (anonymous): discoverable credentials (`residentKey:
+  required`), so `authenticate/options` → `startAuthentication` →
+  `authenticate/verify` looks up the credential, verifies the assertion, and
+  starts a normal session — the same cookie as the email flow.
+- The in-flight challenge is held in a short HttpOnly cookie
+  (`persistent_pk_challenge`), validated on verify.
+- **Relying party**: RP ID + allowed origins derive from `CLIENT_ORIGIN`
+  (hostname = RP ID). The login UI offers passkey first, with email as fallback.
+
+Note: passkeys work in browsers/PWA. The Capacitor WebView would need Credential
+Manager + assetlinks wiring to use them natively; until then the native app uses
+the email code (the passkey button falls back gracefully).
+
 ## Sessions
 
 Cookie-backed (`lib/auth-session.ts`). A random secret lives only in the

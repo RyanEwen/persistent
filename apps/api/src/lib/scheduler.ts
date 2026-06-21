@@ -110,7 +110,30 @@ async function tick(): Promise<void> {
 async function sweep(): Promise<void> {
   const now = new Date()
 
-  // Revive elapsed snoozes back to FIRED so they nag again.
+  // 1) Escalate occurrences past their threshold. Escalation is a HARD BACKSTOP:
+  // it's anchored to the original fire (firedAt is never reset on snooze) and
+  // fires even while SNOOZED, overriding the snooze.
+  const escalatable = await prisma.reminderOccurrence.findMany({
+    where: { status: { in: ['FIRED', 'SNOOZED'] }, firedAt: { not: null } },
+    include: { reminder: true, user: { select: { timeZone: true } } },
+    take: 200
+  })
+  for (const occurrence of escalatable) {
+    const tz = occurrence.user?.timeZone ?? 'UTC'
+    const escalateAt = escalateAtFor(occurrence.firedAt as Date, occurrence.scheduledFor, occurrence.reminder, tz)
+    if (escalateAt != null && now.getTime() >= escalateAt.getTime()) {
+      const updated = await prisma.reminderOccurrence.update({
+        where: { id: occurrence.id },
+        data: { status: 'ESCALATED', escalatedAt: now, snoozedUntil: null },
+        include: { reminder: true }
+      })
+      await escalate(updated.userId, updated.reminder, updated.id, updated.scheduledFor)
+      broadcast(updated.userId, { type: 'occurrence.changed', occurrence: toOccurrence(updated) })
+    }
+  }
+
+  // 2) Revive elapsed snoozes that didn't escalate. Keep the original firedAt so
+  // the escalation backstop stays anchored to the first fire.
   const snoozed = await prisma.reminderOccurrence.findMany({
     where: { status: 'SNOOZED', snoozedUntil: { lte: now } },
     include: { reminder: true },
@@ -119,37 +142,21 @@ async function sweep(): Promise<void> {
   for (const occurrence of snoozed) {
     const updated = await prisma.reminderOccurrence.update({
       where: { id: occurrence.id },
-      data: { status: 'FIRED', firedAt: now, snoozedUntil: null },
+      data: { status: 'FIRED', snoozedUntil: null },
       include: { reminder: true }
     })
     fireNotification(updated.userId, updated.reminder, updated.id, updated.scheduledFor, false)
     broadcast(updated.userId, { type: 'occurrence.fired', occurrence: toOccurrence(updated) })
   }
 
-  // Escalate fires that have gone unacknowledged past their threshold.
+  // 3) Mark long-unacknowledged fires (from the original fire time) as missed.
   const fired = await prisma.reminderOccurrence.findMany({
     where: { status: 'FIRED', firedAt: { not: null } },
-    include: { reminder: true, user: { select: { timeZone: true } } },
+    include: { reminder: true },
     take: 200
   })
   for (const occurrence of fired) {
-    const reminder = occurrence.reminder
-    const firedAt = occurrence.firedAt as Date
-    const ageMs = now.getTime() - firedAt.getTime()
-    const tz = occurrence.user?.timeZone ?? 'UTC'
-
-    const escalateAt = escalateAtFor(firedAt, occurrence.scheduledFor, reminder, tz)
-    const escalateNow = escalateAt != null && now.getTime() >= escalateAt.getTime()
-
-    if (escalateNow) {
-      const updated = await prisma.reminderOccurrence.update({
-        where: { id: occurrence.id },
-        data: { status: 'ESCALATED', escalatedAt: now },
-        include: { reminder: true }
-      })
-      await escalate(updated.userId, reminder, updated.id, updated.scheduledFor)
-      broadcast(updated.userId, { type: 'occurrence.changed', occurrence: toOccurrence(updated) })
-    } else if (ageMs >= MISS_AFTER_MS) {
+    if (now.getTime() - (occurrence.firedAt as Date).getTime() >= MISS_AFTER_MS) {
       const updated = await prisma.reminderOccurrence.update({
         where: { id: occurrence.id },
         data: { status: 'MISSED' },

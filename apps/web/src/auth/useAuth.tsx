@@ -4,6 +4,7 @@
  */
 import { createContext, useContext, useEffect, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { startAuthentication, type PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/browser'
 import type { AuthState, RequestCodeResponse, SessionUser } from '@persistent/shared'
 import { apiFetch } from '../lib/apiClient.js'
 import { queryKeys } from '../lib/queryClient.js'
@@ -15,6 +16,7 @@ interface AuthContextValue {
   loading: boolean
   requestCode: (email: string) => Promise<RequestCodeResponse>
   verifyCode: (email: string, code: string) => Promise<void>
+  loginWithPasskey: () => Promise<void>
   logout: () => Promise<void>
 }
 
@@ -60,6 +62,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await apiFetch<AuthState>('/api/auth/verify-code', {
         method: 'POST',
         body: JSON.stringify({ email, code, timeZone: guessTimeZone() })
+      })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.auth })
+    },
+    loginWithPasskey: async () => {
+      const begin = await apiFetch<{ options: PublicKeyCredentialRequestOptionsJSON }>(
+        '/api/auth/passkey/authenticate/options',
+        { method: 'POST' }
+      )
+      const assertion = await startAuthentication({ optionsJSON: begin.options })
+      await apiFetch<AuthState>('/api/auth/passkey/authenticate/verify', {
+        method: 'POST',
+        body: JSON.stringify({ response: assertion })
       })
       await queryClient.invalidateQueries({ queryKey: queryKeys.auth })
     },

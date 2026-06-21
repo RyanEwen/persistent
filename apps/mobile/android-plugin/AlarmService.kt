@@ -338,12 +338,20 @@ class AlarmService : Service() {
             launchApp(context)
         }
 
-        /** Snooze 10 minutes: re-arm the local alarm and stop the current sound. */
+        private const val SNOOZE_MINUTES = 10
+
+        /**
+         * Snooze: re-arm the local alarm and stop the current sound, and queue the
+         * snooze for the server (drained by the WebView) so it's authoritative and
+         * syncs across devices. The escalation backstop stays server-anchored to the
+         * original fire.
+         */
         fun snooze(context: Context, occurrenceId: String) {
             val spec = AlarmStore.find(context, occurrenceId)
+            PendingSnoozeStore.add(context, occurrenceId, SNOOZE_MINUTES)
             stopFor(context, occurrenceId)
             if (spec != null) {
-                val snoozed = spec.copy(fireAtMs = System.currentTimeMillis() + 10 * 60_000L)
+                val snoozed = spec.copy(fireAtMs = System.currentTimeMillis() + SNOOZE_MINUTES * 60_000L)
                 AlarmStore.put(context, snoozed)
                 AlarmPlugin.armAlarm(context, snoozed)
             }

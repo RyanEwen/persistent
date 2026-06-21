@@ -2,8 +2,18 @@
  * Prisma-row -> shared-DTO serializers. Keeps the JSON shape the web client
  * sees consistent and matching the Zod schemas in @persistent/shared.
  */
-import type { Reminder as ReminderRow, ReminderOccurrence, User } from '@prisma/client'
-import type { Occurrence, Reminder, SessionUser, Schedule, CategoryData } from '@persistent/shared'
+import type { Reminder as ReminderRow, ReminderOccurrence, User, Passkey } from '@prisma/client'
+import type { Occurrence, Reminder, SessionUser, Schedule, CategoryData, PasskeyInfo } from '@persistent/shared'
+
+export function toPasskey(row: Passkey): PasskeyInfo {
+  return {
+    id: row.id,
+    name: row.name,
+    backedUp: row.backedUp,
+    createdAt: row.createdAt.toISOString(),
+    lastUsedAt: row.lastUsedAt?.toISOString() ?? null
+  }
+}
 
 export function toSessionUser(user: User): SessionUser {
   return {

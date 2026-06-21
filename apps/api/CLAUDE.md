@@ -1,8 +1,10 @@
 # API conventions (`apps/api`)
 
 - **Per-user scoping is mandatory.** Every query that reads or writes a domain
-  row (`Reminder`, `ReminderOccurrence`, `PushSubscription`, `Device`) must
-  include `userId` in its `where`. Get it with `requireUserId(request)`. For
+  row (`Reminder`, `ReminderOccurrence`, `PushSubscription`, `Device`,
+  `Passkey`) must include `userId` in its `where` (the passkey *authentication*
+  lookup by `credentialId` is the one exception — it's the anonymous login path
+  that establishes the user). Get it with `requireUserId(request)`. For
   edit/delete, first `findFirst({ where: { id, userId } })` and 404 if missing —
   never trust a path id alone. `Setting` is the only intentionally global model.
 - **Validate at the boundary.** Parse request bodies with the Zod schemas from

@@ -13,17 +13,34 @@ import Input from '@mui/joy/Input'
 import Button from '@mui/joy/Button'
 import Alert from '@mui/joy/Alert'
 import Link from '@mui/joy/Link'
+import Divider from '@mui/joy/Divider'
+import KeyRoundedIcon from '@mui/icons-material/KeyRounded'
 import { extractErrorMessage } from '@persistent/shared'
 import { useAuth } from '../auth/useAuth.js'
 
 export function SignInPage() {
-  const { requestCode, verifyCode } = useAuth()
+  const { requestCode, verifyCode, loginWithPasskey } = useAuth()
   const [step, setStep] = useState<'email' | 'code'>('email')
+  const [emailOpen, setEmailOpen] = useState(false)
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
   const [preview, setPreview] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [passkeyBusy, setPasskeyBusy] = useState(false)
+
+  async function onPasskey() {
+    setError(null)
+    setPasskeyBusy(true)
+    try {
+      await loginWithPasskey()
+      // On success the auth query refetches and App swaps to the shell.
+    } catch (err) {
+      // A user cancelling the prompt throws too; keep the message gentle.
+      setError(extractErrorMessage(err, "Couldn't sign in with a passkey."))
+      setPasskeyBusy(false)
+    }
+  }
 
   async function onRequest(event: FormEvent) {
     event.preventDefault()
@@ -70,22 +87,47 @@ export function SignInPage() {
         )}
 
         {step === 'email' ? (
-          <form onSubmit={onRequest}>
-            <FormControl sx={{ mb: 2 }}>
-              <FormLabel>Email</FormLabel>
-              <Input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                required
-                autoFocus
-              />
-            </FormControl>
-            <Button type="submit" loading={busy} fullWidth>
-              Send sign-in code
+          <>
+            <Button
+              variant="soft"
+              color="primary"
+              fullWidth
+              loading={passkeyBusy}
+              startDecorator={<KeyRoundedIcon />}
+              onClick={onPasskey}
+            >
+              Sign in with a passkey
             </Button>
-          </form>
+
+            <Divider sx={{ my: 2 }}>
+              <Typography level="body-xs" textColor="text.tertiary">
+                or
+              </Typography>
+            </Divider>
+
+            {!emailOpen ? (
+              <Button variant="outlined" color="neutral" fullWidth onClick={() => setEmailOpen(true)}>
+                Use email instead
+              </Button>
+            ) : (
+              <form onSubmit={onRequest}>
+                <FormControl sx={{ mb: 2 }}>
+                  <FormLabel>Email</FormLabel>
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    required
+                    autoFocus
+                  />
+                </FormControl>
+                <Button type="submit" loading={busy} fullWidth>
+                  Send sign-in code
+                </Button>
+              </form>
+            )}
+          </>
         ) : (
           <form onSubmit={onVerify}>
             {preview && (

@@ -21,6 +21,7 @@ import { APP_THEMES } from '../settings/themes.js'
 import { formatDateTime } from '../lib/datetime.js'
 import { AlarmPlugin, isNative } from '../native/alarmBridge.js'
 import { UpdateSettings } from '../native/UpdateSettings.js'
+import { PasskeysCard } from '../components/PasskeysCard.js'
 
 export function SettingsPage() {
   const { user, logout } = useAuth()
@@ -168,6 +169,8 @@ export function SettingsPage() {
           Sign out
         </Button>
       </Card>
+
+      <PasskeysCard />
 
       <UpdateSettings />
     </Stack>

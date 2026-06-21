@@ -36,11 +36,11 @@ syncRouter.get('/occurrences', async (request, response) => {
     serverTime: now.toISOString(),
     timeZone: tz,
     occurrences: occurrences.map((o) => {
-      // Base the "after N minutes" threshold on the same fire instant the device
-      // schedules the main alarm for (snoozed -> revive time, fired -> firedAt,
-      // else the scheduled time). Already-escalated occurrences need no future
-      // escalation alarm (the device rings immediately for those).
-      const base = o.status === 'SNOOZED' && o.snoozedUntil ? o.snoozedUntil : (o.firedAt ?? o.scheduledFor)
+      // Escalation is a hard backstop anchored to the first fire, so the "after N
+      // minutes" threshold counts from firedAt (or the scheduled time before it
+      // fires) — never from the snooze. Already-escalated occurrences need no
+      // future escalation alarm (the device rings immediately for those).
+      const base = o.firedAt ?? o.scheduledFor
       const escalateAt = o.status === 'ESCALATED' ? null : escalateAtFor(base, o.scheduledFor, o.reminder, tz)
       return { ...toOccurrence(o), escalateAt: escalateAt?.toISOString() ?? null }
     })

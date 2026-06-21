@@ -94,7 +94,7 @@ function readUserAgent(request?: Request): string | null {
   return typeof value === 'string' && value.trim() ? value.trim().slice(0, 512) : null
 }
 
-function readCookie(header: string, name: string): string | null {
+export function readCookie(header: string, name: string): string | null {
   for (const segment of header.split(';')) {
     const [rawName, ...rest] = segment.trim().split('=')
     if (rawName !== name) continue
@@ -109,7 +109,7 @@ function readCookie(header: string, name: string): string | null {
   return null
 }
 
-function writeCookie(response: Response, name: string, value: string, maxAgeSeconds: number): void {
+export function writeCookie(response: Response, name: string, value: string, maxAgeSeconds: number): void {
   const parts = [
     `${name}=${encodeURIComponent(value)}`,
     'Path=/',

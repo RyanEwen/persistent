@@ -7,13 +7,27 @@
  * - GET  /api/auth/me            — current user or null.
  */
 import { Router } from 'express'
-import { requestCodeSchema, verifyCodeSchema } from '@persistent/shared'
+import {
+  generateAuthenticationOptions,
+  generateRegistrationOptions,
+  verifyAuthenticationResponse,
+  verifyRegistrationResponse
+} from '@simplewebauthn/server'
+import type { AuthenticationResponseJSON, AuthenticatorTransportFuture, RegistrationResponseJSON } from '@simplewebauthn/server'
+import {
+  passkeyListResponseSchema,
+  passkeyRegisterFinishSchema,
+  requestCodeSchema,
+  verifyCodeSchema
+} from '@persistent/shared'
 import { prisma } from '../lib/prisma.js'
-import { badRequest, tooManyRequests } from '../lib/http-error.js'
+import { badRequest, notFound, tooManyRequests, unauthorized } from '../lib/http-error.js'
 import { issueEmailCode, verifyEmailCode } from '../lib/email-code.js'
 import { createSession, revokeSession, setSessionCookie, clearSessionCookie } from '../lib/auth-session.js'
+import { requireUserId } from '../lib/auth-middleware.js'
+import { RP_NAME, relyingParty, setChallengeCookie, clearChallengeCookie, requireChallenge } from '../lib/webauthn.js'
 import { rateLimit } from '../lib/rate-limit.js'
-import { toSessionUser } from '../lib/serializers.js'
+import { toPasskey, toSessionUser } from '../lib/serializers.js'
 
 export const authRouter = Router()
 
@@ -72,4 +86,131 @@ authRouter.get('/me', async (request, response) => {
   }
   const user = await prisma.user.findUnique({ where: { id: request.userId } })
   response.json({ user: user ? toSessionUser(user) : null })
+})
+
+// --- Passkeys (WebAuthn) ----------------------------------------------------
+
+function csvToTransports(csv: string | null): AuthenticatorTransportFuture[] | undefined {
+  if (!csv) return undefined
+  const list = csv.split(',').map((s) => s.trim()).filter(Boolean)
+  return list.length ? (list as AuthenticatorTransportFuture[]) : undefined
+}
+
+function transportsToCsv(transports?: AuthenticatorTransportFuture[]): string | null {
+  return transports && transports.length ? transports.join(',') : null
+}
+
+// Begin registering a passkey for the signed-in user.
+authRouter.post('/passkey/register/options', async (request, response) => {
+  const userId = requireUserId(request)
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: userId },
+    include: { passkeys: { select: { credentialId: true, transports: true } } }
+  })
+  const rp = relyingParty()
+  const options = await generateRegistrationOptions({
+    rpName: RP_NAME,
+    rpID: rp.id,
+    userName: user.email,
+    userDisplayName: user.displayName ?? user.email,
+    userID: new TextEncoder().encode(user.id),
+    attestationType: 'none',
+    authenticatorSelection: { residentKey: 'required', userVerification: 'preferred' },
+    excludeCredentials: user.passkeys.map((p) => ({ id: p.credentialId, transports: csvToTransports(p.transports) }))
+  })
+  setChallengeCookie(response, 'registration', options.challenge)
+  response.json({ options })
+})
+
+// Finish registration: verify the attestation and store the credential.
+authRouter.post('/passkey/register/verify', async (request, response) => {
+  const userId = requireUserId(request)
+  const parsed = passkeyRegisterFinishSchema.safeParse(request.body)
+  if (!parsed.success) throw badRequest('Invalid passkey registration.')
+
+  const rp = relyingParty()
+  const verification = await verifyRegistrationResponse({
+    response: parsed.data.response as RegistrationResponseJSON,
+    expectedChallenge: requireChallenge(request, 'registration'),
+    expectedOrigin: rp.origins,
+    expectedRPID: rp.id,
+    requireUserVerification: false
+  })
+  if (!verification.verified || !verification.registrationInfo) throw badRequest('Passkey could not be verified.')
+
+  const { credential, credentialBackedUp } = verification.registrationInfo
+  await prisma.passkey.create({
+    data: {
+      userId,
+      credentialId: credential.id,
+      publicKey: Buffer.from(credential.publicKey),
+      counter: credential.counter,
+      transports: transportsToCsv(credential.transports),
+      backedUp: credentialBackedUp,
+      name: parsed.data.name ?? null
+    }
+  })
+  clearChallengeCookie(response)
+  response.status(201).json({ ok: true })
+})
+
+// Begin a passwordless sign-in with a discoverable passkey.
+authRouter.post('/passkey/authenticate/options', async (_request, response) => {
+  const rp = relyingParty()
+  const options = await generateAuthenticationOptions({ rpID: rp.id, userVerification: 'preferred' })
+  setChallengeCookie(response, 'authentication', options.challenge)
+  response.json({ options })
+})
+
+// Finish sign-in: verify the assertion against the stored credential, start a session.
+authRouter.post('/passkey/authenticate/verify', async (request, response) => {
+  const assertion = (request.body as { response?: unknown })?.response as AuthenticationResponseJSON | undefined
+  if (!assertion?.id) throw badRequest('Invalid passkey authentication.')
+
+  const stored = await prisma.passkey.findUnique({ where: { credentialId: assertion.id }, include: { user: true } })
+  if (!stored) throw unauthorized('Passkey not recognized.')
+
+  const rp = relyingParty()
+  const verification = await verifyAuthenticationResponse({
+    response: assertion,
+    expectedChallenge: requireChallenge(request, 'authentication'),
+    expectedOrigin: rp.origins,
+    expectedRPID: rp.id,
+    credential: {
+      id: stored.credentialId,
+      publicKey: new Uint8Array(stored.publicKey),
+      counter: stored.counter,
+      transports: csvToTransports(stored.transports)
+    },
+    requireUserVerification: false
+  })
+  if (!verification.verified) throw unauthorized('Passkey verification failed.')
+
+  await prisma.passkey.update({
+    where: { id: stored.id },
+    data: { counter: verification.authenticationInfo.newCounter, lastUsedAt: new Date() }
+  })
+
+  const session = await createSession(stored.userId, request)
+  setSessionCookie(response, session.secret, session.expiresAt)
+  clearChallengeCookie(response)
+  response.json({ user: toSessionUser(stored.user) })
+})
+
+// List / remove the signed-in user's passkeys.
+authRouter.get('/passkeys', async (request, response) => {
+  const userId = requireUserId(request)
+  const passkeys = await prisma.passkey.findMany({
+    where: { userId },
+    orderBy: [{ lastUsedAt: 'desc' }, { createdAt: 'desc' }]
+  })
+  response.json(passkeyListResponseSchema.parse({ passkeys: passkeys.map(toPasskey) }))
+})
+
+authRouter.delete('/passkeys/:id', async (request, response) => {
+  const userId = requireUserId(request)
+  const existing = await prisma.passkey.findFirst({ where: { id: request.params.id, userId } })
+  if (!existing) throw notFound('Passkey not found.')
+  await prisma.passkey.delete({ where: { id: existing.id } })
+  response.json({ ok: true })
 })
