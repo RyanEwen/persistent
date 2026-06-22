@@ -30,6 +30,10 @@ import androidx.core.app.NotificationCompat
 class AlarmService : Service() {
 
     private val active = LinkedHashMap<String, AlarmSpec>()
+    // Occurrences whose notification is showing the "tap again to confirm" prompt.
+    private val confirming = HashSet<String>()
+    // First-post time per occurrence, pinned so re-posts don't reorder the shade.
+    private val postedAt = HashMap<String, Long>()
     private val loops = HashMap<String, Runnable>()
     private var player: MediaPlayer? = null
     private var continuousAlarm = false
@@ -66,6 +70,14 @@ class AlarmService : Service() {
                 val occurrenceId = intent.getStringExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID)
                 if (occurrenceId != null) clear(occurrenceId) else clearAll()
             }
+            ACTION_PROMPT_CONFIRM -> {
+                val occurrenceId = intent.getStringExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID) ?: return START_STICKY
+                setConfirming(occurrenceId, true)
+            }
+            ACTION_CANCEL_CONFIRM -> {
+                val occurrenceId = intent.getStringExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID) ?: return START_STICKY
+                setConfirming(occurrenceId, false)
+            }
             ACTION_RESHOW -> {
                 // The user swiped a notification away (Android 14+ allows this for
                 // foreground services). None are acknowledged, so re-post *all* the
@@ -86,6 +98,11 @@ class AlarmService : Service() {
     private fun startAlarm(spec: AlarmSpec) {
         ensureChannels()
         active[spec.occurrenceId] = spec
+        // Stamp the post time once, on first fire, and keep it across every re-post
+        // (re-notify loop / swipe-reshow / re-bind). The shade orders by `when`, so a
+        // pinned, strictly-increasing timestamp keeps the newest reminder on top
+        // instead of letting an older one float back up when it re-notifies.
+        postedAt.getOrPut(spec.occurrenceId) { System.currentTimeMillis() }
         activeIds.add(spec.occurrenceId)
         if (spec.alarm) alarmIds.add(spec.occurrenceId) else alarmIds.remove(spec.occurrenceId)
 
@@ -104,6 +121,19 @@ class AlarmService : Service() {
             loops.remove(spec.occurrenceId)?.let { handler.removeCallbacks(it) }
             if (spec.soundIntervalSeconds > 0) startReNotifyLoop(spec)
         }
+    }
+
+    /**
+     * Toggle the "tap again to confirm" prompt for one occurrence and re-post its
+     * notification in place. Does not touch the sound/vibration, so the alarm keeps
+     * nagging while the user is asked to confirm.
+     */
+    private fun setConfirming(occurrenceId: String, confirm: Boolean) {
+        val spec = active[occurrenceId] ?: return
+        if (confirm) confirming.add(occurrenceId) else confirming.remove(occurrenceId)
+        val notif = buildNotification(spec)
+        if (foregroundId == occurrenceId) startForeground(notifId(occurrenceId), notif)
+        else nm.notify(notifId(occurrenceId), notif)
     }
 
     /** (Re)bind the foreground notification to a specific occurrence. */
@@ -160,11 +190,30 @@ class AlarmService : Service() {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        // First "Done" tap -> ask for confirmation (doesn't ack); see AlarmReceiver.
         val donePending = PendingIntent.getBroadcast(
             this,
             ("done:" + spec.occurrenceId).hashCode(),
             Intent(this, AlarmReceiver::class.java)
                 .setAction(AlarmReceiver.ACTION_DONE)
+                .putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, spec.occurrenceId),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        // The deliberate confirm tap -> ack + stop (no app launch).
+        val confirmPending = PendingIntent.getBroadcast(
+            this,
+            ("confirm:" + spec.occurrenceId).hashCode(),
+            Intent(this, AlarmReceiver::class.java)
+                .setAction(AlarmReceiver.ACTION_CONFIRM)
+                .putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, spec.occurrenceId),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        // Back out of the confirm prompt -> restore the normal Done/Snooze actions.
+        val cancelDonePending = PendingIntent.getBroadcast(
+            this,
+            ("canceldone:" + spec.occurrenceId).hashCode(),
+            Intent(this, AlarmReceiver::class.java)
+                .setAction(AlarmReceiver.ACTION_CANCEL_DONE)
                 .putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, spec.occurrenceId),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -186,17 +235,29 @@ class AlarmService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val awaitingConfirm = confirming.contains(spec.occurrenceId)
+        // Pinned post time -> newest reminder sorts to the top of the shade and stays
+        // there across re-posts (sortKey is inverted so the largest `when` sorts first).
+        val posted = postedAt[spec.occurrenceId] ?: System.currentTimeMillis()
         val builder = NotificationCompat.Builder(this, CHANNEL_SILENT)
             .setContentTitle(spec.title)
-            .setContentText(spec.body)
+            .setContentText(if (awaitingConfirm) "Tap \"Confirm done\" to mark complete" else spec.body)
             .setSmallIcon(android.R.drawable.ic_popup_reminder)
             .setCategory(if (spec.alarm) NotificationCompat.CATEGORY_ALARM else NotificationCompat.CATEGORY_REMINDER)
             .setPriority(if (spec.alarm) NotificationCompat.PRIORITY_MAX else NotificationCompat.PRIORITY_HIGH)
             .setOngoing(spec.ongoing)
             .setAutoCancel(!spec.ongoing)
+            .setWhen(posted)
+            .setShowWhen(true)
+            .setSortKey((Long.MAX_VALUE - posted).toString().padStart(20, '0'))
             .setContentIntent(contentPending)
-            .addAction(0, "Done", donePending)
-            .addAction(0, "Snooze", snoozePending)
+        if (awaitingConfirm) {
+            builder.addAction(0, "Confirm done", confirmPending)
+            builder.addAction(0, "Not yet", cancelDonePending)
+        } else {
+            builder.addAction(0, "Done", donePending)
+            builder.addAction(0, "Snooze", snoozePending)
+        }
         if (spec.alarm) {
             builder.setFullScreenIntent(fullScreen, true)
         }
@@ -293,6 +354,8 @@ class AlarmService : Service() {
 
     private fun clear(occurrenceId: String) {
         active.remove(occurrenceId)
+        confirming.remove(occurrenceId)
+        postedAt.remove(occurrenceId)
         activeIds.remove(occurrenceId)
         alarmIds.remove(occurrenceId)
         loops.remove(occurrenceId)?.let { handler.removeCallbacks(it) }
@@ -327,6 +390,8 @@ class AlarmService : Service() {
         for (r in loops.values) handler.removeCallbacks(r)
         loops.clear()
         active.clear()
+        confirming.clear()
+        postedAt.clear()
         activeIds.clear()
         alarmIds.clear()
         foregroundId = null
@@ -360,6 +425,8 @@ class AlarmService : Service() {
         const val ACTION_START = "ca.persistent.app.SERVICE_START"
         const val ACTION_STOP = "ca.persistent.app.SERVICE_STOP"
         const val ACTION_RESHOW = "ca.persistent.app.SERVICE_RESHOW"
+        const val ACTION_PROMPT_CONFIRM = "ca.persistent.app.SERVICE_PROMPT_CONFIRM"
+        const val ACTION_CANCEL_CONFIRM = "ca.persistent.app.SERVICE_CANCEL_CONFIRM"
         const val DEFAULT_SNOOZE_MINUTES = 10
         private const val CHANNEL_SILENT = "reminders_silent"
         private const val SENTINEL_ID = 4201
@@ -375,11 +442,31 @@ class AlarmService : Service() {
         /** Bring the WebView app to the foreground (used by the notification tap). */
         fun launchAppPublic(context: Context) = launchApp(context)
 
-        /** Called by the Done action: queue the ack and stop the alarm + launch app. */
+        /**
+         * Called by the confirm action: queue the ack and stop the alarm. Deliberately
+         * does NOT launch the app — the WebView posts the queued ack when it next runs.
+         */
         fun markDone(context: Context, occurrenceId: String) {
             PendingAckStore.add(context, occurrenceId)
             stopFor(context, occurrenceId)
-            launchApp(context)
+        }
+
+        /** First "Done" tap: switch the notification into its confirm state. */
+        fun promptConfirm(context: Context, occurrenceId: String) {
+            context.startService(
+                Intent(context, AlarmService::class.java)
+                    .setAction(ACTION_PROMPT_CONFIRM)
+                    .putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, occurrenceId)
+            )
+        }
+
+        /** "Not yet": restore the notification's normal Done/Snooze actions. */
+        fun cancelConfirm(context: Context, occurrenceId: String) {
+            context.startService(
+                Intent(context, AlarmService::class.java)
+                    .setAction(ACTION_CANCEL_CONFIRM)
+                    .putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, occurrenceId)
+            )
         }
 
         /**

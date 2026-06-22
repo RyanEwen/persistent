@@ -62,8 +62,14 @@ drives them lives in `apps/web/src/native`.
   picker; the chosen URIs are stored in settings and passed through as the
   alarm/notification tone (system default otherwise). The service plays audio
   itself (silent channel) so each tone is honored.
-- Stops **only** on **Done**, which cancels the service + sound and `POST`s the
-  ack (queued offline via `PendingAckStore`).
+- Stops **only** on **Done**, a deliberate **two-tap confirm**: the first tap
+  swaps the notification's actions to *Confirm done* / *Not yet* (the alarm keeps
+  ringing) so an accidental pocket tap can't dismiss the nag; the confirm tap
+  cancels the service + sound and `POST`s the ack (queued offline via
+  `PendingAckStore`). **Done never opens the app** — the queued ack is delivered
+  to the server the next time the WebView runs (app open / resume / WS event), so
+  another device may keep nagging until then. The full-screen `AlarmActivity` is
+  itself the deliberate surface, so its Done confirms in one tap.
 - A `BOOT_COMPLETED` receiver re-schedules pending alarms from the local mirror.
 
 Permissions: `SCHEDULE_EXACT_ALARM`/`USE_EXACT_ALARM`, `POST_NOTIFICATIONS`,

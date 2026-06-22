@@ -54,7 +54,9 @@ class AlarmActivity : Activity() {
         root.addView(Button(this).apply {
             text = "Done"
             setOnClickListener {
-                sendAction(AlarmReceiver.ACTION_DONE)
+                // The full-screen alarm is itself the deliberate surface, so Done acks
+                // directly (no notification confirm round-trip, no app launch).
+                sendAction(AlarmReceiver.ACTION_CONFIRM)
                 finish()
             }
         })

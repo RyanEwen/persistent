@@ -50,9 +50,21 @@ class AlarmReceiver : BroadcastReceiver() {
                 AlarmService.launchAppPublic(context)
             }
             ACTION_DONE -> {
-                // Stop the alarm immediately; the web layer posts the ack via the
-                // bridge when it next runs (AlarmService also enqueues an ack intent).
+                // First tap on the notification's "Done": do NOT ack yet. Swap the
+                // notification into a confirm state (Confirm done / Not yet) so an
+                // accidental pocket tap can't dismiss the nag. The alarm keeps ringing.
+                AlarmService.promptConfirm(context, occurrenceId)
+            }
+            ACTION_CONFIRM -> {
+                // The deliberate second tap (or the full-screen alarm activity's Done):
+                // queue the ack and stop the alarm. Intentionally does NOT open the app
+                // — the web layer posts the queued ack when it next runs.
                 AlarmService.markDone(context, occurrenceId)
+            }
+            ACTION_CANCEL_DONE -> {
+                // Backed out of the confirm prompt: restore the normal Done/Snooze
+                // notification. The alarm was never interrupted.
+                AlarmService.cancelConfirm(context, occurrenceId)
             }
             ACTION_SNOOZE -> {
                 val minutes = intent.getIntExtra(EXTRA_MINUTES, AlarmService.DEFAULT_SNOOZE_MINUTES)
@@ -74,6 +86,8 @@ class AlarmReceiver : BroadcastReceiver() {
     companion object {
         const val ACTION_FIRE = "ca.persistent.app.ALARM_FIRE"
         const val ACTION_DONE = "ca.persistent.app.ALARM_DONE"
+        const val ACTION_CONFIRM = "ca.persistent.app.ALARM_CONFIRM"
+        const val ACTION_CANCEL_DONE = "ca.persistent.app.ALARM_CANCEL_DONE"
         const val ACTION_SNOOZE = "ca.persistent.app.ALARM_SNOOZE"
         const val ACTION_RESHOW = "ca.persistent.app.ALARM_RESHOW"
         const val ACTION_OPEN = "ca.persistent.app.ALARM_OPEN"
