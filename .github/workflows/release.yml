@@ -39,11 +39,19 @@ jobs:
           PREV=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)
           RANGE="${TAG}"
           [ -n "$PREV" ] && RANGE="${PREV}..${TAG}"
+          # These notes are shown verbatim in the in-app update prompt, so list
+          # only changes an end user cares about. Drop internal-only commits:
+          # version bumps/merges, docs, chores/tooling/CI, deps, refactors/tests,
+          # and security-header plumbing. Tune EXCLUDE if a category should
+          # resurface. A commit that mixes user-facing + internal work is dropped
+          # if it matches any term, so prefer splitting such commits.
+          EXCLUDE='^- (bump version|merge )|\b(docs?|documentation|readme|changelog|jsdoc|chore|ci|workflow|lint|eslint|prettier|typecheck|tsconfig|devcontainer|dockerfile|compose|gitignore|deps?|dependency|dependencies|refactor|rename|cleanup|clean up|tidy|reorganize|restructure|test|tests|spec|csp|coop|coep|cors|co-?authored?)\b'
+          CHANGES=$(git log --no-merges --pretty=format:'- %s' "$RANGE" | grep -viE "$EXCLUDE" || true)
+          [ -z "$CHANGES" ] && CHANGES="- Maintenance and behind-the-scenes improvements"
           {
             echo "## What's changed"
             echo
-            git log --no-merges --pretty=format:'- %s' "$RANGE" | grep -v '^- Bump version' || true
-            echo
+            echo "$CHANGES"
             if [ -n "$PREV" ]; then
               echo
               echo "**Full changelog**: https://github.com/${{ github.repository }}/compare/${PREV}...${TAG}"

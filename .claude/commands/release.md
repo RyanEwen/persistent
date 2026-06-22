@@ -9,8 +9,10 @@ Invocation input (optional): $ARGUMENTS
 
 The release pipeline is `.github/workflows/release.yml`: pushing a `vX.Y.Z` tag
 builds the web bundle, assembles a **signed** APK, generates changelog notes from
-the commits since the previous tag, and publishes a GitHub Release (APK + notes).
-The app surfaces those notes in the in-app update prompt. This command decides the
+the commits since the previous tag (filtered to end-user-facing changes only —
+internal/docs/tooling commits are excluded; see the `EXCLUDE` list in the
+workflow), and publishes a GitHub Release (APK + notes). The app surfaces those
+notes in the in-app update prompt. This command decides the
 next version, records it, and pushes the tag.
 
 Requirements:
