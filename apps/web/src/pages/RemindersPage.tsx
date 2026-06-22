@@ -11,6 +11,7 @@ import Typography from '@mui/joy/Typography'
 import Button from '@mui/joy/Button'
 import Chip from '@mui/joy/Chip'
 import Divider from '@mui/joy/Divider'
+import SnoozeIcon from '@mui/icons-material/Snooze'
 import { reminderBodyText } from '@persistent/shared'
 import { useReminders } from '../data/reminders.js'
 import { useActiveOccurrences, useAckOccurrence, useSnoozeOccurrence } from '../data/occurrences.js'
@@ -66,6 +67,11 @@ export function RemindersPage() {
                     <Typography level="body-xs" sx={{ mt: 0.5 }}>
                       {formatWhen(occurrence.scheduledFor, timeFormat)}
                     </Typography>
+                    {occurrence.status === 'SNOOZED' && occurrence.snoozedUntil && (
+                      <Typography level="body-xs" color="primary" startDecorator={<SnoozeIcon sx={{ fontSize: 14 }} />}>
+                        Snoozed until {formatWhen(occurrence.snoozedUntil, timeFormat)}
+                      </Typography>
+                    )}
                   </Box>
                   <Box sx={{ flexShrink: 0 }}>
                     <StatusChip status={occurrence.status} />
