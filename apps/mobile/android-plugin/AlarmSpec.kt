@@ -18,7 +18,10 @@ data class AlarmSpec(
     // Chosen sound URI ("" = system default for the alarm/notification type).
     val soundUri: String,
     // Parent reminder id, so tapping the notification can open its editor.
-    val reminderId: String = ""
+    val reminderId: String = "",
+    // true = an escalation alarm the user may silence back to a soft nag; false for
+    // inherent ALARM reminders (no softer level to fall back to).
+    val canSilence: Boolean = false
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("occurrenceId", occurrenceId)
@@ -30,6 +33,7 @@ data class AlarmSpec(
         .put("ongoing", ongoing)
         .put("soundUri", soundUri)
         .put("reminderId", reminderId)
+        .put("canSilence", canSilence)
 
     companion object {
         fun fromCall(call: PluginCall): AlarmSpec? {
@@ -44,7 +48,8 @@ data class AlarmSpec(
                 alarm = call.getBoolean("alarm") ?: false,
                 ongoing = call.getBoolean("ongoing") ?: true,
                 soundUri = call.getString("soundUri") ?: "",
-                reminderId = call.getString("reminderId") ?: ""
+                reminderId = call.getString("reminderId") ?: "",
+                canSilence = call.getBoolean("canSilence") ?: false
             )
         }
 
@@ -61,7 +66,8 @@ data class AlarmSpec(
                 alarm = json.optBoolean("alarm", false),
                 ongoing = json.optBoolean("ongoing", true),
                 soundUri = json.optString("soundUri", ""),
-                reminderId = json.optString("reminderId", "")
+                reminderId = json.optString("reminderId", ""),
+                canSilence = json.optBoolean("canSilence", false)
             )
         }
     }

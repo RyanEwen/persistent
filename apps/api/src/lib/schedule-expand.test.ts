@@ -80,6 +80,33 @@ test('once fires a single time on the start date and never again', () => {
   assert.deepEqual(localTimes(dates), ['2026-06-02 15:45'])
 })
 
+test('once whose time already passed is included when the window reaches back to it', () => {
+  // Mirrors how materializeReminder back-fills a one-shot: with `from` set before
+  // the (already-past) instant, expansion still returns it so the tick can fire it.
+  const schedule: Schedule = { kind: 'once', timesOfDay: ['09:00'] }
+  const dates = expandSchedule({
+    schedule,
+    startDate: '2026-06-02',
+    endDate: null,
+    timeZone: TZ,
+    // "now" is 09:05, five minutes after the instant; the back-reaching `from` keeps it.
+    ...window('2026-06-01T09:05', '2026-06-04T09:05')
+  })
+  assert.deepEqual(localTimes(dates), ['2026-06-02 09:00'])
+})
+
+test('once strictly before the window lower bound is dropped', () => {
+  const schedule: Schedule = { kind: 'once', timesOfDay: ['09:00'] }
+  const dates = expandSchedule({
+    schedule,
+    startDate: '2026-06-02',
+    endDate: null,
+    timeZone: TZ,
+    ...window('2026-06-02T09:01', '2026-06-04T09:01')
+  })
+  assert.deepEqual(localTimes(dates), [])
+})
+
 test('multiple times-of-day expand per active day', () => {
   const schedule: Schedule = { kind: 'daily', timesOfDay: ['08:00', '20:00'] }
   const dates = expandSchedule({

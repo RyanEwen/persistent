@@ -54,6 +54,10 @@ npm run db:migrate # apply Prisma migrations
 npm run validate   # lint + test + typecheck + prisma validate
 ```
 
+`validate` does not cover the native Kotlin. After editing `apps/mobile/android-plugin/`,
+compile-check it with `npm run verify:android` (from `apps/mobile`) — see
+`apps/mobile/README.md`.
+
 Local auth works without mail infra: `DEMO_MODE=true` returns the sign-in code in
 the API response instead of emailing it. Config lives in `.env` (see
 `.env.example`).

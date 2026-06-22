@@ -50,7 +50,13 @@ drives them lives in `apps/web/src/native`.
   - **Notification (`PERSISTENT`)** — plays the chosen notification sound once;
     optionally re-posts + re-sounds every N minutes (`soundIntervalSeconds`).
   - **Alarm (`ALARM`)** — full-screen intent + **continuously looping** the chosen
-    alarm sound + vibration (no interval; it's relentless).
+    alarm sound + vibration (no interval; it's relentless). Like the system clock's
+    alarm, the full-screen `AlarmActivity` is kept on screen whether locked or not:
+    the full-screen intent covers the screen-off / lock-screen case, and when the
+    device is unlocked and in use (where Android would otherwise only show a
+    heads-up banner that collapses after a few seconds) the service launches the
+    activity itself. The alarm notification's body tap opens that same control
+    surface (not the app), and `Back` on it is inert — only Done/Snooze leave.
   - Swiping a notification away **re-posts all active ones** (delete-intent) so
     they can't be casually dismissed (even when several are swiped together); only
     Done/Snooze clear them.
@@ -58,6 +64,14 @@ drives them lives in `apps/web/src/native`.
     show at once (the foreground service rebinds to a remaining one as they clear).
   - **Snooze** opens a small duration picker (`SnoozePickerActivity`); the chosen
     minutes are re-armed locally and queued to the server (`PendingSnoozeStore`).
+  - **Silence** (escalation alarms only) stops the loud alarm but keeps the
+    reminder nagging: it downgrades the on-device alarm to a soft, ongoing
+    notification, queues a silence for the server (`PendingSilenceStore`), and the
+    occurrence reverts `ESCALATED → FIRED` with re-escalation permanently suppressed
+    for that occurrence (`escalationSilencedAt`). It is *not* a Done — only Done
+    (ack) or Snooze clear the nag. Inherent `ALARM`-persistence reminders don't
+    show Silence (no softer level to fall back to); the `canSilence` flag on the
+    scheduled alarm gates the action.
 - **Sounds are user-chosen** (per device): `pickSound` opens the system ringtone
   picker; the chosen URIs are stored in settings and passed through as the
   alarm/notification tone (system default otherwise). The service plays audio

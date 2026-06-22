@@ -14,7 +14,7 @@ import Divider from '@mui/joy/Divider'
 import SnoozeIcon from '@mui/icons-material/Snooze'
 import { reminderBodyText } from '@persistent/shared'
 import { useReminders } from '../data/reminders.js'
-import { useActiveOccurrences, useAckOccurrence, useSnoozeOccurrence } from '../data/occurrences.js'
+import { useActiveOccurrences, useAckOccurrence, useSnoozeOccurrence, useSilenceOccurrence } from '../data/occurrences.js'
 import { scheduleSummary } from '../lib/scheduleSummary.js'
 import { formatWhen } from '../lib/datetime.js'
 import { reminderNextFire } from '../lib/schedule-preview.js'
@@ -37,6 +37,7 @@ export function RemindersPage() {
   const active = useActiveOccurrences()
   const ack = useAckOccurrence()
   const snooze = useSnoozeOccurrence()
+  const silence = useSilenceOccurrence()
   const { timeFormat } = useSettings()
   const [snoozeFor, setSnoozeFor] = useState<string | null>(null)
   // Soonest first; reminders with no upcoming fire (paused/finished) sink to the bottom.
@@ -88,6 +89,16 @@ export function RemindersPage() {
                   <Button variant="outlined" color="neutral" onClick={() => setSnoozeFor(occurrence.id)}>
                     Snooze
                   </Button>
+                  {occurrence.status === 'ESCALATED' && (
+                    <Button
+                      variant="outlined"
+                      color="warning"
+                      loading={silence.isPending}
+                      onClick={() => silence.mutate({ id: occurrence.id, arg: undefined })}
+                    >
+                      Silence
+                    </Button>
+                  )}
                 </Stack>
               </Card>
             ))}

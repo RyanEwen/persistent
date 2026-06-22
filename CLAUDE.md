@@ -79,6 +79,12 @@ directory guide `apps/api/CLAUDE.md`.
   (`npm run db:generate`) and update shared contracts when the schema changes.
 - Before finishing a task run `npm run validate` (lint + test + typecheck +
   prisma validate). Add focused tests for non-trivial behavior.
+- **Native (Kotlin) changes** aren't covered by `npm run validate`. The
+  devcontainer ships JDK 17 + the Android SDK (platform-34, build-tools 34.0.0),
+  so verify them by compiling: from `apps/mobile`, `npm run verify:android`
+  (re-syncs `android-plugin/` into the generated project, then
+  `./gradlew :app:compileDebugKotlin`). Run `npm run prepare:android` once first
+  if the generated `apps/mobile/android` project doesn't exist yet.
 
 ## How guidance is organized
 

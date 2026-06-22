@@ -23,6 +23,12 @@ export interface ScheduledAlarm {
   soundUri: string
   /** Parent reminder id, so tapping the notification opens its editor. */
   reminderId: string
+  /**
+   * This alarm is an escalation that can be silenced — stop the alarm but keep the
+   * reminder nagging. Shows a "Silence" action; false for inherent ALARM reminders
+   * (no softer nag to fall back to).
+   */
+  canSilence: boolean
 }
 
 export interface AlarmPluginPlugin {
@@ -30,6 +36,8 @@ export interface AlarmPluginPlugin {
   scheduleAll(options: { alarms: ScheduledAlarm[] }): Promise<void>
   cancel(options: { occurrenceId: string }): Promise<void>
   cancelAll(): Promise<void>
+  /** Stop a ringing escalation alarm but leave its notification nagging (no ack). */
+  silence(options: { occurrenceId: string }): Promise<void>
   requestBatteryExemption(): Promise<{ granted: boolean }>
   canScheduleExactAlarms(): Promise<{ allowed: boolean }>
   /** Open the system ringtone picker; returns the chosen uri + title (or cancelled). */
@@ -41,6 +49,8 @@ export interface AlarmPluginPlugin {
   drainPendingAcks(): Promise<{ occurrenceIds: string[] }>
   /** Snoozes made from the native notification, awaiting POST to the server. */
   drainPendingSnoozes(): Promise<{ snoozes: { occurrenceId: string; minutes: number }[] }>
+  /** Silences made from the native alarm, awaiting POST to the server. */
+  drainPendingSilences(): Promise<{ occurrenceIds: string[] }>
   /** Reminder id from a tapped notification (cleared on read); '' if none. */
   consumePendingNavigation(): Promise<{ reminderId: string }>
 }

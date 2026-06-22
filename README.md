@@ -13,7 +13,8 @@ medications, appointments, and important tasks.
   full-screen alarm that rings continuously until you confirm — even with the
   phone locked.
 - **Escalation.** If you still haven't acted, it can escalate to a louder alarm
-  on your devices and email a chosen contact.
+  on your devices and email a chosen contact — and you can silence that alarm
+  without losing the reminder, so it keeps nagging quietly.
 - **Works offline.** The Android app schedules exact on-device alarms, so
   reminders fire even with no signal, and sync across your devices.
 - **Flexible.** One-time or repeating schedules, medication lists, custom snooze

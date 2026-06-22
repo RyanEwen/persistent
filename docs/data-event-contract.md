@@ -42,6 +42,7 @@ Event types (`packages/shared/src/ws-events.ts`):
 | `occurrence.changed` | status changed (ack/snooze/escalate/miss) | invalidate active/upcoming/history occurrences + reminders |
 | `reminder.changed` | a reminder was created/updated/deleted | invalidate reminders + occurrences (active/upcoming/history) |
 | `dismiss` | clear a shown notification everywhere | service worker / native closes it |
+| `silence` | stop an escalation alarm but keep nagging | SW re-shows as a soft nag; native downgrades the alarm |
 | `ping` | heartbeat | ignored |
 
 ## Cross-device dismiss
@@ -50,3 +51,12 @@ When an occurrence is acknowledged or snoozed (from any device or the SW action)
 the server broadcasts `dismiss` over WS **and** sends a `dismiss` push, so the
 notification clears on every one of the user's devices. This is the same actor's
 devices only — there is no cross-user delivery.
+
+## Cross-device silence
+
+Silencing an **escalation** alarm (`POST /api/occurrences/:id/silence`) is *not* a
+dismiss: the occurrence stays `FIRED` and keeps nagging — only the loud alarm
+stops, and it never escalates again (`escalationSilencedAt` suppresses the sweep
+and the on-device escalation alarm). The server reverts `ESCALATED → FIRED`, then
+broadcasts a `silence` WS event **and** sends a `silence` push so every device
+downgrades its ringing alarm to a soft notification instead of clearing it.

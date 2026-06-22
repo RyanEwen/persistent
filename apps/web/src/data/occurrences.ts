@@ -39,3 +39,8 @@ export function useAckOccurrence() {
 export function useSnoozeOccurrence() {
   return useMutation<unknown, Error, { id: string; arg: number }>({ mutationKey: mutationKeys.snoozeOccurrence })
 }
+
+/** Silence an escalation alarm: stop the alarm but keep the reminder nagging. */
+export function useSilenceOccurrence() {
+  return useMutation<unknown, Error, { id: string; arg: void }>({ mutationKey: mutationKeys.silenceOccurrence })
+}

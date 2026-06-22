@@ -46,6 +46,13 @@ function handleEvent(event: WsEvent): void {
       // showing for it (web/PWA). Native clients also cancel via nativeSync.
       closeDeviceNotification(event.occurrenceId)
       break
+    case 'silence':
+      // Another device silenced the escalation: the occurrence is still active,
+      // so just refresh the feed. The SW gets its own `silence` push to downgrade
+      // the shown notification; native handles it in nativeSync.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.occurrencesActive })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.reminders })
+      break
     case 'ping':
       break
   }

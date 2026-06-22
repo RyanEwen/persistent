@@ -59,12 +59,20 @@ async function runSafely(label: string, fn: () => Promise<void>): Promise<void> 
 /** Expand a single reminder's schedule into occurrence rows for the rolling window. */
 export async function materializeReminder(reminder: Reminder, timeZone: string, now = new Date()): Promise<void> {
   if (!reminder.active) return
+  const schedule = reminder.schedule as unknown as Schedule
+  // A one-shot has a single firing instant. If it has already slipped into the
+  // past — the user defaulted it to "now" but submitted a moment later, lingered
+  // on the form, or picked an earlier time — still materialize it (within a recent
+  // window) so the tick fires it immediately instead of silently dropping it.
+  // Repeating reminders keep `from = now` so today's already-passed times aren't
+  // retroactively fired.
+  const from = schedule.kind === 'once' ? new Date(now.getTime() - MATERIALIZE_WINDOW_MS) : now
   const instants = expandSchedule({
-    schedule: reminder.schedule as unknown as Schedule,
+    schedule,
     startDate: reminder.startDate,
     endDate: reminder.endDate,
     timeZone,
-    from: now,
+    from,
     to: new Date(now.getTime() + MATERIALIZE_WINDOW_MS)
   })
   if (instants.length === 0) return
@@ -93,18 +101,44 @@ async function tick(): Promise<void> {
   const now = new Date()
   const due = await prisma.reminderOccurrence.findMany({
     where: { status: 'PENDING', scheduledFor: { lte: now } },
-    include: { reminder: true },
+    select: { id: true },
     take: 200
   })
-  for (const occurrence of due) {
-    const updated = await prisma.reminderOccurrence.update({
-      where: { id: occurrence.id },
-      data: { status: 'FIRED', firedAt: now },
-      include: { reminder: true }
-    })
-    fireNotification(updated.userId, updated.reminder, occurrence.id, occurrence.scheduledFor, false)
-    broadcast(updated.userId, { type: 'occurrence.fired', occurrence: toOccurrence(updated) })
-  }
+  for (const occurrence of due) await fireOccurrence(occurrence.id)
+}
+
+/**
+ * Flip one PENDING occurrence to FIRED and dispatch its notification. The status
+ * guard makes it idempotent, so the tick and the on-create immediate-fire path
+ * can't double-dispatch the same occurrence if they overlap.
+ */
+async function fireOccurrence(occurrenceId: string): Promise<void> {
+  const claimed = await prisma.reminderOccurrence.updateMany({
+    where: { id: occurrenceId, status: 'PENDING' },
+    data: { status: 'FIRED', firedAt: new Date() }
+  })
+  if (claimed.count === 0) return // already fired by a concurrent path
+  const occurrence = await prisma.reminderOccurrence.findUnique({
+    where: { id: occurrenceId },
+    include: { reminder: true }
+  })
+  if (!occurrence) return
+  fireNotification(occurrence.userId, occurrence.reminder, occurrence.id, occurrence.scheduledFor, false)
+  broadcast(occurrence.userId, { type: 'occurrence.fired', occurrence: toOccurrence(occurrence) })
+}
+
+/**
+ * Fire any already-due PENDING occurrences for one reminder right now. Called on
+ * create/update so a reminder whose first instant is already in the past (e.g. a
+ * one-shot defaulted to "now") nags immediately instead of waiting for the tick.
+ */
+export async function fireDueForReminder(reminderId: string): Promise<void> {
+  const due = await prisma.reminderOccurrence.findMany({
+    where: { reminderId, status: 'PENDING', scheduledFor: { lte: new Date() } },
+    select: { id: true },
+    take: 200
+  })
+  for (const occurrence of due) await fireOccurrence(occurrence.id)
 }
 
 async function sweep(): Promise<void> {
@@ -114,7 +148,8 @@ async function sweep(): Promise<void> {
   // it's anchored to the original fire (firedAt is never reset on snooze) and
   // fires even while SNOOZED, overriding the snooze.
   const escalatable = await prisma.reminderOccurrence.findMany({
-    where: { status: { in: ['FIRED', 'SNOOZED'] }, firedAt: { not: null } },
+    // A silenced occurrence keeps nagging but must never ring the alarm again.
+    where: { status: { in: ['FIRED', 'SNOOZED'] }, firedAt: { not: null }, escalationSilencedAt: null },
     include: { reminder: true, user: { select: { timeZone: true } } },
     take: 200
   })

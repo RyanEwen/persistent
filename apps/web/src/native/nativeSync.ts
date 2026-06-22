@@ -57,7 +57,10 @@ function toAlarm(occurrence: Occurrence): ScheduledAlarm {
     // Both persistence levels stay put / re-appear if swiped.
     ongoing: true,
     soundUri: alarm ? chosenSoundUri('alarmSound') : chosenSoundUri('notificationSound'),
-    reminderId: occurrence.reminderId
+    reminderId: occurrence.reminderId,
+    // An escalation of a soft reminder can be silenced back to a nag; an inherent
+    // ALARM reminder cannot (it has no softer level to fall back to).
+    canSilence: reminder.persistence !== 'ALARM' && occurrence.status === 'ESCALATED'
   }
 }
 
@@ -76,7 +79,10 @@ function buildAlarms(occurrence: Occurrence): ScheduledAlarm[] {
       alarm: true,
       soundIntervalSeconds: 0,
       soundUri: chosenSoundUri('alarmSound'),
-      body: main.body ? `${main.body} (escalated)` : 'Escalated'
+      body: main.body ? `${main.body} (escalated)` : 'Escalated',
+      // The escalation alarm is always silenceable (escalation never applies to
+      // ALARM-persistence reminders), so the user can quiet it and keep nagging.
+      canSilence: true
     })
   }
   return alarms
@@ -104,11 +110,22 @@ async function drainPendingSnoozes(): Promise<void> {
   }
 }
 
+/** POST silences the user made from the native alarm to the server. */
+async function drainPendingSilences(): Promise<void> {
+  const { occurrenceIds } = await AlarmPlugin.drainPendingSilences()
+  // A Silence on the escalation alarm silences the underlying occurrence.
+  const baseIds = new Set(occurrenceIds.map((id) => (id.endsWith(ESC_SUFFIX) ? id.slice(0, -ESC_SUFFIX.length) : id)))
+  for (const id of baseIds) {
+    await apiFetch(`/api/occurrences/${id}/silence`, { method: 'POST' }).catch(() => {})
+  }
+}
+
 /** Pull the server's occurrence set and replace the device's local alarms. */
 export async function syncAlarms(): Promise<void> {
   if (!isNative()) return
   await drainPendingAcks().catch(() => {})
   await drainPendingSnoozes().catch(() => {})
+  await drainPendingSilences().catch(() => {})
   const data = await apiFetch<SyncResponse>('/api/sync/occurrences')
   await AlarmPlugin.scheduleAll({ alarms: data.occurrences.flatMap(buildAlarms) })
 }
@@ -162,6 +179,13 @@ export async function initNative(): Promise<void> {
       // including its escalation alarm.
       void AlarmPlugin.cancel({ occurrenceId: event.occurrenceId }).catch(() => {})
       void AlarmPlugin.cancel({ occurrenceId: event.occurrenceId + ESC_SUFFIX }).catch(() => {})
+      scheduleResync()
+    } else if (event.type === 'silence') {
+      // Silenced on another device: stop this device's ringing alarm but keep the
+      // notification nagging (down to a soft notification). The resync then sees
+      // the occurrence is no longer escalated and won't re-arm its alarm.
+      void AlarmPlugin.silence({ occurrenceId: event.occurrenceId }).catch(() => {})
+      void AlarmPlugin.silence({ occurrenceId: event.occurrenceId + ESC_SUFFIX }).catch(() => {})
       scheduleResync()
     } else if (
       event.type === 'reminder.changed' ||

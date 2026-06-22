@@ -41,7 +41,12 @@ syncRouter.get('/occurrences', async (request, response) => {
       // fires) — never from the snooze. Already-escalated occurrences need no
       // future escalation alarm (the device rings immediately for those).
       const base = o.firedAt ?? o.scheduledFor
-      const escalateAt = o.status === 'ESCALATED' ? null : escalateAtFor(base, o.scheduledFor, o.reminder, tz)
+      // No future escalation alarm for one that's already escalated (it rings now)
+      // or that the user silenced (it must keep nagging without re-ringing).
+      const escalateAt =
+        o.status === 'ESCALATED' || o.escalationSilencedAt != null
+          ? null
+          : escalateAtFor(base, o.scheduledFor, o.reminder, tz)
       return { ...toOccurrence(o), escalateAt: escalateAt?.toISOString() ?? null }
     })
   })

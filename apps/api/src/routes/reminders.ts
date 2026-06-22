@@ -1,7 +1,9 @@
 /**
  * Reminder CRUD. Every query is scoped to the authenticated user. On
  * create/update we immediately materialize near-future occurrences so the next
- * firing doesn't wait for the 5-minute materialization cycle.
+ * firing doesn't wait for the 5-minute materialization cycle, and fire any that
+ * are already due (e.g. a one-shot left at its "now" default) so it nags right
+ * away rather than waiting for the tick.
  */
 import { Router } from 'express'
 import { reminderInputSchema } from '@persistent/shared'
@@ -11,7 +13,7 @@ import { requireUser, requireUserId } from '../lib/auth-middleware.js'
 import { badRequest, notFound } from '../lib/http-error.js'
 import { toReminder } from '../lib/serializers.js'
 import { isStaleWrite } from '../lib/conflict.js'
-import { materializeReminder } from '../lib/scheduler.js'
+import { materializeReminder, fireDueForReminder } from '../lib/scheduler.js'
 import { broadcast } from '../lib/realtime.js'
 import { dispatchToUser } from '../lib/delivery/index.js'
 import { logger } from '../lib/logger.js'
@@ -47,6 +49,9 @@ remindersRouter.post('/', async (request, response) => {
   })
 
   await materializeForUser(reminder.id, userId)
+  // Fire right away if the first instant is already due (e.g. a one-shot left at
+  // its "now" default), so the reminder nags immediately instead of after a tick.
+  await fireDueForReminder(reminder.id)
   broadcast(userId, { type: 'reminder.changed', reminderId: reminder.id })
   response.status(201).json({ reminder: toReminder(reminder) })
 })
@@ -75,6 +80,7 @@ remindersRouter.put('/:id', async (request, response) => {
   // Drop not-yet-fired occurrences so the new schedule re-materializes cleanly.
   await prisma.reminderOccurrence.deleteMany({ where: { reminderId: reminder.id, status: 'PENDING' } })
   await materializeForUser(reminder.id, userId)
+  await fireDueForReminder(reminder.id)
   broadcast(userId, { type: 'reminder.changed', reminderId: reminder.id })
   response.json({ reminder: toReminder(reminder) })
 })

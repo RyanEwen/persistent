@@ -17,6 +17,9 @@ export const wsEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('reminder.changed'), reminderId: z.string().nullable() }),
   // Clear a shown notification across all of this user's open clients.
   z.object({ type: z.literal('dismiss'), occurrenceId: z.string() }),
+  // Silence an escalation alarm across all clients: stop the alarm but keep the
+  // occurrence nagging (distinct from `dismiss`, which clears it entirely).
+  z.object({ type: z.literal('silence'), occurrenceId: z.string() }),
   // Heartbeat to keep proxies from closing idle sockets.
   z.object({ type: z.literal('ping') })
 ])

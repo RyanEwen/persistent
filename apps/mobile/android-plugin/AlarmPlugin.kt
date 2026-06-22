@@ -82,6 +82,19 @@ class AlarmPlugin : Plugin() {
         call.resolve()
     }
 
+    /** Stop a ringing escalation alarm but keep its notification nagging (no ack). */
+    @PluginMethod
+    fun silence(call: PluginCall) {
+        val occurrenceId = call.getString("occurrenceId") ?: run {
+            call.reject("occurrenceId required")
+            return
+        }
+        // Server-driven (already recorded server-side): downgrade locally without
+        // re-queuing a pending silence.
+        AlarmService.silenceLocal(context, occurrenceId)
+        call.resolve()
+    }
+
     @PluginMethod
     fun cancelAll(call: PluginCall) {
         for (existing in AlarmStore.all(context)) cancelAlarm(context, existing.occurrenceId)
@@ -120,6 +133,15 @@ class AlarmPlugin : Plugin() {
             array.put(JSObject().put("occurrenceId", id).put("minutes", minutes))
         }
         call.resolve(JSObject().put("snoozes", array))
+    }
+
+    /** Drain native silences awaiting POST to the server. */
+    @PluginMethod
+    fun drainPendingSilences(call: PluginCall) {
+        val ids = PendingSilenceStore.drain(context)
+        val array = JSONArray()
+        for (id in ids) array.put(id)
+        call.resolve(JSObject().put("occurrenceIds", array))
     }
 
     /** Open the system ringtone picker so the user can choose a sound. */

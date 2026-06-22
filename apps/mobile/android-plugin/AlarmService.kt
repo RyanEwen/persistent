@@ -62,7 +62,8 @@ class AlarmService : Service() {
                         alarm = intent.getBooleanExtra("alarm", false),
                         ongoing = intent.getBooleanExtra("ongoing", true),
                         soundUri = intent.getStringExtra("soundUri") ?: "",
-                        reminderId = intent.getStringExtra("reminderId") ?: ""
+                        reminderId = intent.getStringExtra("reminderId") ?: "",
+                        canSilence = intent.getBooleanExtra("canSilence", false)
                     )
                 )
             }
@@ -77,6 +78,10 @@ class AlarmService : Service() {
             ACTION_CANCEL_CONFIRM -> {
                 val occurrenceId = intent.getStringExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID) ?: return START_STICKY
                 setConfirming(occurrenceId, false)
+            }
+            ACTION_SILENCE -> {
+                val occurrenceId = intent.getStringExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID) ?: return START_STICKY
+                silenceOccurrence(occurrenceId)
             }
             ACTION_RESHOW -> {
                 // The user swiped a notification away (Android 14+ allows this for
@@ -116,10 +121,41 @@ class AlarmService : Service() {
 
         if (spec.alarm) {
             if (!continuousAlarm) startContinuousAlarm(spec.soundUri)
+            presentAlarmSurface(spec)
         } else {
             playNotificationSound(spec.soundUri)
             loops.remove(spec.occurrenceId)?.let { handler.removeCallbacks(it) }
             if (spec.soundIntervalSeconds > 0) startReNotifyLoop(spec)
+        }
+    }
+
+    /**
+     * Keep an alarm's controls on screen the way the system clock's alarm does.
+     *
+     * `setFullScreenIntent` only auto-launches [AlarmActivity] when the screen is
+     * off or locked. When the device is unlocked and in active use, Android instead
+     * shows a heads-up banner that collapses after a few seconds, leaving the alarm
+     * ringing with its Done/Snooze controls buried in the notification shade. In
+     * that one case we launch the activity ourselves so the surface stays up; the
+     * lock-screen / screen-off case is already covered by the full-screen intent.
+     */
+    private fun presentAlarmSurface(spec: AlarmSpec) {
+        val power = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+        val keyguard = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
+        if (!power.isInteractive || keyguard.isKeyguardLocked) return
+        try {
+            startActivity(
+                Intent(this, AlarmActivity::class.java)
+                    .putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, spec.occurrenceId)
+                    .putExtra("title", spec.title)
+                    .putExtra("body", spec.body)
+                    .putExtra("canSilence", spec.canSilence)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            )
+        } catch (_: Exception) {
+            // Background-activity-launch can be denied on some OS versions; the
+            // heads-up banner and the ongoing notification (whose tap opens this
+            // same surface) remain as the fallback.
         }
     }
 
@@ -134,6 +170,27 @@ class AlarmService : Service() {
         val notif = buildNotification(spec)
         if (foregroundId == occurrenceId) startForeground(notifId(occurrenceId), notif)
         else nm.notify(notifId(occurrenceId), notif)
+    }
+
+    /**
+     * Silence an escalation: stop the alarm sound but keep the occurrence nagging.
+     * Downgrades the spec to a non-alarm notification in place (no more full-screen
+     * / looping sound), restarts its soft re-notify loop if one is configured, and
+     * stops the continuous alarm sound unless another occurrence is still ringing.
+     * The reminder stays FIRED — only Done/Snooze clear it.
+     */
+    private fun silenceOccurrence(occurrenceId: String) {
+        val spec = active[occurrenceId] ?: return
+        if (!spec.alarm) return
+        val downgraded = spec.copy(alarm = false, canSilence = false)
+        active[occurrenceId] = downgraded
+        alarmIds.remove(occurrenceId)
+        val notif = buildNotification(downgraded)
+        if (foregroundId == occurrenceId) startForeground(notifId(occurrenceId), notif)
+        else nm.notify(notifId(occurrenceId), notif)
+        loops.remove(occurrenceId)?.let { handler.removeCallbacks(it) }
+        if (downgraded.soundIntervalSeconds > 0) startReNotifyLoop(downgraded)
+        if (active.values.none { it.alarm } && continuousAlarm) stopSound()
     }
 
     /** (Re)bind the foreground notification to a specific occurrence. */
@@ -187,6 +244,7 @@ class AlarmService : Service() {
                 .putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, spec.occurrenceId)
                 .putExtra("title", spec.title)
                 .putExtra("body", spec.body)
+                .putExtra("canSilence", spec.canSilence)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -214,6 +272,15 @@ class AlarmService : Service() {
             ("canceldone:" + spec.occurrenceId).hashCode(),
             Intent(this, AlarmReceiver::class.java)
                 .setAction(AlarmReceiver.ACTION_CANCEL_DONE)
+                .putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, spec.occurrenceId),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        // Silence: stop this escalation alarm but keep the reminder nagging.
+        val silencePending = PendingIntent.getBroadcast(
+            this,
+            ("silence:" + spec.occurrenceId).hashCode(),
+            Intent(this, AlarmReceiver::class.java)
+                .setAction(AlarmReceiver.ACTION_SILENCE)
                 .putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, spec.occurrenceId),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -250,13 +317,19 @@ class AlarmService : Service() {
             .setWhen(posted)
             .setShowWhen(true)
             .setSortKey((Long.MAX_VALUE - posted).toString().padStart(20, '0'))
-            .setContentIntent(contentPending)
+            // For an alarm, tapping the notification body brings up the full-screen
+            // control surface (Done/Snooze) rather than opening the app, so once the
+            // heads-up banner collapses the controls are still one tap away. Soft
+            // reminders keep opening the app to view the reminder.
+            .setContentIntent(if (spec.alarm) fullScreen else contentPending)
         if (awaitingConfirm) {
             builder.addAction(0, "Confirm done", confirmPending)
             builder.addAction(0, "Not yet", cancelDonePending)
         } else {
             builder.addAction(0, "Done", donePending)
             builder.addAction(0, "Snooze", snoozePending)
+            // Escalation alarms also offer Silence (stop the alarm, keep nagging).
+            if (spec.alarm && spec.canSilence) builder.addAction(0, "Silence", silencePending)
         }
         if (spec.alarm) {
             builder.setFullScreenIntent(fullScreen, true)
@@ -427,6 +500,7 @@ class AlarmService : Service() {
         const val ACTION_RESHOW = "ca.persistent.app.SERVICE_RESHOW"
         const val ACTION_PROMPT_CONFIRM = "ca.persistent.app.SERVICE_PROMPT_CONFIRM"
         const val ACTION_CANCEL_CONFIRM = "ca.persistent.app.SERVICE_CANCEL_CONFIRM"
+        const val ACTION_SILENCE = "ca.persistent.app.SERVICE_SILENCE"
         const val DEFAULT_SNOOZE_MINUTES = 10
         private const val CHANNEL_SILENT = "reminders_silent"
         private const val SENTINEL_ID = 4201
@@ -465,6 +539,27 @@ class AlarmService : Service() {
             context.startService(
                 Intent(context, AlarmService::class.java)
                     .setAction(ACTION_CANCEL_CONFIRM)
+                    .putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, occurrenceId)
+            )
+        }
+
+        /**
+         * User pressed Silence here: queue the silence for the server (drained by the
+         * WebView) and downgrade the local alarm to a soft nag. Does NOT ack/snooze.
+         */
+        fun silence(context: Context, occurrenceId: String) {
+            PendingSilenceStore.add(context, occurrenceId)
+            silenceLocal(context, occurrenceId)
+        }
+
+        /**
+         * Silence driven by the server (another device already silenced it): downgrade
+         * the local alarm without re-queuing a pending silence.
+         */
+        fun silenceLocal(context: Context, occurrenceId: String) {
+            context.startService(
+                Intent(context, AlarmService::class.java)
+                    .setAction(ACTION_SILENCE)
                     .putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, occurrenceId)
             )
         }

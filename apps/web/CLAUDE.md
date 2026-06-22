@@ -26,9 +26,9 @@
   converge. The query cache is persisted to localStorage (`lib/persistQuery.ts`)
   for offline reads.
 - **Push:** the subscription flow lives in `lib/push.ts`; the service worker
-  (`public/push-handler.js`) renders notifications and handles Done/Snooze
-  actions + best-effort re-fire. Remember the web is intentionally best-effort —
-  the hard alarm is the native app.
+  (`public/push-handler.js`) renders notifications and handles Done/Snooze/Silence
+  actions + best-effort re-fire (Silence shows only on escalations). Remember the
+  web is intentionally best-effort — the hard alarm is the native app.
 - **Client display prefs** (time format, theme) live in `settings/useSettings.tsx`
   (localStorage-backed, per-device — not server-synced). Themes are defined in
   `settings/themes.ts` and applied as a background pattern + accent CSS variables

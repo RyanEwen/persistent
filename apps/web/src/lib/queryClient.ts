@@ -50,7 +50,8 @@ export const mutationKeys = {
   updateReminder: ['reminders', 'update'] as const,
   deleteReminder: ['reminders', 'delete'] as const,
   ackOccurrence: ['occurrences', 'ack'] as const,
-  snoozeOccurrence: ['occurrences', 'snooze'] as const
+  snoozeOccurrence: ['occurrences', 'snooze'] as const,
+  silenceOccurrence: ['occurrences', 'silence'] as const
 }
 
 let tempCounter = 0
@@ -164,6 +165,11 @@ export function registerMutationDefaults(): void {
   queryClient.setMutationDefaults(mutationKeys.snoozeOccurrence, {
     mutationFn: ({ id, arg }: { id: string; arg: number }) =>
       apiFetch(`/api/occurrences/${id}/snooze`, { method: 'POST', body: JSON.stringify({ minutes: arg }) }),
+    onSettled: invalidateOccurrences
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.silenceOccurrence, {
+    mutationFn: ({ id }: { id: string; arg: void }) => apiFetch(`/api/occurrences/${id}/silence`, { method: 'POST' }),
     onSettled: invalidateOccurrences
   })
 }

@@ -171,6 +171,10 @@ model ReminderOccurrence {
   acknowledgedAt DateTime?
   snoozedUntil DateTime?
   escalatedAt  DateTime?
+  /// When the user silenced this occurrence's escalation alarm (stop the alarm
+  /// but keep the reminder FIRED/nagging). Set => the sweep never re-escalates it
+  /// and sync stops arming its on-device escalation alarm.
+  escalationSilencedAt DateTime?
   /// When the escalation email was sent (once-only guard for the email pass).
   escalationEmailedAt DateTime?
   createdAt    DateTime         @default(now())

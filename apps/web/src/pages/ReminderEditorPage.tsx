@@ -65,11 +65,14 @@ function todayLocal(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 }
 
-/** Current local time rounded up to the next 5-minute mark, as "HH:mm". */
-function nextFiveMinuteTime(): string {
+/**
+ * Current local time as "HH:mm". New reminders default to *now* so that, left
+ * untouched, the reminder fires immediately. The server back-fills a one-shot
+ * whose instant has already slipped into the past (minute truncation, request
+ * latency, or the user lingering on the form), so it still fires right away.
+ */
+function currentTime(): string {
   const now = new Date()
-  now.setSeconds(0, 0)
-  now.setMinutes(Math.ceil(now.getMinutes() / 5) * 5) // 60+ rolls into the next hour
   return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
 }
 
@@ -120,7 +123,7 @@ function emptyForm(): FormState {
     category: 'NONE',
     medications: [emptyMedication()],
     kind: defaultKindForCategory('NONE'),
-    timesOfDay: [nextFiveMinuteTime()],
+    timesOfDay: [currentTime()],
     daysOfWeek: [1, 2, 3, 4, 5],
     everyNDays: '2',
     skipWeekends: false,

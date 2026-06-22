@@ -25,6 +25,14 @@ self.addEventListener('push', (event) => {
     return
   }
 
+  if (payload.type === 'silence') {
+    // Escalation silenced elsewhere: re-show as a plain (non-escalated) nag — it
+    // still nags (persistent re-show + requireInteraction), just without the alarm
+    // framing or the Silence action.
+    event.waitUntil(showReminder({ ...payload, type: 'fire', alarm: false, escalate: false, persistent: true }))
+    return
+  }
+
   if (payload.type === 'fire' || payload.type === 'escalate') {
     event.waitUntil(showReminder(payload))
   }
@@ -43,6 +51,11 @@ self.addEventListener('notificationclick', (event) => {
     event.waitUntil(snooze(data.occurrenceId, 10).then(() => focusApp()))
     return
   }
+  if (action === 'silence' && data.occurrenceId) {
+    // Stop the alarm but keep nagging — don't focus the app, like Done's two-tap.
+    event.waitUntil(silence(data.occurrenceId))
+    return
+  }
   event.waitUntil(focusApp())
 })
 
@@ -59,23 +72,31 @@ function showReminder(payload) {
   const data = {
     occurrenceId: payload.occurrenceId,
     reminderId: payload.reminderId,
-    persistent: payload.alarm === true || payload.escalate === true || payload.type === 'escalate',
+    persistent:
+      payload.persistent === true ||
+      payload.alarm === true ||
+      payload.escalate === true ||
+      payload.type === 'escalate',
+    // An escalation offers "Silence" (stop the alarm, keep nagging).
+    escalated: payload.type === 'escalate' || payload.escalate === true,
     body: payload.body || ''
   }
   return self.registration.showNotification(payload.title || 'Reminder', buildOptions(data, payload))
 }
 
 function buildOptions(data, payload) {
+  const actions = [
+    { action: 'done', title: 'Done' },
+    { action: 'snooze', title: 'Snooze 10m' }
+  ]
+  if (data.escalated) actions.push({ action: 'silence', title: 'Silence' })
   return {
     tag: data.occurrenceId,
     body: data.body || (payload && payload.body) || '',
     requireInteraction: true,
     renotify: true,
     data,
-    actions: [
-      { action: 'done', title: 'Done' },
-      { action: 'snooze', title: 'Snooze 10m' }
-    ]
+    actions
   }
 }
 
@@ -96,6 +117,10 @@ function snooze(occurrenceId, minutes) {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ minutes })
   }).catch(() => {})
+}
+
+function silence(occurrenceId) {
+  return fetch(`/api/occurrences/${occurrenceId}/silence`, { method: 'POST', credentials: 'include' }).catch(() => {})
 }
 
 function focusApp() {

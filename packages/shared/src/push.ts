@@ -56,7 +56,9 @@ export type PushConfig = z.infer<typeof pushConfigSchema>
  * the foreground alarm service; the web service worker shows a notification.
  */
 export const pushPayloadSchema = z.object({
-  type: z.enum(['fire', 'escalate', 'dismiss', 'sync']),
+  // 'silence' downgrades a ringing escalation back to a soft nag (stop the alarm,
+  // keep the reminder firing) without acknowledging or snoozing it.
+  type: z.enum(['fire', 'escalate', 'dismiss', 'sync', 'silence']),
   occurrenceId: z.string().optional(),
   reminderId: z.string().optional(),
   title: z.string().optional(),

@@ -27,6 +27,7 @@ class AlarmActivity : Activity() {
         occurrenceId = intent.getStringExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID)
         val title = intent.getStringExtra("title") ?: "Reminder"
         val body = intent.getStringExtra("body") ?: ""
+        val canSilence = intent.getBooleanExtra("canSilence", false)
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -73,8 +74,25 @@ class AlarmActivity : Activity() {
                 finish()
             }
         })
+        if (canSilence) {
+            // Escalation only: stop the alarm but leave the reminder nagging.
+            root.addView(Button(this).apply {
+                text = "Silence"
+                setOnClickListener {
+                    sendAction(AlarmReceiver.ACTION_SILENCE)
+                    finish()
+                }
+            })
+        }
 
         setContentView(root)
+    }
+
+    @Deprecated("Back is intentionally inert so a ringing alarm's surface stays up; exit via Done/Snooze.")
+    override fun onBackPressed() {
+        // Match the system clock's alarm: Back does not dismiss a ringing alarm.
+        // Done and Snooze are the only ways out (Home still leaves it ringing, with
+        // the ongoing notification whose tap reopens this surface).
     }
 
     private fun sendAction(action: String) {
