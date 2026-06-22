@@ -91,8 +91,12 @@ after firing (`escalateAfterMinutes`) or at a specific wall-clock time
 own devices and may **also email a contact** (`escalateEmail` +
 `escalateEmailMessage`, sent once via `sendCloudflareEmail` on escalation). It
 does **not** apply to `ALARM`-persistence reminders (they already ring
-continuously — enforced in the shared schema). After a longer cutoff an
-unacknowledged occurrence is marked `MISSED`.
+continuously — enforced in the shared schema).
+
+A fired occurrence is **never** auto-expired: it stays `FIRED` (or `ESCALATED`)
+until the user explicitly acknowledges it or deletes the reminder — that is the
+persistence guarantee. The `MISSED` status still exists in the model for a
+possible future *explicit* action, but the scheduler never assigns it on its own.
 
 The escalation instant is computed once (`escalateAtFor` in `lib/scheduler.ts`)
 and used in two places so it fires regardless of connectivity:

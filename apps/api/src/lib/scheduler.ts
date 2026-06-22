@@ -24,12 +24,11 @@ const MATERIALIZE_WINDOW_MS = 48 * 60 * 60 * 1000
 const TICK_INTERVAL_MS = 30_000
 const MATERIALIZE_INTERVAL_MS = 5 * 60_000
 const SWEEP_INTERVAL_MS = 60_000
-/** A fired-but-unacknowledged occurrence older than this (without its own escalation) is marked MISSED. */
-const MISS_AFTER_MS = 12 * 60 * 60 * 1000
 
 const timers: NodeJS.Timeout[] = []
 
 export function startScheduler(): void {
+  void runSafely('revive-missed', reviveMissed)
   void runSafely('materialize', materializeAll)
   void runSafely('tick', tick)
   for (const [fn, interval] of [
@@ -175,22 +174,43 @@ async function sweep(): Promise<void> {
     broadcast(updated.userId, { type: 'occurrence.fired', occurrence: toOccurrence(updated) })
   }
 
-  // 3) Mark long-unacknowledged fires (from the original fire time) as missed.
-  const fired = await prisma.reminderOccurrence.findMany({
-    where: { status: 'FIRED', firedAt: { not: null } },
-    include: { reminder: true },
-    take: 200
-  })
-  for (const occurrence of fired) {
-    if (now.getTime() - (occurrence.firedAt as Date).getTime() >= MISS_AFTER_MS) {
+  // NOTE: there is deliberately no "auto-miss" step. The persistence guarantee is
+  // that a fired occurrence stays alive (FIRED/ESCALATED) until the user explicitly
+  // confirms it (or deletes the reminder) — it must never time out on its own.
+  // MISSED remains a valid status for a possible future *explicit* action, but the
+  // scheduler never assigns it.
+}
+
+/**
+ * One-time data fix-up: the scheduler used to auto-mark long-unacknowledged fires
+ * as MISSED, which silently dropped the nag. That behavior is gone, so resurrect
+ * any leftover MISSED occurrences back to FIRED (re-anchoring firedAt to now so the
+ * nag/escalation restarts cleanly rather than instantly escalating). Self-cleaning:
+ * once none remain — and nothing creates new ones — this is a no-op, so it's safe
+ * to run on every boot and can be deleted in a later cleanup.
+ */
+async function reviveMissed(): Promise<void> {
+  const now = new Date()
+  let revived = 0
+  for (;;) {
+    const missed = await prisma.reminderOccurrence.findMany({
+      where: { status: 'MISSED' },
+      include: { reminder: true },
+      take: 200
+    })
+    if (missed.length === 0) break
+    for (const occurrence of missed) {
       const updated = await prisma.reminderOccurrence.update({
         where: { id: occurrence.id },
-        data: { status: 'MISSED' },
+        data: { status: 'FIRED', firedAt: now, snoozedUntil: null },
         include: { reminder: true }
       })
-      broadcast(updated.userId, { type: 'occurrence.changed', occurrence: toOccurrence(updated) })
+      fireNotification(updated.userId, updated.reminder, updated.id, updated.scheduledFor, false)
+      broadcast(updated.userId, { type: 'occurrence.fired', occurrence: toOccurrence(updated) })
+      revived++
     }
   }
+  if (revived > 0) logger.info('revived previously-missed occurrences to FIRED', { count: revived })
 }
 
 function buildPayload(
