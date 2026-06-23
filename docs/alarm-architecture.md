@@ -57,6 +57,11 @@ drives them lives in `apps/web/src/native`.
     heads-up banner that collapses after a few seconds) the service launches the
     activity itself. The alarm notification's body tap opens that same control
     surface (not the app), and `Back` on it is inert — only Done/Snooze leave.
+    Because that surface is a separate window from the shade notification, the
+    service finishes it (a `ca.persistent.app.ALARM_ACTIVITY_DISMISS` broadcast the
+    activity listens for) whenever the occurrence is silenced, acked, snoozed, or
+    cleared from *another* surface — the shade action or another device — so it
+    can't linger on screen as a stale second alert after the alarm is handled.
   - Swiping a notification away **re-posts all active ones** (delete-intent) so
     they can't be casually dismissed (even when several are swiped together); only
     Done/Snooze clear them.
@@ -88,7 +93,13 @@ drives them lives in `apps/web/src/native`.
 
 Permissions: `SCHEDULE_EXACT_ALARM`/`USE_EXACT_ALARM`, `POST_NOTIFICATIONS`,
 `FOREGROUND_SERVICE` (+ `_SPECIAL_USE`), `USE_FULL_SCREEN_INTENT`, `WAKE_LOCK`,
-`RECEIVE_BOOT_COMPLETED`; prompt for battery-optimization exemption.
+`RECEIVE_BOOT_COMPLETED`; prompt for battery-optimization exemption. On Android
+14+ `USE_FULL_SCREEN_INTENT` is a user-grantable runtime permission (off by
+default for non-calling/alarm apps), so `AlarmPlugin.ensureFullScreenIntent()`
+checks `canUseFullScreenIntent()` and opens the per-app setting to grant it —
+without it the escalation only shows a heads-up banner that collapses instead of
+the full-screen alarm. The alarm notification is `VISIBILITY_PUBLIC` so its
+content shows on the lock screen (the user can see which reminder is firing).
 
 ## Push channels
 
@@ -111,6 +122,16 @@ A fired occurrence is **never** auto-expired: it stays `FIRED` (or `ESCALATED`)
 until the user explicitly acknowledges it or deletes the reminder — that is the
 persistence guarantee. The `MISSED` status still exists in the model for a
 possible future *explicit* action, but the scheduler never assigns it on its own.
+
+**One notification per reminder.** The single exception to "only the user clears a
+fired occurrence" is *self-collapse*: when a reminder fires again while an earlier
+firing is still unconfirmed, the scheduler marks the older occurrence `SUPERSEDED`
+and dismisses it on every device (`keepNewestForReminder`). So an ignored
+*repeating* reminder nags with one current notification, not a growing stack of
+one-per-firing. The newest firing always wins (by `scheduledFor`); superseded
+occurrences move to history, not the active feed. This collapses *across firings
+of the same reminder* only — distinct reminders still each get their own
+notification id, and a single firing's nag/escalation is untouched.
 
 The escalation instant is computed once (`escalateAtFor` in `lib/scheduler.ts`)
 and used in two places so it fires regardless of connectivity:

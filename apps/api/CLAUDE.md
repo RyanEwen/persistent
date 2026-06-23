@@ -20,7 +20,11 @@
 - **Scheduler:** `lib/scheduler.ts` owns materialization, the tick loop, and the
   snooze/escalation/miss sweeps. On reminder create/update, materialize the
   changed reminder immediately (don't wait for the 5-min cycle); on update, drop
-  `PENDING` occurrences first so the new schedule re-materializes cleanly.
+  `PENDING` occurrences first so the new schedule re-materializes cleanly. Firing
+  collapses to the newest occurrence per reminder: a fresh fire (or revived
+  snooze) marks the reminder's older still-unconfirmed occurrences `SUPERSEDED`
+  and dismisses them everywhere (`keepNewestForReminder`), so an ignored repeating
+  reminder shows one notification, not one per missed firing.
 - **Time zones:** schedule expansion is the only place that converts local
   times to instants — always go through `expandSchedule` (luxon, DST-correct),
   using the owning user's `timeZone`. Never construct firing instants ad hoc.

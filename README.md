@@ -15,6 +15,9 @@ medications, appointments, and important tasks.
 - **Escalation.** If you still haven't acted, it can escalate to a louder alarm
   on your devices and email a chosen contact — and you can silence that alarm
   without losing the reminder, so it keeps nagging quietly.
+- **No pile-ups.** If a repeating reminder fires again before you've confirmed
+  the last one, the newest takes over — you see one notification per reminder,
+  not a stack of every firing you missed.
 - **Works offline.** The Android app schedules exact on-device alarms, so
   reminders fire even with no signal, and sync across your devices.
 - **Flexible.** One-time or repeating schedules, medication lists, custom snooze

@@ -40,6 +40,10 @@ export interface AlarmPluginPlugin {
   silence(options: { occurrenceId: string }): Promise<void>
   requestBatteryExemption(): Promise<{ granted: boolean }>
   canScheduleExactAlarms(): Promise<{ allowed: boolean }>
+  /** Ensure the full-screen alarm may show over the lock screen (Android 14+ gate);
+   * opens the per-app setting if not yet granted. */
+  ensureFullScreenIntent(): Promise<{ allowed: boolean }>
+
   /** Open the system ringtone picker; returns the chosen uri + title (or cancelled). */
   pickSound(options: { type: 'alarm' | 'notification'; current?: string }): Promise<{
     uri?: string

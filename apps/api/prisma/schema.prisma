@@ -42,6 +42,9 @@ enum OccurrenceStatus {
   SNOOZED
   ESCALATED
   MISSED
+  /// Auto-resolved: a newer firing of the same reminder superseded this one while
+  /// it was still unconfirmed, so only the latest occurrence nags (one per reminder).
+  SUPERSEDED
 }
 
 enum PushKind {
@@ -177,6 +180,9 @@ model ReminderOccurrence {
   escalationSilencedAt DateTime?
   /// When the escalation email was sent (once-only guard for the email pass).
   escalationEmailedAt DateTime?
+  /// When a newer firing of the same reminder superseded this one (status
+  /// SUPERSEDED) so the user only ever sees the latest occurrence nagging.
+  supersededAt DateTime?
   createdAt    DateTime         @default(now())
 
   reminder Reminder @relation(fields: [reminderId], references: [id], onDelete: Cascade)

@@ -39,7 +39,7 @@ Event types (`packages/shared/src/ws-events.ts`):
 | Event | Meaning | Client reaction |
 |---|---|---|
 | `occurrence.fired` | an occurrence became due | invalidate active/upcoming/history occurrences + reminders (the list shows each reminder's latest-occurrence status) |
-| `occurrence.changed` | status changed (ack/snooze/escalate/miss) | invalidate active/upcoming/history occurrences + reminders |
+| `occurrence.changed` | status changed (ack/snooze/escalate/miss/supersede) | invalidate active/upcoming/history occurrences + reminders |
 | `reminder.changed` | a reminder was created/updated/deleted | invalidate reminders + occurrences (active/upcoming/history) |
 | `dismiss` | clear a shown notification everywhere | service worker / native closes it |
 | `silence` | stop an escalation alarm but keep nagging | SW re-shows as a soft nag; native downgrades the alarm |
@@ -50,7 +50,9 @@ Event types (`packages/shared/src/ws-events.ts`):
 When an occurrence is acknowledged or snoozed (from any device or the SW action),
 the server broadcasts `dismiss` over WS **and** sends a `dismiss` push, so the
 notification clears on every one of the user's devices. This is the same actor's
-devices only — there is no cross-user delivery.
+devices only — there is no cross-user delivery. The scheduler uses this same
+`dismiss` (plus an `occurrence.changed`) when a newer firing **supersedes** an
+older unconfirmed one, so the stale firing's notification clears everywhere too.
 
 ## Cross-device silence
 

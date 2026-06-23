@@ -66,6 +66,7 @@ export function toOccurrence(row: ReminderOccurrence & { reminder: ReminderRow }
     acknowledgedAt: row.acknowledgedAt?.toISOString() ?? null,
     snoozedUntil: row.snoozedUntil?.toISOString() ?? null,
     escalatedAt: row.escalatedAt?.toISOString() ?? null,
+    supersededAt: row.supersededAt?.toISOString() ?? null,
     reminder: {
       title: row.reminder.title,
       details: row.reminder.details,

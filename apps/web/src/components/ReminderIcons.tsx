@@ -15,6 +15,7 @@ import SnoozeIcon from '@mui/icons-material/Snooze'
 import CampaignIcon from '@mui/icons-material/Campaign'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'
+import SkipNextIcon from '@mui/icons-material/SkipNext'
 import type { OccurrenceStatus, ReminderCategory } from '@persistent/shared'
 
 type IconSize = 'small' | 'medium' | 'large' | 'inherit'
@@ -61,7 +62,8 @@ const STATUS_ICON: Record<OccurrenceStatus, SvgIconComponent> = {
   ACKNOWLEDGED: CheckCircleIcon,
   SNOOZED: SnoozeIcon,
   ESCALATED: CampaignIcon,
-  MISSED: ErrorOutlineIcon
+  MISSED: ErrorOutlineIcon,
+  SUPERSEDED: SkipNextIcon
 }
 
 const STATUS_TITLE: Record<OccurrenceStatus, string> = {
@@ -70,7 +72,8 @@ const STATUS_TITLE: Record<OccurrenceStatus, string> = {
   ACKNOWLEDGED: 'Done',
   SNOOZED: 'Snoozed',
   ESCALATED: 'Escalated',
-  MISSED: 'Missed'
+  MISSED: 'Missed',
+  SUPERSEDED: 'Superseded'
 }
 
 export function StatusIcon({ status, fontSize = 'small' }: { status: OccurrenceStatus; fontSize?: IconSize }) {
@@ -84,7 +87,8 @@ const STATUS_COLOR: Record<OccurrenceStatus, ColorPaletteProp> = {
   ACKNOWLEDGED: 'success',
   SNOOZED: 'primary',
   ESCALATED: 'danger',
-  MISSED: 'danger'
+  MISSED: 'danger',
+  SUPERSEDED: 'neutral'
 }
 
 /** A colored, labeled status chip (e.g. green "Done", red "Missed") for list rows. */

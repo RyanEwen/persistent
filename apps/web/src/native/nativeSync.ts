@@ -159,6 +159,9 @@ async function requestPermissions(): Promise<void> {
   await PushNotifications.requestPermissions().catch(() => {})
   await AlarmPlugin.canScheduleExactAlarms().catch(() => ({ allowed: false }))
   await AlarmPlugin.requestBatteryExemption().catch(() => ({ granted: false }))
+  // Without the full-screen-intent grant (Android 14+) the escalation alarm only
+  // shows a collapsing heads-up; ask for it so the alarm stays on screen / locked.
+  await AlarmPlugin.ensureFullScreenIntent().catch(() => ({ allowed: false }))
 }
 
 let started = false

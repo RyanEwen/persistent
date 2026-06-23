@@ -23,8 +23,8 @@ occurrencesRouter.use(requireUser)
 
 /** Statuses that still need user attention. */
 const ACTIVE_STATUSES: OccurrenceStatus[] = ['FIRED', 'ESCALATED', 'SNOOZED']
-/** Past entries: handled or expired. */
-const HISTORY_STATUSES: OccurrenceStatus[] = ['ACKNOWLEDGED', 'MISSED']
+/** Past entries: handled, expired, or auto-resolved by a newer firing. */
+const HISTORY_STATUSES: OccurrenceStatus[] = ['ACKNOWLEDGED', 'MISSED', 'SUPERSEDED']
 
 // GET /api/occurrences?scope=active|upcoming|history
 occurrencesRouter.get('/', async (request, response) => {

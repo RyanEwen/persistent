@@ -173,6 +173,33 @@ class AlarmPlugin : Plugin() {
         call.resolve(JSObject().put("uri", uri?.toString() ?: "").put("title", title))
     }
 
+    /**
+     * Ensure the app may launch its full-screen alarm over the lock screen. On
+     * Android 14+ `USE_FULL_SCREEN_INTENT` is user-grantable and off by default for
+     * non-calling/alarm apps; without it the escalation only shows a heads-up that
+     * collapses, so the user can lose the alarm among other notifications. Returns
+     * whether it's allowed and, if not, opens the per-app settings to grant it.
+     */
+    @PluginMethod
+    fun ensureFullScreenIntent(call: PluginCall) {
+        var allowed = true
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+            allowed = manager.canUseFullScreenIntent()
+            if (!allowed) {
+                val intent = Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT)
+                    .setData(Uri.parse("package:${context.packageName}"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                try {
+                    context.startActivity(intent)
+                } catch (_: Exception) {
+                    // Some OEMs don't expose this screen; the heads-up banner remains.
+                }
+            }
+        }
+        call.resolve(JSObject().put("allowed", allowed))
+    }
+
     @PluginMethod
     fun requestBatteryExemption(call: PluginCall) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {

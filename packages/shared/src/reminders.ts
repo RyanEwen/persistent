@@ -30,7 +30,10 @@ export const occurrenceStatuses = [
   'ACKNOWLEDGED',
   'SNOOZED',
   'ESCALATED',
-  'MISSED'
+  'MISSED',
+  // A newer firing of the same reminder auto-resolved this still-unconfirmed one,
+  // so only the latest occurrence nags (one notification per reminder).
+  'SUPERSEDED'
 ] as const
 export const occurrenceStatusSchema = z.enum(occurrenceStatuses)
 export type OccurrenceStatus = (typeof occurrenceStatuses)[number]
@@ -220,6 +223,8 @@ export const occurrenceSchema = z.object({
   acknowledgedAt: z.string().datetime().nullable(),
   snoozedUntil: z.string().datetime().nullable(),
   escalatedAt: z.string().datetime().nullable(),
+  // When a newer firing of the same reminder superseded this one (status SUPERSEDED).
+  supersededAt: z.string().datetime().nullable(),
   // Instant this occurrence escalates to an alarm if still unacknowledged, or
   // null when no escalation is configured. Computed server-side and populated by
   // /api/sync so native clients can schedule the escalation alarm on-device

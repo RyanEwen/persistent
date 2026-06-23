@@ -41,7 +41,9 @@ best-effort (`requireInteraction` + re-fire on dismissal in the service worker).
 
 `Reminder` (the definition the user manages) → expanded by the scheduler into
 `ReminderOccurrence` rows (one per firing). The persistence guarantee = an
-occurrence is `FIRED` and not yet `ACKNOWLEDGED`. See `packages/shared/src/reminders.ts`.
+occurrence is `FIRED` and not yet `ACKNOWLEDGED`. A newer firing auto-resolves the
+same reminder's older still-unconfirmed occurrences (`SUPERSEDED`) so only the
+latest nags — one notification per reminder. See `packages/shared/src/reminders.ts`.
 
 ## Code style
 

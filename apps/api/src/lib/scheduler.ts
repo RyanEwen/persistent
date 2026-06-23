@@ -7,6 +7,11 @@
  * - materialize every 5 min: expand active reminders into the next 48h.
  * - tick every 30 s: fire PENDING occurrences whose time has arrived.
  * - sweep every 60 s: revive elapsed snoozes; escalate ignored fires; miss stale ones.
+ *
+ * Firing collapses to the newest occurrence per reminder: a fresh fire (or a
+ * revived snooze) marks the same reminder's older still-unconfirmed occurrences
+ * `SUPERSEDED` and dismisses them everywhere, so an ignored repeating reminder
+ * shows one notification, not one per missed firing (`keepNewestForReminder`).
  */
 import type { Reminder } from '@prisma/client'
 import type { PushPayload, Schedule } from '@persistent/shared'
@@ -123,8 +128,45 @@ async function fireOccurrence(occurrenceId: string): Promise<void> {
     include: { reminder: true }
   })
   if (!occurrence) return
+  // Collapse to the newest firing: this fresh fire supersedes the same reminder's
+  // older still-unconfirmed occurrences (and is itself superseded if an even newer
+  // one is already active), so the user only ever sees one notification per reminder.
+  if (!(await keepNewestForReminder(occurrence.reminderId, occurrence.userId, occurrence.id))) return
   fireNotification(occurrence.userId, occurrence.reminder, occurrence.id, occurrence.scheduledFor, false)
   broadcast(occurrence.userId, { type: 'occurrence.fired', occurrence: toOccurrence(occurrence) })
+}
+
+/**
+ * Keep only the newest still-active occurrence of a reminder; mark every older
+ * FIRED/SNOOZED/ESCALATED sibling `SUPERSEDED` and dismiss it on every device
+ * (WS + push), so a repeating reminder the user ignores collapses to a single
+ * notification instead of stacking one per firing. Returns whether `currentId`
+ * is the survivor (the caller skips dispatching a fire it just superseded).
+ */
+async function keepNewestForReminder(reminderId: string, userId: string, currentId: string): Promise<boolean> {
+  const active = await prisma.reminderOccurrence.findMany({
+    where: { reminderId, userId, status: { in: ['FIRED', 'SNOOZED', 'ESCALATED'] } },
+    orderBy: { scheduledFor: 'desc' },
+    select: { id: true }
+  })
+  const newest = active[0]
+  if (!newest || active.length === 1) return true
+  const stale = active.slice(1)
+  const now = new Date()
+  for (const { id } of stale) {
+    const updated = await prisma.reminderOccurrence.update({
+      where: { id },
+      data: { status: 'SUPERSEDED', supersededAt: now },
+      include: { reminder: true }
+    })
+    // Clear it everywhere (mirror the ack/snooze dismiss path), then refresh feeds.
+    broadcast(userId, { type: 'dismiss', occurrenceId: id })
+    void dispatchToUser(userId, { type: 'dismiss', occurrenceId: id }).catch((error) =>
+      logger.warn('supersede dismiss failed', { error: String(error) })
+    )
+    broadcast(userId, { type: 'occurrence.changed', occurrence: toOccurrence(updated) })
+  }
+  return newest.id === currentId
 }
 
 /**
@@ -205,6 +247,8 @@ async function sweep(): Promise<void> {
       data: { status: 'FIRED', snoozedUntil: null },
       include: { reminder: true }
     })
+    // A revived snooze still collapses to the newest firing of its reminder.
+    if (!(await keepNewestForReminder(updated.reminderId, updated.userId, updated.id))) continue
     fireNotification(updated.userId, updated.reminder, updated.id, updated.scheduledFor, false)
     broadcast(updated.userId, { type: 'occurrence.fired', occurrence: toOccurrence(updated) })
   }

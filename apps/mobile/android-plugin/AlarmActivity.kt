@@ -1,7 +1,10 @@
 package ca.persistent.app.alarm
 
 import android.app.Activity
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -10,6 +13,7 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 
 /**
  * Full-screen alarm UI launched over the lock screen by the full-screen intent.
@@ -20,11 +24,28 @@ class AlarmActivity : Activity() {
 
     private var occurrenceId: String? = null
 
+    // Finish this surface when its occurrence is silenced/acked/snoozed/cleared from
+    // anywhere else (the shade action, another device's WS event, the in-app button).
+    // Without this the full-screen alarm would linger after the alarm is handled
+    // elsewhere — a stale "second notification" on top of the (downgraded) shade nag.
+    private val dismissReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val target = intent.getStringExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID)
+            if (target == null || target == occurrenceId) finish()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         showOverLockScreen()
 
         occurrenceId = intent.getStringExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID)
+        ContextCompat.registerReceiver(
+            this,
+            dismissReceiver,
+            IntentFilter(ACTION_DISMISS),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
         val title = intent.getStringExtra("title") ?: "Reminder"
         val body = intent.getStringExtra("body") ?: ""
         val canSilence = intent.getBooleanExtra("canSilence", false)
@@ -88,6 +109,11 @@ class AlarmActivity : Activity() {
         setContentView(root)
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        runCatching { unregisterReceiver(dismissReceiver) }
+    }
+
     @Deprecated("Back is intentionally inert so a ringing alarm's surface stays up; exit via Done/Snooze.")
     override fun onBackPressed() {
         // Match the system clock's alarm: Back does not dismiss a ringing alarm.
@@ -102,6 +128,12 @@ class AlarmActivity : Activity() {
                 .setAction(action)
                 .putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, id)
         )
+    }
+
+    companion object {
+        /** Internal broadcast: finish the on-screen alarm surface for an occurrence
+         * (or, with no occurrence-id extra, any surface) once its alarm is handled. */
+        const val ACTION_DISMISS = "ca.persistent.app.ALARM_ACTIVITY_DISMISS"
     }
 
     private fun showOverLockScreen() {

@@ -192,6 +192,22 @@ class AlarmService : Service() {
         loops.remove(occurrenceId)?.let { handler.removeCallbacks(it) }
         if (downgraded.soundIntervalSeconds > 0) startReNotifyLoop(downgraded)
         if (active.values.none { it.alarm } && continuousAlarm) stopSound()
+        // The alarm is no longer ringing for this occurrence; tear down its
+        // full-screen surface so only the (downgraded) shade nag remains.
+        dismissAlarmSurface(occurrenceId)
+    }
+
+    /**
+     * Tell any live full-screen [AlarmActivity] to finish. Pass an occurrence id to
+     * dismiss only that one (it ignores the broadcast if it's showing a different
+     * occurrence); pass null to dismiss whatever surface is up. The surface otherwise
+     * only closes via its own Done/Snooze/Silence buttons, so this covers silence/ack/
+     * snooze driven from the shade action or another device.
+     */
+    private fun dismissAlarmSurface(occurrenceId: String?) {
+        val intent = Intent(AlarmActivity.ACTION_DISMISS).setPackage(packageName)
+        if (occurrenceId != null) intent.putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, occurrenceId)
+        sendBroadcast(intent)
     }
 
     /** (Re)bind the foreground notification to a specific occurrence. */
@@ -317,6 +333,9 @@ class AlarmService : Service() {
             .setAutoCancel(!spec.ongoing)
             .setWhen(posted)
             .setShowWhen(true)
+            // Show full content on the lock screen so the user can see *which*
+            // reminder is firing without unlocking — the alarm must be findable.
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setSortKey((Long.MAX_VALUE - posted).toString().padStart(20, '0'))
             // For an alarm, tapping the notification body brings up the full-screen
             // control surface (Done/Snooze) rather than opening the app, so once the
@@ -434,6 +453,8 @@ class AlarmService : Service() {
         alarmIds.remove(occurrenceId)
         loops.remove(occurrenceId)?.let { handler.removeCallbacks(it) }
         nm.cancel(notifId(occurrenceId))
+        // Done/Snooze/dismiss for this occurrence — close its full-screen surface too.
+        dismissAlarmSurface(occurrenceId)
         AlarmPlugin.cancelAlarm(this, occurrenceId)
         AlarmStore.remove(this, occurrenceId)
         // Also drop any pending escalation timer for this occurrence.
@@ -469,6 +490,7 @@ class AlarmService : Service() {
         activeIds.clear()
         alarmIds.clear()
         foregroundId = null
+        dismissAlarmSurface(null)
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
