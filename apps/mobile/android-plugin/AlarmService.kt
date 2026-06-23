@@ -16,6 +16,7 @@ import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import androidx.core.app.NotificationCompat
+import ca.persistent.app.R
 
 /**
  * Foreground service that runs the actual alarms: ongoing, non-dismissable,
@@ -221,7 +222,7 @@ class AlarmService : Service() {
         ensureChannels()
         return NotificationCompat.Builder(this, CHANNEL_SILENT)
             .setContentTitle("Reminder")
-            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+            .setSmallIcon(R.drawable.ic_stat_bell)
             .build()
     }
 
@@ -309,7 +310,7 @@ class AlarmService : Service() {
         val builder = NotificationCompat.Builder(this, CHANNEL_SILENT)
             .setContentTitle(spec.title)
             .setContentText(if (awaitingConfirm) "Tap \"Confirm done\" to mark complete" else spec.body)
-            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+            .setSmallIcon(R.drawable.ic_stat_bell)
             .setCategory(if (spec.alarm) NotificationCompat.CATEGORY_ALARM else NotificationCompat.CATEGORY_REMINDER)
             .setPriority(if (spec.alarm) NotificationCompat.PRIORITY_MAX else NotificationCompat.PRIORITY_HIGH)
             .setOngoing(spec.ongoing)

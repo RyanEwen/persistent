@@ -1,0 +1,30 @@
+/**
+ * BrandMark — the app's bell icon (the favicon glyph) rendered inline as an SVG
+ * for in-app branding (top bar, sign-in). Square; size is in px. Keep the glyph
+ * in sync with apps/web/public/favicon.svg and apps/mobile/assets/*.svg.
+ */
+
+export function BrandMark({ size = 28, rounded = true }: { size?: number; rounded?: boolean }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 64 64"
+      role="img"
+      aria-label="Persistent"
+      style={{ display: 'block', flexShrink: 0 }}
+    >
+      <rect width="64" height="64" rx={rounded ? 14 : 0} fill="#0b0f19" />
+      <g transform="translate(-3.5 0) rotate(-16 32 30)">
+        <g fill="none" stroke="#6ea8fe" strokeWidth="3.2" strokeLinecap="round" opacity="0.55">
+          <line x1="46" y1="22" x2="54" y2="18" />
+          <line x1="48" y1="28" x2="56" y2="27" />
+          <line x1="48" y1="34" x2="56" y2="35" />
+        </g>
+        <path d="M32 14a12 12 0 0 0-12 12v9l-4 6v2h32v-2l-4-6v-9a12 12 0 0 0-12-12z" fill="#6ea8fe" />
+        <rect x="30.5" y="9" width="3" height="5" rx="1.5" fill="#6ea8fe" />
+        <circle cx="32" cy="50" r="4.5" fill="#6ea8fe" />
+      </g>
+    </svg>
+  )
+}

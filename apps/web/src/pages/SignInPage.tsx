@@ -19,6 +19,7 @@ import { useQuery } from '@tanstack/react-query'
 import { extractErrorMessage, type AuthConfig } from '@persistent/shared'
 import { useAuth } from '../auth/useAuth.js'
 import { apiFetch } from '../lib/apiClient.js'
+import { BrandMark } from '../components/BrandMark.js'
 import { GoogleSignInButton } from '../components/GoogleSignInButton.js'
 
 export function SignInPage() {
@@ -80,7 +81,8 @@ export function SignInPage() {
   return (
     <Box sx={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', p: 2 }}>
       <Sheet variant="outlined" sx={{ p: 3, borderRadius: 'lg', width: '100%', maxWidth: 380 }}>
-        <Typography level="h3" sx={{ mb: 0.5 }}>
+        <BrandMark size={56} />
+        <Typography level="h3" sx={{ mt: 1.5, mb: 0.5 }}>
           Persistent
         </Typography>
         <Typography level="body-sm" sx={{ mb: 2 }}>

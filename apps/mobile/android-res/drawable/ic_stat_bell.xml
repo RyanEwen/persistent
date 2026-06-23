@@ -1,0 +1,39 @@
+<!-- Status-bar notification icon: the app's shaking bell as a white silhouette.
+     Android tints status-bar icons by alpha, so every path is opaque white.
+     Keep in sync with apps/mobile/assets/*.svg. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <group
+        android:translateX="-3.5"
+        android:pivotX="32"
+        android:pivotY="30"
+        android:rotation="-16">
+        <path
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="3.6"
+            android:strokeLineCap="round"
+            android:pathData="M46,22 L54,18" />
+        <path
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="3.6"
+            android:strokeLineCap="round"
+            android:pathData="M48,28 L56,27" />
+        <path
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="3.6"
+            android:strokeLineCap="round"
+            android:pathData="M48,34 L56,35" />
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M32,14 a12,12 0 0 0 -12,12 v9 l-4,6 v2 h32 v-2 l-4,-6 v-9 a12,12 0 0 0 -12,-12 z" />
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M30.5,9 h3 v5 h-3 z" />
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M27.5,50 a4.5,4.5 0 1 0 9,0 a4.5,4.5 0 1 0 -9,0 z" />
+    </group>
+</vector>

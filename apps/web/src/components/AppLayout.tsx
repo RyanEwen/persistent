@@ -8,6 +8,7 @@ import Box from '@mui/joy/Box'
 import Sheet from '@mui/joy/Sheet'
 import Typography from '@mui/joy/Typography'
 import { BottomNav } from './BottomNav.js'
+import { BrandMark } from './BrandMark.js'
 import { GetTheAppButton, NativePromoBanner } from './GetTheApp.js'
 import { useSettings } from '../settings/useSettings.js'
 import { getTheme, themeSx } from '../settings/themes.js'
@@ -30,9 +31,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
           bgcolor: 'background.surface'
         }}
       >
-        <Typography component={RouterLink} to="/" level="title-lg" sx={{ textDecoration: 'none' }}>
-          Persistent
-        </Typography>
+        <Box
+          component={RouterLink}
+          to="/"
+          sx={{ display: 'flex', alignItems: 'center', gap: 1, textDecoration: 'none', color: 'inherit' }}
+        >
+          <BrandMark size={26} />
+          <Typography level="title-lg">Persistent</Typography>
+        </Box>
         <Box sx={{ flex: 1 }} />
         <GetTheAppButton />
       </Sheet>

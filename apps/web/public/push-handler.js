@@ -93,6 +93,8 @@ function buildOptions(data, payload) {
   return {
     tag: data.occurrenceId,
     body: data.body || (payload && payload.body) || '',
+    icon: '/favicon.svg',
+    badge: '/badge.svg',
     requireInteraction: true,
     renotify: true,
     data,

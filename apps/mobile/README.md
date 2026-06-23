@@ -43,8 +43,10 @@ npm run prepare:android   # build web -> cap add android -> wire plugin -> cap s
      `persistent-alarm` marker comments),
    - installs `android-plugin/MainActivity.java` (registers `AlarmPlugin` +
      `UpdatePlugin`),
-   - overlays the app launcher icon from `android-res/` (the bell; rasterized
-     from `assets/*.svg` by `npm run gen:icons` — re-run after editing an icon),
+   - overlays the launcher icons + the notification status icon from
+     `android-res/` (the bell; launcher PNGs are rasterized from `assets/*.svg`
+     by `npm run gen:icons`, the status-bar icon is the vector
+     `drawable/ic_stat_bell.xml`),
    - if `ANDROID_KEYSTORE_FILE` is set, copies the keystore in and injects a
      release `signingConfig` (passwords read from env at build time), plus
      `versionName`/`versionCode` from `ANDROID_VERSION_NAME`/`_CODE`.
