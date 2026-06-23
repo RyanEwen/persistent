@@ -43,8 +43,8 @@ npm run prepare:android   # build web -> cap add android -> wire plugin -> cap s
      `persistent-alarm` marker comments),
    - installs `android-plugin/MainActivity.java` (registers `AlarmPlugin` +
      `UpdatePlugin`),
-   - overlays the app launcher icon from `android-res/` (the bell; regenerate
-     from `assets/*.svg` if you change it),
+   - overlays the app launcher icon from `android-res/` (the bell; rasterized
+     from `assets/*.svg` by `npm run gen:icons` — re-run after editing an icon),
    - if `ANDROID_KEYSTORE_FILE` is set, copies the keystore in and injects a
      release `signingConfig` (passwords read from env at build time), plus
      `versionName`/`versionCode` from `ANDROID_VERSION_NAME`/`_CODE`.
@@ -116,7 +116,8 @@ install over each other.
 The app checks GitHub for a newer release on launch (and from Settings → About):
 `UpdatePlugin` downloads the APK and launches the installer. Because the UI loads
 from `server.url`, web-only changes reach devices via a prod deploy with no new
-APK — rebuild the APK only for native changes (alarm/update plugins, manifest).
+APK — rebuild the APK only for native changes (alarm/update plugins, manifest,
+launcher icon).
 
 To build a signed release locally, set the `ANDROID_*` vars (see `.env.example`)
 in the workspace `.env`, then:

@@ -6,6 +6,7 @@
   "description": "Capacitor (Android) wrapper of the web app + the native alarm plugin.",
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "gen:icons": "node scripts/gen-icons.mjs",
     "build:web": "npm --prefix ../.. run build --workspace @persistent/shared && npm --prefix ../.. run build --workspace @persistent/web",
     "add:android": "cap add android",
     "setup:android": "node scripts/setup-android.mjs",

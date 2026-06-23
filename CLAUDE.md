@@ -96,4 +96,5 @@ directory guide `apps/api/CLAUDE.md`.
   related work.
 - Repeatable workflows are `.claude/commands/` slash commands: `/commit`
   (review + validate + commit), `/deploy` (commit + push + SSH-Docker deploy),
-  `/audit-docs` (resync docs with the code).
+  `/release` (version-bump + tag; CI builds the signed APK + GitHub Release),
+  and `/audit-docs` (resync docs with the code).

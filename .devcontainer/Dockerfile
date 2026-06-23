@@ -4,7 +4,9 @@
 # no in-workspace slicer, so the BambuStudio/qemu/wine/ffmpeg runtime layers are
 # dropped. We keep the common CLI tooling (gh, ripgrep, jq, postgres-client, …)
 # plus a JDK + Android command-line tools so the Capacitor Android client
-# (apps/mobile) can be built from inside the container later.
+# (apps/mobile) can be built from inside the container later. librsvg2-bin
+# (rsvg-convert) rasterizes the app-icon SVGs into launcher PNGs via
+# `npm run gen:icons` in apps/mobile.
 FROM mcr.microsoft.com/devcontainers/typescript-node:4.0.6-20-trixie
 
 ARG DEBIAN_FRONTEND=noninteractive
@@ -22,6 +24,7 @@ RUN set -eux; \
       htop \
       jq \
       less \
+      librsvg2-bin \
       postgresql-client \
       ripgrep \
       tree \
