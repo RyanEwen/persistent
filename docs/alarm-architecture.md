@@ -112,7 +112,12 @@ content shows on the lock screen (the user can see which reminder is firing).
 
 A reminder may **escalate to an alarm** if unacknowledged — either N minutes
 after firing (`escalateAfterMinutes`) or at a specific wall-clock time
-(`escalateAtTime`, user-tz aware). Escalation always rings an alarm on the user's
+(`escalateAtTime`, user-tz aware). The escalation instant is always the first
+occurrence of that time **at or after the firing**, rolling to the next day when
+the wall-clock time is earlier than the firing (so a 23:45 reminder escalating at
+`01:30` rings the next morning, not ~22h before it fires). Both the server sweep
+and `/api/sync/occurrences` derive it from the same pure helper
+(`lib/escalation.ts`). Escalation always rings an alarm on the user's
 own devices and may **also email a contact** (`escalateEmail` +
 `escalateEmailMessage`, sent once via `sendCloudflareEmail` on escalation). It
 does **not** apply to `ALARM`-persistence reminders (they already ring

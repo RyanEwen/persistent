@@ -21,7 +21,7 @@ import { expandSchedule } from './schedule-expand.js'
 import { notificationTitle, notificationBody } from './notification-format.js'
 import { dispatchToUser } from './delivery/index.js'
 import { sendCloudflareEmail } from './cloudflare-email.js'
-import { DateTime } from 'luxon'
+import { escalateAtFor } from './escalation.js'
 import { toOccurrence } from './serializers.js'
 import { broadcast } from './realtime.js'
 
@@ -333,34 +333,3 @@ async function sendEscalationEmail(reminder: Reminder): Promise<void> {
   await sendCloudflareEmail({ to, subject: `Reminder overdue: ${reminder.title}`, text: message })
 }
 
-/**
- * When an occurrence escalates to an alarm, or null if no escalation is set.
- * `firedBase` is the fire instant the "after N minutes" threshold counts from
- * (the occurrence's firedAt once fired, else its scheduled time). Shared by the
- * server sweep and the /api/sync endpoint (which schedules the alarm on-device).
- */
-export function escalateAtFor(
-  firedBase: Date,
-  scheduledFor: Date,
-  reminder: { escalateAfterMinutes: number | null; escalateAtTime: string | null },
-  tz: string
-): Date | null {
-  if (reminder.escalateAfterMinutes != null) {
-    return new Date(firedBase.getTime() + reminder.escalateAfterMinutes * 60_000)
-  }
-  if (reminder.escalateAtTime != null) {
-    return escalationInstant(scheduledFor, reminder.escalateAtTime, tz)
-  }
-  return null
-}
-
-/** Absolute escalation instant: the occurrence's local day at "HH:mm" in the user's zone. */
-function escalationInstant(scheduledFor: Date, hhmm: string, tz: string): Date {
-  const [hs, ms] = hhmm.split(':')
-  const hour = Number(hs)
-  const minute = Number(ms)
-  if (Number.isNaN(hour) || Number.isNaN(minute)) return new Date(8.64e15) // never (far future)
-  return DateTime.fromJSDate(scheduledFor, { zone: tz })
-    .set({ hour, minute, second: 0, millisecond: 0 })
-    .toJSDate()
-}

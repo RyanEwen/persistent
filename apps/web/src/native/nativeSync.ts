@@ -70,12 +70,15 @@ function buildAlarms(occurrence: Occurrence): ScheduledAlarm[] {
   const alarms = [main]
   // Escalation can't ride server push on devices without FCM, so schedule it
   // on-device: a looping alarm at the computed instant, cancelled together with
-  // the main alarm on ack/dismiss.
-  if (occurrence.escalateAt && occurrence.status !== 'ESCALATED') {
+  // the main alarm on ack/dismiss. Guard that the instant is strictly after the
+  // main fire — an escalation must never ring before its reminder does (a server
+  // miscompute here once rang the next day's dose ~22h early).
+  const escalateAtMs = occurrence.escalateAt ? new Date(occurrence.escalateAt).getTime() : 0
+  if (escalateAtMs > main.fireAtMs && occurrence.status !== 'ESCALATED') {
     alarms.push({
       ...main,
       occurrenceId: main.occurrenceId + ESC_SUFFIX,
-      fireAtMs: new Date(occurrence.escalateAt).getTime(),
+      fireAtMs: escalateAtMs,
       alarm: true,
       soundIntervalSeconds: 0,
       soundUri: chosenSoundUri('alarmSound'),

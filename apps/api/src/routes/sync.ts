@@ -7,7 +7,7 @@ import { Router } from 'express'
 import { prisma } from '../lib/prisma.js'
 import { requireUser, requireUserId } from '../lib/auth-middleware.js'
 import { toOccurrence } from '../lib/serializers.js'
-import { escalateAtFor } from '../lib/scheduler.js'
+import { escalateAtFor } from '../lib/escalation.js'
 
 export const syncRouter = Router()
 syncRouter.use(requireUser)
