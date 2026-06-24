@@ -96,13 +96,14 @@ class AlarmService : Service() {
                 }
             }
             ACTION_REFRESH -> {
-                // A resync may have changed a live reminder's per-reminder shade
-                // prominence; re-post any active notification whose channel changed.
+                // A resync may have edited a live reminder (rename, body, or
+                // per-reminder shade prominence); re-post any active notification
+                // whose text or channel changed.
                 if (active.isEmpty()) {
                     startForeground(SENTINEL_ID, placeholderNotification())
                     clearAll()
                 } else {
-                    refreshActiveProminence()
+                    refreshActive()
                 }
             }
             ACTION_RESHOW -> {
@@ -149,6 +150,7 @@ class AlarmService : Service() {
             loops.remove(spec.occurrenceId)?.let { handler.removeCallbacks(it) }
             if (spec.soundIntervalSeconds > 0) startReNotifyLoop(spec)
         }
+        updateGroupSummary()
     }
 
     /**
@@ -216,6 +218,8 @@ class AlarmService : Service() {
         // The alarm is no longer ringing for this occurrence; tear down its
         // full-screen surface so only the (downgraded) shade nag remains.
         dismissAlarmSurface(occurrenceId)
+        // A downgraded alarm may now sit on a (minimized) channel, changing the group.
+        updateGroupSummary()
     }
 
     /**
@@ -250,6 +254,7 @@ class AlarmService : Service() {
                 nm.notify(notifId(id), notif)
             }
         }
+        updateGroupSummary()
     }
 
     /**
@@ -275,35 +280,48 @@ class AlarmService : Service() {
                 nm.notify(notifId(id), notif)
             }
         }
+        updateGroupSummary()
     }
 
     /**
-     * After a resync, pick up per-reminder shade-prominence changes for live
-     * notifications. For each active non-alarm occurrence whose stored prominence
-     * now resolves to a different channel, re-post it there (cancel + re-post; an
-     * in-place notify() won't move a notification's channel). `postedAt` is
-     * retained so positions hold and no sound replays (audio is separate).
+     * After a resync, bring live notifications in line with the server: pick up an
+     * edited reminder's title/body (e.g. a rename) and any per-reminder shade-
+     * prominence change. Title/body update in place (same channel); a prominence
+     * change that moves the channel needs a cancel + re-post (an in-place notify()
+     * won't move a notification's channel). Prominence applies to soft notifications
+     * only — alarms/escalations stay pinned to the alarm channel — but text updates
+     * for everything. `postedAt` is retained so positions hold and no sound replays
+     * (audio is separate). The live alarm/silence state is left untouched.
      */
-    private fun refreshActiveProminence() {
+    private fun refreshActive() {
         ensureChannels()
         for (id in active.keys.toList()) {
             val current = active[id] ?: continue
-            if (current.alarm) continue // alarms/escalations always use the alarm channel
             val stored = AlarmStore.find(this, id) ?: continue
-            if (stored.shadeProminence == current.shadeProminence) continue
-            val updated = current.copy(shadeProminence = stored.shadeProminence)
+            val prominence = if (current.alarm) current.shadeProminence else stored.shadeProminence
+            val updated = current.copy(title = stored.title, body = stored.body, shadeProminence = prominence)
+            val channelChanged = channelFor(updated) != channelFor(current)
+            if (updated.title == current.title && updated.body == current.body && !channelChanged) continue
             active[id] = updated
-            if (channelFor(updated) == channelFor(current)) continue
             val notif = buildNotification(updated)
-            if (foregroundId == id) {
-                stopForeground(STOP_FOREGROUND_DETACH)
-                nm.cancel(notifId(id))
+            if (channelChanged) {
+                // The channel moved — cancel then re-post (detach the foreground-bound
+                // one first so the service stays alive across the swap).
+                if (foregroundId == id) {
+                    stopForeground(STOP_FOREGROUND_DETACH)
+                    nm.cancel(notifId(id))
+                    startForeground(notifId(id), notif)
+                } else {
+                    nm.cancel(notifId(id))
+                    nm.notify(notifId(id), notif)
+                }
+            } else if (foregroundId == id) {
                 startForeground(notifId(id), notif)
             } else {
-                nm.cancel(notifId(id))
                 nm.notify(notifId(id), notif)
             }
         }
+        updateGroupSummary()
     }
 
     /**
@@ -323,6 +341,34 @@ class AlarmService : Service() {
 
     private fun resolveUri(uriStr: String, defaultType: Int): android.net.Uri =
         if (uriStr.isNotEmpty()) android.net.Uri.parse(uriStr) else RingtoneManager.getDefaultUri(defaultType)
+
+    /**
+     * Keep the group summary in step with the live non-minimized notifications. The
+     * summary is what collapses them to one status-bar icon; Android only needs it
+     * once two or more share the group (a lone child shows on its own), so post it
+     * then and cancel it otherwise. Minimized notifications are ungrouped and don't
+     * count. The summary is silent (GROUP_ALERT_CHILDREN) so re-posting it on every
+     * change never pops a banner.
+     */
+    private fun updateGroupSummary() {
+        val grouped = active.values.count { channelFor(it) != CHANNEL_MINIMIZED }
+        if (grouped < 2) {
+            nm.cancel(GROUP_SUMMARY_ID)
+            return
+        }
+        ensureChannels()
+        val summary = NotificationCompat.Builder(this, CHANNEL_NORMAL)
+            .setContentTitle("Reminders")
+            .setContentText("$grouped active reminders")
+            .setSmallIcon(R.drawable.ic_stat_bell)
+            .setGroup(GROUP_KEY)
+            .setGroupSummary(true)
+            .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setOngoing(true)
+            .build()
+        nm.notify(GROUP_SUMMARY_ID, summary)
+    }
 
     private fun placeholderNotification(): android.app.Notification {
         ensureChannels()
@@ -449,6 +495,15 @@ class AlarmService : Service() {
         if (spec.ongoing) {
             builder.setDeleteIntent(reshowPending)
         }
+        // Bundle the non-minimized reminders under one group + summary so the status
+        // bar shows a single icon (and the shade collapses them) instead of one icon
+        // per reminder. Minimized ones stay ungrouped: they're low-importance, tucked
+        // into the silent section with no status-bar icon, so they need no collapsing.
+        // GROUP_ALERT_CHILDREN keeps the (silent) summary from ever stealing a child's
+        // heads-up / full-screen alert.
+        if (channel != CHANNEL_MINIMIZED) {
+            builder.setGroup(GROUP_KEY).setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
+        }
         return builder.build()
     }
 
@@ -558,6 +613,7 @@ class AlarmService : Service() {
             clearAll()
             return
         }
+        updateGroupSummary()
         // Re-bind the foreground notification if the cleared one was holding it.
         if (foregroundId == occurrenceId) {
             active.values.lastOrNull()?.let { bindForeground(it) }
@@ -582,6 +638,7 @@ class AlarmService : Service() {
         activeIds.clear()
         alarmIds.clear()
         foregroundId = null
+        nm.cancel(GROUP_SUMMARY_ID)
         dismissAlarmSurface(null)
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -650,6 +707,10 @@ class AlarmService : Service() {
         private const val CHANNEL_NORMAL = "reminders_normal"
         private const val CHANNEL_MINIMIZED = "reminders_minimized"
         private const val SENTINEL_ID = 4201
+        // Group key + summary id that bundle the non-minimized reminders into one
+        // status-bar icon (see updateGroupSummary / buildNotification).
+        private const val GROUP_KEY = "ca.persistent.app.reminders"
+        private const val GROUP_SUMMARY_ID = 4202
         private const val VIBRATE_KEY = "__vibrate__"
 
         // What's currently showing (and which of those are ringing as an alarm), so
@@ -658,6 +719,20 @@ class AlarmService : Service() {
         val alarmIds: MutableSet<String> = java.util.Collections.synchronizedSet(LinkedHashSet())
         fun isActive(occurrenceId: String): Boolean = activeIds.contains(occurrenceId)
         fun isAlarmActive(occurrenceId: String): Boolean = alarmIds.contains(occurrenceId)
+
+        /**
+         * Clear any live notification whose occurrence isn't in the latest sync set
+         * (`keepBaseIds` = the base occurrence ids the server still wants shown). This
+         * is how a resync catches up on dismisses it missed while offline: an
+         * occurrence acked/superseded/deleted elsewhere is no longer in the set, so its
+         * lingering notification is stopped. Active ids are always base ids (an
+         * escalation upgrades the base occurrence in place), so they compare directly.
+         */
+        fun cancelMissing(context: Context, keepBaseIds: Set<String>) {
+            for (id in activeIds.toList()) {
+                if (id !in keepBaseIds) stopFor(context, id)
+            }
+        }
 
         /** Bring the WebView app to the foreground (used by the notification tap). */
         fun launchAppPublic(context: Context) = launchApp(context)

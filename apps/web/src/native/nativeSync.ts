@@ -169,18 +169,47 @@ async function requestPermissions(): Promise<void> {
   // POST_NOTIFICATIONS (Android 13+) — without it the alarm notification is
   // silently dropped. requestPermissions() drives the runtime prompt without
   // touching Firebase.
-  //
-  // NOTE: we deliberately do NOT call PushNotifications.register() here. That
-  // initializes FCM, which hard-crashes the app when google-services.json is
-  // absent (a native error JS can't catch). FCM is only the cross-device /
-  // escalation backup; on-device exact alarms cover firing. Wire register() back
-  // in (guarded) once Firebase is configured.
   await PushNotifications.requestPermissions().catch(() => {})
   await AlarmPlugin.canScheduleExactAlarms().catch(() => ({ allowed: false }))
   await AlarmPlugin.requestBatteryExemption().catch(() => ({ granted: false }))
   // Without the full-screen-intent grant (Android 14+) the escalation alarm only
   // shows a collapsing heads-up; ask for it so the alarm stays on screen / locked.
   await AlarmPlugin.ensureFullScreenIntent().catch(() => ({ allowed: false }))
+}
+
+/**
+ * Register for FCM so the server can push fire/escalate/dismiss/sync to this
+ * device (the cross-device / ad-hoc / closed-app backup to on-device alarms). The
+ * native FcmService acts on pushes even when the bridge is dead; these JS listeners
+ * cover token hand-off and the bridge-alive resync.
+ *
+ * Gated on the server's `fcmEnabled`: calling PushNotifications.register() without
+ * Firebase configured hard-crashes the app (a native error JS can't catch), so we
+ * only register when the server reports FCM is set up — which means the operator
+ * has provisioned Firebase and the APK ships google-services.json.
+ */
+async function initFcm(): Promise<void> {
+  let fcmEnabled = false
+  try {
+    fcmEnabled = (await apiFetch<{ fcmEnabled: boolean }>('/api/push/config')).fcmEnabled
+  } catch {
+    return
+  }
+  if (!fcmEnabled) return
+
+  await PushNotifications.addListener('registration', (token) => {
+    void apiFetch('/api/push/subscriptions', {
+      method: 'POST',
+      body: JSON.stringify({ kind: 'FCM', token: token.value })
+    }).catch(() => {})
+  })
+  await PushNotifications.addListener('registrationError', () => {
+    /* leave on-device alarms as the guarantee; nothing to do */
+  })
+  // A push arriving while the bridge is alive: the FcmService already applied the
+  // self-contained action natively, so just reconcile to the server's truth.
+  await PushNotifications.addListener('pushNotificationReceived', () => scheduleResync())
+  await PushNotifications.register().catch(() => {})
 }
 
 let started = false
@@ -195,6 +224,7 @@ export async function initNative(): Promise<void> {
   // if unchanged, so this won't needlessly re-post).
   await AlarmPlugin.setDefaultShadeProminence({ minimized: defaultShadeMinimized() }).catch(() => {})
   await syncAlarms().catch(() => {})
+  await initFcm().catch(() => {})
   await consumePendingNavigation().catch(() => {})
 
   // Live updates: react to the server's WS stream.

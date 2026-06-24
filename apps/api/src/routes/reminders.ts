@@ -15,7 +15,7 @@ import { toReminder } from '../lib/serializers.js'
 import { isStaleWrite } from '../lib/conflict.js'
 import { materializeReminder, fireDueForReminder } from '../lib/scheduler.js'
 import { broadcast } from '../lib/realtime.js'
-import { dispatchToUser } from '../lib/delivery/index.js'
+import { dispatchToUser, nudgeNativeSync } from '../lib/delivery/index.js'
 import { logger } from '../lib/logger.js'
 
 export const remindersRouter = Router()
@@ -53,6 +53,7 @@ remindersRouter.post('/', async (request, response) => {
   // its "now" default), so the reminder nags immediately instead of after a tick.
   await fireDueForReminder(reminder.id)
   broadcast(userId, { type: 'reminder.changed', reminderId: reminder.id })
+  void nudgeNativeSync(userId).catch((error) => logger.warn('sync nudge failed', { error: String(error) }))
   response.status(201).json({ reminder: toReminder(reminder) })
 })
 
@@ -82,6 +83,7 @@ remindersRouter.put('/:id', async (request, response) => {
   await materializeForUser(reminder.id, userId)
   await fireDueForReminder(reminder.id)
   broadcast(userId, { type: 'reminder.changed', reminderId: reminder.id })
+  void nudgeNativeSync(userId).catch((error) => logger.warn('sync nudge failed', { error: String(error) }))
   response.json({ reminder: toReminder(reminder) })
 })
 
@@ -107,6 +109,8 @@ remindersRouter.delete('/:id', async (request, response) => {
       logger.warn('delete dismiss dispatch failed', { error: String(error), occurrenceId: occurrence.id })
     )
   }
+  // Nudge native devices to drop the deleted reminder's future on-device alarms.
+  void nudgeNativeSync(userId).catch((error) => logger.warn('sync nudge failed', { error: String(error) }))
   response.json({ ok: true })
 })
 

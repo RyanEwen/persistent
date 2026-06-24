@@ -54,6 +54,13 @@ class AlarmPlugin : Plugin() {
         // Replace the whole set: cancel everything we knew, then arm the new list.
         for (existing in AlarmStore.all(context)) cancelAlarm(context, existing.occurrenceId)
         AlarmStore.replaceAll(context, incoming)
+        // Drop any live notification whose occurrence this sync no longer lists
+        // (acked / superseded / deleted elsewhere while we were offline and — with
+        // FCM off — couldn't get the dismiss). Otherwise a stale notification lingers,
+        // and when a newer firing arrived meanwhile the user sees both: the old name
+        // and the new. Sync's id is the base occurrence; escalation rides the base.
+        val keepBaseIds = incoming.map { it.occurrenceId.removeSuffix(AlarmReceiver.ESC_SUFFIX) }.toSet()
+        AlarmService.cancelMissing(context, keepBaseIds)
         val now = System.currentTimeMillis()
         for (alarm in incoming) {
             // Don't re-fire a past-due alarm that's already on screen — otherwise
@@ -67,8 +74,9 @@ class AlarmPlugin : Plugin() {
             }
             armAlarm(context, alarm)
         }
-        // A live reminder's per-reminder prominence may have changed in this sync;
-        // re-post any active notification onto its new channel.
+        // A live reminder may have been edited in this sync (renamed, body or
+        // per-reminder prominence changed); re-post any active notification so its
+        // text and channel match the server.
         AlarmService.refreshActiveStyles(context)
         call.resolve()
     }

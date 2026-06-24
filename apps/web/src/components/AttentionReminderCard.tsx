@@ -10,7 +10,6 @@ import { Link as RouterLink } from 'react-router-dom'
 import Card from '@mui/joy/Card'
 import Stack from '@mui/joy/Stack'
 import Box from '@mui/joy/Box'
-import Link from '@mui/joy/Link'
 import Typography from '@mui/joy/Typography'
 import Button from '@mui/joy/Button'
 import SnoozeIcon from '@mui/icons-material/Snooze'
@@ -42,12 +41,13 @@ export function AttentionReminderCard({
   return (
     <Card color="warning" variant="soft">
       {/* Tap the info region to edit the reminder (same target as the plain list row).
-          The buttons are a separate sibling below, so they act without navigating. */}
-      <Link
+          The buttons are a separate sibling below, so they act without navigating.
+          Use Box (not Joy Link) so the nested Typography lines stay block-level —
+          Joy Link forces descendant Typography inline, collapsing them onto one row. */}
+      <Box
         component={RouterLink}
         to={`/reminders/${reminder.id}`}
-        underline="none"
-        sx={{ color: 'inherit', display: 'block' }}
+        sx={{ color: 'inherit', display: 'block', textDecoration: 'none' }}
       >
         <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
           <Box sx={{ minWidth: 0 }}>
@@ -69,7 +69,7 @@ export function AttentionReminderCard({
             <StatusChip status={occurrence.status} />
           </Box>
         </Stack>
-      </Link>
+      </Box>
       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center" sx={{ mt: 1 }}>
         <Button color="success" loading={doneLoading} onClick={onDone}>
           Done

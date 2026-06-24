@@ -13,3 +13,16 @@ export { getVapidPublicKey, isFcmConfigured }
 export async function dispatchToUser(userId: string, payload: PushPayload): Promise<void> {
   await Promise.all([sendWebPush(userId, payload), sendFcmPush(userId, payload)])
 }
+
+/**
+ * Nudge the user's native devices to resync their on-device alarms — FCM only.
+ * Used on reminder edits, which have no self-contained fire/dismiss payload but
+ * still change what a device should schedule/show. We deliberately skip Web Push:
+ * a push event that shows no notification makes browsers surface a generic "site
+ * updated" notification, and open web clients already converge over the WS
+ * broadcast. Native devices with a live bridge resync on this; the on-device alarm
+ * plus the fire/dismiss pushes remain the backstop while the app is fully closed.
+ */
+export async function nudgeNativeSync(userId: string): Promise<void> {
+  await sendFcmPush(userId, { type: 'sync' })
+}

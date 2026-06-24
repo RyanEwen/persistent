@@ -33,7 +33,13 @@ So we split responsibilities:
   unreachable. It re-syncs **live on every WS event** (`reminder.changed` /
   `occurrence.*`) and on app resume; reboots re-schedule via `BOOT_COMPLETED`.
   Ack/snooze/delete elsewhere broadcast `dismiss`, which the bridge turns into a
-  native cancel so a cleared/deleted reminder's alarm stops on every device.
+  native cancel so a cleared/deleted reminder's alarm stops on every device. A full
+  resync also **reconciles the posted notifications** against the server's set:
+  `scheduleAll` drops any live notification whose occurrence is no longer returned
+  (`AlarmService.cancelMissing`) and refreshes the text/channel of the survivors
+  (`refreshActive`). This is how a device catches up on dismisses/edits it missed
+  while closed — e.g. a reminder superseded by a newer firing, or renamed, while the
+  app couldn't receive the live event — so it can't show a stale or duplicate nag.
 - **Server push is the backup**, not the primary fire path for native: it covers
   cross-device delivery, ad-hoc/just-created reminders, and escalation.
 
@@ -116,6 +122,13 @@ never gates audio). The native client posts to one of three silent channels:
 - `reminders_minimized` ("Reminders (minimized)", `IMPORTANCE_LOW`) — collapsed
   "silent" section at the bottom of the shade, no pop-up.
 
+The non-minimized notifications are bundled under one **notification group** + a
+summary (`updateGroupSummary`), so several active reminders collapse to a single
+status-bar icon instead of one per reminder. The summary is silent
+(`GROUP_ALERT_CHILDREN`, so it never steals a child's heads-up/full-screen) and is
+posted only when two or more share the group. Minimized notifications stay
+ungrouped — `IMPORTANCE_LOW` shows no status-bar icon, so they need no collapsing.
+
 The level is chosen per non-alarm notification by `channelFor(spec)`: a reminder's
 own `shadeProminence` (`NORMAL`/`MINIMIZED`), or — when `INHERIT` — the **device
 default** stored in `AlarmStore` (`SettingsPage` -> `setDefaultShadeProminence` ->
@@ -131,18 +144,40 @@ hold and no sound replays):
 
 - **Device default** changed -> `ACTION_RESTYLE` -> `restyleActive` re-posts every
   active notification immediately.
-- **Per-reminder** value changed -> the next resync's `scheduleAll` calls
-  `AlarmService.refreshActiveStyles` (`ACTION_REFRESH` -> `refreshActiveProminence`),
-  which reloads each active spec from `AlarmStore` and re-posts only those whose
-  channel actually changed. (Without this, an in-place re-post — including the
-  swipe-away reshow — would leave a live notification stranded on its old channel.)
+- **Per-reminder** value changed (or the reminder was renamed / its body edited) ->
+  the next resync's `scheduleAll` calls `AlarmService.refreshActiveStyles`
+  (`ACTION_REFRESH` -> `refreshActive`), which reloads each active spec from
+  `AlarmStore` and re-posts those whose title/body changed (in place) or whose
+  channel changed (cancel + re-post). (Without this, an in-place re-post — including
+  the swipe-away reshow — would leave a live notification stranded on its old
+  channel or showing the pre-edit text.)
 
 ## Push channels
 
 - **Web Push (VAPID)** for browsers — `apps/api/src/lib/delivery/web-push.ts`.
-- **FCM (HTTP v1)** for native Android — `apps/api/src/lib/delivery/fcm-push.ts`
-  (optional; no-op until `FCM_*` env is set). The dispatcher
-  (`delivery/index.ts`) targets each device by `PushSubscription.kind`.
+- **FCM (HTTP v1)** for native Android — `apps/api/src/lib/delivery/fcm-push.ts`.
+  The dispatcher (`delivery/index.ts`) targets each device by
+  `PushSubscription.kind`; `dispatchToUser` fans `fire`/`escalate`/`dismiss`/
+  `silence` to all channels, and `nudgeNativeSync` sends an FCM-only `sync` on
+  reminder create/update/delete (skipping Web Push, which would surface a blank
+  "site updated" notification; open web clients already converge over `/ws`).
+
+On native, FCM is handled by `FcmService` (Kotlin) — it subclasses
+`@capacitor/push-notifications`' `MessagingService` and is registered in its place
+(`setup-android.mjs` merges the manifest service + drops Capacitor's), so it acts on
+the **self-contained data payload even when the WebView/bridge is dead**: `dismiss`
+clears the nag, `fire`/`escalate` show it, `silence` downgrades it; it then calls
+`super()` so the JS bridge still receives the message when alive (token hand-off in
+`nativeSync.ts` `initFcm`, plus a resync). A pushed `fire` falls back to default
+sound/prominence (those live in WebView settings), so the on-device scheduled alarm
+remains the full-fidelity primary path.
+
+**Both halves are gated and OFF until provisioned:** the server only sends FCM when
+`FCM_PROJECT_ID` + `FCM_SERVICE_ACCOUNT_FILE` are set (`isFcmConfigured`), and
+`initFcm` only calls `PushNotifications.register()` when the server reports
+`fcmEnabled` (registering without `google-services.json` hard-crashes natively). The
+generated `app/build.gradle` applies the google-services plugin only when
+`google-services.json` is present, so the APK builds fine without it (FCM inert).
 
 ## Escalation
 

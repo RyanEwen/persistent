@@ -74,3 +74,15 @@ stops, and it never escalates again (`escalationSilencedAt` suppresses the sweep
 and the on-device escalation alarm). The server reverts `ESCALATED → FIRED`, then
 broadcasts a `silence` WS event **and** sends a `silence` push so every device
 downgrades its ringing alarm to a soft notification instead of clearing it.
+
+## Native sync nudge
+
+Reminder create/update/delete has no self-contained fire/dismiss payload, but a
+device still needs to re-derive what it should schedule/show (a renamed reminder, a
+changed schedule, a deletion). Alongside the `reminder.changed` WS broadcast, the
+server sends an **FCM-only** `sync` push (`nudgeNativeSync`) so a native device with
+a live bridge resyncs promptly. It is deliberately not sent over Web Push (a push
+that shows no notification makes browsers surface a generic "site updated" one) —
+open web clients already converge over `/ws`. A fully-closed device can't act on
+`sync` (a resync needs its session), so it catches up on its next open via
+`scheduleAll`'s reconcile; the fire/dismiss pushes remain the closed-app backstop.

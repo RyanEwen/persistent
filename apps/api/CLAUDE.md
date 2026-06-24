@@ -17,6 +17,9 @@
 - **Realtime + push on writes:** after mutating reminders/occurrences, call
   `broadcast(userId, …)` (`lib/realtime.ts`) so open clients refresh, and use the
   `dispatchToUser` / dismiss helpers so notifications stay in sync across devices.
+  On reminder writes (which have no fire/dismiss payload) also call
+  `nudgeNativeSync(userId)` — an FCM-only `sync` so native devices re-pull
+  `/api/sync/occurrences` (it skips Web Push; web converges over WS).
 - **Scheduler:** `lib/scheduler.ts` owns materialization, the tick loop, and the
   snooze/escalation/miss sweeps. On reminder create/update, materialize the
   changed reminder immediately (don't wait for the 5-min cycle); on update, drop

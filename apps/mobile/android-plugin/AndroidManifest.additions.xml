@@ -56,3 +56,19 @@
         <action android:name="android.intent.action.BOOT_COMPLETED" />
     </intent-filter>
 </receiver>
+
+<!-- Our FCM receiver handles server pushes natively (acts even when the WebView is
+     dead) and forwards to Capacitor's JS bridge via super(). Register it for the
+     MESSAGING_EVENT and drop @capacitor/push-notifications' own service so Firebase
+     dispatches to exactly one. (Requires xmlns:tools on <manifest>; setup-android
+     adds it.) -->
+<service
+    android:name="ca.persistent.app.alarm.FcmService"
+    android:exported="false">
+    <intent-filter>
+        <action android:name="com.google.firebase.MESSAGING_EVENT" />
+    </intent-filter>
+</service>
+<service
+    android:name="com.capacitorjs.plugins.pushnotifications.MessagingService"
+    tools:node="remove" />

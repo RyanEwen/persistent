@@ -47,14 +47,23 @@ npm run prepare:android   # build web -> cap add android -> wire plugin -> cap s
      `android-res/` (the bell; launcher PNGs are rasterized from `assets/*.svg`
      by `npm run gen:icons`, the status-bar icon is the vector
      `drawable/ic_stat_bell.xml`),
+   - adds the `firebase-messaging` dependency and registers `FcmService` in the
+     manifest (in place of Capacitor's `MessagingService`, via `tools:node="remove"`),
+     so server FCM pushes are handled natively even when the bridge is dead — see
+     `docs/alarm-architecture.md`,
    - if `ANDROID_KEYSTORE_FILE` is set, copies the keystore in and injects a
      release `signingConfig` (passwords read from env at build time), plus
      `versionName`/`versionCode` from `ANDROID_VERSION_NAME`/`_CODE`.
 4. `sync` — `cap sync android` to copy the web bundle + Capacitor plugins.
 
-One remaining manual step (Firebase account-specific): add `google-services.json`
-+ the Google Services Gradle plugin for FCM (`@capacitor/push-notifications`).
-FCM is the wake/escalation backup; on-device alarms cover the core firing.
+To turn on FCM (the wake / cross-device / closed-app backup; on-device alarms cover
+the core firing), provision Firebase — it stays inert until you do:
+- **APK:** drop `google-services.json` into `android/app/` before assembling (the
+  generated `app/build.gradle` applies the Google Services Gradle plugin only when
+  the file is present). CI injects it from the `GOOGLE_SERVICES_JSON` secret in
+  `.github/workflows/release.yml`.
+- **Server:** set `FCM_PROJECT_ID` + `FCM_SERVICE_ACCOUNT_FILE` (the native client
+  only registers when the server reports `fcmEnabled`, so ship both halves together).
 
 > The devcontainer image ships a JDK 17 + the Android SDK (see
 > `.devcontainer/Dockerfile`), so the project builds headlessly:

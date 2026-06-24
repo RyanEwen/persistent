@@ -8,6 +8,11 @@ dist/
 .env.*.local
 .secrets/
 
+# Firebase credentials — never commit (server creds + APK client config live in
+# .secrets/; CI injects google-services.json from the GOOGLE_SERVICES_JSON secret)
+*firebase-adminsdk*.json
+google-services.json
+
 # Runtime data / scratch (root only — must not match apps/web/src/data)
 /data/
 tmp/

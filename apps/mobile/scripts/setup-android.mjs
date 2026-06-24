@@ -93,6 +93,12 @@ if (compsReplaced) {
   manifest = manifest.replace(/(<\/application>)/, `    ${compsBlock.replace(/\n/g, '\n    ')}\n$1`)
 }
 
+// The components block uses tools:node="remove" (to drop Capacitor's FCM service
+// in favour of our FcmService), which needs the tools namespace on <manifest>.
+if (!manifest.includes('xmlns:tools=')) {
+  manifest = manifest.replace(/<manifest\b/, '<manifest xmlns:tools="http://schemas.android.com/tools"')
+}
+
 writeFileSync(manifestPath, manifest)
 console.log('[setup-android] merged permissions + components into AndroidManifest.xml')
 
@@ -156,6 +162,26 @@ if (existsSync(iconOverlay)) {
     )
     writeFileSync(appGradlePath, g)
     console.log('[setup-android] added androidx.credentials dependencies')
+  }
+}
+
+// --- 4d. Firebase Cloud Messaging (FcmService) ------------------------------
+// FcmService subclasses @capacitor/push-notifications' MessagingService, so the
+// app module needs firebase-messaging on its own compile classpath (the plugin
+// declares it `implementation`, which doesn't leak transitively). The version
+// tracks the one the push plugin resolves. The google-services plugin still only
+// applies when google-services.json is present (handled in the generated
+// app/build.gradle), so FCM stays inert until the operator drops that file in.
+{
+  let g = readFileSync(appGradlePath, 'utf8')
+  if (!g.includes('com.google.firebase:firebase-messaging')) {
+    g = g.replace(
+      /dependencies\s*\{/,
+      `dependencies {
+    implementation "com.google.firebase:firebase-messaging:23.3.1"`
+    )
+    writeFileSync(appGradlePath, g)
+    console.log('[setup-android] added firebase-messaging dependency')
   }
 }
 

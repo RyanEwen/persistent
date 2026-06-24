@@ -44,6 +44,11 @@ services:
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:persistent@local}
       FCM_SERVICE_ACCOUNT_FILE: ${FCM_SERVICE_ACCOUNT_FILE:-}
       FCM_PROJECT_ID: ${FCM_PROJECT_ID:-}
+    # FCM service-account key, mounted read-only from the host's gitignored
+    # .secrets/ (survives `git reset --hard` on deploy). Point
+    # FCM_SERVICE_ACCOUNT_FILE in .env at the in-container path on the right.
+    volumes:
+      - ./.secrets/fcm-service-account.json:/run/secrets/fcm-service-account.json:ro
     # No published host port: the shared `nginx` reverse proxy reaches this
     # container by name (persistent-api:4000) over the external nginx_default
     # network. See nginx.server.example.conf. (Add a `ports` mapping only if you
