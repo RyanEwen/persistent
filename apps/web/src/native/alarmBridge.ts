@@ -29,6 +29,12 @@ export interface ScheduledAlarm {
    * (no softer nag to fall back to).
    */
   canSilence: boolean
+  /**
+   * Where this reminder's notification sits in the shade (visual only):
+   * INHERIT = use the device default, else NORMAL / MINIMIZED. Ignored for
+   * escalations/alarms, which always stay prominent.
+   */
+  shadeProminence: 'INHERIT' | 'NORMAL' | 'MINIMIZED'
 }
 
 export interface AlarmPluginPlugin {
@@ -40,6 +46,11 @@ export interface AlarmPluginPlugin {
   silence(options: { occurrenceId: string }): Promise<void>
   requestBatteryExemption(): Promise<{ granted: boolean }>
   canScheduleExactAlarms(): Promise<{ allowed: boolean }>
+  /**
+   * Set the device default shade prominence (for reminders set to INHERIT) and
+   * re-post any live notifications so the change applies immediately.
+   */
+  setDefaultShadeProminence(options: { minimized: boolean }): Promise<void>
   /** Ensure the full-screen alarm may show over the lock screen (Android 14+ gate);
    * opens the per-app setting if not yet granted. */
   ensureFullScreenIntent(): Promise<{ allowed: boolean }>

@@ -21,7 +21,8 @@ medications, appointments, and important tasks.
 - **Works offline.** The Android app schedules exact on-device alarms, so
   reminders fire even with no signal, and sync across your devices.
 - **Flexible.** One-time or repeating schedules, medication lists, custom snooze
-  and re-nag intervals, and a history of what you've done.
+  and re-nag intervals, per-reminder notification-shade prominence (Android), and a
+  history of what you've done.
 - **Simple sign-in.** A one-time email code, a passkey, or Sign in with Google.
 
 ## Get it

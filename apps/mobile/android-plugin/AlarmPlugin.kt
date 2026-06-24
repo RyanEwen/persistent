@@ -103,6 +103,14 @@ class AlarmPlugin : Plugin() {
         call.resolve()
     }
 
+    /** Set the device-default shade prominence and re-post live notifications. */
+    @PluginMethod
+    fun setDefaultShadeProminence(call: PluginCall) {
+        val minimized = call.getBoolean("minimized") ?: false
+        AlarmService.setDefaultProminence(context, minimized)
+        call.resolve()
+    }
+
     @PluginMethod
     fun canScheduleExactAlarms(call: PluginCall) {
         val manager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager

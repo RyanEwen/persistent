@@ -24,6 +24,18 @@ export const persistenceLevels = ['PERSISTENT', 'ALARM'] as const
 export const persistenceLevelSchema = z.enum(persistenceLevels)
 export type PersistenceLevel = (typeof persistenceLevels)[number]
 
+/**
+ * How prominently a reminder's notification sits in the Android shade (visual
+ * only — it does NOT change sound, which is set by persistence + the nag interval):
+ * - INHERIT:   follow the device's default prominence (set per-device in settings).
+ * - NORMAL:    main shade area; may pop up a heads-up banner.
+ * - MINIMIZED: collapsed "silent" section at the bottom of the shade; no pop-up.
+ * Escalations/alarms always stay prominent regardless of this setting.
+ */
+export const shadeProminenceLevels = ['INHERIT', 'NORMAL', 'MINIMIZED'] as const
+export const shadeProminenceSchema = z.enum(shadeProminenceLevels)
+export type ShadeProminence = (typeof shadeProminenceLevels)[number]
+
 export const occurrenceStatuses = [
   'PENDING',
   'FIRED',
@@ -147,6 +159,8 @@ export const reminderSchema = z.object({
   schedule: scheduleSchema,
   persistence: persistenceLevelSchema,
   soundIntervalSeconds: z.number().int().nullable(),
+  // Android shade prominence (visual only; INHERIT = use the device default).
+  shadeProminence: shadeProminenceSchema,
   escalateAfterMinutes: z.number().int().nullable(),
   // Escalate (always to an alarm) either N minutes after firing, or at a specific
   // wall-clock time ("HH:mm") on the occurrence's day. At most one is set.
@@ -183,6 +197,7 @@ export const reminderInputSchema = z
     persistence: persistenceLevelSchema.default('PERSISTENT'),
     // null = no repeating sound; otherwise seconds between sound repeats (up to ~1 year).
     soundIntervalSeconds: z.number().int().min(5).max(31_536_000).nullable().default(null),
+    shadeProminence: shadeProminenceSchema.default('INHERIT'),
     // Minutes after firing before escalating to an alarm (up to ~1 year).
     escalateAfterMinutes: z.number().int().min(1).max(525_600).nullable().default(null),
     escalateAtTime: timeOfDaySchema.nullable().default(null),
@@ -238,7 +253,8 @@ export const occurrenceSchema = z.object({
     category: true,
     categoryData: true,
     persistence: true,
-    soundIntervalSeconds: true
+    soundIntervalSeconds: true,
+    shadeProminence: true
   })
 })
 export type Occurrence = z.infer<typeof occurrenceSchema>

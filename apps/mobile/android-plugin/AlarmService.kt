@@ -64,7 +64,8 @@ class AlarmService : Service() {
                         ongoing = intent.getBooleanExtra("ongoing", true),
                         soundUri = intent.getStringExtra("soundUri") ?: "",
                         reminderId = intent.getStringExtra("reminderId") ?: "",
-                        canSilence = intent.getBooleanExtra("canSilence", false)
+                        canSilence = intent.getBooleanExtra("canSilence", false),
+                        shadeProminence = intent.getStringExtra("shadeProminence") ?: "INHERIT"
                     )
                 )
             }
@@ -83,6 +84,16 @@ class AlarmService : Service() {
             ACTION_SILENCE -> {
                 val occurrenceId = intent.getStringExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID) ?: return START_STICKY
                 silenceOccurrence(occurrenceId)
+            }
+            ACTION_RESTYLE -> {
+                // The device-default prominence changed (already persisted by the
+                // caller). Re-post live notifications so the new channel applies now.
+                if (active.isEmpty()) {
+                    startForeground(SENTINEL_ID, placeholderNotification())
+                    clearAll()
+                } else {
+                    restyleActive()
+                }
             }
             ACTION_RESHOW -> {
                 // The user swiped a notification away (Android 14+ allows this for
@@ -231,12 +242,52 @@ class AlarmService : Service() {
         }
     }
 
+    /**
+     * Re-post every active notification so each lands on its (possibly new) channel
+     * after a prominence change. A notification's channel can't change on an
+     * in-place notify(), so each is cancelled then re-posted; the foreground-bound
+     * one is detached first so the service stays alive across the swap. `postedAt`
+     * is retained, so positions are preserved and no sound plays (audio is separate).
+     */
+    private fun restyleActive() {
+        ensureChannels()
+        var bound = false
+        for ((id, spec) in active) {
+            val notif = buildNotification(spec)
+            if (!bound) {
+                stopForeground(STOP_FOREGROUND_DETACH)
+                nm.cancel(notifId(id))
+                foregroundId = id
+                startForeground(notifId(id), notif)
+                bound = true
+            } else {
+                nm.cancel(notifId(id))
+                nm.notify(notifId(id), notif)
+            }
+        }
+    }
+
+    /**
+     * Which channel a notification posts to (visual prominence only):
+     * alarms/escalations stay on the prominent alarm channel; otherwise the
+     * reminder's own setting, or the device default when it's INHERIT.
+     */
+    private fun channelFor(spec: AlarmSpec): String {
+        if (spec.alarm) return CHANNEL_ALARM
+        val minimized = when (spec.shadeProminence) {
+            "MINIMIZED" -> true
+            "NORMAL" -> false
+            else -> AlarmStore.defaultMinimized(this)
+        }
+        return if (minimized) CHANNEL_MINIMIZED else CHANNEL_NORMAL
+    }
+
     private fun resolveUri(uriStr: String, defaultType: Int): android.net.Uri =
         if (uriStr.isNotEmpty()) android.net.Uri.parse(uriStr) else RingtoneManager.getDefaultUri(defaultType)
 
     private fun placeholderNotification(): android.app.Notification {
         ensureChannels()
-        return NotificationCompat.Builder(this, CHANNEL_SILENT)
+        return NotificationCompat.Builder(this, CHANNEL_ALARM)
             .setContentTitle("Reminder")
             .setSmallIcon(R.drawable.ic_stat_bell)
             .build()
@@ -244,7 +295,9 @@ class AlarmService : Service() {
 
     private fun buildNotification(spec: AlarmSpec): android.app.Notification {
         // The notification never carries audio — we play the chosen sound via
-        // MediaPlayer — so it always uses the silent channel.
+        // MediaPlayer — so every channel is silent; the channel only controls the
+        // reminder's visual prominence in the shade (see channelFor).
+        val channel = channelFor(spec)
         val contentPending = PendingIntent.getBroadcast(
             this,
             ("open:" + spec.occurrenceId).hashCode(),
@@ -323,7 +376,7 @@ class AlarmService : Service() {
         // Pinned post time -> newest reminder sorts to the top of the shade and stays
         // there across re-posts (sortKey is inverted so the largest `when` sorts first).
         val posted = postedAt[spec.occurrenceId] ?: System.currentTimeMillis()
-        val builder = NotificationCompat.Builder(this, CHANNEL_SILENT)
+        val builder = NotificationCompat.Builder(this, channel)
             .setContentTitle(spec.title)
             .setContentText(if (awaitingConfirm) "Tap \"Confirm done\" to mark complete" else spec.body)
             .setSmallIcon(R.drawable.ic_stat_bell)
@@ -498,13 +551,38 @@ class AlarmService : Service() {
     private fun ensureChannels() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = nm
-        if (manager.getNotificationChannel(CHANNEL_SILENT) == null) {
+        // All channels are silent (we play the chosen tone ourselves via MediaPlayer);
+        // they differ only in importance, which controls shade prominence:
+        //  - ALARM/NORMAL = HIGH (main shade area, may pop up a heads-up banner)
+        //  - MINIMIZED    = LOW  (collapsed "silent" section at the bottom, no pop-up)
+        // (CHANNEL_ALARM keeps the legacy id so existing installs don't lose its
+        // DND-bypass grant; alarms/escalations always use it.)
+        if (manager.getNotificationChannel(CHANNEL_ALARM) == null) {
             manager.createNotificationChannel(
-                NotificationChannel(CHANNEL_SILENT, "Reminders", NotificationManager.IMPORTANCE_HIGH).apply {
-                    description = "Persistent reminders and alarms"
-                    setSound(null, null) // we play our own sound via MediaPlayer
+                NotificationChannel(CHANNEL_ALARM, "Alarms & escalations", NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = "Ringing alarms and escalated reminders"
+                    setSound(null, null)
                     enableVibration(false)
                     setBypassDnd(true)
+                }
+            )
+        }
+        if (manager.getNotificationChannel(CHANNEL_NORMAL) == null) {
+            manager.createNotificationChannel(
+                NotificationChannel(CHANNEL_NORMAL, "Reminders", NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = "Persistent reminders shown in the main shade"
+                    setSound(null, null)
+                    enableVibration(false)
+                    setBypassDnd(true)
+                }
+            )
+        }
+        if (manager.getNotificationChannel(CHANNEL_MINIMIZED) == null) {
+            manager.createNotificationChannel(
+                NotificationChannel(CHANNEL_MINIMIZED, "Reminders (minimized)", NotificationManager.IMPORTANCE_LOW).apply {
+                    description = "Reminders tucked into the collapsed section of the shade"
+                    setSound(null, null)
+                    enableVibration(false)
                 }
             )
         }
@@ -524,8 +602,13 @@ class AlarmService : Service() {
         const val ACTION_PROMPT_CONFIRM = "ca.persistent.app.SERVICE_PROMPT_CONFIRM"
         const val ACTION_CANCEL_CONFIRM = "ca.persistent.app.SERVICE_CANCEL_CONFIRM"
         const val ACTION_SILENCE = "ca.persistent.app.SERVICE_SILENCE"
+        const val ACTION_RESTYLE = "ca.persistent.app.SERVICE_RESTYLE"
         const val DEFAULT_SNOOZE_MINUTES = 10
-        private const val CHANNEL_SILENT = "reminders_silent"
+        // Alarms/escalations keep the legacy channel id so existing installs retain
+        // its DND-bypass grant; the two non-alarm channels split by prominence.
+        private const val CHANNEL_ALARM = "reminders_silent"
+        private const val CHANNEL_NORMAL = "reminders_normal"
+        private const val CHANNEL_MINIMIZED = "reminders_minimized"
         private const val SENTINEL_ID = 4201
         private const val VIBRATE_KEY = "__vibrate__"
 
@@ -614,6 +697,22 @@ class AlarmService : Service() {
 
         fun stopAll(context: Context) {
             context.startService(Intent(context, AlarmService::class.java).setAction(ACTION_STOP))
+        }
+
+        /**
+         * Set the device-default shade prominence (for reminders set to INHERIT).
+         * Persists immediately; only nudges the running service to re-post live
+         * notifications when the value actually changed and something is showing, so
+         * it's safe to call on every startup without needless re-posts.
+         */
+        fun setDefaultProminence(context: Context, minimized: Boolean) {
+            val changed = AlarmStore.defaultMinimized(context) != minimized
+            AlarmStore.setDefaultMinimized(context, minimized)
+            if (changed && activeIds.isNotEmpty()) {
+                context.startService(
+                    Intent(context, AlarmService::class.java).setAction(ACTION_RESTYLE)
+                )
+            }
         }
 
         private fun launchApp(context: Context) {

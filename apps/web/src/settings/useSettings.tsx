@@ -14,11 +14,15 @@ export interface SoundChoice {
   title: string
 }
 
+/** Device default for where reminders sit in the Android shade (visual only). */
+export type ShadeDefault = 'NORMAL' | 'MINIMIZED'
+
 interface Settings {
   timeFormat: TimeFormat
   themeId: ThemeId
   alarmSound: SoundChoice
   notificationSound: SoundChoice
+  shadeProminence: ShadeDefault
 }
 
 /**
@@ -35,6 +39,7 @@ interface SettingsContextValue extends Settings {
   setThemeId: (id: ThemeId) => void
   setAlarmSound: (sound: SoundChoice) => void
   setNotificationSound: (sound: SoundChoice) => void
+  setShadeProminence: (prominence: ShadeDefault) => void
 }
 
 const DEFAULT_SOUND: SoundChoice = { uri: '', title: 'Default' }
@@ -53,7 +58,8 @@ function loadSettings(): StoredState {
     timeFormatChosen: false,
     themeId: DEFAULT_THEME_ID,
     alarmSound: DEFAULT_SOUND,
-    notificationSound: DEFAULT_SOUND
+    notificationSound: DEFAULT_SOUND,
+    shadeProminence: 'NORMAL'
   }
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -68,7 +74,8 @@ function loadSettings(): StoredState {
         timeFormatChosen: chosen,
         themeId: APP_THEMES.some((t) => t.id === parsed.themeId) ? (parsed.themeId as ThemeId) : defaults.themeId,
         alarmSound: toSound(parsed.alarmSound),
-        notificationSound: toSound(parsed.notificationSound)
+        notificationSound: toSound(parsed.notificationSound),
+        shadeProminence: parsed.shadeProminence === 'MINIMIZED' ? 'MINIMIZED' : 'NORMAL'
       }
     }
   } catch {
@@ -99,7 +106,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setTimeFormat: (timeFormat) => update({ timeFormat, timeFormatChosen: true }),
     setThemeId: (themeId) => update({ themeId }),
     setAlarmSound: (alarmSound) => update({ alarmSound }),
-    setNotificationSound: (notificationSound) => update({ notificationSound })
+    setNotificationSound: (notificationSound) => update({ notificationSound }),
+    setShadeProminence: (shadeProminence) => update({ shadeProminence })
   }
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>

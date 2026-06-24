@@ -101,6 +101,35 @@ without it the escalation only shows a heads-up banner that collapses instead of
 the full-screen alarm. The alarm notification is `VISIBILITY_PUBLIC` so its
 content shows on the lock screen (the user can see which reminder is firing).
 
+## Notification shade prominence
+
+Independently of *how hard* a reminder nags, the user controls *how prominently*
+its notification sits in the Android shade — **visual only; it does not change the
+sound** (the service plays the tone itself via MediaPlayer, so channel importance
+never gates audio). The native client posts to one of three silent channels:
+
+- `reminders_silent` (legacy id, "Alarms & escalations", `IMPORTANCE_HIGH`,
+  bypasses DND) — every `alarm`/escalation, always prominent regardless of the
+  setting.
+- `reminders_normal` ("Reminders", `IMPORTANCE_HIGH`) — main shade area, may pop
+  up a heads-up banner.
+- `reminders_minimized` ("Reminders (minimized)", `IMPORTANCE_LOW`) — collapsed
+  "silent" section at the bottom of the shade, no pop-up.
+
+The level is chosen per non-alarm notification by `channelFor(spec)`: a reminder's
+own `shadeProminence` (`NORMAL`/`MINIMIZED`), or — when `INHERIT` — the **device
+default** stored in `AlarmStore` (`SettingsPage` -> `setDefaultShadeProminence` ->
+`AlarmService.setDefaultProminence`). `shadeProminence` is a server-side reminder
+field (shared `shadeProminenceSchema` <-> Prisma `ShadeProminence`), so per-reminder
+choices sync across devices; the device default is a per-device localStorage pref
+pushed to native on startup and on change.
+
+Changing the device default re-posts live notifications immediately (`ACTION_RESTYLE`
+-> `restyleActive`): a notification's channel can't change on an in-place
+`notify()`, so each is cancelled and re-posted (the foreground-bound one detached
+first); `postedAt`/`sortKey` are retained so positions hold and no sound replays. A
+per-reminder change applies on the next post.
+
 ## Push channels
 
 - **Web Push (VAPID)** for browsers — `apps/api/src/lib/delivery/web-push.ts`.

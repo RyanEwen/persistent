@@ -21,7 +21,10 @@ data class AlarmSpec(
     val reminderId: String = "",
     // true = an escalation alarm the user may silence back to a soft nag; false for
     // inherent ALARM reminders (no softer level to fall back to).
-    val canSilence: Boolean = false
+    val canSilence: Boolean = false,
+    // Shade prominence (visual only): "INHERIT" (device default), "NORMAL", or
+    // "MINIMIZED". Ignored for alarms/escalations, which always stay prominent.
+    val shadeProminence: String = "INHERIT"
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("occurrenceId", occurrenceId)
@@ -34,6 +37,7 @@ data class AlarmSpec(
         .put("soundUri", soundUri)
         .put("reminderId", reminderId)
         .put("canSilence", canSilence)
+        .put("shadeProminence", shadeProminence)
 
     companion object {
         fun fromCall(call: PluginCall): AlarmSpec? {
@@ -49,7 +53,8 @@ data class AlarmSpec(
                 ongoing = call.getBoolean("ongoing") ?: true,
                 soundUri = call.getString("soundUri") ?: "",
                 reminderId = call.getString("reminderId") ?: "",
-                canSilence = call.getBoolean("canSilence") ?: false
+                canSilence = call.getBoolean("canSilence") ?: false,
+                shadeProminence = call.getString("shadeProminence") ?: "INHERIT"
             )
         }
 
@@ -67,7 +72,8 @@ data class AlarmSpec(
                 ongoing = json.optBoolean("ongoing", true),
                 soundUri = json.optString("soundUri", ""),
                 reminderId = json.optString("reminderId", ""),
-                canSilence = json.optBoolean("canSilence", false)
+                canSilence = json.optBoolean("canSilence", false),
+                shadeProminence = json.optString("shadeProminence", "INHERIT")
             )
         }
     }

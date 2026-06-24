@@ -29,7 +29,8 @@
   (`public/push-handler.js`) renders notifications and handles Done/Snooze/Silence
   actions + best-effort re-fire (Silence shows only on escalations). Remember the
   web is intentionally best-effort — the hard alarm is the native app.
-- **Client display prefs** (time format, theme) live in `settings/useSettings.tsx`
+- **Client display prefs** (time format, theme, chosen sounds, and the
+  device-default notification-shade prominence) live in `settings/useSettings.tsx`
   (localStorage-backed, per-device — not server-synced). Themes are defined in
   `settings/themes.ts` and applied as a background pattern + accent CSS variables
   by `components/AppLayout.tsx`. Format dates/times via `lib/datetime.ts`, never

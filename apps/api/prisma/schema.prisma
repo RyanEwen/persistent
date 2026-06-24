@@ -35,6 +35,14 @@ enum PersistenceLevel {
   ALARM
 }
 
+/// How prominently a reminder shows in the Android notification shade (visual
+/// only; INHERIT = follow the device default). See shared shadeProminenceSchema.
+enum ShadeProminence {
+  INHERIT
+  NORMAL
+  MINIMIZED
+}
+
 enum OccurrenceStatus {
   PENDING
   FIRED
@@ -132,6 +140,8 @@ model Reminder {
   persistence          PersistenceLevel @default(PERSISTENT)
   /// null = no repeating sound; otherwise seconds between sound repeats.
   soundIntervalSeconds Int?
+  /// Android shade prominence (visual only; INHERIT = use the device default).
+  shadeProminence      ShadeProminence  @default(INHERIT)
   /// Escalation (always to an alarm): N minutes after firing, OR at a specific
   /// wall-clock time ("HH:mm") on the occurrence's day. At most one is set.
   escalateAfterMinutes Int?

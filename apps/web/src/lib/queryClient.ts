@@ -72,6 +72,7 @@ function optimisticReminder(input: ReminderInput, id = tempId()): Reminder {
     schedule: input.schedule,
     persistence: input.persistence ?? 'PERSISTENT',
     soundIntervalSeconds: input.soundIntervalSeconds ?? null,
+    shadeProminence: input.shadeProminence ?? 'INHERIT',
     escalateAfterMinutes: input.escalateAfterMinutes ?? null,
     escalateAtTime: input.escalateAtTime ?? null,
     escalateEmail: input.escalateEmail ?? null,

@@ -40,6 +40,7 @@ export function toReminder(
     schedule: row.schedule as unknown as Schedule,
     persistence: row.persistence,
     soundIntervalSeconds: row.soundIntervalSeconds,
+    shadeProminence: row.shadeProminence,
     escalateAfterMinutes: row.escalateAfterMinutes,
     escalateAtTime: row.escalateAtTime,
     escalateEmail: row.escalateEmail,
@@ -73,7 +74,8 @@ export function toOccurrence(row: ReminderOccurrence & { reminder: ReminderRow }
       category: row.reminder.category,
       categoryData: (row.reminder.categoryData ?? {}) as CategoryData,
       persistence: row.reminder.persistence,
-      soundIntervalSeconds: row.reminder.soundIntervalSeconds
+      soundIntervalSeconds: row.reminder.soundIntervalSeconds,
+      shadeProminence: row.reminder.shadeProminence
     }
   }
 }

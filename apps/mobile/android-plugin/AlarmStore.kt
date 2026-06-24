@@ -10,8 +10,16 @@ import org.json.JSONArray
 object AlarmStore {
     private const val PREFS = "persistent_alarms"
     private const val KEY = "alarms"
+    // Device-default shade prominence for reminders set to INHERIT (visual only).
+    private const val KEY_DEFAULT_MINIMIZED = "default_minimized"
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    fun defaultMinimized(context: Context): Boolean = prefs(context).getBoolean(KEY_DEFAULT_MINIMIZED, false)
+
+    fun setDefaultMinimized(context: Context, value: Boolean) {
+        prefs(context).edit().putBoolean(KEY_DEFAULT_MINIMIZED, value).apply()
+    }
 
     fun all(context: Context): List<AlarmSpec> {
         val raw = prefs(context).getString(KEY, "[]") ?: "[]"

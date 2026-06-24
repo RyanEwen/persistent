@@ -25,8 +25,18 @@ import { PasskeysCard } from '../components/PasskeysCard.js'
 
 export function SettingsPage() {
   const { user, logout } = useAuth()
-  const { timeFormat, setTimeFormat, themeId, setThemeId, alarmSound, notificationSound, setAlarmSound, setNotificationSound } =
-    useSettings()
+  const {
+    timeFormat,
+    setTimeFormat,
+    themeId,
+    setThemeId,
+    alarmSound,
+    notificationSound,
+    setAlarmSound,
+    setNotificationSound,
+    shadeProminence,
+    setShadeProminence
+  } = useSettings()
 
   async function chooseSound(type: 'alarm' | 'notification', current: SoundChoice, apply: (s: SoundChoice) => void) {
     try {
@@ -36,6 +46,12 @@ export function SettingsPage() {
     } catch {
       /* picker unavailable */
     }
+  }
+
+  function changeShadeProminence(value: 'NORMAL' | 'MINIMIZED') {
+    setShadeProminence(value)
+    // Update the native default + re-post any live notifications immediately.
+    void AlarmPlugin.setDefaultShadeProminence({ minimized: value === 'MINIMIZED' }).catch(() => {})
   }
   const [permission, setPermission] = useState(notificationPermission())
   const [busy, setBusy] = useState(false)
@@ -125,6 +141,24 @@ export function SettingsPage() {
           <Typography level="body-sm">Choosing sounds is available in the Android app.</Typography>
         )}
       </Card>
+
+      {isNative() && (
+        <Card variant="outlined">
+          <Typography level="title-sm">Notification shade</Typography>
+          <FormControl>
+            <FormLabel>Default prominence</FormLabel>
+            <Select value={shadeProminence} onChange={(_e, value) => value && changeShadeProminence(value)}>
+              <Option value="NORMAL">Normal</Option>
+              <Option value="MINIMIZED">Minimized</Option>
+            </Select>
+          </FormControl>
+          <Typography level="body-xs">
+            Where reminders sit in the Android notification shade by default. Minimized tucks them into the
+            collapsed section at the bottom with no pop-up banner. This is visual only — it doesn't change the
+            sound, and a reminder can override it. Escalations always stay prominent.
+          </Typography>
+        </Card>
+      )}
 
       {/* Web Push is best-effort and only relevant on the web; the native app
           uses on-device alarms, so this section is hidden there. */}

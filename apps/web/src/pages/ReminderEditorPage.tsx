@@ -1,6 +1,7 @@
 /**
  * Create / edit a reminder: details, category (medication surfaces name + dose fields),
- * the schedule builder, persistence + sound interval, and escalation settings.
+ * the schedule builder, persistence + sound interval, shade prominence, and
+ * escalation settings.
  */
 import { useMemo, useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -28,9 +29,11 @@ import {
   extractErrorMessage,
   reminderCategories,
   persistenceLevels,
+  shadeProminenceLevels,
   scheduleKinds,
   type ReminderCategory,
   type PersistenceLevel,
+  type ShadeProminence,
   type ScheduleKind,
   type ReminderInput,
   type Reminder,
@@ -58,6 +61,12 @@ const SCHEDULE_KIND_LABELS: Record<ScheduleKind, string> = {
 const PERSISTENCE_LABELS: Record<PersistenceLevel, string> = {
   PERSISTENT: 'Notification',
   ALARM: 'Alarm'
+}
+
+const SHADE_PROMINENCE_LABELS: Record<ShadeProminence, string> = {
+  INHERIT: 'Use default',
+  NORMAL: 'Normal',
+  MINIMIZED: 'Minimized'
 }
 
 function todayLocal(): string {
@@ -98,6 +107,7 @@ interface FormState {
   skipWeekends: boolean
   persistence: PersistenceLevel
   soundIntervalMinutes: number
+  shadeProminence: ShadeProminence
   escalate: boolean
   escalateMode: 'after' | 'at'
   escalateAfterMinutes: string
@@ -129,6 +139,7 @@ function emptyForm(): FormState {
     skipWeekends: false,
     persistence: 'PERSISTENT',
     soundIntervalMinutes: 0, // 0 = sound once (no re-sound)
+    shadeProminence: 'INHERIT',
     escalate: false,
     escalateMode: 'after',
     escalateAfterMinutes: '15',
@@ -587,6 +598,29 @@ export function ReminderEditorPage() {
           </FormControl>
         )}
 
+        <FormControl>
+          <FormLabel>Shade prominence</FormLabel>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            {shadeProminenceLevels.map((p) => (
+              <Button
+                key={p}
+                size="sm"
+                variant={form.shadeProminence === p ? 'solid' : 'outlined'}
+                onClick={() => set('shadeProminence', p)}
+              >
+                {SHADE_PROMINENCE_LABELS[p]}
+              </Button>
+            ))}
+          </Stack>
+          <Typography level="body-xs" sx={{ mt: 0.5 }}>
+            {form.shadeProminence === 'MINIMIZED'
+              ? 'Android only: tucks this reminder into the collapsed section at the bottom of the notification shade, with no pop-up banner. Visual only — it does not change the sound.'
+              : form.shadeProminence === 'NORMAL'
+                ? 'Android only: shows in the main notification shade and may pop up a banner. Visual only — it does not change the sound.'
+                : 'Android only: follows your device default (Settings). Controls where the notification sits in the shade — not the sound.'}
+          </Typography>
+        </FormControl>
+
             </Stack>
           </TabPanel>
 
@@ -774,6 +808,7 @@ function toInput(form: FormState): ReminderInput {
     // minutes; 0 = sound once.
     soundIntervalSeconds:
       form.persistence === 'PERSISTENT' && form.soundIntervalMinutes > 0 ? form.soundIntervalMinutes * 60 : null,
+    shadeProminence: form.shadeProminence,
     // ALARM already rings continuously, so escalation doesn't apply there.
     escalateAfterMinutes: escalating && form.escalateMode === 'after' ? Number(form.escalateAfterMinutes) || 15 : null,
     escalateAtTime: escalating && form.escalateMode === 'at' ? form.escalateAtTime : null,
@@ -819,6 +854,7 @@ function fromReminder(reminder: Reminder): FormState {
     persistence: reminder.persistence,
     soundIntervalMinutes:
       reminder.soundIntervalSeconds != null ? Math.max(1, Math.round(reminder.soundIntervalSeconds / 60)) : 0,
+    shadeProminence: reminder.shadeProminence,
     escalate: reminder.escalateAfterMinutes != null || reminder.escalateAtTime != null,
     escalateMode: reminder.escalateAtTime != null ? 'at' : 'after',
     escalateAfterMinutes: reminder.escalateAfterMinutes != null ? String(reminder.escalateAfterMinutes) : '15',

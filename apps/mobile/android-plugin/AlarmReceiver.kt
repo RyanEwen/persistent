@@ -31,6 +31,7 @@ class AlarmReceiver : BroadcastReceiver() {
                     putExtra("soundUri", spec.soundUri)
                     putExtra("reminderId", spec.reminderId)
                     putExtra("canSilence", spec.canSilence)
+                    putExtra("shadeProminence", spec.shadeProminence)
                 }
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     context.startForegroundService(serviceIntent)

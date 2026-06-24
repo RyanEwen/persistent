@@ -37,6 +37,20 @@ function chosenSoundUri(kind: 'alarmSound' | 'notificationSound'): string {
   return ''
 }
 
+/** The device-default shade prominence (for reminders set to INHERIT). */
+function defaultShadeMinimized(): boolean {
+  try {
+    const raw = localStorage.getItem('persistent-settings')
+    if (raw) {
+      const parsed = JSON.parse(raw) as { shadeProminence?: string }
+      return parsed.shadeProminence === 'MINIMIZED'
+    }
+  } catch {
+    /* ignore */
+  }
+  return false
+}
+
 // The escalation alarm is a second device alarm keyed off the occurrence id with
 // this suffix, so it can be scheduled/cancelled/acked alongside the main one.
 const ESC_SUFFIX = '::esc'
@@ -60,7 +74,9 @@ function toAlarm(occurrence: Occurrence): ScheduledAlarm {
     reminderId: occurrence.reminderId,
     // An escalation of a soft reminder can be silenced back to a nag; an inherent
     // ALARM reminder cannot (it has no softer level to fall back to).
-    canSilence: reminder.persistence !== 'ALARM' && occurrence.status === 'ESCALATED'
+    canSilence: reminder.persistence !== 'ALARM' && occurrence.status === 'ESCALATED',
+    // Visual shade placement (ignored natively for alarms/escalations).
+    shadeProminence: reminder.shadeProminence
   }
 }
 
@@ -174,6 +190,10 @@ export async function initNative(): Promise<void> {
   if (!isNative() || started) return
   started = true
   await requestPermissions()
+  // Sync the device-default prominence so the native INHERIT fallback matches the
+  // local setting even if it was changed while the app was closed (no-op natively
+  // if unchanged, so this won't needlessly re-post).
+  await AlarmPlugin.setDefaultShadeProminence({ minimized: defaultShadeMinimized() }).catch(() => {})
   await syncAlarms().catch(() => {})
   await consumePendingNavigation().catch(() => {})
 
