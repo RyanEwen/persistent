@@ -67,6 +67,9 @@ class AlarmPlugin : Plugin() {
             }
             armAlarm(context, alarm)
         }
+        // A live reminder's per-reminder prominence may have changed in this sync;
+        // re-post any active notification onto its new channel.
+        AlarmService.refreshActiveStyles(context)
         call.resolve()
     }
 

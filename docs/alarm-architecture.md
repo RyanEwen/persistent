@@ -124,11 +124,18 @@ field (shared `shadeProminenceSchema` <-> Prisma `ShadeProminence`), so per-remi
 choices sync across devices; the device default is a per-device localStorage pref
 pushed to native on startup and on change.
 
-Changing the device default re-posts live notifications immediately (`ACTION_RESTYLE`
--> `restyleActive`): a notification's channel can't change on an in-place
-`notify()`, so each is cancelled and re-posted (the foreground-bound one detached
-first); `postedAt`/`sortKey` are retained so positions hold and no sound replays. A
-per-reminder change applies on the next post.
+A notification's channel can't change on an in-place `notify()`, so a prominence
+change re-posts the affected live notifications (cancel + re-post, the
+foreground-bound one detached first; `postedAt`/`sortKey` retained so positions
+hold and no sound replays):
+
+- **Device default** changed -> `ACTION_RESTYLE` -> `restyleActive` re-posts every
+  active notification immediately.
+- **Per-reminder** value changed -> the next resync's `scheduleAll` calls
+  `AlarmService.refreshActiveStyles` (`ACTION_REFRESH` -> `refreshActiveProminence`),
+  which reloads each active spec from `AlarmStore` and re-posts only those whose
+  channel actually changed. (Without this, an in-place re-post — including the
+  swipe-away reshow — would leave a live notification stranded on its old channel.)
 
 ## Push channels
 

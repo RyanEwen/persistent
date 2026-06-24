@@ -95,6 +95,16 @@ class AlarmService : Service() {
                     restyleActive()
                 }
             }
+            ACTION_REFRESH -> {
+                // A resync may have changed a live reminder's per-reminder shade
+                // prominence; re-post any active notification whose channel changed.
+                if (active.isEmpty()) {
+                    startForeground(SENTINEL_ID, placeholderNotification())
+                    clearAll()
+                } else {
+                    refreshActiveProminence()
+                }
+            }
             ACTION_RESHOW -> {
                 // The user swiped a notification away (Android 14+ allows this for
                 // foreground services). None are acknowledged, so re-post *all* the
@@ -260,6 +270,35 @@ class AlarmService : Service() {
                 foregroundId = id
                 startForeground(notifId(id), notif)
                 bound = true
+            } else {
+                nm.cancel(notifId(id))
+                nm.notify(notifId(id), notif)
+            }
+        }
+    }
+
+    /**
+     * After a resync, pick up per-reminder shade-prominence changes for live
+     * notifications. For each active non-alarm occurrence whose stored prominence
+     * now resolves to a different channel, re-post it there (cancel + re-post; an
+     * in-place notify() won't move a notification's channel). `postedAt` is
+     * retained so positions hold and no sound replays (audio is separate).
+     */
+    private fun refreshActiveProminence() {
+        ensureChannels()
+        for (id in active.keys.toList()) {
+            val current = active[id] ?: continue
+            if (current.alarm) continue // alarms/escalations always use the alarm channel
+            val stored = AlarmStore.find(this, id) ?: continue
+            if (stored.shadeProminence == current.shadeProminence) continue
+            val updated = current.copy(shadeProminence = stored.shadeProminence)
+            active[id] = updated
+            if (channelFor(updated) == channelFor(current)) continue
+            val notif = buildNotification(updated)
+            if (foregroundId == id) {
+                stopForeground(STOP_FOREGROUND_DETACH)
+                nm.cancel(notifId(id))
+                startForeground(notifId(id), notif)
             } else {
                 nm.cancel(notifId(id))
                 nm.notify(notifId(id), notif)
@@ -603,6 +642,7 @@ class AlarmService : Service() {
         const val ACTION_CANCEL_CONFIRM = "ca.persistent.app.SERVICE_CANCEL_CONFIRM"
         const val ACTION_SILENCE = "ca.persistent.app.SERVICE_SILENCE"
         const val ACTION_RESTYLE = "ca.persistent.app.SERVICE_RESTYLE"
+        const val ACTION_REFRESH = "ca.persistent.app.SERVICE_REFRESH"
         const val DEFAULT_SNOOZE_MINUTES = 10
         // Alarms/escalations keep the legacy channel id so existing installs retain
         // its DND-bypass grant; the two non-alarm channels split by prominence.
@@ -697,6 +737,17 @@ class AlarmService : Service() {
 
         fun stopAll(context: Context) {
             context.startService(Intent(context, AlarmService::class.java).setAction(ACTION_STOP))
+        }
+
+        /**
+         * Nudge the running service to re-post any live notification whose
+         * per-reminder shade prominence changed in the latest resync. No-op when
+         * nothing is showing, so it won't spin up the service needlessly.
+         */
+        fun refreshActiveStyles(context: Context) {
+            if (activeIds.isNotEmpty()) {
+                context.startService(Intent(context, AlarmService::class.java).setAction(ACTION_REFRESH))
+            }
         }
 
         /**
