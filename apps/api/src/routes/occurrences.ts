@@ -12,11 +12,13 @@ import { Router } from 'express'
 import { snoozeInputSchema, type OccurrenceStatus } from '@persistent/shared'
 import { prisma } from '../lib/prisma.js'
 import { requireUser, requireUserId } from '../lib/auth-middleware.js'
-import { badRequest, notFound } from '../lib/http-error.js'
+import { badRequest, conflict, notFound } from '../lib/http-error.js'
 import { toOccurrence } from '../lib/serializers.js'
 import { broadcast } from '../lib/realtime.js'
 import { dispatchToUser } from '../lib/delivery/index.js'
 import { notificationTitle, notificationBody } from '../lib/notification-format.js'
+import { ackDecision } from '../lib/occurrence-ack.js'
+import { logger } from '../lib/logger.js'
 
 export const occurrencesRouter = Router()
 occurrencesRouter.use(requireUser)
@@ -49,12 +51,43 @@ occurrencesRouter.get('/', async (request, response) => {
 
 occurrencesRouter.post('/:id/ack', async (request, response) => {
   const userId = requireUserId(request)
-  const existing = await prisma.reminderOccurrence.findFirst({ where: { id: request.params.id, userId } })
+  const existing = await prisma.reminderOccurrence.findFirst({
+    where: { id: request.params.id, userId },
+    include: { reminder: true }
+  })
   if (!existing) throw notFound('Occurrence not found.')
+
+  // An ack confirms a *nagging* occurrence is done; acking one that is not yet
+  // due would silently cancel its firing (the tick only fires PENDING). Log every
+  // ack with its prior status + client so a premature ack is traceable.
+  const now = new Date()
+  const decision = ackDecision(existing.status, existing.scheduledFor, now)
+  logger.info('occurrence ack', {
+    occurrenceId: existing.id,
+    reminderId: existing.reminderId,
+    priorStatus: existing.status,
+    decision,
+    userAgent: request.get('user-agent') ?? undefined
+  })
+
+  if (decision === 'reject') {
+    throw conflict(`Cannot acknowledge a ${existing.status} occurrence.`)
+  }
+  if (decision === 'noop') {
+    // Idempotent retry: already acknowledged and already dismissed everywhere.
+    response.json({ occurrence: toOccurrence(existing) })
+    return
+  }
 
   const updated = await prisma.reminderOccurrence.update({
     where: { id: existing.id },
-    data: { status: 'ACKNOWLEDGED', acknowledgedAt: new Date() },
+    data: {
+      status: 'ACKNOWLEDGED',
+      acknowledgedAt: now,
+      // A due PENDING ack (native alarm beat the server tick) never got a firedAt;
+      // stamp it from scheduledFor so history/escalation anchors stay coherent.
+      ...(existing.firedAt ? {} : { firedAt: existing.scheduledFor })
+    },
     include: { reminder: true }
   })
 

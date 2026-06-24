@@ -54,6 +54,18 @@ devices only — there is no cross-user delivery. The scheduler uses this same
 `dismiss` (plus an `occurrence.changed`) when a newer firing **supersedes** an
 older unconfirmed one, so the stale firing's notification clears everywhere too.
 
+`POST /api/occurrences/:id/ack` only applies to a *nagging* occurrence. Allowed
+when the occurrence is `FIRED`/`SNOOZED`/`ESCALATED`, or `PENDING` but already
+**due** (`scheduledFor <= now` — the native on-device alarm can fire up to one
+tick before the server flips it to `FIRED`). Re-acking an already-`ACKNOWLEDGED`
+one is an idempotent no-op (safe for offline-queue / native pending-ack drains and
+retries). Acking a **not-yet-due** `PENDING` occurrence, or a terminal one
+(`SUPERSEDED`/`MISSED`), is rejected with `409`. This guard is load-bearing:
+marking a future `PENDING` occurrence `ACKNOWLEDGED` before its fire time would
+silently cancel the firing on every channel (the tick only fires `PENDING`;
+`/api/sync/occurrences` stops shipping it, so the on-device alarm is cancelled on
+the next sync). See `apps/api/src/lib/occurrence-ack.ts`.
+
 ## Cross-device silence
 
 Silencing an **escalation** alarm (`POST /api/occurrences/:id/silence`) is *not* a
