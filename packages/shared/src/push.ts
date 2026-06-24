@@ -1,5 +1,5 @@
 /**
- * Push subscription + device contracts.
+ * Push subscription contracts.
  *
  * Two push channels share one backend: WEB (browser Web Push / VAPID) and FCM
  * (native Android via Firebase Cloud Messaging). The web client also needs the
@@ -25,13 +25,11 @@ export type WebPushSubscriptionInput = z.infer<typeof webPushSubscriptionSchema>
 export const registerSubscriptionSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('WEB'),
-    subscription: webPushSubscriptionSchema,
-    deviceLabel: z.string().trim().max(120).optional()
+    subscription: webPushSubscriptionSchema
   }),
   z.object({
     kind: z.literal('FCM'),
-    token: z.string().min(1).max(4096),
-    deviceLabel: z.string().trim().max(120).optional()
+    token: z.string().min(1).max(4096)
   })
 ])
 export type RegisterSubscriptionInput = z.infer<typeof registerSubscriptionSchema>

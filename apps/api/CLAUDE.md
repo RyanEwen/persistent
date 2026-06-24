@@ -1,8 +1,8 @@
 # API conventions (`apps/api`)
 
 - **Per-user scoping is mandatory.** Every query that reads or writes a domain
-  row (`Reminder`, `ReminderOccurrence`, `PushSubscription`, `Device`,
-  `Passkey`) must include `userId` in its `where` (the passkey *authentication*
+  row (`Reminder`, `ReminderOccurrence`, `PushSubscription`, `Passkey`) must
+  include `userId` in its `where` (the passkey *authentication*
   lookup by `credentialId` is the one exception — it's the anonymous login path
   that establishes the user). Get it with `requireUserId(request)`. For
   edit/delete, first `findFirst({ where: { id, userId } })` and 404 if missing —

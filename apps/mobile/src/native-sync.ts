@@ -83,7 +83,7 @@ async function registerPush(): Promise<void> {
   PushNotifications.addListener('registration', (token) => {
     void api('/api/push/subscriptions', {
       method: 'POST',
-      body: JSON.stringify({ kind: 'FCM', token: token.value, deviceLabel: 'Android' })
+      body: JSON.stringify({ kind: 'FCM', token: token.value })
     }).catch(() => {})
   })
 

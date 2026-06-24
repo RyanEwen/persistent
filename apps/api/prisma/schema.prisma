@@ -52,11 +52,6 @@ enum PushKind {
   FCM
 }
 
-enum DevicePlatform {
-  WEB
-  ANDROID
-}
-
 model User {
   id          String   @id @default(cuid())
   email       String   @unique
@@ -69,7 +64,6 @@ model User {
   reminders     Reminder[]
   occurrences   ReminderOccurrence[]
   subscriptions PushSubscription[]
-  devices       Device[]
   passkeys      Passkey[]
 }
 
@@ -203,27 +197,10 @@ model PushSubscription {
   endpoint     String   @unique
   /// WEB only: { p256dh, auth }.
   keys         Json?
-  deviceId     String?
   userAgent    String?
   createdAt    DateTime @default(now())
 
-  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  device Device? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
-
-  @@index([userId])
-}
-
-/// A device the user has linked, used for native schedule sync + targeting.
-model Device {
-  id         String         @id @default(cuid())
-  userId     String
-  platform   DevicePlatform
-  label      String?
-  lastSyncAt DateTime?
-  createdAt  DateTime       @default(now())
-
-  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  subscriptions PushSubscription[]
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
