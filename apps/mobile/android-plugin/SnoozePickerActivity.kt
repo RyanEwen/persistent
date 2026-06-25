@@ -2,14 +2,10 @@ package ca.persistent.app.alarm
 
 import android.app.Activity
 import android.content.Intent
-import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
-import android.view.Gravity
 import android.view.WindowManager
-import android.widget.Button
-import android.widget.LinearLayout
-import android.widget.TextView
+import ca.persistent.app.alarm.AlarmUi.addStacked
 
 /**
  * Small dialog launched from a notification's "Snooze" action so the user can
@@ -38,23 +34,19 @@ class SnoozePickerActivity : Activity() {
             return
         }
 
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setBackgroundColor(Color.parseColor("#111726"))
-            setPadding(48, 48, 48, 48)
-        }
-        root.addView(TextView(this).apply {
-            text = "Snooze for…"
-            textSize = 22f
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            setPadding(0, 0, 0, 24)
-        })
-        for ((label, minutes) in presets) {
-            root.addView(Button(this).apply {
-                text = label
-                setOnClickListener {
+        val scaffold = AlarmUi.scaffold(this)
+        val card = scaffold.card
+
+        card.addStacked(AlarmUi.kicker(this, "SNOOZE"))
+        card.addStacked(AlarmUi.title(this, "Snooze for…"), topMarginDp = 6f)
+        presets.forEachIndexed { index, (label, minutes) ->
+            card.addView(
+                AlarmUi.pillButton(
+                    this,
+                    label,
+                    AlarmUi.ButtonStyle.SECONDARY,
+                    topMarginDp = if (index == 0) 24f else 12f
+                ) {
                     sendBroadcast(
                         Intent(this@SnoozePickerActivity, AlarmReceiver::class.java)
                             .setAction(AlarmReceiver.ACTION_SNOOZE)
@@ -63,10 +55,10 @@ class SnoozePickerActivity : Activity() {
                     )
                     finish()
                 }
-            })
+            )
         }
 
-        setContentView(root)
+        setContentView(scaffold.root)
     }
 
     private fun showOverLockScreen() {

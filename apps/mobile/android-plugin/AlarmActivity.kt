@@ -5,15 +5,11 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
-import android.view.Gravity
 import android.view.WindowManager
-import android.widget.Button
-import android.widget.LinearLayout
-import android.widget.TextView
 import androidx.core.content.ContextCompat
+import ca.persistent.app.alarm.AlarmUi.addStacked
 
 /**
  * Full-screen alarm UI launched over the lock screen by the full-screen intent.
@@ -50,63 +46,40 @@ class AlarmActivity : Activity() {
         val body = intent.getStringExtra("body") ?: ""
         val canSilence = intent.getBooleanExtra("canSilence", false)
 
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setBackgroundColor(Color.parseColor("#0b0f19"))
-            setPadding(48, 48, 48, 48)
-        }
+        val scaffold = AlarmUi.scaffold(this)
+        val card = scaffold.card
 
-        root.addView(TextView(this).apply {
-            text = title
-            textSize = 28f
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-        })
+        card.addStacked(AlarmUi.kicker(this, "REMINDER"))
+        card.addStacked(AlarmUi.title(this, title), topMarginDp = 6f)
         if (body.isNotEmpty()) {
-            root.addView(TextView(this).apply {
-                text = body
-                textSize = 18f
-                setTextColor(Color.parseColor("#9aa4b2"))
-                gravity = Gravity.CENTER
-                setPadding(0, 24, 0, 48)
-            })
+            card.addStacked(AlarmUi.body(this, body))
         }
 
-        root.addView(Button(this).apply {
-            text = "Done"
-            setOnClickListener {
-                // The full-screen alarm is itself the deliberate surface, so Done acks
-                // directly (no notification confirm round-trip, no app launch).
-                sendAction(AlarmReceiver.ACTION_CONFIRM)
-                finish()
-            }
+        card.addView(AlarmUi.pillButton(this, "Done", AlarmUi.ButtonStyle.PRIMARY, topMarginDp = 28f) {
+            // The full-screen alarm is itself the deliberate surface, so Done acks
+            // directly (no notification confirm round-trip, no app launch).
+            sendAction(AlarmReceiver.ACTION_CONFIRM)
+            finish()
         })
-        root.addView(Button(this).apply {
-            text = "Snooze…"
-            setOnClickListener {
-                occurrenceId?.let { id ->
-                    startActivity(
-                        Intent(this@AlarmActivity, SnoozePickerActivity::class.java)
-                            .putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, id)
-                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    )
-                }
-                finish()
+        card.addView(AlarmUi.pillButton(this, "Snooze…", AlarmUi.ButtonStyle.SECONDARY, topMarginDp = 12f) {
+            occurrenceId?.let { id ->
+                startActivity(
+                    Intent(this@AlarmActivity, SnoozePickerActivity::class.java)
+                        .putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, id)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
             }
+            finish()
         })
         if (canSilence) {
             // Escalation only: stop the alarm but leave the reminder nagging.
-            root.addView(Button(this).apply {
-                text = "Silence"
-                setOnClickListener {
-                    sendAction(AlarmReceiver.ACTION_SILENCE)
-                    finish()
-                }
+            card.addView(AlarmUi.pillButton(this, "Silence", AlarmUi.ButtonStyle.GHOST, topMarginDp = 12f) {
+                sendAction(AlarmReceiver.ACTION_SILENCE)
+                finish()
             })
         }
 
-        setContentView(root)
+        setContentView(scaffold.root)
     }
 
     override fun onDestroy() {
