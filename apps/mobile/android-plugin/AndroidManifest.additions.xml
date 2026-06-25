@@ -43,7 +43,7 @@
     android:turnScreenOn="true"
     android:excludeFromRecents="true"
     android:launchMode="singleInstance"
-    android:theme="@android:style/Theme.Material.Dialog.NoActionBar" />
+    android:theme="@android:style/Theme.Material.NoActionBar" />
 
 <receiver
     android:name="ca.persistent.app.alarm.AlarmReceiver"

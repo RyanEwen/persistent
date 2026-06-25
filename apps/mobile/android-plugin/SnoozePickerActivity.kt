@@ -6,17 +6,20 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.text.format.DateFormat
-import android.view.View
 import android.view.WindowManager
 import android.widget.LinearLayout
 import ca.persistent.app.alarm.AlarmUi.addStacked
 import java.util.Calendar
 
 /**
- * Small dialog launched from a notification's "Snooze" action so the user can
- * choose how long to snooze. Picking a preset, a custom number + unit, or a
- * wall-clock time (converted to minutes-from-now) broadcasts ACTION_SNOOZE with
- * the minutes; AlarmReceiver re-arms + syncs it. Built in code to avoid shipping XML.
+ * Full-screen surface launched from a notification's "Snooze" action so the user
+ * can choose how long to snooze: a preset, a custom number + unit, or a wall-clock
+ * time (converted to minutes-from-now). The chosen minutes broadcast ACTION_SNOOZE;
+ * AlarmReceiver re-arms + syncs it. Built in code to avoid shipping XML.
+ *
+ * Two views swap in place on the same scaffold: the preset list, and a dedicated
+ * "custom" entry view (so Custom doesn't just grow the already-long list). Back
+ * returns to the list before it leaves the surface.
  */
 class SnoozePickerActivity : Activity() {
 
@@ -31,22 +34,32 @@ class SnoozePickerActivity : Activity() {
         "1 day" to 1440
     )
 
-    // Units for the custom row, mirroring the in-app picker (minutes-per-unit).
+    // Units for the custom view, mirroring the in-app picker (minutes-per-unit).
     private val customUnits = listOf("min" to 1, "hr" to 60, "day" to 1440)
-    private var customUnitMinutes = 1
+
+    private lateinit var content: LinearLayout
+    private var occurrenceId: String? = null
+    private var showingCustom = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         showOverLockScreen()
-        val occurrenceId = intent.getStringExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID)
+        occurrenceId = intent.getStringExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID)
         if (occurrenceId == null) {
             finish()
             return
         }
 
         val scaffold = AlarmUi.scaffold(this)
-        val content = scaffold.content
+        content = scaffold.content
+        setContentView(scaffold.root)
+        renderMain()
+    }
 
+    /** The preset list plus entry points to the custom + until-a-time flows. */
+    private fun renderMain() {
+        showingCustom = false
+        content.removeAllViews()
         content.addStacked(AlarmUi.kicker(this, "SNOOZE"))
         content.addStacked(AlarmUi.title(this, "Snooze for…"), topMarginDp = 6f)
         presets.forEachIndexed { index, (label, minutes) ->
@@ -56,44 +69,49 @@ class SnoozePickerActivity : Activity() {
                     label,
                     AlarmUi.ButtonStyle.SECONDARY,
                     topMarginDp = if (index == 0) 24f else 12f
-                ) { snooze(occurrenceId, minutes) }
+                ) { snooze(minutes) }
             )
         }
-
-        // Custom number + unit, revealed by the "Custom…" toggle (like in-app).
-        val field = AlarmUi.numberField(this, "45", topMarginDp = 0f)
-        val customSection = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            visibility = View.GONE
-            layoutParams = AlarmUi.stacked(this@SnoozePickerActivity, 12f)
-            addView(field)
-            addView(AlarmUi.segmented(this@SnoozePickerActivity, customUnits.map { it.first }, 0, 12f) { index ->
-                customUnitMinutes = customUnits[index].second
-            })
-            addView(AlarmUi.pillButton(this@SnoozePickerActivity, "Snooze", AlarmUi.ButtonStyle.PRIMARY, 12f) {
-                val amount = field.text.toString().toIntOrNull() ?: 1
-                snooze(occurrenceId, maxOf(1, amount * customUnitMinutes))
-            })
-        }
         content.addView(AlarmUi.pillButton(this, "Custom…", AlarmUi.ButtonStyle.GHOST, topMarginDp = 12f) {
-            customSection.visibility =
-                if (customSection.visibility == View.GONE) View.VISIBLE else View.GONE
+            renderCustom()
         })
-        content.addView(customSection)
-
         // Snooze until a specific wall-clock time, picked via the system clock.
         content.addView(AlarmUi.pillButton(this, "Until a time…", AlarmUi.ButtonStyle.GHOST, topMarginDp = 12f) {
             val now = Calendar.getInstance()
             TimePickerDialog(
                 this,
-                { _, hour, minute -> snooze(occurrenceId, minutesUntil(hour, minute)) },
+                { _, hour, minute -> snooze(minutesUntil(hour, minute)) },
                 now.get(Calendar.HOUR_OF_DAY),
                 now.get(Calendar.MINUTE),
                 DateFormat.is24HourFormat(this)
             ).show()
         })
+    }
 
-        setContentView(scaffold.root)
+    /** A dedicated view (replacing the list) for entering a custom number + unit. */
+    private fun renderCustom() {
+        showingCustom = true
+        content.removeAllViews()
+        var unitMinutes = customUnits[0].second
+        val field = AlarmUi.numberField(this, "45", topMarginDp = 0f)
+        content.addStacked(AlarmUi.kicker(this, "SNOOZE"))
+        content.addStacked(AlarmUi.title(this, "Custom snooze"), topMarginDp = 6f)
+        content.addView(field, AlarmUi.stacked(this, 24f))
+        content.addView(AlarmUi.segmented(this, customUnits.map { it.first }, 0, 12f) { index ->
+            unitMinutes = customUnits[index].second
+        })
+        content.addView(AlarmUi.pillButton(this, "Snooze", AlarmUi.ButtonStyle.PRIMARY, topMarginDp = 12f) {
+            val amount = field.text.toString().toIntOrNull() ?: 1
+            snooze(maxOf(1, amount * unitMinutes))
+        })
+        content.addView(AlarmUi.pillButton(this, "Back", AlarmUi.ButtonStyle.GHOST, topMarginDp = 12f) {
+            renderMain()
+        })
+    }
+
+    @Deprecated("Back steps out of the custom view to the list before leaving the surface.")
+    override fun onBackPressed() {
+        if (showingCustom) renderMain() else @Suppress("DEPRECATION") super.onBackPressed()
     }
 
     /**
@@ -114,11 +132,12 @@ class SnoozePickerActivity : Activity() {
         return minutes.coerceIn(1, 1440)
     }
 
-    private fun snooze(occurrenceId: String, minutes: Int) {
+    private fun snooze(minutes: Int) {
+        val id = occurrenceId ?: return
         sendBroadcast(
             Intent(this, AlarmReceiver::class.java)
                 .setAction(AlarmReceiver.ACTION_SNOOZE)
-                .putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, occurrenceId)
+                .putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, id)
                 .putExtra(AlarmReceiver.EXTRA_MINUTES, minutes)
         )
         finish()
