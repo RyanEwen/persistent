@@ -1,7 +1,8 @@
 /**
- * Snooze duration picker: preset chips plus a custom number + unit. Used by the
- * in-app "Needs confirmation" card so Snooze opens a dialog instead of splaying
- * presets inline.
+ * Snooze duration picker: preset chips, a custom number + unit, or "until" a
+ * wall-clock time (converted to a minutes-from-now snooze). Used by the in-app
+ * "Needs confirmation" card so Snooze opens a dialog instead of splaying presets
+ * inline.
  */
 import { useState } from 'react'
 import ModalDialog from '@mui/joy/ModalDialog'
@@ -11,7 +12,7 @@ import Button from '@mui/joy/Button'
 import Input from '@mui/joy/Input'
 import Select from '@mui/joy/Select'
 import Option from '@mui/joy/Option'
-import { SNOOZE_PRESETS, DURATION_UNITS, customToMinutes } from '../lib/durations.js'
+import { SNOOZE_PRESETS, DURATION_UNITS, customToMinutes, minutesUntilTime } from '../lib/durations.js'
 import { BackAwareModal } from './BackAwareModal.js'
 
 export function SnoozeDialog({
@@ -25,9 +26,14 @@ export function SnoozeDialog({
   onSnooze: (minutes: number) => void
   busy?: boolean
 }) {
-  const [showCustom, setShowCustom] = useState(false)
-  const [value, setValue] = useState(45)
+  const [mode, setMode] = useState<'none' | 'custom' | 'until'>('none')
+  // Held as a string so the field can be emptied mid-edit (backspacing the last
+  // digit to type a fresh number); coerced to a positive integer only on submit.
+  const [value, setValue] = useState('45')
   const [unit, setUnit] = useState('mins')
+  const [until, setUntil] = useState('07:00')
+
+  const toggle = (m: 'custom' | 'until') => setMode((cur) => (cur === m ? 'none' : m))
 
   return (
     <BackAwareModal open={open} onClose={onClose}>
@@ -39,16 +45,19 @@ export function SnoozeDialog({
               {p.label}
             </Button>
           ))}
-          <Button size="sm" variant={showCustom ? 'solid' : 'outlined'} onClick={() => setShowCustom((v) => !v)}>
+          <Button size="sm" variant={mode === 'custom' ? 'solid' : 'outlined'} onClick={() => toggle('custom')}>
             Custom
           </Button>
+          <Button size="sm" variant={mode === 'until' ? 'solid' : 'outlined'} onClick={() => toggle('until')}>
+            Until…
+          </Button>
         </Stack>
-        {showCustom && (
+        {mode === 'custom' && (
           <Stack direction="row" spacing={1} sx={{ mt: 1.5 }} alignItems="center">
             <Input
               type="number"
               value={value}
-              onChange={(e) => setValue(Number(e.target.value) || 1)}
+              onChange={(e) => setValue(e.target.value)}
               slotProps={{ input: { min: 1 } }}
               sx={{ flex: 1, minWidth: 0 }}
             />
@@ -59,7 +68,20 @@ export function SnoozeDialog({
                 </Option>
               ))}
             </Select>
-            <Button disabled={busy} onClick={() => onSnooze(customToMinutes(value, unit))}>
+            <Button disabled={busy} onClick={() => onSnooze(customToMinutes(Number(value) || 1, unit))}>
+              Snooze
+            </Button>
+          </Stack>
+        )}
+        {mode === 'until' && (
+          <Stack direction="row" spacing={1} sx={{ mt: 1.5 }} alignItems="center">
+            <Input
+              type="time"
+              value={until}
+              onChange={(e) => setUntil(e.target.value)}
+              sx={{ flex: 1, minWidth: 0 }}
+            />
+            <Button disabled={busy} onClick={() => onSnooze(minutesUntilTime(until))}>
               Snooze
             </Button>
           </Stack>

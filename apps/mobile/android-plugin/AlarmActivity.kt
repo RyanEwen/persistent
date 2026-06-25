@@ -47,21 +47,21 @@ class AlarmActivity : Activity() {
         val canSilence = intent.getBooleanExtra("canSilence", false)
 
         val scaffold = AlarmUi.scaffold(this)
-        val card = scaffold.card
+        val content = scaffold.content
 
-        card.addStacked(AlarmUi.kicker(this, "REMINDER"))
-        card.addStacked(AlarmUi.title(this, title), topMarginDp = 6f)
+        content.addStacked(AlarmUi.kicker(this, "REMINDER"))
+        content.addStacked(AlarmUi.title(this, title), topMarginDp = 6f)
         if (body.isNotEmpty()) {
-            card.addStacked(AlarmUi.body(this, body))
+            content.addStacked(AlarmUi.body(this, body))
         }
 
-        card.addView(AlarmUi.pillButton(this, "Done", AlarmUi.ButtonStyle.PRIMARY, topMarginDp = 28f) {
+        content.addView(AlarmUi.pillButton(this, "Done", AlarmUi.ButtonStyle.PRIMARY, topMarginDp = 28f) {
             // The full-screen alarm is itself the deliberate surface, so Done acks
             // directly (no notification confirm round-trip, no app launch).
             sendAction(AlarmReceiver.ACTION_CONFIRM)
             finish()
         })
-        card.addView(AlarmUi.pillButton(this, "Snooze…", AlarmUi.ButtonStyle.SECONDARY, topMarginDp = 12f) {
+        content.addView(AlarmUi.pillButton(this, "Snooze…", AlarmUi.ButtonStyle.SECONDARY, topMarginDp = 12f) {
             occurrenceId?.let { id ->
                 startActivity(
                     Intent(this@AlarmActivity, SnoozePickerActivity::class.java)
@@ -73,7 +73,7 @@ class AlarmActivity : Activity() {
         })
         if (canSilence) {
             // Escalation only: stop the alarm but leave the reminder nagging.
-            card.addView(AlarmUi.pillButton(this, "Silence", AlarmUi.ButtonStyle.GHOST, topMarginDp = 12f) {
+            content.addView(AlarmUi.pillButton(this, "Silence", AlarmUi.ButtonStyle.GHOST, topMarginDp = 12f) {
                 sendAction(AlarmReceiver.ACTION_SILENCE)
                 finish()
             })

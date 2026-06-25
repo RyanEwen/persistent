@@ -59,6 +59,23 @@ export function customToMinutes(value: number, unit: string): number {
   return Math.max(1, Math.round(value * minutes))
 }
 
+/**
+ * Minutes from now until the next occurrence of a wall-clock time (`HH:MM`). If
+ * that time has already passed today it rolls to tomorrow. Clamped to the snooze
+ * ceiling (1 day) with a 1-minute floor so the result is always a valid snooze.
+ */
+export function minutesUntilTime(hhmm: string, from: Date = new Date()): number {
+  const parts = hhmm.split(':')
+  const h = Number(parts[0])
+  const m = Number(parts[1])
+  if (Number.isNaN(h) || Number.isNaN(m)) return 1
+  const target = new Date(from)
+  target.setHours(h, m, 0, 0)
+  if (target.getTime() <= from.getTime()) target.setDate(target.getDate() + 1)
+  const minutes = Math.round((target.getTime() - from.getTime()) / 60_000)
+  return Math.min(1440, Math.max(1, minutes))
+}
+
 /** Compact label for an arbitrary minute total. */
 export function formatDurationMinutes(total: number): string {
   const preset = DURATION_PRESETS.find((p) => p.minutes === total)
