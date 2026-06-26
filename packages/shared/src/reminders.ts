@@ -43,8 +43,9 @@ export const occurrenceStatuses = [
   'SNOOZED',
   'ESCALATED',
   'MISSED',
-  // A newer firing of the same reminder auto-resolved this still-unconfirmed one,
-  // so only the latest occurrence nags (one notification per reminder).
+  // Legacy: a newer firing used to auto-resolve older still-unconfirmed
+  // occurrences of the same reminder. Occurrences are now independent, so the
+  // scheduler no longer assigns this — kept only for existing history rows.
   'SUPERSEDED'
 ] as const
 export const occurrenceStatusSchema = z.enum(occurrenceStatuses)
@@ -238,7 +239,8 @@ export const occurrenceSchema = z.object({
   acknowledgedAt: z.string().datetime().nullable(),
   snoozedUntil: z.string().datetime().nullable(),
   escalatedAt: z.string().datetime().nullable(),
-  // When a newer firing of the same reminder superseded this one (status SUPERSEDED).
+  // Legacy: set when a newer firing superseded this one (status SUPERSEDED). No
+  // longer produced — occurrences are independent — but kept for old history rows.
   supersededAt: z.string().datetime().nullable(),
   // Instant this occurrence escalates to an alarm if still unacknowledged, or
   // null when no escalation is configured. Computed server-side and populated by

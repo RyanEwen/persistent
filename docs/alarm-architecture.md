@@ -38,8 +38,9 @@ So we split responsibilities:
   `scheduleAll` drops any live notification whose occurrence is no longer returned
   (`AlarmService.cancelMissing`) and refreshes the text/channel of the survivors
   (`refreshActive`). This is how a device catches up on dismisses/edits it missed
-  while closed — e.g. a reminder superseded by a newer firing, or renamed, while the
-  app couldn't receive the live event — so it can't show a stale or duplicate nag.
+  while closed — e.g. an occurrence acked/deleted on another device, or a reminder
+  renamed, while the app couldn't receive the live event — so it can't show a stale
+  or duplicate nag.
 - **Server push is the backup**, not the primary fire path for native: it covers
   cross-device delivery, ad-hoc/just-created reminders, and escalation.
 
@@ -201,15 +202,16 @@ until the user explicitly acknowledges it or deletes the reminder — that is th
 persistence guarantee. The `MISSED` status still exists in the model for a
 possible future *explicit* action, but the scheduler never assigns it on its own.
 
-**One notification per reminder.** The single exception to "only the user clears a
-fired occurrence" is *self-collapse*: when a reminder fires again while an earlier
-firing is still unconfirmed, the scheduler marks the older occurrence `SUPERSEDED`
-and dismisses it on every device (`keepNewestForReminder`). So an ignored
-*repeating* reminder nags with one current notification, not a growing stack of
-one-per-firing. The newest firing always wins (by `scheduledFor`); superseded
-occurrences move to history, not the active feed. This collapses *across firings
-of the same reminder* only — distinct reminders still each get their own
-notification id, and a single firing's nag/escalation is untouched.
+**Each occurrence is independent.** A reminder with several times of day (or one
+that repeats) fires, nags, and is confirmed one occurrence at a time. If the 9:00
+dose is still unconfirmed when 13:00 fires, both nag as separate notifications,
+each with its own Done/Snooze/Silence, each acknowledged on its own — confirming
+13:00 never clears 9:00. Every occurrence is keyed by its own occurrence id all
+the way down (notification tag, native `notifId`, on-device alarm request code),
+so nothing collapses across firings. (An earlier design auto-resolved older
+firings to `SUPERSEDED` via `keepNewestForReminder`; that collapse was removed.
+`SUPERSEDED` is now legacy-only — never assigned — and any old such rows live in
+history, not the active feed.)
 
 The escalation instant is computed once (`escalateAtFor` in `lib/scheduler.ts`)
 and used in two places so it fires regardless of connectivity:

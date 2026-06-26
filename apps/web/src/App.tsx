@@ -13,6 +13,7 @@ import { RemindersPage } from './pages/RemindersPage.js'
 import { ReminderEditorPage } from './pages/ReminderEditorPage.js'
 import { HistoryPage } from './pages/HistoryPage.js'
 import { SettingsPage } from './pages/SettingsPage.js'
+import { HelpPage } from './pages/HelpPage.js'
 import { UpdateCheck } from './native/UpdateCheck.js'
 import { registerNavHandler } from './native/navTo.js'
 
@@ -44,6 +45,7 @@ export function App() {
         <Route path="/reminders/:id" element={<ReminderEditorPage />} />
         <Route path="/history" element={<HistoryPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/help" element={<HelpPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AppLayout>

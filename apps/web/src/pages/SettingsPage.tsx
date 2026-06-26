@@ -3,11 +3,13 @@
  * and sign out. The native Android app handles its own alarm permissions.
  */
 import { useEffect, useState } from 'react'
+import { Link as RouterLink } from 'react-router-dom'
 import Stack from '@mui/joy/Stack'
 import Box from '@mui/joy/Box'
 import Card from '@mui/joy/Card'
 import Typography from '@mui/joy/Typography'
 import Button from '@mui/joy/Button'
+import Link from '@mui/joy/Link'
 import Alert from '@mui/joy/Alert'
 import Select from '@mui/joy/Select'
 import Option from '@mui/joy/Option'
@@ -205,6 +207,16 @@ export function SettingsPage() {
       </Card>
 
       <PasskeysCard />
+
+      <Card variant="outlined">
+        <Typography level="title-sm">Help</Typography>
+        <Typography level="body-sm">
+          New here, or want a refresher on how nagging, escalation, and Done/Silence/Snooze work?{' '}
+          <Link component={RouterLink} to="/help">
+            How Persistent works
+          </Link>
+        </Typography>
+      </Card>
 
       <UpdateSettings />
     </Stack>

@@ -7,6 +7,8 @@ import { Link as RouterLink } from 'react-router-dom'
 import Box from '@mui/joy/Box'
 import Sheet from '@mui/joy/Sheet'
 import Typography from '@mui/joy/Typography'
+import IconButton from '@mui/joy/IconButton'
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline'
 import { BottomNav } from './BottomNav.js'
 import { BrandMark } from './BrandMark.js'
 import { GetTheAppButton, NativePromoBanner } from './GetTheApp.js'
@@ -41,6 +43,17 @@ export function AppLayout({ children }: { children: ReactNode }) {
         </Box>
         <Box sx={{ flex: 1 }} />
         <GetTheAppButton />
+        <IconButton
+          component={RouterLink}
+          to="/help"
+          variant="plain"
+          color="neutral"
+          size="sm"
+          aria-label="Help"
+          sx={{ ml: 0.5 }}
+        >
+          <HelpOutlineIcon />
+        </IconButton>
       </Sheet>
       {/* pb leaves room for the fixed bottom nav. */}
       <Box sx={{ maxWidth: 640, mx: 'auto', px: 2, py: 2, pb: 10 }}>

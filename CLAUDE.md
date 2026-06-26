@@ -41,9 +41,14 @@ best-effort (`requireInteraction` + re-fire on dismissal in the service worker).
 
 `Reminder` (the definition the user manages) → expanded by the scheduler into
 `ReminderOccurrence` rows (one per firing). The persistence guarantee = an
-occurrence is `FIRED` and not yet `ACKNOWLEDGED`. A newer firing auto-resolves the
-same reminder's older still-unconfirmed occurrences (`SUPERSEDED`) so only the
-latest nags — one notification per reminder. See `packages/shared/src/reminders.ts`.
+occurrence is `FIRED` and not yet `ACKNOWLEDGED`. **Every occurrence is
+independent**: a reminder with several times of day (or one that repeats) fires,
+nags, and is confirmed one occurrence at a time — an unconfirmed 9:00 dose does
+not suppress the 13:00 dose, and confirming 13:00 does not clear 9:00. (The legacy
+`SUPERSEDED` status is no longer produced; old rows may still carry it.) The
+guaranteed user-facing behavior of done / silence / snooze / independent
+occurrences is specified in `docs/notification-behavior.md`. See also
+`packages/shared/src/reminders.ts`.
 
 ## Code style
 
@@ -94,8 +99,9 @@ directory guide `apps/api/CLAUDE.md`.
 - Directory-scoped conventions load when you read/edit files there:
   `apps/api/CLAUDE.md`, `apps/web/CLAUDE.md`, `packages/shared/CLAUDE.md`.
 - Cross-cutting contracts live in `docs/`: `auth-architecture.md`,
-  `data-event-contract.md`, `alarm-architecture.md`. Read the relevant one before
-  related work.
+  `data-event-contract.md`, `alarm-architecture.md`, `notification-behavior.md`
+  (the done/silence/snooze + independent-occurrence guarantee). Read the relevant
+  one before related work.
 - Repeatable workflows are `.claude/commands/` slash commands: `/commit`
   (review + validate + commit), `/deploy` (commit + push + SSH-Docker deploy),
   `/release` (version-bump + tag; CI builds the signed APK + GitHub Release),
