@@ -1,6 +1,7 @@
 package ca.persistent.app.alarm
 
 import android.app.Activity
+import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.Intent
 import android.os.Build
@@ -13,9 +14,9 @@ import java.util.Calendar
 
 /**
  * Full-screen surface launched from a notification's "Snooze" action so the user
- * can choose how long to snooze: a preset, a custom number + unit, or a wall-clock
- * time (converted to minutes-from-now). The chosen minutes broadcast ACTION_SNOOZE;
- * AlarmReceiver re-arms + syncs it. Built in code to avoid shipping XML.
+ * can choose how long to snooze: a preset, a custom number + unit, or a specific
+ * date + time (converted to minutes-from-now). The chosen minutes broadcast
+ * ACTION_SNOOZE; AlarmReceiver re-arms + syncs it. Built in code to avoid shipping XML.
  *
  * Two views swap in place on the same scaffold: the preset list, and a dedicated
  * "custom" entry view (so Custom doesn't just grow the already-long list). Back
@@ -75,17 +76,38 @@ class SnoozePickerActivity : Activity() {
         content.addView(AlarmUi.pillButton(this, "Custom…", AlarmUi.ButtonStyle.GHOST, topMarginDp = 12f) {
             renderCustom()
         })
-        // Snooze until a specific wall-clock time, picked via the system clock.
-        content.addView(AlarmUi.pillButton(this, "Until a time…", AlarmUi.ButtonStyle.GHOST, topMarginDp = 12f) {
-            val now = Calendar.getInstance()
-            TimePickerDialog(
-                this,
-                { _, hour, minute -> snooze(minutesUntil(hour, minute)) },
-                now.get(Calendar.HOUR_OF_DAY),
-                now.get(Calendar.MINUTE),
-                DateFormat.is24HourFormat(this)
-            ).show()
+        // Snooze until a specific date + time, picked via the system date then clock.
+        content.addView(AlarmUi.pillButton(this, "Until a date & time…", AlarmUi.ButtonStyle.GHOST, topMarginDp = 12f) {
+            pickDateTime()
         })
+    }
+
+    /** Chain the system date picker into the time picker, then snooze until then. */
+    private fun pickDateTime() {
+        val now = Calendar.getInstance()
+        val datePicker = DatePickerDialog(
+            this,
+            { _, year, month, day ->
+                TimePickerDialog(
+                    this,
+                    { _, hour, minute ->
+                        val target = Calendar.getInstance().apply {
+                            set(year, month, day, hour, minute, 0)
+                            set(Calendar.MILLISECOND, 0)
+                        }
+                        snooze(minutesUntil(target))
+                    },
+                    now.get(Calendar.HOUR_OF_DAY),
+                    now.get(Calendar.MINUTE),
+                    DateFormat.is24HourFormat(this)
+                ).show()
+            },
+            now.get(Calendar.YEAR),
+            now.get(Calendar.MONTH),
+            now.get(Calendar.DAY_OF_MONTH)
+        )
+        datePicker.datePicker.minDate = now.timeInMillis
+        datePicker.show()
     }
 
     /** A dedicated view (replacing the list) for entering a custom number + unit. */
@@ -115,21 +137,14 @@ class SnoozePickerActivity : Activity() {
     }
 
     /**
-     * Minutes from now until the next occurrence of [hour]:[minute]; rolls to
-     * tomorrow if that time already passed today. Clamped to the snooze ceiling
-     * (1 day) so the result is always a valid ACTION_SNOOZE amount.
+     * Minutes from now until [target]. Clamped to [1, MAX_SNOOZE_MINUTES] so a
+     * past pick still yields a valid ACTION_SNOOZE amount and a far-future one
+     * can't exceed the snooze ceiling.
      */
-    private fun minutesUntil(hour: Int, minute: Int): Int {
+    private fun minutesUntil(target: Calendar): Int {
         val now = Calendar.getInstance()
-        val target = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, hour)
-            set(Calendar.MINUTE, minute)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
-        if (!target.after(now)) target.add(Calendar.DAY_OF_MONTH, 1)
         val minutes = ((target.timeInMillis - now.timeInMillis) / 60_000L).toInt()
-        return minutes.coerceIn(1, 1440)
+        return minutes.coerceIn(1, MAX_SNOOZE_MINUTES)
     }
 
     private fun snooze(minutes: Int) {
@@ -138,9 +153,14 @@ class SnoozePickerActivity : Activity() {
             Intent(this, AlarmReceiver::class.java)
                 .setAction(AlarmReceiver.ACTION_SNOOZE)
                 .putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, id)
-                .putExtra(AlarmReceiver.EXTRA_MINUTES, minutes)
+                .putExtra(AlarmReceiver.EXTRA_MINUTES, minutes.coerceIn(1, MAX_SNOOZE_MINUTES))
         )
         finish()
+    }
+
+    companion object {
+        // Keep in lockstep with MAX_SNOOZE_MINUTES in packages/shared (1 year).
+        private const val MAX_SNOOZE_MINUTES = 525_600
     }
 
     private fun showOverLockScreen() {

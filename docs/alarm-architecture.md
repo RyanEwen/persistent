@@ -74,9 +74,9 @@ drives them lives in `apps/web/src/native`.
   - Each occurrence gets its **own notification id**, so multiple due reminders
     show at once (the foreground service rebinds to a remaining one as they clear).
   - **Snooze** opens a duration picker (`SnoozePickerActivity`) offering presets, a
-    custom number + unit, or a wall-clock "until a time" (converted to minutes from
-    now); the chosen minutes are re-armed locally and queued to the server
-    (`PendingSnoozeStore`).
+    custom number + unit, or "until" a specific date + time (converted to minutes
+    from now, capped at `MAX_SNOOZE_MINUTES`); the chosen minutes are re-armed
+    locally and queued to the server (`PendingSnoozeStore`).
   - **Silence** (escalation alarms only) stops the loud alarm but keeps the
     reminder nagging: it downgrades the on-device alarm to a soft, ongoing
     notification, queues a silence for the server (`PendingSilenceStore`), and the

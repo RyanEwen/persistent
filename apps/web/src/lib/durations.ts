@@ -3,6 +3,8 @@
  * escalation "how late") and the snooze dialogs. Everything is stored in minutes;
  * the custom editor lets the user pick a unit.
  */
+import { MAX_SNOOZE_MINUTES } from '@persistent/shared'
+
 export interface DurationPreset {
   label: string
   minutes: number
@@ -60,20 +62,24 @@ export function customToMinutes(value: number, unit: string): number {
 }
 
 /**
- * Minutes from now until the next occurrence of a wall-clock time (`HH:MM`). If
- * that time has already passed today it rolls to tomorrow. Clamped to the snooze
- * ceiling (1 day) with a 1-minute floor so the result is always a valid snooze.
+ * Minutes from now until a specific local date + time (a `datetime-local` value,
+ * `YYYY-MM-DDTHH:MM`). Clamped to the snooze ceiling with a 1-minute floor (so a
+ * past or malformed value still yields a valid snooze).
  */
-export function minutesUntilTime(hhmm: string, from: Date = new Date()): number {
-  const parts = hhmm.split(':')
-  const h = Number(parts[0])
-  const m = Number(parts[1])
-  if (Number.isNaN(h) || Number.isNaN(m)) return 1
-  const target = new Date(from)
-  target.setHours(h, m, 0, 0)
-  if (target.getTime() <= from.getTime()) target.setDate(target.getDate() + 1)
+export function minutesUntilDateTime(local: string, from: Date = new Date()): number {
+  const target = new Date(local)
+  if (Number.isNaN(target.getTime())) return 1
   const minutes = Math.round((target.getTime() - from.getTime()) / 60_000)
-  return Math.min(1440, Math.max(1, minutes))
+  return Math.min(MAX_SNOOZE_MINUTES, Math.max(1, minutes))
+}
+
+/** Format a Date as a `datetime-local` input value (`YYYY-MM-DDTHH:MM`, local). */
+export function toDateTimeLocalValue(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+    `T${pad(date.getHours())}:${pad(date.getMinutes())}`
+  )
 }
 
 /** Compact label for an arbitrary minute total. */

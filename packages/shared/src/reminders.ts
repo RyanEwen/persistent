@@ -259,7 +259,14 @@ export const occurrenceSchema = z.object({
 })
 export type Occurrence = z.infer<typeof occurrenceSchema>
 
+/**
+ * Upper bound for a single snooze, in minutes (1 year). Generous so the picker
+ * can snooze "until" a future date and the custom number + unit (which goes up
+ * to years) stays valid; snoozedUntil just sets a future fire time.
+ */
+export const MAX_SNOOZE_MINUTES = 525_600
+
 export const snoozeInputSchema = z.object({
-  minutes: z.number().int().min(1).max(1440)
+  minutes: z.number().int().min(1).max(MAX_SNOOZE_MINUTES)
 })
 export type SnoozeInput = z.infer<typeof snoozeInputSchema>

@@ -1,8 +1,8 @@
 /**
  * Snooze duration picker: preset chips, a custom number + unit, or "until" a
- * wall-clock time (converted to a minutes-from-now snooze). Used by the in-app
- * "Needs confirmation" card so Snooze opens a dialog instead of splaying presets
- * inline.
+ * specific date + time (converted to a minutes-from-now snooze). Used by the
+ * in-app "Needs confirmation" card so Snooze opens a dialog instead of splaying
+ * presets inline.
  */
 import { useState } from 'react'
 import ModalDialog from '@mui/joy/ModalDialog'
@@ -12,7 +12,14 @@ import Button from '@mui/joy/Button'
 import Input from '@mui/joy/Input'
 import Select from '@mui/joy/Select'
 import Option from '@mui/joy/Option'
-import { SNOOZE_PRESETS, DURATION_UNITS, customToMinutes, minutesUntilTime } from '../lib/durations.js'
+import { MAX_SNOOZE_MINUTES } from '@persistent/shared'
+import {
+  SNOOZE_PRESETS,
+  DURATION_UNITS,
+  customToMinutes,
+  minutesUntilDateTime,
+  toDateTimeLocalValue
+} from '../lib/durations.js'
 import { BackAwareModal } from './BackAwareModal.js'
 
 export function SnoozeDialog({
@@ -31,9 +38,18 @@ export function SnoozeDialog({
   // digit to type a fresh number); coerced to a positive integer only on submit.
   const [value, setValue] = useState('45')
   const [unit, setUnit] = useState('mins')
-  const [until, setUntil] = useState('07:00')
+  const [until, setUntil] = useState(() => toDateTimeLocalValue(new Date()))
 
-  const toggle = (m: 'custom' | 'until') => setMode((cur) => (cur === m ? 'none' : m))
+  const openMode = (m: 'custom' | 'until') => {
+    // Default the "until" picker to an hour out, refreshed each time it opens so
+    // it never starts in the past.
+    if (m === 'until' && mode !== 'until') {
+      const soon = new Date()
+      soon.setHours(soon.getHours() + 1)
+      setUntil(toDateTimeLocalValue(soon))
+    }
+    setMode((cur) => (cur === m ? 'none' : m))
+  }
 
   return (
     <BackAwareModal open={open} onClose={onClose}>
@@ -45,10 +61,10 @@ export function SnoozeDialog({
               {p.label}
             </Button>
           ))}
-          <Button size="sm" variant={mode === 'custom' ? 'solid' : 'outlined'} onClick={() => toggle('custom')}>
+          <Button size="sm" variant={mode === 'custom' ? 'solid' : 'outlined'} onClick={() => openMode('custom')}>
             Custom
           </Button>
-          <Button size="sm" variant={mode === 'until' ? 'solid' : 'outlined'} onClick={() => toggle('until')}>
+          <Button size="sm" variant={mode === 'until' ? 'solid' : 'outlined'} onClick={() => openMode('until')}>
             Until…
           </Button>
         </Stack>
@@ -68,7 +84,10 @@ export function SnoozeDialog({
                 </Option>
               ))}
             </Select>
-            <Button disabled={busy} onClick={() => onSnooze(customToMinutes(Number(value) || 1, unit))}>
+            <Button
+              disabled={busy}
+              onClick={() => onSnooze(Math.min(MAX_SNOOZE_MINUTES, customToMinutes(Number(value) || 1, unit)))}
+            >
               Snooze
             </Button>
           </Stack>
@@ -76,12 +95,12 @@ export function SnoozeDialog({
         {mode === 'until' && (
           <Stack direction="row" spacing={1} sx={{ mt: 1.5 }} alignItems="center">
             <Input
-              type="time"
+              type="datetime-local"
               value={until}
               onChange={(e) => setUntil(e.target.value)}
               sx={{ flex: 1, minWidth: 0 }}
             />
-            <Button disabled={busy} onClick={() => onSnooze(minutesUntilTime(until))}>
+            <Button disabled={busy} onClick={() => onSnooze(minutesUntilDateTime(until))}>
               Snooze
             </Button>
           </Stack>
