@@ -6,6 +6,7 @@
  * editor (like ReminderListItem) while the Done/Snooze/Silence buttons act on the
  * occurrence without navigating (they sit outside the link, not nested in it).
  */
+import { useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import Card from '@mui/joy/Card'
 import Stack from '@mui/joy/Stack'
@@ -38,6 +39,10 @@ export function AttentionReminderCard({
   silenceLoading: boolean
 }) {
   const body = reminderBodyText(reminder)
+  // Done is a two-step confirm (matching the notification + full-screen alarm):
+  // the first tap arms "Confirm done" / "Not yet" so a stray tap can't mark a
+  // nagging reminder complete by accident.
+  const [confirming, setConfirming] = useState(false)
   return (
     <Card color="warning" variant="soft">
       {/* Tap the info region to edit the reminder (same target as the plain list row).
@@ -71,16 +76,29 @@ export function AttentionReminderCard({
         </Stack>
       </Box>
       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center" sx={{ mt: 1 }}>
-        <Button color="success" loading={doneLoading} onClick={onDone}>
-          Done
-        </Button>
-        <Button variant="outlined" color="neutral" onClick={onSnooze}>
-          Snooze
-        </Button>
-        {occurrence.status === 'ESCALATED' && (
-          <Button variant="outlined" color="warning" loading={silenceLoading} onClick={onSilence}>
-            Silence
-          </Button>
+        {confirming ? (
+          <>
+            <Button color="success" loading={doneLoading} onClick={onDone}>
+              Confirm done
+            </Button>
+            <Button variant="outlined" color="neutral" disabled={doneLoading} onClick={() => setConfirming(false)}>
+              Not yet
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button color="success" onClick={() => setConfirming(true)}>
+              Done
+            </Button>
+            <Button variant="outlined" color="neutral" onClick={onSnooze}>
+              Snooze
+            </Button>
+            {occurrence.status === 'ESCALATED' && (
+              <Button variant="outlined" color="warning" loading={silenceLoading} onClick={onSilence}>
+                Silence
+              </Button>
+            )}
+          </>
         )}
       </Stack>
     </Card>

@@ -7,7 +7,9 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
+import android.view.ViewGroup
 import android.view.WindowManager
+import android.widget.LinearLayout
 import androidx.core.content.ContextCompat
 import ca.persistent.app.alarm.AlarmUi.addStacked
 
@@ -55,29 +57,57 @@ class AlarmActivity : Activity() {
             content.addStacked(AlarmUi.body(this, body))
         }
 
-        content.addView(AlarmUi.pillButton(this, "Done", AlarmUi.ButtonStyle.PRIMARY, topMarginDp = 28f) {
-            // The full-screen alarm is itself the deliberate surface, so Done acks
-            // directly (no notification confirm round-trip, no app launch).
-            sendAction(AlarmReceiver.ACTION_CONFIRM)
-            finish()
-        })
-        content.addView(AlarmUi.pillButton(this, "Snooze…", AlarmUi.ButtonStyle.SECONDARY, topMarginDp = 12f) {
-            occurrenceId?.let { id ->
-                startActivity(
-                    Intent(this@AlarmActivity, SnoozePickerActivity::class.java)
-                        .putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, id)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                )
-            }
-            finish()
-        })
-        if (canSilence) {
-            // Escalation only: stop the alarm but leave the reminder nagging.
-            content.addView(AlarmUi.pillButton(this, "Silence", AlarmUi.ButtonStyle.GHOST, topMarginDp = 12f) {
-                sendAction(AlarmReceiver.ACTION_SILENCE)
+        // Done is a two-step confirm here too (matching the notification + in-app
+        // button): the first tap swaps the buttons into "Confirm done" / "Not yet"
+        // so a stray tap on the full-screen surface can't ack the alarm. The alarm
+        // keeps ringing until the deliberate second tap. Both states live in a
+        // swappable container so toggling rebuilds just the buttons.
+        val actions = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+        lateinit var showNormal: () -> Unit
+        lateinit var showConfirm: () -> Unit
+        showNormal = {
+            actions.removeAllViews()
+            actions.addView(AlarmUi.pillButton(this, "Done", AlarmUi.ButtonStyle.PRIMARY, topMarginDp = 28f) {
+                showConfirm()
+            })
+            actions.addView(AlarmUi.pillButton(this, "Snooze…", AlarmUi.ButtonStyle.SECONDARY, topMarginDp = 12f) {
+                occurrenceId?.let { id ->
+                    startActivity(
+                        Intent(this@AlarmActivity, SnoozePickerActivity::class.java)
+                            .putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, id)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                }
                 finish()
             })
+            if (canSilence) {
+                // Escalation only: stop the alarm but leave the reminder nagging.
+                actions.addView(AlarmUi.pillButton(this, "Silence", AlarmUi.ButtonStyle.GHOST, topMarginDp = 12f) {
+                    sendAction(AlarmReceiver.ACTION_SILENCE)
+                    finish()
+                })
+            }
         }
+        showConfirm = {
+            actions.removeAllViews()
+            actions.addStacked(AlarmUi.body(this, "Tap \"Confirm done\" to mark this complete."), topMarginDp = 28f)
+            actions.addView(AlarmUi.pillButton(this, "Confirm done", AlarmUi.ButtonStyle.PRIMARY, topMarginDp = 12f) {
+                // The deliberate confirm tap acks + stops (no app launch).
+                sendAction(AlarmReceiver.ACTION_CONFIRM)
+                finish()
+            })
+            actions.addView(AlarmUi.pillButton(this, "Not yet", AlarmUi.ButtonStyle.GHOST, topMarginDp = 12f) {
+                showNormal()
+            })
+        }
+        showNormal()
+        content.addStacked(actions)
 
         setContentView(scaffold.root)
     }

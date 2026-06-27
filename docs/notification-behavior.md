@@ -39,6 +39,13 @@ sibling escalation alarm is cancelled, on every one of the user's devices.
   (escalation) on-device alarms; closes the full-screen alarm activity.
 - Web/SW: closes the notification by its occurrence-id tag.
 
+**Done is always a two-tap confirm**, on every surface — the notification, the
+full-screen alarm, and the in-app card. The first tap arms the action (swapping
+the controls to *Confirm done* / *Not yet*, with the alarm still ringing); only
+the confirm tap acknowledges. This guards a persistence-grade reminder against a
+stray pocket tap or misclick clearing it by accident. *Not yet* restores the
+normal controls and changes nothing.
+
 Done is the terminal action — it is the persistence guarantee being satisfied.
 
 ## 2. Silence — drops the alarm back to the notification it escalated from

@@ -69,7 +69,8 @@ export function HelpPage() {
             </Chip>
             <Typography level="body-sm">
               Marks the reminder complete and clears it <b>everywhere</b> — the alarm stops and the notification
-              disappears on all your devices. This is the only action that ends the nag for good.
+              disappears on all your devices. This is the only action that ends the nag for good. To avoid an
+              accidental tap, Done asks you to <b>confirm</b> once before it counts.
             </Typography>
           </Stack>
           <Stack direction="row" spacing={1} alignItems="flex-start">
