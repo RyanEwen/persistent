@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { DateTime } from 'luxon'
-import { escalateAtFor } from './escalation.js'
+import { escalateAtFor, shouldEscalateNow } from './escalation.js'
 
 const TZ = 'America/Toronto'
 
@@ -40,4 +40,32 @@ test('escalateAfterMinutes counts from the fired base', () => {
 test('no escalation configured yields null', () => {
   const scheduledFor = toronto('2026-06-24T23:45')
   assert.equal(escalateAtFor(scheduledFor, scheduledFor, { escalateAfterMinutes: null, escalateAtTime: null }, TZ), null)
+})
+
+const SNOOZE_NOW = new Date('2026-06-24T12:00:00.000Z')
+const past = new Date('2026-06-24T11:00:00.000Z') // escalation threshold already elapsed
+
+test('does not escalate before the escalation instant', () => {
+  const future = new Date('2026-06-24T13:00:00.000Z')
+  assert.equal(shouldEscalateNow(future, null, SNOOZE_NOW), false)
+})
+
+test('escalates once the instant has passed and no snooze is active', () => {
+  assert.equal(shouldEscalateNow(past, null, SNOOZE_NOW), true)
+})
+
+test('an unelapsed snooze suppresses escalation even though the threshold passed', () => {
+  // The meds bug: escalateAt is anchored to the original fire (long past), so
+  // without this guard the sweep re-escalates a 5-min snooze within ~1 min.
+  const snoozedUntil = new Date('2026-06-24T12:05:00.000Z')
+  assert.equal(shouldEscalateNow(past, snoozedUntil, SNOOZE_NOW), false)
+})
+
+test('escalates again the moment the snooze elapses', () => {
+  const snoozedUntil = new Date('2026-06-24T12:00:00.000Z') // exactly now
+  assert.equal(shouldEscalateNow(past, snoozedUntil, SNOOZE_NOW), true)
+})
+
+test('no escalation configured never escalates, snooze or not', () => {
+  assert.equal(shouldEscalateNow(null, null, SNOOZE_NOW), false)
 })

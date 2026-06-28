@@ -28,6 +28,24 @@ export function escalateAtFor(
 }
 
 /**
+ * Whether a still-unconfirmed occurrence should escalate to an alarm right now.
+ *
+ * True once its escalation instant has passed — UNLESS the user has an unelapsed
+ * snooze, which must be honored for its full duration: the alarm comes back when
+ * the snooze ends, not mid-snooze. Because `escalateAt` is anchored to the
+ * original fire (never reset by a snooze), a snooze can't defer escalation
+ * forever — each snooze simply ends in a fresh escalation. Without the snooze
+ * guard the 60s sweep re-escalates a just-snoozed alarm immediately, so a 5-min
+ * snooze rings again in ~1 min. (Spec: docs/notification-behavior.md sec. 3.)
+ */
+export function shouldEscalateNow(escalateAt: Date | null, snoozedUntil: Date | null, now: Date): boolean {
+  if (escalateAt == null) return false
+  if (now.getTime() < escalateAt.getTime()) return false
+  if (snoozedUntil != null && snoozedUntil.getTime() > now.getTime()) return false
+  return true
+}
+
+/**
  * Absolute escalation instant: the first "HH:mm" in the user's zone at or after
  * the firing. We anchor on the occurrence's local day, then roll to the next day
  * when that wall-clock time is not strictly after the firing — otherwise a

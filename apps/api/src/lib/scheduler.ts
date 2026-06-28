@@ -23,7 +23,7 @@ import { expandSchedule } from './schedule-expand.js'
 import { notificationTitle, notificationBody } from './notification-format.js'
 import { dispatchToUser } from './delivery/index.js'
 import { sendCloudflareEmail } from './cloudflare-email.js'
-import { escalateAtFor } from './escalation.js'
+import { escalateAtFor, shouldEscalateNow } from './escalation.js'
 import { toOccurrence } from './serializers.js'
 import { broadcast } from './realtime.js'
 
@@ -154,9 +154,10 @@ export async function fireDueForReminder(reminderId: string): Promise<void> {
 async function sweep(): Promise<void> {
   const now = new Date()
 
-  // 1) Escalate occurrences past their threshold. Escalation is a HARD BACKSTOP:
-  // it's anchored to the original fire (firedAt is never reset on snooze) and
-  // fires even while SNOOZED, overriding the snooze.
+  // 1) Escalate occurrences past their threshold. Escalation is a HARD BACKSTOP
+  // anchored to the original fire (firedAt is never reset on snooze), so you can't
+  // defer it forever by snoozing — but an active snooze is honored for its full
+  // duration (shouldEscalateNow), and the alarm re-escalates the moment it ends.
   const escalatable = await prisma.reminderOccurrence.findMany({
     // A silenced occurrence keeps nagging but must never ring the alarm again.
     where: { status: { in: ['FIRED', 'SNOOZED'] }, firedAt: { not: null }, escalationSilencedAt: null },
@@ -166,7 +167,9 @@ async function sweep(): Promise<void> {
   for (const occurrence of escalatable) {
     const tz = occurrence.user?.timeZone ?? 'UTC'
     const escalateAt = escalateAtFor(occurrence.firedAt as Date, occurrence.scheduledFor, occurrence.reminder, tz)
-    if (escalateAt != null && now.getTime() >= escalateAt.getTime()) {
+    // An unelapsed snooze is honored: re-escalate only once the snooze ends, not
+    // on every 60s sweep (else a 5-min snooze rings again in ~1 min).
+    if (shouldEscalateNow(escalateAt, occurrence.snoozedUntil, now)) {
       const updated = await prisma.reminderOccurrence.update({
         where: { id: occurrence.id },
         data: { status: 'ESCALATED', escalatedAt: now, snoozedUntil: null },
