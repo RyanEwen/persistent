@@ -47,6 +47,12 @@ export interface AlarmPluginPlugin {
   requestBatteryExemption(): Promise<{ granted: boolean }>
   canScheduleExactAlarms(): Promise<{ allowed: boolean }>
   /**
+   * Whether a fired alarm can actually be shown. `notifications` false
+   * (POST_NOTIFICATIONS denied) means a ringing alarm would have no visible/
+   * stoppable surface; `fullScreen`/`exactAlarms` degrade reliability only.
+   */
+  alarmReadiness(): Promise<{ notifications: boolean; fullScreen: boolean; exactAlarms: boolean }>
+  /**
    * Set the device default shade prominence (for reminders set to INHERIT) and
    * re-post any live notifications so the change applies immediately.
    */

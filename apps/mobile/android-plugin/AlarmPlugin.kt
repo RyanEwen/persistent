@@ -129,6 +129,30 @@ class AlarmPlugin : Plugin() {
         call.resolve(JSObject().put("allowed", allowed))
     }
 
+    /**
+     * Whether a fired alarm can actually be presented to the user. `notifications`
+     * false (POST_NOTIFICATIONS denied) is the worst case — the alarm would ring
+     * with no visible/stoppable surface — so the app warns the user to fix it before
+     * an alarm strikes. `fullScreen`/`exactAlarms` degrade reliability without fully
+     * hiding the alarm.
+     */
+    @PluginMethod
+    fun alarmReadiness(call: PluginCall) {
+        val notifications = androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+        val fullScreen =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) nm.canUseFullScreenIntent() else true
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val exactAlarms =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) alarmManager.canScheduleExactAlarms() else true
+        call.resolve(
+            JSObject()
+                .put("notifications", notifications)
+                .put("fullScreen", fullScreen)
+                .put("exactAlarms", exactAlarms)
+        )
+    }
+
     @PluginMethod
     fun drainPendingAcks(call: PluginCall) {
         val ids = PendingAckStore.drain(context)

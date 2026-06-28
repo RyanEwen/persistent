@@ -62,7 +62,10 @@ drives them lives in `apps/web/src/native`.
     the full-screen intent covers the screen-off / lock-screen case, and when the
     device is unlocked and in use (where Android would otherwise only show a
     heads-up banner that collapses after a few seconds) the service launches the
-    activity itself. The alarm notification's body tap opens that same control
+    activity itself. If notifications are disabled outright (`POST_NOTIFICATIONS`
+    denied) there is no shade surface at all, so the service force-launches the
+    full-screen activity unconditionally — an alarm must never ring with nothing
+    visible to identify or stop it. The alarm notification's body tap opens that same control
     surface (not the app), and `Back` on it is inert — only Done/Snooze leave.
     Because that surface is a separate window from the shade notification, the
     service finishes it (a `ca.persistent.app.ALARM_ACTIVITY_DISMISS` broadcast the
@@ -109,6 +112,11 @@ checks `canUseFullScreenIntent()` and opens the per-app setting to grant it —
 without it the escalation only shows a heads-up banner that collapses instead of
 the full-screen alarm. The alarm notification is `VISIBILITY_PUBLIC` so its
 content shows on the lock screen (the user can see which reminder is firing).
+`AlarmPlugin.alarmReadiness()` reports whether notifications / full-screen /
+exact-alarm are actually grantable; if `POST_NOTIFICATIONS` is denied the app
+warns on startup (`warnIfAlarmsCantShow`), because a fired alarm would otherwise
+sound with no shade surface — and the native force-launch above is the last-resort
+backstop, not a substitute for the grant.
 
 ## Notification shade prominence
 

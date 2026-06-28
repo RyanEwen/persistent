@@ -13,6 +13,7 @@ import { App } from '@capacitor/app'
 import { PushNotifications } from '@capacitor/push-notifications'
 import { reminderBodyText, type Occurrence } from '@persistent/shared'
 import { apiFetch } from '../lib/apiClient.js'
+import { notify } from '../lib/toast.js'
 import { subscribeWs } from '../lib/wsClient.js'
 import { AlarmPlugin, isNative, type ScheduledAlarm } from './alarmBridge.js'
 import { navigateApp } from './navTo.js'
@@ -175,6 +176,25 @@ async function requestPermissions(): Promise<void> {
   // Without the full-screen-intent grant (Android 14+) the escalation alarm only
   // shows a collapsing heads-up; ask for it so the alarm stays on screen / locked.
   await AlarmPlugin.ensureFullScreenIntent().catch(() => ({ allowed: false }))
+  await warnIfAlarmsCantShow()
+}
+
+/**
+ * If notifications are denied, a fired alarm rings with no visible, identifiable,
+ * stoppable surface (the native side forces the full-screen activity as a backstop,
+ * but the user should fix the root cause). Warn loudly so it's caught before an
+ * alarm strikes — this is exactly the "sound going, no idea what app or how to stop
+ * it" state. Full-screen / exact-alarm gaps already open their own settings prompts
+ * in requestPermissions, so they aren't re-surfaced here.
+ */
+async function warnIfAlarmsCantShow(): Promise<void> {
+  const ready = await AlarmPlugin.alarmReadiness().catch(() => null)
+  if (ready && !ready.notifications) {
+    notify(
+      'Notifications are off for Persistent — alarms will sound with no way to see or stop them. Turn notifications on in system settings.',
+      'danger'
+    )
+  }
 }
 
 /**

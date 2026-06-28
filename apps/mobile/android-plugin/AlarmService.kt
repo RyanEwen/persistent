@@ -16,6 +16,7 @@ import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import ca.persistent.app.R
 
 /**
@@ -48,6 +49,11 @@ class AlarmService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     private fun notifId(occurrenceId: String): Int = occurrenceId.hashCode()
+
+    /** Whether posted notifications are actually visible to the user. When false
+     *  (POST_NOTIFICATIONS denied), the alarm's shade surface never appears, so the
+     *  full-screen activity becomes the only way to identify and stop it. */
+    private fun notificationsVisible(): Boolean = NotificationManagerCompat.from(this).areNotificationsEnabled()
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
@@ -144,7 +150,12 @@ class AlarmService : Service() {
 
         if (spec.alarm) {
             if (!continuousAlarm) startContinuousAlarm(spec.soundUri)
-            presentAlarmSurface(spec)
+            // If the shade notification can't be shown (POST_NOTIFICATIONS denied),
+            // the full-screen surface is the ONLY thing that identifies the ringing
+            // alarm and lets the user stop it — so force it up regardless of lock /
+            // interactive state (AlarmActivity shows over the lock screen). Never let
+            // sound play with no visible, stoppable surface.
+            presentAlarmSurface(spec, force = !notificationsVisible())
         } else {
             playNotificationSound(spec.soundUri)
             loops.remove(spec.occurrenceId)?.let { handler.removeCallbacks(it) }
@@ -162,11 +173,17 @@ class AlarmService : Service() {
      * ringing with its Done/Snooze controls buried in the notification shade. In
      * that one case we launch the activity ourselves so the surface stays up; the
      * lock-screen / screen-off case is already covered by the full-screen intent.
+     *
+     * `force` skips that gating: when the notification itself can't be shown there is
+     * no full-screen intent to rely on, so we always launch the surface (it shows
+     * over the lock screen) — the alarm must never ring with nothing to stop it.
      */
-    private fun presentAlarmSurface(spec: AlarmSpec) {
-        val power = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
-        val keyguard = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
-        if (!power.isInteractive || keyguard.isKeyguardLocked) return
+    private fun presentAlarmSurface(spec: AlarmSpec, force: Boolean = false) {
+        if (!force) {
+            val power = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+            val keyguard = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
+            if (!power.isInteractive || keyguard.isKeyguardLocked) return
+        }
         try {
             startActivity(
                 Intent(this, AlarmActivity::class.java)
