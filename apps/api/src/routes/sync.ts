@@ -8,6 +8,8 @@ import { prisma } from '../lib/prisma.js'
 import { requireUser, requireUserId } from '../lib/auth-middleware.js'
 import { toOccurrence } from '../lib/serializers.js'
 import { escalateAtFor } from '../lib/escalation.js'
+import { buildDeviceAlarms } from '../lib/device-alarms.js'
+import type { DeviceAlarm } from '@persistent/shared'
 
 export const syncRouter = Router()
 syncRouter.use(requireUser)
@@ -32,22 +34,29 @@ syncRouter.get('/occurrences', async (request, response) => {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { timeZone: true } })
   const tz = user?.timeZone ?? 'UTC'
 
+  const alarms: DeviceAlarm[] = []
+  const serialized = occurrences.map((o) => {
+    // Escalation is a hard backstop anchored to the first fire, so the "after N
+    // minutes" threshold counts from firedAt (or the scheduled time before it
+    // fires) — never from the snooze. Already-escalated occurrences need no
+    // future escalation alarm (the device rings immediately for those).
+    const base = o.firedAt ?? o.scheduledFor
+    // No future escalation alarm for one that's already escalated (it rings now)
+    // or that the user silenced (it must keep nagging without re-ringing).
+    const escalateAt =
+      o.status === 'ESCALATED' || o.escalationSilencedAt != null
+        ? null
+        : escalateAtFor(base, o.scheduledFor, o.reminder, tz)
+    // The server expands each occurrence into the exact alarms the device should
+    // arm, so the JS bridge and the native background worker share one transform.
+    alarms.push(...buildDeviceAlarms(o, escalateAt))
+    return { ...toOccurrence(o), escalateAt: escalateAt?.toISOString() ?? null }
+  })
+
   response.json({
     serverTime: now.toISOString(),
     timeZone: tz,
-    occurrences: occurrences.map((o) => {
-      // Escalation is a hard backstop anchored to the first fire, so the "after N
-      // minutes" threshold counts from firedAt (or the scheduled time before it
-      // fires) — never from the snooze. Already-escalated occurrences need no
-      // future escalation alarm (the device rings immediately for those).
-      const base = o.firedAt ?? o.scheduledFor
-      // No future escalation alarm for one that's already escalated (it rings now)
-      // or that the user silenced (it must keep nagging without re-ringing).
-      const escalateAt =
-        o.status === 'ESCALATED' || o.escalationSilencedAt != null
-          ? null
-          : escalateAtFor(base, o.scheduledFor, o.reminder, tz)
-      return { ...toOccurrence(o), escalateAt: escalateAt?.toISOString() ?? null }
-    })
+    occurrences: serialized,
+    alarms
   })
 })

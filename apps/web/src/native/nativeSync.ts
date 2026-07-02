@@ -11,7 +11,7 @@
  */
 import { App } from '@capacitor/app'
 import { PushNotifications } from '@capacitor/push-notifications'
-import { reminderBodyText, type Occurrence } from '@persistent/shared'
+import { type Occurrence, type DeviceAlarm, ESC_SUFFIX } from '@persistent/shared'
 import { apiFetch } from '../lib/apiClient.js'
 import { notify } from '../lib/toast.js'
 import { subscribeWs } from '../lib/wsClient.js'
@@ -22,6 +22,9 @@ interface SyncResponse {
   serverTime: string
   timeZone: string
   occurrences: Occurrence[]
+  // The exact alarms to arm, expanded server-side (single source of truth); we
+  // only fill in the device-local sound URI from local settings.
+  alarms: DeviceAlarm[]
 }
 
 /** Read the user's chosen sound URIs from the persisted settings (no React here). */
@@ -52,60 +55,41 @@ function defaultShadeMinimized(): boolean {
   return false
 }
 
-// The escalation alarm is a second device alarm keyed off the occurrence id with
-// this suffix, so it can be scheduled/cancelled/acked alongside the main one.
-const ESC_SUFFIX = '::esc'
-
-function toAlarm(occurrence: Occurrence): ScheduledAlarm {
-  const { reminder } = occurrence
-  const fireAt = occurrence.status === 'SNOOZED' && occurrence.snoozedUntil ? occurrence.snoozedUntil : occurrence.scheduledFor
-  // ALARM persistence always rings; an already-escalated occurrence also rings.
-  const alarm = reminder.persistence === 'ALARM' || occurrence.status === 'ESCALATED'
+/**
+ * Fill a server-computed DeviceAlarm with the one field it can't know — the
+ * device-local sound URI — chosen by the alarm/notification tone kind. All the
+ * occurrence->alarm logic (fire time, escalation sub-alarm, silenceable, etc.)
+ * is done once server-side (see apps/api/src/lib/device-alarms.ts).
+ */
+function toScheduledAlarm(alarm: DeviceAlarm): ScheduledAlarm {
   return {
-    occurrenceId: occurrence.id,
-    fireAtMs: new Date(fireAt).getTime(),
-    title: reminder.title,
-    body: reminderBodyText(reminder),
-    soundIntervalSeconds: reminder.soundIntervalSeconds ?? 0,
-    // ALARM = looping alarm; PERSISTENT = a notification (sounds once).
-    alarm,
-    // Both persistence levels stay put / re-appear if swiped.
-    ongoing: true,
-    soundUri: alarm ? chosenSoundUri('alarmSound') : chosenSoundUri('notificationSound'),
-    reminderId: occurrence.reminderId,
-    // An escalation of a soft reminder can be silenced back to a nag; an inherent
-    // ALARM reminder cannot (it has no softer level to fall back to).
-    canSilence: reminder.persistence !== 'ALARM' && occurrence.status === 'ESCALATED',
-    // Visual shade placement (ignored natively for alarms/escalations).
-    shadeProminence: reminder.shadeProminence
+    occurrenceId: alarm.occurrenceId,
+    fireAtMs: alarm.fireAtMs,
+    title: alarm.title,
+    body: alarm.body,
+    soundIntervalSeconds: alarm.soundIntervalSeconds,
+    alarm: alarm.alarm,
+    ongoing: alarm.ongoing,
+    soundUri: chosenSoundUri(alarm.soundKind === 'alarm' ? 'alarmSound' : 'notificationSound'),
+    reminderId: alarm.reminderId,
+    canSilence: alarm.canSilence,
+    shadeProminence: alarm.shadeProminence
   }
 }
 
-/** The main alarm plus, if escalation is configured and pending, the escalation alarm. */
-function buildAlarms(occurrence: Occurrence): ScheduledAlarm[] {
-  const main = toAlarm(occurrence)
-  const alarms = [main]
-  // Escalation can't ride server push on devices without FCM, so schedule it
-  // on-device: a looping alarm at the computed instant, cancelled together with
-  // the main alarm on ack/dismiss. Guard that the instant is strictly after the
-  // main fire — an escalation must never ring before its reminder does (a server
-  // miscompute here once rang the next day's dose ~22h early).
-  const escalateAtMs = occurrence.escalateAt ? new Date(occurrence.escalateAt).getTime() : 0
-  if (escalateAtMs > main.fireAtMs && occurrence.status !== 'ESCALATED') {
-    alarms.push({
-      ...main,
-      occurrenceId: main.occurrenceId + ESC_SUFFIX,
-      fireAtMs: escalateAtMs,
-      alarm: true,
-      soundIntervalSeconds: 0,
-      soundUri: chosenSoundUri('alarmSound'),
-      body: main.body ? `${main.body} (escalated)` : 'Escalated',
-      // The escalation alarm is always silenceable (escalation never applies to
-      // ALARM-persistence reminders), so the user can quiet it and keep nagging.
-      canSilence: true
-    })
-  }
-  return alarms
+/**
+ * Mirror the little the native background sync worker needs but can't read from
+ * the WebView: the API origin (for the authenticated fetch) and the chosen sound
+ * URIs (which live in this WebView's localStorage). The worker fills each
+ * server-emitted alarm's tone from these. Also flushes the WebView cookie jar so
+ * the worker can present the session cookie while the app is closed.
+ */
+async function mirrorSyncConfig(): Promise<void> {
+  await AlarmPlugin.setSyncConfig({
+    apiBaseUrl: window.location.origin,
+    alarmSoundUri: chosenSoundUri('alarmSound'),
+    notificationSoundUri: chosenSoundUri('notificationSound')
+  }).catch(() => {})
 }
 
 /** POST any acks the user confirmed natively while the WebView wasn't running. */
@@ -146,8 +130,9 @@ export async function syncAlarms(): Promise<void> {
   await drainPendingAcks().catch(() => {})
   await drainPendingSnoozes().catch(() => {})
   await drainPendingSilences().catch(() => {})
+  await mirrorSyncConfig()
   const data = await apiFetch<SyncResponse>('/api/sync/occurrences')
-  await AlarmPlugin.scheduleAll({ alarms: data.occurrences.flatMap(buildAlarms) })
+  await AlarmPlugin.scheduleAll({ alarms: data.alarms.map(toScheduledAlarm) })
 }
 
 /** If the user tapped a notification, open the app to the main list. */
@@ -244,6 +229,12 @@ export async function initNative(): Promise<void> {
   // if unchanged, so this won't needlessly re-post).
   await AlarmPlugin.setDefaultShadeProminence({ minimized: defaultShadeMinimized() }).catch(() => {})
   await syncAlarms().catch(() => {})
+  // Autonomous background re-sync: the device keeps its own alarm schedule fresh
+  // from the server on a ~15-min cadence (and when connectivity returns) WITHOUT
+  // the WebView or a server push. This is what makes on-device alarms the trigger
+  // and server push mere insurance — a total push outage only staggers freshness,
+  // it never stops alarms from firing. Idempotent (KEEP), so this just ensures it.
+  await AlarmPlugin.ensureBackgroundSync().catch(() => {})
   await initFcm().catch(() => {})
   await consumePendingNavigation().catch(() => {})
 

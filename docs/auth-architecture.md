@@ -67,7 +67,10 @@ Cookie-backed (`lib/auth-session.ts`). A random secret lives only in the
 stores its SHA-256 hash. Sessions idle-refresh on a **sliding 7-day** window:
 every authenticated request (in-app action, or a notification ack/snooze/sync)
 extends expiry to now + 7 days (throttled to ~5 min); a week idle signs out. The
-`/ws` upgrade authenticates with the same cookie.
+`/ws` upgrade authenticates with the same cookie. The native background
+`SyncWorker` (see `docs/alarm-architecture.md`) also authenticates with this
+cookie, read from the WebView's native cookie jar — so its ~15-min syncs keep the
+session alive as long as the app is installed and periodically online.
 
 `attachUser` middleware resolves the cookie into `request.userId` for every
 request; `requireUser` rejects anonymous callers; `requireUserId(request)`

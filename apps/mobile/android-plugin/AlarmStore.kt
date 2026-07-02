@@ -12,6 +12,10 @@ object AlarmStore {
     private const val KEY = "alarms"
     // Device-default shade prominence for reminders set to INHERIT (visual only).
     private const val KEY_DEFAULT_MINIMIZED = "default_minimized"
+    // Config the background SyncWorker needs but can't read from the WebView.
+    private const val KEY_API_BASE_URL = "api_base_url"
+    private const val KEY_ALARM_SOUND = "alarm_sound_uri"
+    private const val KEY_NOTIFICATION_SOUND = "notification_sound_uri"
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -19,6 +23,24 @@ object AlarmStore {
 
     fun setDefaultMinimized(context: Context, value: Boolean) {
         prefs(context).edit().putBoolean(KEY_DEFAULT_MINIMIZED, value).apply()
+    }
+
+    /** The WebView mirrors these on each foreground sync (see AlarmPlugin.setSyncConfig). */
+    fun setSyncConfig(context: Context, apiBaseUrl: String, alarmSoundUri: String, notificationSoundUri: String) {
+        prefs(context).edit()
+            .putString(KEY_API_BASE_URL, apiBaseUrl)
+            .putString(KEY_ALARM_SOUND, alarmSoundUri)
+            .putString(KEY_NOTIFICATION_SOUND, notificationSoundUri)
+            .apply()
+    }
+
+    /** API origin the app was last loaded from, or "" if the WebView never mirrored it. */
+    fun apiBaseUrl(context: Context): String = prefs(context).getString(KEY_API_BASE_URL, "") ?: ""
+
+    /** Chosen tone URI for the given kind ("alarm"/"notification"); "" = system default. */
+    fun soundUri(context: Context, kind: String): String {
+        val key = if (kind == "alarm") KEY_ALARM_SOUND else KEY_NOTIFICATION_SOUND
+        return prefs(context).getString(key, "") ?: ""
     }
 
     fun all(context: Context): List<AlarmSpec> {

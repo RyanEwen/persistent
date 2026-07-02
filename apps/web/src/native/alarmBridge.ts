@@ -74,6 +74,18 @@ export interface AlarmPluginPlugin {
   drainPendingSilences(): Promise<{ occurrenceIds: string[] }>
   /** Reminder id from a tapped notification (cleared on read); '' if none. */
   consumePendingNavigation(): Promise<{ reminderId: string }>
+  /**
+   * Mirror what the background sync worker needs but can't read from the WebView:
+   * the API origin and the chosen sound URIs. Also flushes the WebView cookie jar
+   * so the worker can authenticate while the app is closed.
+   */
+  setSyncConfig(options: { apiBaseUrl: string; alarmSoundUri: string; notificationSoundUri: string }): Promise<void>
+  /**
+   * Ensure the periodic background re-sync worker is enqueued (idempotent). It
+   * re-pulls the server's alarms and re-arms on-device on a ~15-min cadence and on
+   * connectivity, independent of the WebView and server push.
+   */
+  ensureBackgroundSync(): Promise<void>
 }
 
 export const AlarmPlugin = registerPlugin<AlarmPluginPlugin>('AlarmPlugin')

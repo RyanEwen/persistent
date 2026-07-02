@@ -83,6 +83,10 @@ changed schedule, a deletion). Alongside the `reminder.changed` WS broadcast, th
 server sends an **FCM-only** `sync` push (`nudgeNativeSync`) so a native device with
 a live bridge resyncs promptly. It is deliberately not sent over Web Push (a push
 that shows no notification makes browsers surface a generic "site updated" one) —
-open web clients already converge over `/ws`. A fully-closed device can't act on
-`sync` (a resync needs its session), so it catches up on its next open via
-`scheduleAll`'s reconcile; the fire/dismiss pushes remain the closed-app backstop.
+open web clients already converge over `/ws`. A fully-closed device can't act on the
+`sync` push itself (that resync needs the WebView's session), but it no longer has to
+wait for its next open: the native `SyncWorker` re-pulls and reconciles autonomously
+(~15 min + on connectivity, authenticating with the WebView cookie — see
+`docs/alarm-architecture.md`). So the `sync` push and the fire/dismiss pushes are
+just insurance that shortens the catch-up window; the background worker is the
+closed-app backstop.

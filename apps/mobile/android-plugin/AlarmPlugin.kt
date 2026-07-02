@@ -51,33 +51,29 @@ class AlarmPlugin : Plugin() {
         for (i in 0 until array.length()) {
             AlarmSpec.fromJson(array.optJSONObject(i))?.let { incoming.add(it) }
         }
-        // Replace the whole set: cancel everything we knew, then arm the new list.
-        for (existing in AlarmStore.all(context)) cancelAlarm(context, existing.occurrenceId)
-        AlarmStore.replaceAll(context, incoming)
-        // Drop any live notification whose occurrence this sync no longer lists
-        // (acked / superseded / deleted elsewhere while we were offline and — with
-        // FCM off — couldn't get the dismiss). Otherwise a stale notification lingers,
-        // and when a newer firing arrived meanwhile the user sees both: the old name
-        // and the new. Sync's id is the base occurrence; escalation rides the base.
-        val keepBaseIds = incoming.map { it.occurrenceId.removeSuffix(AlarmReceiver.ESC_SUFFIX) }.toSet()
-        AlarmService.cancelMissing(context, keepBaseIds)
-        val now = System.currentTimeMillis()
-        for (alarm in incoming) {
-            // Don't re-fire a past-due alarm that's already on screen — otherwise
-            // every resync (resume / WS event) would re-show & re-sound it. Future
-            // alarms always arm; a due one only (re)fires if it isn't already active.
-            if (alarm.fireAtMs <= now) {
-                val base = alarm.occurrenceId.removeSuffix(AlarmReceiver.ESC_SUFFIX)
-                val isEsc = base != alarm.occurrenceId
-                val alreadyHandled = if (isEsc) AlarmService.isAlarmActive(base) else AlarmService.isActive(base)
-                if (alreadyHandled) continue
-            }
-            armAlarm(context, alarm)
-        }
-        // A live reminder may have been edited in this sync (renamed, body or
-        // per-reminder prominence changed); re-post any active notification so its
-        // text and channel match the server.
-        AlarmService.refreshActiveStyles(context)
+        scheduleAll(context, incoming)
+        call.resolve()
+    }
+
+    /** Mirror the config the background [SyncWorker] needs but can't read from the WebView. */
+    @PluginMethod
+    fun setSyncConfig(call: PluginCall) {
+        AlarmStore.setSyncConfig(
+            context,
+            apiBaseUrl = call.getString("apiBaseUrl") ?: "",
+            alarmSoundUri = call.getString("alarmSoundUri") ?: "",
+            notificationSoundUri = call.getString("notificationSoundUri") ?: ""
+        )
+        // Persist the WebView's session cookie to disk so the worker can present it
+        // while the app is closed.
+        runCatching { android.webkit.CookieManager.getInstance().flush() }
+        call.resolve()
+    }
+
+    /** Enqueue the periodic background re-sync (idempotent). */
+    @PluginMethod
+    fun ensureBackgroundSync(call: PluginCall) {
+        SyncWorker.ensureScheduled(context)
         call.resolve()
     }
 
@@ -259,6 +255,41 @@ class AlarmPlugin : Plugin() {
     }
 
     companion object {
+        /**
+         * Reconcile the on-device alarm set to [incoming] and re-arm. Shared by the
+         * JS `scheduleAll` bridge call and the native [SyncWorker], so a foreground
+         * sync and an autonomous background sync arm alarms identically.
+         */
+        fun scheduleAll(context: Context, incoming: List<AlarmSpec>) {
+            // Replace the whole set: cancel everything we knew, then arm the new list.
+            for (existing in AlarmStore.all(context)) cancelAlarm(context, existing.occurrenceId)
+            AlarmStore.replaceAll(context, incoming)
+            // Drop any live notification whose occurrence this sync no longer lists
+            // (acked / superseded / deleted elsewhere while we were offline and — with
+            // FCM off — couldn't get the dismiss). Otherwise a stale notification lingers,
+            // and when a newer firing arrived meanwhile the user sees both: the old name
+            // and the new. Sync's id is the base occurrence; escalation rides the base.
+            val keepBaseIds = incoming.map { it.occurrenceId.removeSuffix(AlarmReceiver.ESC_SUFFIX) }.toSet()
+            AlarmService.cancelMissing(context, keepBaseIds)
+            val now = System.currentTimeMillis()
+            for (alarm in incoming) {
+                // Don't re-fire a past-due alarm that's already on screen — otherwise
+                // every resync (resume / WS event) would re-show & re-sound it. Future
+                // alarms always arm; a due one only (re)fires if it isn't already active.
+                if (alarm.fireAtMs <= now) {
+                    val base = alarm.occurrenceId.removeSuffix(AlarmReceiver.ESC_SUFFIX)
+                    val isEsc = base != alarm.occurrenceId
+                    val alreadyHandled = if (isEsc) AlarmService.isAlarmActive(base) else AlarmService.isActive(base)
+                    if (alreadyHandled) continue
+                }
+                armAlarm(context, alarm)
+            }
+            // A live reminder may have been edited in this sync (renamed, body or
+            // per-reminder prominence changed); re-post any active notification so its
+            // text and channel match the server.
+            AlarmService.refreshActiveStyles(context)
+        }
+
         /** Build the PendingIntent that fires [AlarmReceiver] for an occurrence. */
         fun firePendingIntent(context: Context, occurrenceId: String): PendingIntent {
             val intent = Intent(context, AlarmReceiver::class.java).apply {

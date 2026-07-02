@@ -26,23 +26,40 @@ So we split responsibilities:
 - **Server is the source of truth.** `apps/api` materializes `ReminderOccurrence`
   rows from each reminder's schedule (timezone-correct, `lib/schedule-expand.ts`)
   and fires due ones (tick loop), broadcasting over `/ws` and via push.
-- **The device schedules its own alarms.** The JS bridge (`apps/web/src/native/`,
-  bundled into the web app and started after sign-in by `useAuth`) pulls upcoming
-  occurrences from `GET /api/sync/occurrences` and schedules on-device exact
-  alarms, so reminders fire **even offline** and even if the server is
-  unreachable. It re-syncs **live on every WS event** (`reminder.changed` /
-  `occurrence.*`) and on app resume; reboots re-schedule via `BOOT_COMPLETED`.
-  Ack/snooze/delete elsewhere broadcast `dismiss`, which the bridge turns into a
-  native cancel so a cleared/deleted reminder's alarm stops on every device. A full
-  resync also **reconciles the posted notifications** against the server's set:
-  `scheduleAll` drops any live notification whose occurrence is no longer returned
-  (`AlarmService.cancelMissing`) and refreshes the text/channel of the survivors
-  (`refreshActive`). This is how a device catches up on dismisses/edits it missed
-  while closed — e.g. an occurrence acked/deleted on another device, or a reminder
-  renamed, while the app couldn't receive the live event — so it can't show a stale
-  or duplicate nag.
-- **Server push is the backup**, not the primary fire path for native: it covers
-  cross-device delivery, ad-hoc/just-created reminders, and escalation.
+- **The device schedules its own alarms.** `GET /api/sync/occurrences` returns the
+  exact alarms to arm — the server expands each occurrence into a main fire plus, if
+  escalation is pending, an escalation alarm (`apps/api/src/lib/device-alarms.ts`),
+  so the occurrence→alarm transform lives in exactly one place. The JS bridge
+  (`apps/web/src/native/`, bundled into the web app and started after sign-in by
+  `useAuth`) arms those on-device exact alarms, filling only the device-local sound
+  URI, so reminders fire **even offline** and even if the server is unreachable.
+- **The device keeps its own schedule fresh, autonomously.** Refreshes come from
+  three places: **live on every WS event** (`reminder.changed` / `occurrence.*`) and
+  on app resume (foreground); reboots re-schedule via `BOOT_COMPLETED`; and — the
+  backstop that needs neither the WebView nor a push — a **WorkManager
+  `SyncWorker`** (`apps/mobile/android-plugin/SyncWorker.kt`) that re-pulls and
+  re-arms on a ~15-minute cadence and whenever connectivity returns. It runs with
+  the app fully closed: `SyncClient` reads the session cookie straight from the
+  WebView cookie jar (the app is loaded from the API origin) and calls the same sync
+  endpoint in Kotlin. The WebView mirrors the API origin + chosen sound URIs into
+  native storage on each foreground sync (`AlarmPlugin.setSyncConfig`) so the worker
+  has what it needs. A full resync also **reconciles the posted notifications**
+  against the server's set: `scheduleAll` drops any live notification whose
+  occurrence is no longer returned (`AlarmService.cancelMissing`) and refreshes the
+  text/channel of the survivors (`refreshActive`). Ack/snooze/delete elsewhere
+  broadcast `dismiss`, which the bridge turns into a native cancel so a
+  cleared/deleted reminder's alarm stops on every device; native acks/snoozes/
+  silences taken while the WebView was dead are drained to the server by the worker
+  too. This is how a device catches up on dismisses/edits it missed while closed —
+  e.g. an occurrence acked/deleted on another device, or a reminder renamed — so it
+  can't show a stale or duplicate nag.
+- **Server push is insurance, not a trigger.** On-device alarms fire the reminder;
+  push only lets a change reach a closed device *sooner* than the next periodic
+  sync, plus covers cross-device delivery. A total push outage therefore only
+  staggers freshness by up to the sync interval — it never stops an alarm from
+  firing. (This is deliberate: a silent FCM auth failure once left push 100% dead,
+  and because the periodic worker did not yet exist, closed devices went dark until
+  reopened. The worker removes that dependency.)
 
 ## Native alarm plugin (`apps/mobile/android-plugin`, Kotlin)
 

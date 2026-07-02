@@ -185,6 +185,25 @@ if (existsSync(iconOverlay)) {
   }
 }
 
+// --- 4e. WorkManager (autonomous background sync) ---------------------------
+// SyncWorker keeps the on-device alarm set fresh from the server without the
+// WebView or a server push (see docs/alarm-architecture.md); WorkManager isn't a
+// default Capacitor dependency, so the app module needs work-runtime on its
+// compile classpath. WorkManager self-initializes via androidx-startup (no
+// manifest wiring needed).
+{
+  let g = readFileSync(appGradlePath, 'utf8')
+  if (!g.includes('androidx.work:work-runtime')) {
+    g = g.replace(
+      /dependencies\s*\{/,
+      `dependencies {
+    implementation "androidx.work:work-runtime-ktx:2.9.1"`
+    )
+    writeFileSync(appGradlePath, g)
+    console.log('[setup-android] added androidx.work (WorkManager) dependency')
+  }
+}
+
 // --- 5. Release signing (when a keystore is provided via env) ---------------
 // Local builds set ANDROID_KEYSTORE_* in .env; CI decodes the keystore secret to
 // a file and sets the same vars. Passwords are read by Gradle from the env at
