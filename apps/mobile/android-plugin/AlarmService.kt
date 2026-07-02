@@ -125,11 +125,44 @@ class AlarmService : Service() {
                     repostActive()
                 }
             }
+            ACTION_ENSURE -> ensureNags()
         }
         return START_STICKY
     }
 
-    private fun startAlarm(spec: AlarmSpec) {
+    /**
+     * Re-post any overdue soft nag whose notification isn't currently showing —
+     * SILENTLY (no sound), so a nag that vanished because the process/foreground
+     * service was killed comes back and stays until Done, without re-alerting on
+     * every check. Alarms/escalations are excluded (they must ring, not appear
+     * quietly) — the fire path handles those. Reads the persisted [AlarmStore] so it
+     * works offline and after a cold restart. Idempotent: already-showing nags are
+     * left untouched, so it never re-sounds or reorders them.
+     */
+    private fun ensureNags() {
+        ensureChannels()
+        val now = System.currentTimeMillis()
+        val due = AlarmStore.all(this).filter {
+            !it.alarm && it.fireAtMs <= now && !it.occurrenceId.endsWith(AlarmReceiver.ESC_SUFFIX)
+        }
+        for (spec in due) {
+            if (active.containsKey(spec.occurrenceId)) continue
+            startAlarm(spec, silent = true)
+        }
+        // Guarantee the foreground-start contract (we're started via
+        // startForegroundService): rebind to a live notification, or — if there is
+        // nothing to show at all — post the placeholder and stop cleanly.
+        val fg = foregroundId?.let { active[it] }
+        if (fg != null) {
+            startForeground(notifId(fg.occurrenceId), buildNotification(fg))
+            updateGroupSummary()
+        } else {
+            startForeground(SENTINEL_ID, placeholderNotification())
+            clearAll()
+        }
+    }
+
+    private fun startAlarm(spec: AlarmSpec, silent: Boolean = false) {
         ensureChannels()
         active[spec.occurrenceId] = spec
         // Stamp the post time once, on first fire, and keep it across every re-post
@@ -148,6 +181,12 @@ class AlarmService : Service() {
             nm.notify(notifId(spec.occurrenceId), notif)
         }
 
+        // A silent re-assert (ensureNags) only maintains the visible surface — it must
+        // never ring, sound, or pop the full-screen alarm; the fire already happened.
+        if (silent) {
+            updateGroupSummary()
+            return
+        }
         if (spec.alarm) {
             if (!continuousAlarm) startContinuousAlarm(spec.soundUri)
             // If the shade notification can't be shown (POST_NOTIFICATIONS denied),
@@ -717,6 +756,7 @@ class AlarmService : Service() {
         const val ACTION_SILENCE = "ca.persistent.app.SERVICE_SILENCE"
         const val ACTION_RESTYLE = "ca.persistent.app.SERVICE_RESTYLE"
         const val ACTION_REFRESH = "ca.persistent.app.SERVICE_REFRESH"
+        const val ACTION_ENSURE = "ca.persistent.app.SERVICE_ENSURE"
         const val DEFAULT_SNOOZE_MINUTES = 10
         // Alarms/escalations keep the legacy channel id so existing installs retain
         // its DND-bypass grant; the two non-alarm channels split by prominence.
@@ -840,6 +880,26 @@ class AlarmService : Service() {
             if (activeIds.isNotEmpty()) {
                 context.startService(Intent(context, AlarmService::class.java).setAction(ACTION_REFRESH))
             }
+        }
+
+        /**
+         * Re-post any overdue soft nag whose notification isn't currently showing,
+         * silently (see [ensureNags]) — the durable keep-alive that restores a nag the
+         * OS removed when it killed the process/foreground service. Reads the persisted
+         * [AlarmStore] so it works offline and from a cold start; only starts the
+         * service when there's actually something overdue to (re)show, so it never
+         * needlessly spins one up. The app is battery-exempt, so the background
+         * foreground-service start is allowed.
+         */
+        fun ensureNags(context: Context) {
+            val now = System.currentTimeMillis()
+            val hasDue = AlarmStore.all(context).any {
+                !it.alarm && it.fireAtMs <= now && !it.occurrenceId.endsWith(AlarmReceiver.ESC_SUFFIX)
+            }
+            if (!hasDue) return
+            val intent = Intent(context, AlarmService::class.java).setAction(ACTION_ENSURE)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
+            else context.startService(intent)
         }
 
         /**

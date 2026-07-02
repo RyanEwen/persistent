@@ -92,6 +92,19 @@ drives them lives in `apps/web/src/native`.
   - Swiping a notification away **re-posts all active ones** (delete-intent) so
     they can't be casually dismissed (even when several are swiped together); only
     Done/Snooze clear them.
+  - **Silent keep-alive (survives process death).** A soft nag's notification is
+    held by the foreground service, so if the OS kills that service/process
+    (swipe-from-recents, memory pressure, an app update, or an FGS timeout) its
+    notification is removed — and a one-shot's alarm has already fired, so nothing
+    re-posts it. `AlarmService.ensureNags` closes that gap: it re-posts any overdue
+    soft nag whose notification isn't showing, **silently** (no re-sound), from the
+    persisted `AlarmStore` — so a nag stays until Done. It runs on every resync and,
+    critically, on the background `SyncWorker` cadence (~15 min) and offline, since it
+    reads the local store. Because re-asserting is silent, `scheduleAll` no longer
+    re-fires a past-due soft occurrence (which would re-sound on every resync) — only
+    a past-due **alarm/escalation** still re-fires, because those must ring, not
+    appear quietly. (Genuine on-time fires still sound: they ring from the alarm
+    armed ahead of their scheduled time.)
   - Each occurrence gets its **own notification id**, so multiple due reminders
     show at once (the foreground service rebinds to a remaining one as they clear).
   - **Snooze** opens a duration picker (`SnoozePickerActivity`) offering presets, a

@@ -273,17 +273,22 @@ class AlarmPlugin : Plugin() {
             AlarmService.cancelMissing(context, keepBaseIds)
             val now = System.currentTimeMillis()
             for (alarm in incoming) {
-                // Don't re-fire a past-due alarm that's already on screen — otherwise
-                // every resync (resume / WS event) would re-show & re-sound it. Future
-                // alarms always arm; a due one only (re)fires if it isn't already active.
                 if (alarm.fireAtMs <= now) {
+                    // Past-due: the fire already happened. A soft nag is (re)posted
+                    // SILENTLY by ensureNags below, so a resync never re-sounds it;
+                    // only an alarm/escalation still needs to ring — re-fire it unless
+                    // it's already ringing.
+                    if (!alarm.alarm) continue
                     val base = alarm.occurrenceId.removeSuffix(AlarmReceiver.ESC_SUFFIX)
                     val isEsc = base != alarm.occurrenceId
-                    val alreadyHandled = if (isEsc) AlarmService.isAlarmActive(base) else AlarmService.isActive(base)
-                    if (alreadyHandled) continue
+                    val alreadyRinging = if (isEsc) AlarmService.isAlarmActive(base) else AlarmService.isActive(base)
+                    if (alreadyRinging) continue
                 }
                 armAlarm(context, alarm)
             }
+            // Restore/maintain any overdue soft nag whose notification the OS dropped
+            // (process/foreground-service killed) — silently, so it's present until Done.
+            AlarmService.ensureNags(context)
             // A live reminder may have been edited in this sync (renamed, body or
             // per-reminder prominence changed); re-post any active notification so its
             // text and channel match the server.

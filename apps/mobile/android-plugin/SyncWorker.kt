@@ -21,8 +21,8 @@ import java.util.concurrent.TimeUnit
  */
 class SyncWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
 
-    override fun doWork(): Result =
-        try {
+    override fun doWork(): Result {
+        val result = try {
             // false (not signed in / origin not yet mirrored) is not a failure — just
             // nothing to do until the WebView has run once; try again next cycle.
             SyncClient.sync(applicationContext)
@@ -32,6 +32,12 @@ class SyncWorker(context: Context, params: WorkerParameters) : Worker(context, p
             // are already armed locally, so a delayed refresh is harmless.
             Result.retry()
         }
+        // Regardless of the server sync (even offline), restore any overdue soft nag
+        // whose notification the OS dropped — from the locally persisted set. This is
+        // the durable keep-alive that makes a nag survive the process being killed.
+        runCatching { AlarmService.ensureNags(applicationContext) }
+        return result
+    }
 
     companion object {
         private const val UNIQUE_NAME = "persistent-background-sync"
