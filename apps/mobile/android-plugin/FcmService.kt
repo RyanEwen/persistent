@@ -52,8 +52,10 @@ class FcmService : MessagingService() {
             // already have it — armed in AlarmStore or showing — skip the push so it
             // doesn't double-alert with the default tone (this service can't read the
             // WebView's chosen sound, so its fallback is always the system default).
-            "fire", "escalate" -> if (occurrenceId != null && !handledLocally(context, occurrenceId)) {
-                startAlarm(context, type, occurrenceId, data)
+            "fire", "escalate" -> if (occurrenceId != null) {
+                val local = handledLocally(context, occurrenceId)
+                android.util.Log.i("PersistAlarm", "fcm $type occ=$occurrenceId handledLocally=$local")
+                if (!local) startAlarm(context, type, occurrenceId, data)
             }
             // "sync": no self-contained action, and a resync needs the WebView's
             // session cookie; super() already forwarded to JS, which resyncs when the

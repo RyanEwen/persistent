@@ -217,7 +217,14 @@ remains the full-fidelity primary path — and precisely because of that, a `fir
 as the base alarm or its `::esc` escalation). Otherwise a device that scheduled the
 occurrence locally would double-alert — once with the chosen tone (the exact alarm)
 and again with the default tone (the push). The push only acts when the device has
-no local alarm for it (web-only, never synced, or a cross-device nudge).
+no local alarm for it (web-only, never synced, or a cross-device nudge). As a
+belt-and-suspenders backstop for any trigger the `handledLocally` check can't see
+(a process killed between the local alarm and the push, a resync re-arm across
+death, etc.), `AlarmService` also **debounces the sound per occurrence**: it won't
+re-play the same occurrence's tone within a few minutes (`SOUND_DEBOUNCE_MS`,
+persisted in `AlarmStore` so it survives a restart, reset on ack/snooze). The
+notification still (re)posts; only the near-simultaneous *second sound* is dropped.
+The intentional `soundIntervalSeconds` re-notify loop plays directly and is exempt.
 
 **Both halves are gated and OFF until provisioned:** the server only sends FCM when
 `FCM_PROJECT_ID` + `FCM_SERVICE_ACCOUNT_FILE` are set (`isFcmConfigured`), and

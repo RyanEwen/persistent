@@ -183,10 +183,23 @@ class AlarmService : Service() {
 
         // A silent re-assert (ensureNags) only maintains the visible surface — it must
         // never ring, sound, or pop the full-screen alarm; the fire already happened.
-        if (silent) {
+        // De-dup the SOUND too: now that FCM delivers, an occurrence can be triggered
+        // by both its on-device alarm and a redundant server fire/escalate push (which
+        // falls back to the default tone) within a minute or two — don't re-play the
+        // same occurrence's sound inside SOUND_DEBOUNCE_MS. The notification above still
+        // (re)posts, and the intentional re-notify loop calls playNotificationSound
+        // directly, so neither is affected.
+        val now = System.currentTimeMillis()
+        val debounced = now - AlarmStore.lastSoundedAt(this, spec.occurrenceId) < SOUND_DEBOUNCE_MS
+        android.util.Log.i(
+            "PersistAlarm",
+            "startAlarm occ=${spec.occurrenceId} silent=$silent debounced=$debounced alarm=${spec.alarm} soundEmpty=${spec.soundUri.isEmpty()}"
+        )
+        if (silent || debounced) {
             updateGroupSummary()
             return
         }
+        AlarmStore.markSoundedNow(this, spec.occurrenceId, now)
         if (spec.alarm) {
             if (!continuousAlarm) startContinuousAlarm(spec.soundUri)
             // If the shade notification can't be shown (POST_NOTIFICATIONS denied),
@@ -660,6 +673,9 @@ class AlarmService : Service() {
         dismissAlarmSurface(occurrenceId)
         AlarmPlugin.cancelAlarm(this, occurrenceId)
         AlarmStore.remove(this, occurrenceId)
+        // Reset the sound-debounce so a future fire (or a snooze re-fire, which routes
+        // through here via stopFor) sounds again.
+        AlarmStore.clearSounded(this, occurrenceId)
         // Also drop any pending escalation timer for this occurrence.
         val escId = occurrenceId + AlarmReceiver.ESC_SUFFIX
         AlarmPlugin.cancelAlarm(this, escId)
@@ -758,6 +774,11 @@ class AlarmService : Service() {
         const val ACTION_REFRESH = "ca.persistent.app.SERVICE_REFRESH"
         const val ACTION_ENSURE = "ca.persistent.app.SERVICE_ENSURE"
         const val DEFAULT_SNOOZE_MINUTES = 10
+        // Don't re-play the same occurrence's sound within this window — de-dups an
+        // on-device alarm and a redundant server push landing near-simultaneously.
+        // Longer than the local-alarm-vs-push gap (~1-2 min), shorter than the ~15-min
+        // background resync and the 10-min default snooze.
+        private const val SOUND_DEBOUNCE_MS = 4 * 60_000L
         // Alarms/escalations keep the legacy channel id so existing installs retain
         // its DND-bypass grant; the two non-alarm channels split by prominence.
         private const val CHANNEL_ALARM = "reminders_silent"
