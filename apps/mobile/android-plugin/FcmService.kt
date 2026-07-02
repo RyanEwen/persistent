@@ -45,12 +45,33 @@ class FcmService : MessagingService() {
             }
             // Silenced elsewhere: stop this device's ringing alarm but keep nagging.
             "silence" -> if (occurrenceId != null) runCatching { AlarmService.silenceLocal(context, occurrenceId) }
-            "fire", "escalate" -> if (occurrenceId != null) startAlarm(context, type, occurrenceId, data)
+            // The on-device scheduled alarm is the full-fidelity primary (it rings with
+            // the user's CHOSEN tone and, for alarms, the full-screen surface). A fire/
+            // escalate push is only a BACKUP for when this device didn't schedule the
+            // occurrence locally (web-only, never synced, or a cross-device nudge). If we
+            // already have it — armed in AlarmStore or showing — skip the push so it
+            // doesn't double-alert with the default tone (this service can't read the
+            // WebView's chosen sound, so its fallback is always the system default).
+            "fire", "escalate" -> if (occurrenceId != null && !handledLocally(context, occurrenceId)) {
+                startAlarm(context, type, occurrenceId, data)
+            }
             // "sync": no self-contained action, and a resync needs the WebView's
             // session cookie; super() already forwarded to JS, which resyncs when the
             // bridge is alive. A fully-closed app catches up on its next open.
         }
     }
+
+    /**
+     * Whether this device already owns the occurrence locally, so a fire/escalate
+     * push would be a redundant second alert. True if it's currently showing/ringing
+     * or still scheduled in [AlarmStore] (the base alarm or its `::esc` escalation) —
+     * i.e. the on-device exact alarm has it (or already handled it) with full fidelity.
+     * Only when neither holds is the push the sole surface, so it acts.
+     */
+    private fun handledLocally(context: Context, occurrenceId: String): Boolean =
+        AlarmService.isActive(occurrenceId) ||
+            AlarmStore.find(context, occurrenceId) != null ||
+            AlarmStore.find(context, occurrenceId + AlarmReceiver.ESC_SUFFIX) != null
 
     private fun startAlarm(context: Context, type: String, occurrenceId: String, data: Map<String, String>) {
         val spec = AlarmSpec(

@@ -211,7 +211,13 @@ clears the nag, `fire`/`escalate` show it, `silence` downgrades it; it then call
 `super()` so the JS bridge still receives the message when alive (token hand-off in
 `nativeSync.ts` `initFcm`, plus a resync). A pushed `fire` falls back to default
 sound/prominence (those live in WebView settings), so the on-device scheduled alarm
-remains the full-fidelity primary path.
+remains the full-fidelity primary path — and precisely because of that, a `fire`/
+`escalate` push is **suppressed when the occurrence is already handled locally**
+(`FcmService.handledLocally`: showing in the service, or still armed in `AlarmStore`
+as the base alarm or its `::esc` escalation). Otherwise a device that scheduled the
+occurrence locally would double-alert — once with the chosen tone (the exact alarm)
+and again with the default tone (the push). The push only acts when the device has
+no local alarm for it (web-only, never synced, or a cross-device nudge).
 
 **Both halves are gated and OFF until provisioned:** the server only sends FCM when
 `FCM_PROJECT_ID` + `FCM_SERVICE_ACCOUNT_FILE` are set (`isFcmConfigured`), and
