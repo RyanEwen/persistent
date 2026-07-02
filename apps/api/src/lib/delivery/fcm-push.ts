@@ -17,7 +17,10 @@ export function isFcmConfigured(): boolean {
   return Boolean(env.FCM_SERVICE_ACCOUNT_FILE?.trim() && env.FCM_PROJECT_ID?.trim())
 }
 
-let tokenSourcePromise: Promise<{ getAccessToken: () => Promise<string | null | undefined> }> | null = null
+// An AuthClient's getAccessToken() resolves to { token }, NOT a bare string —
+// only GoogleAuth#getAccessToken() returns the string. Typing the client wrong
+// here is what let `Bearer [object Object]` ship (every send 401'd).
+let tokenSourcePromise: Promise<{ getAccessToken: () => Promise<{ token?: string | null }> }> | null = null
 
 async function getAuthClient() {
   if (!tokenSourcePromise) {
@@ -28,7 +31,7 @@ async function getAuthClient() {
         credentials,
         scopes: ['https://www.googleapis.com/auth/firebase.messaging']
       })
-      return auth.getClient() as unknown as { getAccessToken: () => Promise<string | null | undefined> }
+      return auth.getClient() as unknown as { getAccessToken: () => Promise<{ token?: string | null }> }
     })()
   }
   return tokenSourcePromise
@@ -48,7 +51,8 @@ function resetAuthClient(): void {
 async function mintAccessToken(): Promise<string | null> {
   try {
     const client = await getAuthClient()
-    const token = await client.getAccessToken()
+    // getAccessToken() resolves to { token }; the bare object is NOT the token.
+    const { token } = await client.getAccessToken()
     return token ?? null
   } catch (error) {
     logger.warn('fcm auth failed', { error: String(error) })
