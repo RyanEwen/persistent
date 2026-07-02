@@ -87,8 +87,9 @@ class AlarmActivity : Activity() {
                 finish()
             })
             if (canSilence) {
-                // Escalation only: stop the alarm but leave the reminder nagging.
-                actions.addView(AlarmUi.pillButton(this, "Silence", AlarmUi.ButtonStyle.GHOST, topMarginDp = 12f) {
+                // Escalation only: stop the alarm but leave the reminder nagging
+                // ("De-escalate" is the user-facing label for the silence action).
+                actions.addView(AlarmUi.pillButton(this, "De-escalate", AlarmUi.ButtonStyle.GHOST, topMarginDp = 12f) {
                     sendAction(AlarmReceiver.ACTION_SILENCE)
                     finish()
                 })

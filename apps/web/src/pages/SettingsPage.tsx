@@ -211,7 +211,7 @@ export function SettingsPage() {
       <Card variant="outlined">
         <Typography level="title-sm">Help</Typography>
         <Typography level="body-sm">
-          New here, or want a refresher on how nagging, escalation, and Done/Silence/Snooze work?{' '}
+          New here, or want a refresher on how nagging, escalation, and Done/De-escalate/Snooze work?{' '}
           <Link component={RouterLink} to="/help">
             How Persistent works
           </Link>

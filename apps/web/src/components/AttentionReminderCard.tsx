@@ -3,8 +3,9 @@
  * occurrence): the warning-styled card shown at the top of the reminders list.
  *
  * It pulls double duty as the reminder's list row — the info region links to the
- * editor (like ReminderListItem) while the Done/Snooze/Silence buttons act on the
- * occurrence without navigating (they sit outside the link, not nested in it).
+ * editor (like ReminderListItem) while the Done/Snooze/De-escalate buttons act on
+ * the occurrence without navigating (they sit outside the link, not nested in it).
+ * ("De-escalate" is the user-facing label for the silence action.)
  */
 import { useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
@@ -95,7 +96,7 @@ export function AttentionReminderCard({
             </Button>
             {occurrence.status === 'ESCALATED' && (
               <Button variant="outlined" color="warning" loading={silenceLoading} onClick={onSilence}>
-                Silence
+                De-escalate
               </Button>
             )}
           </>

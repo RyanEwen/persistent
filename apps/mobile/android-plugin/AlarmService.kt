@@ -555,8 +555,9 @@ class AlarmService : Service() {
         } else {
             builder.addAction(0, "Done", donePending)
             builder.addAction(0, "Snooze", snoozePending)
-            // Escalation alarms also offer Silence (stop the alarm, keep nagging).
-            if (spec.alarm && spec.canSilence) builder.addAction(0, "Silence", silencePending)
+            // Escalation alarms also offer De-escalate (stop the alarm, keep nagging —
+            // the user-facing label for the silence action).
+            if (spec.alarm && spec.canSilence) builder.addAction(0, "De-escalate", silencePending)
         }
         if (spec.alarm) {
             builder.setFullScreenIntent(fullScreen, true)

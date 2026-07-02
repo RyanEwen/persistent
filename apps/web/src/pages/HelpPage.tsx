@@ -1,6 +1,6 @@
 /**
  * Help / how it works. Plain-language explanation of the persistence model and
- * the Done/Silence/Snooze actions (the user-facing side of
+ * the Done/De-escalate/Snooze actions (the user-facing side of
  * docs/notification-behavior.md), plus the basics of creating reminders. Reached
  * from the top-bar help icon and a link in Settings.
  */
@@ -61,7 +61,7 @@ export function HelpPage() {
         </Typography>
       </Section>
 
-      <Section title="Done, Silence, and Snooze">
+      <Section title="Done, De-escalate, and Snooze">
         <Stack spacing={1.5}>
           <Stack direction="row" spacing={1} alignItems="flex-start">
             <Chip size="sm" color="success" variant="soft">
@@ -75,7 +75,7 @@ export function HelpPage() {
           </Stack>
           <Stack direction="row" spacing={1} alignItems="flex-start">
             <Chip size="sm" color="warning" variant="soft">
-              Silence
+              De-escalate
             </Chip>
             <Typography level="body-sm">
               Appears on an escalated alarm. It <b>stops the alarm but keeps the reminder nagging</b> as the

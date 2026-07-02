@@ -77,7 +77,7 @@ function showReminder(payload) {
       payload.alarm === true ||
       payload.escalate === true ||
       payload.type === 'escalate',
-    // An escalation offers "Silence" (stop the alarm, keep nagging).
+    // An escalation offers "De-escalate" (stop the alarm, keep nagging).
     escalated: payload.type === 'escalate' || payload.escalate === true,
     body: payload.body || ''
   }
@@ -89,7 +89,8 @@ function buildOptions(data, payload) {
     { action: 'done', title: 'Done' },
     { action: 'snooze', title: 'Snooze 10m' }
   ]
-  if (data.escalated) actions.push({ action: 'silence', title: 'Silence' })
+  // "De-escalate" is the user-facing label; the action id stays `silence`.
+  if (data.escalated) actions.push({ action: 'silence', title: 'De-escalate' })
   return {
     tag: data.occurrenceId,
     body: data.body || (payload && payload.body) || '',

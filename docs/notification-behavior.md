@@ -24,7 +24,9 @@ guarantee* those mechanisms exist to deliver.
   complete. This is the *only* thing that ends a nag for good.
 
 The three user actions on a firing are **Done**, **Silence**, and **Snooze**.
-Their guaranteed effects follow.
+Their guaranteed effects follow. (Silence is labeled **"De-escalate"** in the UI —
+it only ever appears on an escalated alarm, and that's what it does; the internal
+action/API name remains `silence`.)
 
 ## 1. Done — clears the reminder everywhere
 
