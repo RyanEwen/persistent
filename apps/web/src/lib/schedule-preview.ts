@@ -19,6 +19,14 @@ export interface SchedulePreviewInput {
 
 const DAY_MS = 86_400_000
 
+// Mirrors the server's one-shot back-fill window (`materializeReminder` in
+// apps/api/src/lib/scheduler.ts uses `from = now - 48h` for `once`): a one-time
+// reminder whose instant is up to 48h in the past still materializes and fires
+// immediately. So its preview must say "fires right away", not "no upcoming fire"
+// — the common case of a new reminder left at its default time of *now*, which
+// has slipped a few seconds into the past by the time you save.
+const ONCE_BACKFILL_MS = 48 * 60 * 60 * 1000
+
 /** Parse a YYYY-MM-DD string to local midnight, or null if malformed. */
 function parseLocalDate(value: string): Date | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
@@ -86,6 +94,28 @@ export function nextFire(input: SchedulePreviewInput, now: Date = new Date()): D
   return null
 }
 
+/**
+ * Whether a `once` reminder will fire *right away* — its single instant is in the
+ * recent past that the server still back-fills (see ONCE_BACKFILL_MS). `nextFire`
+ * returns null for these (there's no *future* fire), so the preview would wrongly
+ * read "no upcoming fire" without this.
+ */
+export function firesRightAway(input: SchedulePreviewInput, now: Date = new Date()): boolean {
+  if (input.kind !== 'once') return false
+  const start = parseLocalDate(input.startDate)
+  if (!start) return false
+  const earliest = now.getTime() - ONCE_BACKFILL_MS
+  for (const t of input.timesOfDay) {
+    if (!/^\d{1,2}:\d{2}$/.test(t)) continue
+    const fire = combine(start, t)
+    if (!fire) continue
+    const ms = fire.getTime()
+    // Past (nextFire wouldn't return it) but recent enough that the server fires it.
+    if (ms < now.getTime() && ms >= earliest) return true
+  }
+  return false
+}
+
 /** The next fire instant for a reminder (null if paused or no upcoming fire). */
 export function reminderNextFire(reminder: Reminder, now: Date = new Date()): Date | null {
   if (!reminder.active) return null
@@ -114,7 +144,8 @@ function hhmm(d: Date): string {
  */
 export function fireSummary(input: SchedulePreviewInput, timeFormat: TimeFormat, now: Date = new Date()): string | null {
   const fire = nextFire(input, now)
-  if (!fire) return null
+  // No future fire, but a just-passed one-shot the server back-fills fires now.
+  if (!fire) return firesRightAway(input, now) ? 'Fires right away' : null
 
   const time = formatTimeOfDay(hhmm(fire), timeFormat)
   const today = new Date(now)
