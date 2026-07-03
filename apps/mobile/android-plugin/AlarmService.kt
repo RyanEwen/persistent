@@ -91,6 +91,10 @@ class AlarmService : Service() {
                 val occurrenceId = intent.getStringExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID) ?: return START_STICKY
                 silenceOccurrence(occurrenceId)
             }
+            ACTION_SNOOZE_LOCAL -> {
+                val occurrenceId = intent.getStringExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID) ?: return START_STICKY
+                snoozeLocal(occurrenceId, intent.getIntExtra(EXTRA_SNOOZE_MINUTES, DEFAULT_SNOOZE_MINUTES))
+            }
             ACTION_RESTYLE -> {
                 // The device-default prominence changed (already persisted by the
                 // caller). Re-post live notifications so the new channel applies now.
@@ -263,6 +267,33 @@ class AlarmService : Service() {
         val notif = buildNotification(spec)
         if (foregroundId == occurrenceId) startForeground(notifId(occurrenceId), notif)
         else nm.notify(notifId(occurrenceId), notif)
+    }
+
+    /**
+     * Snooze, in guaranteed order: capture the spec, tear the current alert down
+     * (clear() cancels alarms and wipes the store for this occurrence), THEN store +
+     * arm the re-fire. Running inside the service's single-threaded command handler
+     * makes the ordering deterministic — the re-fire can't be destroyed by a
+     * trailing async stop. The re-fire keeps the spec's fidelity (chosen tone,
+     * alarm-or-soft) so a snoozed alarm rings again as an alarm; the store entry
+     * also keeps handledLocally() true, so a racing server fire/escalate push for
+     * this occurrence stays suppressed instead of double-alerting.
+     */
+    private fun snoozeLocal(occurrenceId: String, minutes: Int) {
+        // Prefer the live spec over the stored one: a locally-escalated ring holds
+        // alarm=true in `active` while the store still has the soft pre-escalation
+        // spec — and a snoozed alarm must ring again as an alarm when it returns.
+        val spec = active[occurrenceId] ?: AlarmStore.find(this, occurrenceId)
+        android.util.Log.i(
+            "PersistAlarm",
+            "snoozeLocal occ=$occurrenceId minutes=$minutes specFound=${spec != null}"
+        )
+        clear(occurrenceId)
+        if (spec != null) {
+            val snoozed = spec.copy(fireAtMs = System.currentTimeMillis() + minutes * 60_000L)
+            AlarmStore.put(this, snoozed)
+            AlarmPlugin.armAlarm(this, snoozed)
+        }
     }
 
     /**
@@ -774,6 +805,8 @@ class AlarmService : Service() {
         const val ACTION_RESTYLE = "ca.persistent.app.SERVICE_RESTYLE"
         const val ACTION_REFRESH = "ca.persistent.app.SERVICE_REFRESH"
         const val ACTION_ENSURE = "ca.persistent.app.SERVICE_ENSURE"
+        const val ACTION_SNOOZE_LOCAL = "ca.persistent.app.SERVICE_SNOOZE_LOCAL"
+        const val EXTRA_SNOOZE_MINUTES = "snoozeMinutes"
         const val DEFAULT_SNOOZE_MINUTES = 10
         // Don't re-play the same occurrence's sound within this window — de-dups an
         // on-device alarm and a redundant server push landing near-simultaneously.
@@ -865,20 +898,27 @@ class AlarmService : Service() {
         }
 
         /**
-         * Snooze for `minutes`: re-arm the local alarm and stop the current sound,
-         * and queue the snooze for the server (drained by the WebView) so it's
+         * Snooze for `minutes`: stop the current alarm, re-arm the local re-fire, and
+         * queue the snooze for the server (drained on the next sync) so it's
          * authoritative and syncs across devices. The escalation backstop stays
          * server-anchored to the original fire.
+         *
+         * The stop and the re-arm MUST run in that order inside the service: this
+         * used to stopFor() (an async startService) and then store+arm the re-fire
+         * directly — and the stop's clear() would land afterwards, cancelling the
+         * just-armed re-fire and deleting its store entry. Every native snooze
+         * silently lost its local re-fire (only server push could revive it), and the
+         * emptied store made handledLocally() wave a duplicate fire/escalate push
+         * through as a second, default-tone alarm.
          */
         fun snooze(context: Context, occurrenceId: String, minutes: Int) {
-            val spec = AlarmStore.find(context, occurrenceId)
             PendingSnoozeStore.add(context, occurrenceId, minutes)
-            stopFor(context, occurrenceId)
-            if (spec != null) {
-                val snoozed = spec.copy(fireAtMs = System.currentTimeMillis() + minutes * 60_000L)
-                AlarmStore.put(context, snoozed)
-                AlarmPlugin.armAlarm(context, snoozed)
-            }
+            context.startService(
+                Intent(context, AlarmService::class.java)
+                    .setAction(ACTION_SNOOZE_LOCAL)
+                    .putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, occurrenceId)
+                    .putExtra(EXTRA_SNOOZE_MINUTES, minutes)
+            )
         }
 
         fun stopFor(context: Context, occurrenceId: String) {

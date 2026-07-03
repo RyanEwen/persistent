@@ -226,6 +226,20 @@ persisted in `AlarmStore` so it survives a restart, reset on ack/snooze). The
 notification still (re)posts; only the near-simultaneous *second sound* is dropped.
 The intentional `soundIntervalSeconds` re-notify loop plays directly and is exempt.
 
+**Native snooze is ordered inside the service.** A snooze (notification action,
+full-screen alarm, or snooze picker) sends one `ACTION_SNOOZE_LOCAL` intent;
+`snoozeLocal` then — in the service's single-threaded handler — captures the live
+spec, tears the alert down (`clear`), and stores + arms the re-fire, in that order.
+It must not be split across an async stop: an earlier version called `stopFor()`
+(async `startService`) and then armed the re-fire directly, and the trailing
+`clear()` cancelled the just-armed alarm and deleted its store entry — every native
+snooze silently lost its local re-fire, and the emptied store let a racing server
+`fire`/`escalate` push through `handledLocally` as a second, default-tone alarm.
+The kept store entry is also what keeps that suppression working during a snooze.
+Queued server snoozes (`PendingSnoozeStore`) record when they were picked and drain
+as the *remaining* minutes, so a snooze that sits queued until the next background
+sync doesn't slide the user's chosen end time later.
+
 **Both halves are gated and OFF until provisioned:** the server only sends FCM when
 `FCM_PROJECT_ID` + `FCM_SERVICE_ACCOUNT_FILE` are set (`isFcmConfigured`), and
 `initFcm` only calls `PushNotifications.register()` when the server reports
