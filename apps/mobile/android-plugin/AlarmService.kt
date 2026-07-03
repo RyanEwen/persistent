@@ -856,6 +856,10 @@ class AlarmService : Service() {
         fun markDone(context: Context, occurrenceId: String) {
             PendingAckStore.add(context, occurrenceId)
             stopFor(context, occurrenceId)
+            // Deliver the ack to the server promptly (not on the next 15-min cycle):
+            // it stops nagging on other devices, and closes the race where the server
+            // escalates-and-pushes an occurrence the user has already confirmed.
+            SyncWorker.syncNow(context)
         }
 
         /** First "Done" tap: switch the notification into its confirm state. */
@@ -883,6 +887,7 @@ class AlarmService : Service() {
         fun silence(context: Context, occurrenceId: String) {
             PendingSilenceStore.add(context, occurrenceId)
             silenceLocal(context, occurrenceId)
+            SyncWorker.syncNow(context)
         }
 
         /**
@@ -919,6 +924,7 @@ class AlarmService : Service() {
                     .putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, occurrenceId)
                     .putExtra(EXTRA_SNOOZE_MINUTES, minutes)
             )
+            SyncWorker.syncNow(context)
         }
 
         fun stopFor(context: Context, occurrenceId: String) {

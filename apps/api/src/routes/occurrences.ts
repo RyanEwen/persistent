@@ -101,8 +101,18 @@ occurrencesRouter.post('/:id/snooze', async (request, response) => {
   const parsed = snoozeInputSchema.safeParse(request.body)
   if (!parsed.success) throw badRequest('Invalid snooze duration.')
 
-  const existing = await prisma.reminderOccurrence.findFirst({ where: { id: request.params.id, userId } })
+  const existing = await prisma.reminderOccurrence.findFirst({
+    where: { id: request.params.id, userId },
+    include: { reminder: true }
+  })
   if (!existing) throw notFound('Occurrence not found.')
+
+  // Only a nagging occurrence can be snoozed — a queued device snooze draining
+  // after an ack must not resurrect a terminal occurrence (same guard as silence).
+  if (existing.status !== 'FIRED' && existing.status !== 'ESCALATED' && existing.status !== 'SNOOZED') {
+    response.json({ occurrence: toOccurrence(existing) })
+    return
+  }
 
   const snoozedUntil = new Date(Date.now() + parsed.data.minutes * 60_000)
   const updated = await prisma.reminderOccurrence.update({
@@ -122,8 +132,20 @@ occurrencesRouter.post('/:id/snooze', async (request, response) => {
 // dismiss the notification; it downgrades it across every device.
 occurrencesRouter.post('/:id/silence', async (request, response) => {
   const userId = requireUserId(request)
-  const existing = await prisma.reminderOccurrence.findFirst({ where: { id: request.params.id, userId } })
+  const existing = await prisma.reminderOccurrence.findFirst({
+    where: { id: request.params.id, userId },
+    include: { reminder: true }
+  })
   if (!existing) throw notFound('Occurrence not found.')
+
+  // Silence only means something for a nagging occurrence. It must NEVER touch a
+  // terminal one: a device can queue a silence and an ack for the same occurrence
+  // and drain them in one batch — without this guard the trailing silence flipped
+  // the just-ACKNOWLEDGED occurrence back to FIRED, resurrecting a done reminder.
+  if (existing.status !== 'FIRED' && existing.status !== 'ESCALATED' && existing.status !== 'SNOOZED') {
+    response.json({ occurrence: toOccurrence(existing) })
+    return
+  }
 
   const updated = await prisma.reminderOccurrence.update({
     where: { id: existing.id },

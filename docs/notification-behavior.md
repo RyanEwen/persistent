@@ -68,7 +68,9 @@ ordinary notification that preceded the escalation:
   downgrades the alarm in place; the web SW re-shows it as a plain nag.
 
 Silence is "stop yelling, but keep reminding me." It does **not** acknowledge the
-reminder — only Done does that.
+reminder — only Done does that. And the reverse holds: silencing (or snoozing) an
+already-acknowledged occurrence is a **no-op** — a queued device action draining
+after an ack must never resurrect a terminal occurrence back to nagging.
 
 ## 3. Snooze — snoozes the firing (the alarm), not just a notification
 

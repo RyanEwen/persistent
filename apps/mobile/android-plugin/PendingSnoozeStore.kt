@@ -29,6 +29,10 @@ object PendingSnoozeStore {
         write(context, map)
     }
 
+    /** Whether a snooze for this occurrence is still queued (the user already acted). */
+    fun contains(context: Context, occurrenceId: String): Boolean =
+        all(context).any { it.first == occurrenceId }
+
     /**
      * Returns and clears the queued snoozes as (occurrenceId, minutes) pairs, with
      * minutes adjusted down by the time the entry sat queued (min 1 — an elapsed

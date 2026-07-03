@@ -213,8 +213,11 @@ clears the nag, `fire`/`escalate` show it, `silence` downgrades it; it then call
 sound/prominence (those live in WebView settings), so the on-device scheduled alarm
 remains the full-fidelity primary path — and precisely because of that, a `fire`/
 `escalate` push is **suppressed when the occurrence is already handled locally**
-(`FcmService.handledLocally`: showing in the service, or still armed in `AlarmStore`
-as the base alarm or its `::esc` escalation). Otherwise a device that scheduled the
+(`FcmService.handledLocally`: showing in the service, still armed in `AlarmStore`
+as the base alarm or its `::esc` escalation, or with a **pending ack/snooze queued**
+— the user already acted here; a Done clears local state instantly while the server
+learns of it on the next drain, and a push dispatched inside that gap must not
+re-ring a confirmed reminder). Otherwise a device that scheduled the
 occurrence locally would double-alert — once with the chosen tone (the exact alarm)
 and again with the default tone (the push). The push only acts when the device has
 no local alarm for it (web-only, never synced, or a cross-device nudge). As a
@@ -238,7 +241,13 @@ snooze silently lost its local re-fire, and the emptied store let a racing serve
 The kept store entry is also what keeps that suppression working during a snooze.
 Queued server snoozes (`PendingSnoozeStore`) record when they were picked and drain
 as the *remaining* minutes, so a snooze that sits queued until the next background
-sync doesn't slide the user's chosen end time later.
+sync doesn't slide the user's chosen end time later. Every native Done/Snooze/
+De-escalate also enqueues an immediate one-shot sync (`SyncWorker.syncNow`) so the
+queued action reaches the server in seconds rather than the periodic cycle — other
+devices stop nagging promptly and the ack-vs-escalate-push race window all but
+closes. Server-side, the snooze and silence routes only apply to a nagging
+occurrence (`FIRED`/`ESCALATED`/`SNOOZED`); a queued action draining after an ack
+is a no-op instead of resurrecting a terminal occurrence.
 
 **Both halves are gated and OFF until provisioned:** the server only sends FCM when
 `FCM_PROJECT_ID` + `FCM_SERVICE_ACCOUNT_FILE` are set (`isFcmConfigured`), and

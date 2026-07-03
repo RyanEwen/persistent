@@ -3,7 +3,9 @@ package ca.persistent.app.alarm
 import android.content.Context
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.Worker
@@ -41,6 +43,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : Worker(context, p
 
     companion object {
         private const val UNIQUE_NAME = "persistent-background-sync"
+        private const val NOW_NAME = "persistent-sync-now"
 
         /** Enqueue the periodic worker (idempotent — KEEP preserves the existing schedule). */
         fun ensureScheduled(context: Context) {
@@ -51,6 +54,26 @@ class SyncWorker(context: Context, params: WorkerParameters) : Worker(context, p
                 .build()
             WorkManager.getInstance(context)
                 .enqueueUniquePeriodicWork(UNIQUE_NAME, ExistingPeriodicWorkPolicy.KEEP, request)
+        }
+
+        /**
+         * Run one sync as soon as possible. Fired after a native Done/Snooze/
+         * De-escalate so the queued action reaches the server in seconds instead of
+         * waiting for the periodic cycle — the server stops nagging other devices
+         * promptly, and the window where it escalates-and-pushes an occurrence the
+         * user already handled (which re-rang here with the default tone) all but
+         * closes. Plain (non-expedited) one-time work: it runs immediately in
+         * practice right after a user interaction with the app battery-exempt, and
+         * avoids expedited work's getForegroundInfo requirement on older Android.
+         */
+        fun syncNow(context: Context) {
+            val request = OneTimeWorkRequestBuilder<SyncWorker>()
+                .setConstraints(
+                    Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+                )
+                .build()
+            WorkManager.getInstance(context)
+                .enqueueUniqueWork(NOW_NAME, ExistingWorkPolicy.REPLACE, request)
         }
     }
 }

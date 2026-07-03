@@ -65,15 +65,21 @@ class FcmService : MessagingService() {
 
     /**
      * Whether this device already owns the occurrence locally, so a fire/escalate
-     * push would be a redundant second alert. True if it's currently showing/ringing
-     * or still scheduled in [AlarmStore] (the base alarm or its `::esc` escalation) —
-     * i.e. the on-device exact alarm has it (or already handled it) with full fidelity.
-     * Only when neither holds is the push the sole surface, so it acts.
+     * push would be a redundant second alert. True if it's currently showing/ringing,
+     * still scheduled in [AlarmStore] (the base alarm or its `::esc` escalation), or
+     * the user has ALREADY acted on it here and the action is still queued for the
+     * server (pending ack/snooze): a Done tap clears the local state immediately, so
+     * a server push dispatched before the queued ack drains would otherwise re-ring
+     * a reminder the user just confirmed — with the default tone, since this service
+     * can't read the chosen sound. Only when none of these hold is the push the sole
+     * surface, so it acts.
      */
     private fun handledLocally(context: Context, occurrenceId: String): Boolean =
         AlarmService.isActive(occurrenceId) ||
             AlarmStore.find(context, occurrenceId) != null ||
-            AlarmStore.find(context, occurrenceId + AlarmReceiver.ESC_SUFFIX) != null
+            AlarmStore.find(context, occurrenceId + AlarmReceiver.ESC_SUFFIX) != null ||
+            PendingAckStore.all(context).contains(occurrenceId) ||
+            PendingSnoozeStore.contains(context, occurrenceId)
 
     private fun startAlarm(context: Context, type: String, occurrenceId: String, data: Map<String, String>) {
         val spec = AlarmSpec(
