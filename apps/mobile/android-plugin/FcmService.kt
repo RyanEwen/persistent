@@ -20,10 +20,11 @@ import com.google.firebase.messaging.RemoteMessage
  *
  * Mirrors the web service worker (apps/web/public/push-handler.js): dismiss clears
  * the notification; fire/escalate show it; silence downgrades a ringing escalation.
- * Fidelity note: a pushed fire carries no chosen sound URI / shade prominence
- * (those live in the WebView's settings), so it falls back to defaults — the
- * on-device scheduled alarm stays the full-fidelity primary path. High-priority FCM
- * messages grant the temporary allowance to start the foreground service here.
+ * Fidelity note: the push payload carries no sound/prominence, but the chosen tones
+ * are mirrored into native storage (AlarmStore.setSyncConfig) so a pushed ring
+ * plays the user's sound; shade prominence falls back to INHERIT (device default).
+ * The on-device scheduled alarm stays the full-fidelity primary path. High-priority
+ * FCM messages grant the temporary allowance to start the foreground service here.
  */
 class FcmService : MessagingService() {
 
@@ -82,15 +83,21 @@ class FcmService : MessagingService() {
             PendingSnoozeStore.contains(context, occurrenceId)
 
     private fun startAlarm(context: Context, type: String, occurrenceId: String, data: Map<String, String>) {
+        val alarm = data["alarm"] == "true" || type == "escalate"
         val spec = AlarmSpec(
             occurrenceId = occurrenceId,
             fireAtMs = System.currentTimeMillis(),
             title = data["title"] ?: "Reminder",
             body = data["body"] ?: "",
             soundIntervalSeconds = data["soundIntervalSeconds"]?.toIntOrNull() ?: 0,
-            alarm = data["alarm"] == "true" || type == "escalate",
+            alarm = alarm,
             ongoing = true,
-            soundUri = "", // the chosen tone lives in the WebView's settings; default here
+            // The chosen tone is mirrored into native storage by the WebView on each
+            // foreground sync (AlarmStore.setSyncConfig, for the background worker) —
+            // use it here too, so a push-delivered ring (e.g. a just-created reminder
+            // firing before this device has synced it) plays the user's sound instead
+            // of the system default. "" (never mirrored) still means default.
+            soundUri = AlarmStore.soundUri(context, if (alarm) "alarm" else "notification"),
             reminderId = data["reminderId"] ?: "",
             canSilence = type == "escalate",
             shadeProminence = "INHERIT"

@@ -209,9 +209,10 @@ On native, FCM is handled by `FcmService` (Kotlin) — it subclasses
 the **self-contained data payload even when the WebView/bridge is dead**: `dismiss`
 clears the nag, `fire`/`escalate` show it, `silence` downgrades it; it then calls
 `super()` so the JS bridge still receives the message when alive (token hand-off in
-`nativeSync.ts` `initFcm`, plus a resync). A pushed `fire` falls back to default
-sound/prominence (those live in WebView settings), so the on-device scheduled alarm
-remains the full-fidelity primary path — and precisely because of that, a `fire`/
+`nativeSync.ts` `initFcm`, plus a resync). A pushed `fire` plays the user's chosen
+tone (mirrored into native storage via `AlarmStore.setSyncConfig`; prominence falls
+back to the device default), but the on-device scheduled alarm remains the
+full-fidelity primary path — and precisely because of that, a `fire`/
 `escalate` push is **suppressed when the occurrence is already handled locally**
 (`FcmService.handledLocally`: showing in the service, still armed in `AlarmStore`
 as the base alarm or its `::esc` escalation, or with a **pending ack/snooze queued**
