@@ -17,6 +17,7 @@ object AlarmStore {
     private const val KEY_API_BASE_URL = "api_base_url"
     private const val KEY_ALARM_SOUND = "alarm_sound_uri"
     private const val KEY_NOTIFICATION_SOUND = "notification_sound_uri"
+    private const val KEY_LAST_PEEK = "last_peek_at"
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -42,6 +43,13 @@ object AlarmStore {
     fun soundUri(context: Context, kind: String): String {
         val key = if (kind == "alarm") KEY_ALARM_SOUND else KEY_NOTIFICATION_SOUND
         return prefs(context).getString(key, "") ?: ""
+    }
+
+    /** When buried (minimized) nags were last peeked into the main shade section. */
+    fun lastPeekAt(context: Context): Long = prefs(context).getLong(KEY_LAST_PEEK, 0L)
+
+    fun setLastPeekAt(context: Context, value: Long) {
+        prefs(context).edit().putLong(KEY_LAST_PEEK, value).apply()
     }
 
     fun all(context: Context): List<AlarmSpec> {

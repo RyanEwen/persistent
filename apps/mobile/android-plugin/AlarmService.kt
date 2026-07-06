@@ -142,15 +142,29 @@ class AlarmService : Service() {
      * quietly) — the fire path handles those. Reads the persisted [AlarmStore] so it
      * works offline and after a cold restart. Idempotent: already-showing nags are
      * left untouched, so it never re-sounds or reorders them.
+     *
+     * "Currently showing" is judged against the OS's ACTUAL posted notifications,
+     * not the in-memory `active` map: Android can remove a notification without
+     * telling the app (while the process lives on), and trusting memory would then
+     * skip the re-post forever — a nag gone for days with the service convinced it
+     * was still on screen.
      */
     private fun ensureNags() {
         ensureChannels()
         val now = System.currentTimeMillis()
+        // What the shade actually shows right now (fall back to memory pre-M).
+        val posted: Set<Int> =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) nm.activeNotifications.map { it.id }.toSet()
+            else active.keys.map { notifId(it) }.toSet()
         val due = AlarmStore.all(this).filter {
             !it.alarm && it.fireAtMs <= now && !it.occurrenceId.endsWith(AlarmReceiver.ESC_SUFFIX)
         }
         for (spec in due) {
-            if (active.containsKey(spec.occurrenceId)) continue
+            if (posted.contains(notifId(spec.occurrenceId))) continue
+            android.util.Log.i(
+                "PersistAlarm",
+                "ensureNags repost occ=${spec.occurrenceId} staleMemory=${active.containsKey(spec.occurrenceId)}"
+            )
             startAlarm(spec, silent = true)
         }
         // Guarantee the foreground-start contract (we're started via
@@ -163,6 +177,61 @@ class AlarmService : Service() {
         } else {
             startForeground(SENTINEL_ID, placeholderNotification())
             clearAll()
+            return
+        }
+        // Buried nags (minimized section) get a brief, throttled peek into the main
+        // shade so the user can actually notice them (the silent-section stack only
+        // previews a couple of entries).
+        peekMinimized()
+    }
+
+    /**
+     * Briefly elevate every buried (minimized, non-alarm) nag into the main shade
+     * section, then drop it back to minimized — so nags the user chose to keep
+     * quiet still get SEEN. The silent section's collapsed stack previews only ~2
+     * entries, so 3+ minimized nags are undiscoverable without expanding it; a
+     * periodic peek surfaces them without permanently overriding the user's
+     * prominence choice. The peek channel is IMPORTANCE_DEFAULT: main section +
+     * status-bar icon, but no heads-up banner and (as with every channel) no sound.
+     * Throttled to once per [PEEK_INTERVAL_MS]; the demote re-checks `active`, so a
+     * nag acked mid-peek stays gone. If the process dies mid-peek, the next
+     * resync/ensureNags re-posts on the spec's own channel — self-healing.
+     */
+    private fun peekMinimized() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return // channels drive shade placement
+        val buried = active.filterValues { !it.alarm && channelFor(it) == CHANNEL_MINIMIZED }
+        if (buried.isEmpty()) return
+        val now = System.currentTimeMillis()
+        if (now - AlarmStore.lastPeekAt(this) < PEEK_INTERVAL_MS) return
+        AlarmStore.setLastPeekAt(this, now)
+        android.util.Log.i("PersistAlarm", "peek ${buried.size} minimized nag(s)")
+        for ((id, spec) in buried) repostOnChannel(id, spec, CHANNEL_PEEK)
+        loops.remove(PEEK_KEY)?.let { handler.removeCallbacks(it) }
+        val demote = Runnable {
+            loops.remove(PEEK_KEY)
+            for ((id, spec) in active.filterValues { !it.alarm && channelFor(it) == CHANNEL_MINIMIZED }) {
+                repostOnChannel(id, spec, null)
+            }
+        }
+        loops[PEEK_KEY] = demote
+        handler.postDelayed(demote, PEEK_VISIBLE_MS)
+    }
+
+    /**
+     * Cancel + re-post one live notification on a specific channel (null = the
+     * spec's own channel). A notification's channel can't change via an in-place
+     * notify(); the foreground-bound one is detached first so the service survives
+     * the swap (same pattern as restyleActive).
+     */
+    private fun repostOnChannel(occurrenceId: String, spec: AlarmSpec, channelOverride: String?) {
+        val notif = buildNotification(spec, channelOverride)
+        if (foregroundId == occurrenceId) {
+            stopForeground(STOP_FOREGROUND_DETACH)
+            nm.cancel(notifId(occurrenceId))
+            startForeground(notifId(occurrenceId), notif)
+        } else {
+            nm.cancel(notifId(occurrenceId))
+            nm.notify(notifId(occurrenceId), notif)
         }
     }
 
@@ -478,11 +547,11 @@ class AlarmService : Service() {
             .build()
     }
 
-    private fun buildNotification(spec: AlarmSpec): android.app.Notification {
+    private fun buildNotification(spec: AlarmSpec, channelOverride: String? = null): android.app.Notification {
         // The notification never carries audio — we play the chosen sound via
         // MediaPlayer — so every channel is silent; the channel only controls the
         // reminder's visual prominence in the shade (see channelFor).
-        val channel = channelFor(spec)
+        val channel = channelOverride ?: channelFor(spec)
         val contentPending = PendingIntent.getBroadcast(
             this,
             ("open:" + spec.occurrenceId).hashCode(),
@@ -600,9 +669,11 @@ class AlarmService : Service() {
         // bar shows a single icon (and the shade collapses them) instead of one icon
         // per reminder. Minimized ones stay ungrouped: they're low-importance, tucked
         // into the silent section with no status-bar icon, so they need no collapsing.
+        // Peeked ones stay ungrouped too — the whole point of a peek is each buried
+        // nag being individually visible, not collapsed into a stack.
         // GROUP_ALERT_CHILDREN keeps the (silent) summary from ever stealing a child's
         // heads-up / full-screen alert.
-        if (channel != CHANNEL_MINIMIZED) {
+        if (channel != CHANNEL_MINIMIZED && channel != CHANNEL_PEEK) {
             builder.setGroup(GROUP_KEY).setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
         }
         return builder.build()
@@ -786,6 +857,17 @@ class AlarmService : Service() {
                 }
             )
         }
+        if (manager.getNotificationChannel(CHANNEL_PEEK) == null) {
+            manager.createNotificationChannel(
+                // DEFAULT importance: main shade section + status-bar icon, but no
+                // heads-up banner — a peek shows itself without interrupting.
+                NotificationChannel(CHANNEL_PEEK, "Reminders (periodic peek)", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                    description = "Minimized reminders briefly surfaced so they aren't overlooked"
+                    setSound(null, null)
+                    enableVibration(false)
+                }
+            )
+        }
     }
 
     override fun onDestroy() {
@@ -818,6 +900,12 @@ class AlarmService : Service() {
         private const val CHANNEL_ALARM = "reminders_silent"
         private const val CHANNEL_NORMAL = "reminders_normal"
         private const val CHANNEL_MINIMIZED = "reminders_minimized"
+        private const val CHANNEL_PEEK = "reminders_peek"
+        // Buried (minimized) nags surface in the main shade section for this long...
+        private const val PEEK_VISIBLE_MS = 60_000L
+        // ...at most this often.
+        private const val PEEK_INTERVAL_MS = 60 * 60_000L
+        private const val PEEK_KEY = "__peek__"
         private const val SENTINEL_ID = 4201
         // Group key + summary id that bundle the non-minimized reminders into one
         // status-bar icon (see updateGroupSummary / buildNotification).

@@ -98,7 +98,10 @@ drives them lives in `apps/web/src/native`.
     notification is removed — and a one-shot's alarm has already fired, so nothing
     re-posts it. `AlarmService.ensureNags` closes that gap: it re-posts any overdue
     soft nag whose notification isn't showing, **silently** (no re-sound), from the
-    persisted `AlarmStore` — so a nag stays until Done. It runs on every resync and,
+    persisted `AlarmStore` — so a nag stays until Done. "Isn't showing" is judged
+    against the OS's actual posted notifications (`activeNotifications`), not the
+    app's in-memory state — Android can drop a notification without telling the app,
+    and trusting memory would skip the re-post forever. It runs on every resync and,
     critically, on the background `SyncWorker` cadence (~15 min) and offline, since it
     reads the local store. Because re-asserting is silent, `scheduleAll` no longer
     re-fires a past-due soft occurrence (which would re-sound on every resync) — only
@@ -162,6 +165,18 @@ never gates audio). The native client posts to one of three silent channels:
   up a heads-up banner.
 - `reminders_minimized` ("Reminders (minimized)", `IMPORTANCE_LOW`) — collapsed
   "silent" section at the bottom of the shade, no pop-up.
+- `reminders_peek` ("Reminders (periodic peek)", `IMPORTANCE_DEFAULT`) — used only
+  transiently by the anti-burial peek below; main section + status-bar icon, no
+  heads-up banner.
+
+**Anti-burial peek.** Minimized nags are easy to lose entirely: they're ungrouped,
+so Android sweeps them into its silent-section aggregate stack, which previews only
+~2 entries — 3+ buried nags are invisible without expanding it (a fired reminder
+once sat unseen there for days). So `AlarmService.peekMinimized` (run from the
+keep-alive pass) briefly re-posts every buried minimized nag on the peek channel —
+individually visible in the main section for ~1 minute — then drops them back to
+minimized. Throttled to at most once per hour, silent, no banner; the user's
+prominence choice stays in force the rest of the time.
 
 The non-minimized notifications are bundled under one **notification group** + a
 summary (`updateGroupSummary`), so several active reminders collapse to a single
