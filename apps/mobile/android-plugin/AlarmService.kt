@@ -640,6 +640,16 @@ class AlarmService : Service() {
             .setAutoCancel(!spec.ongoing)
             .setWhen(posted)
             .setShowWhen(true)
+            // A soft nag is re-posted constantly for reasons that are NOT a fresh
+            // fire — the keep-alive, the foreground-service re-assertion on every
+            // sync, style refreshes. On a NORMAL-prominence (IMPORTANCE_HIGH) channel
+            // each such re-post would otherwise pop a fresh heads-up banner, so the
+            // notification "keeps popping up" though nothing new happened (silently,
+            // since we drive tone via MediaPlayer). alertOnce suppresses the heads-up
+            // on those updates; the first fire still alerts (it's a new post), and the
+            // audible nag is unaffected (MediaPlayer, not the channel). Alarms keep
+            // re-alerting — they're meant to be relentless.
+            .setOnlyAlertOnce(!spec.alarm)
             // Show full content on the lock screen so the user can see *which*
             // reminder is firing without unlocking — the alarm must be findable.
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)

@@ -178,6 +178,16 @@ individually visible in the main section for ~1 minute — then drops them back 
 minimized. Throttled to at most once per hour, silent, no banner; the user's
 prominence choice stays in force the rest of the time.
 
+Soft nags are posted with **`setOnlyAlertOnce(true)`** (alarms are exempt — they
+must keep alerting). A nag is re-posted constantly for reasons that aren't a fresh
+fire — the silent keep-alive, the foreground-service re-assertion on every sync,
+style refreshes — and on a `reminders_normal` (`IMPORTANCE_HIGH`) channel each such
+re-post would otherwise re-trigger a heads-up banner (and re-buzz a paired Wear
+device), so the notification appears to "keep popping up" though nothing new
+happened. `alertOnce` suppresses alerting on those updates; the *first* fire still
+alerts (a genuinely new post), and the audible nag is unaffected because the tone
+is played via MediaPlayer, not the channel.
+
 The non-minimized notifications are bundled under one **notification group** + a
 summary (`updateGroupSummary`), so several active reminders collapse to a single
 status-bar icon instead of one per reminder. The summary is silent
