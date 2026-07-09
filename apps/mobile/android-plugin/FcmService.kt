@@ -58,9 +58,12 @@ class FcmService : MessagingService() {
                 android.util.Log.i("PersistAlarm", "fcm $type occ=$occurrenceId handledLocally=$local")
                 if (!local) startAlarm(context, type, occurrenceId, data)
             }
-            // "sync": no self-contained action, and a resync needs the WebView's
-            // session cookie; super() already forwarded to JS, which resyncs when the
-            // bridge is alive. A fully-closed app catches up on its next open.
+            // "sync": no self-contained payload (a reminder was created/edited/deleted
+            // on the web), but the background worker CAN re-pull via the mirrored cookie
+            // without the WebView — kick it off so the change reaches a closed device in
+            // seconds instead of waiting for the next ~15-min periodic cycle. super()
+            // also forwarded to JS, which resyncs too when the bridge happens to be up.
+            "sync" -> runCatching { SyncWorker.syncNow(context) }
         }
     }
 

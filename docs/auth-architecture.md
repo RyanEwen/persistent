@@ -69,8 +69,10 @@ every authenticated request (in-app action, or a notification ack/snooze/sync)
 extends expiry to now + 7 days (throttled to ~5 min); a week idle signs out. The
 `/ws` upgrade authenticates with the same cookie. The native background
 `SyncWorker` (see `docs/alarm-architecture.md`) also authenticates with this
-cookie, read from the WebView's native cookie jar — so its ~15-min syncs keep the
-session alive as long as the app is installed and periodically online.
+cookie — but its process has no WebView, so it can't read the HttpOnly cookie from
+`CookieManager`; the WebView captures it and mirrors it into native storage for the
+worker. Its ~15-min syncs then keep the session alive as long as the app is
+installed and periodically online.
 
 `attachUser` middleware resolves the cookie into `request.userId` for every
 request; `requireUser` rejects anonymous callers; `requireUserId(request)`

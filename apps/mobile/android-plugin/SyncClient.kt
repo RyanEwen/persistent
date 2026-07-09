@@ -27,21 +27,34 @@ object SyncClient {
     @Throws(IOException::class)
     fun sync(context: Context): Boolean {
         val baseUrl = AlarmStore.apiBaseUrl(context).trimEnd('/')
-        if (baseUrl.isEmpty()) return false
-        val cookie = CookieManager.getInstance().getCookie(baseUrl)
-        if (cookie == null || !cookie.contains("persistent_auth=")) return false
+        // Prefer the cookie the WebView captured for us (AlarmStore); CookieManager is
+        // empty in this worker process. Fall back to a live read in case a WebView is up.
+        var cookie = AlarmStore.authCookie(context)
+        if (!cookie.contains("persistent_auth=")) {
+            cookie = (if (baseUrl.isNotEmpty()) CookieManager.getInstance().getCookie(baseUrl) else null) ?: ""
+        }
+        android.util.Log.i(
+            "PersistAlarm",
+            "sync start baseUrl=${baseUrl.isNotEmpty()} authed=${cookie.contains("persistent_auth=")}"
+        )
+        if (baseUrl.isEmpty() || !cookie.contains("persistent_auth=")) return false
 
         // Push any actions the user took natively while the WebView wasn't running,
         // before pulling — so the server's truth already reflects them. Server acks
         // are idempotent, so racing the JS drain is harmless.
         drainPending(context, baseUrl, cookie)
 
-        val body = httpGet("$baseUrl/api/sync/occurrences", cookie) ?: return false
+        val body = httpGet("$baseUrl/api/sync/occurrences", cookie)
+        if (body == null) {
+            android.util.Log.i("PersistAlarm", "sync GET returned no body (auth/net failure)")
+            return false
+        }
         val alarmsJson = JSONObject(body).optJSONArray("alarms") ?: JSONArray()
         val specs = mutableListOf<AlarmSpec>()
         for (i in 0 until alarmsJson.length()) {
             parseAlarm(context, alarmsJson.optJSONObject(i))?.let { specs.add(it) }
         }
+        android.util.Log.i("PersistAlarm", "sync ok alarms=${specs.size}")
         AlarmPlugin.scheduleAll(context, specs)
         return true
     }
@@ -86,8 +99,13 @@ object SyncClient {
         val conn = open(url, cookie)
         conn.requestMethod = "GET"
         return try {
-            if (conn.responseCode != HttpURLConnection.HTTP_OK) null
-            else conn.inputStream.bufferedReader().use { it.readText() }
+            val code = conn.responseCode
+            if (code != HttpURLConnection.HTTP_OK) {
+                android.util.Log.i("PersistAlarm", "sync GET http=$code")
+                null
+            } else {
+                conn.inputStream.bufferedReader().use { it.readText() }
+            }
         } finally {
             conn.disconnect()
         }

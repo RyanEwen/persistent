@@ -17,6 +17,7 @@ object AlarmStore {
     private const val KEY_API_BASE_URL = "api_base_url"
     private const val KEY_ALARM_SOUND = "alarm_sound_uri"
     private const val KEY_NOTIFICATION_SOUND = "notification_sound_uri"
+    private const val KEY_AUTH_COOKIE = "auth_cookie"
     private const val KEY_LAST_PEEK = "last_peek_at"
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -28,16 +29,30 @@ object AlarmStore {
     }
 
     /** The WebView mirrors these on each foreground sync (see AlarmPlugin.setSyncConfig). */
-    fun setSyncConfig(context: Context, apiBaseUrl: String, alarmSoundUri: String, notificationSoundUri: String) {
+    fun setSyncConfig(
+        context: Context,
+        apiBaseUrl: String,
+        alarmSoundUri: String,
+        notificationSoundUri: String,
+        authCookie: String
+    ) {
         prefs(context).edit()
             .putString(KEY_API_BASE_URL, apiBaseUrl)
             .putString(KEY_ALARM_SOUND, alarmSoundUri)
             .putString(KEY_NOTIFICATION_SOUND, notificationSoundUri)
+            .putString(KEY_AUTH_COOKIE, authCookie)
             .apply()
     }
 
     /** API origin the app was last loaded from, or "" if the WebView never mirrored it. */
     fun apiBaseUrl(context: Context): String = prefs(context).getString(KEY_API_BASE_URL, "") ?: ""
+
+    /**
+     * The session Cookie header the WebView captured for the background worker — its
+     * process has no WebView, so CookieManager is empty there and it can't read the
+     * (HttpOnly) cookie itself. "" if never captured. See AlarmPlugin.setSyncConfig.
+     */
+    fun authCookie(context: Context): String = prefs(context).getString(KEY_AUTH_COOKIE, "") ?: ""
 
     /** Chosen tone URI for the given kind ("alarm"/"notification"); "" = system default. */
     fun soundUri(context: Context, kind: String): String {

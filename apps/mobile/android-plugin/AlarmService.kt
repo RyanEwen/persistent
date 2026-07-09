@@ -152,18 +152,37 @@ class AlarmService : Service() {
     private fun ensureNags() {
         ensureChannels()
         val now = System.currentTimeMillis()
-        // What the shade actually shows right now (fall back to memory pre-M).
-        val posted: Set<Int> =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) nm.activeNotifications.map { it.id }.toSet()
-            else active.keys.map { notifId(it) }.toSet()
+        // What the shade actually shows right now, and with what text — read from the
+        // OS (fall back to memory pre-M). Judging against the OS (not the in-memory
+        // `active` map) matters twice: Android can drop a notification without telling
+        // us, and — after a background sync in a fresh process — `active` is empty, so
+        // only the OS knows a stale-titled nag is still up (a reminder renamed on the
+        // web while the app was closed).
+        val postedText = HashMap<Int, Pair<String, String>>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            for (sbn in nm.activeNotifications) {
+                val e = sbn.notification.extras
+                postedText[sbn.id] = Pair(
+                    e?.getCharSequence(android.app.Notification.EXTRA_TITLE)?.toString() ?: "",
+                    e?.getCharSequence(android.app.Notification.EXTRA_TEXT)?.toString() ?: ""
+                )
+            }
+        } else {
+            for (id in active.keys) active[id]?.let { postedText[notifId(id)] = Pair(it.title, it.body) }
+        }
         val due = AlarmStore.all(this).filter {
             !it.alarm && it.fireAtMs <= now && !it.occurrenceId.endsWith(AlarmReceiver.ESC_SUFFIX)
         }
         for (spec in due) {
-            if (posted.contains(notifId(spec.occurrenceId))) continue
+            val shown = postedText[notifId(spec.occurrenceId)]
+            // Re-post if it's missing entirely, OR its title/body drifted from the
+            // store (a web edit the worker just pulled). alertOnce keeps the update
+            // silent, so refreshing text never re-alerts.
+            val drifted = shown != null && (shown.first != spec.title || shown.second != spec.body)
+            if (shown != null && !drifted) continue
             android.util.Log.i(
                 "PersistAlarm",
-                "ensureNags repost occ=${spec.occurrenceId} staleMemory=${active.containsKey(spec.occurrenceId)}"
+                "ensureNags repost occ=${spec.occurrenceId} missing=${shown == null} drifted=$drifted"
             )
             startAlarm(spec, silent = true)
         }

@@ -38,15 +38,24 @@ So we split responsibilities:
   on app resume (foreground); reboots re-schedule via `BOOT_COMPLETED`; and — the
   backstop that needs neither the WebView nor a push — a **WorkManager
   `SyncWorker`** (`apps/mobile/android-plugin/SyncWorker.kt`) that re-pulls and
-  re-arms on a ~15-minute cadence and whenever connectivity returns. It runs with
-  the app fully closed: `SyncClient` reads the session cookie straight from the
-  WebView cookie jar (the app is loaded from the API origin) and calls the same sync
-  endpoint in Kotlin. The WebView mirrors the API origin + chosen sound URIs into
-  native storage on each foreground sync (`AlarmPlugin.setSyncConfig`) so the worker
-  has what it needs. A full resync also **reconciles the posted notifications**
-  against the server's set: `scheduleAll` drops any live notification whose
-  occurrence is no longer returned (`AlarmService.cancelMissing`) and refreshes the
-  text/channel of the survivors (`refreshActive`). Ack/snooze/delete elsewhere
+  re-arms on a ~15-minute cadence and whenever connectivity returns, **and
+  immediately when a `sync` push arrives** (`FcmService` kicks off
+  `SyncWorker.syncNow`, so a reminder created/edited/deleted on the web reaches a
+  closed device in seconds, not the next cycle). It runs with the app fully closed
+  and calls the same sync endpoint in Kotlin. **Auth is the subtle part:** the
+  worker's process has no WebView, so `CookieManager.getCookie()` returns null there
+  — it cannot read the (HttpOnly) session cookie itself. Instead the WebView
+  captures the cookie in its own process and mirrors it (with the API origin + chosen
+  sound URIs) into native storage on each foreground sync
+  (`AlarmPlugin.setSyncConfig` → `AlarmStore`); `SyncClient` presents that stored
+  cookie. (Reading `CookieManager` directly from the worker was the original bug —
+  the pull silently 401'd every time, so a closed device never saw web edits.) A full
+  resync also **reconciles the posted notifications** against the server's set:
+  `scheduleAll` drops any live notification whose occurrence is no longer returned
+  (`AlarmService.cancelMissing`), and `ensureNags` re-posts (silently) any nag that's
+  missing OR whose title/body drifted from the freshly-synced store — judged against
+  the OS's actual posted notifications, so a rename lands even when the sync ran in a
+  fresh process with no in-memory state (`refreshActive` still handles a live one). Ack/snooze/delete elsewhere
   broadcast `dismiss`, which the bridge turns into a native cancel so a
   cleared/deleted reminder's alarm stops on every device; native acks/snoozes/
   silences taken while the WebView was dead are drained to the server by the worker

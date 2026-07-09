@@ -58,15 +58,25 @@ class AlarmPlugin : Plugin() {
     /** Mirror the config the background [SyncWorker] needs but can't read from the WebView. */
     @PluginMethod
     fun setSyncConfig(call: PluginCall) {
+        val apiBaseUrl = call.getString("apiBaseUrl") ?: ""
+        // Capture the session cookie HERE, in the WebView process, where CookieManager
+        // is backed by a live cookie store. The background SyncWorker runs in a process
+        // with NO WebView, where CookieManager.getCookie() returns null — so it cannot
+        // read the cookie itself; we mirror it into AlarmStore for it. (It's HttpOnly,
+        // so the JS side can't read it either — this native read is the only way.)
+        val cm = android.webkit.CookieManager.getInstance()
+        runCatching { cm.flush() }
+        val fresh = if (apiBaseUrl.isNotEmpty()) cm.getCookie(apiBaseUrl) else null
+        // Keep the previously-captured cookie if this read came back empty, so we never
+        // clobber a working cookie with nothing.
+        val cookie = if (fresh != null && fresh.contains("persistent_auth=")) fresh else AlarmStore.authCookie(context)
         AlarmStore.setSyncConfig(
             context,
-            apiBaseUrl = call.getString("apiBaseUrl") ?: "",
+            apiBaseUrl = apiBaseUrl,
             alarmSoundUri = call.getString("alarmSoundUri") ?: "",
-            notificationSoundUri = call.getString("notificationSoundUri") ?: ""
+            notificationSoundUri = call.getString("notificationSoundUri") ?: "",
+            authCookie = cookie
         )
-        // Persist the WebView's session cookie to disk so the worker can present it
-        // while the app is closed.
-        runCatching { android.webkit.CookieManager.getInstance().flush() }
         call.resolve()
     }
 
