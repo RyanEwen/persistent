@@ -227,6 +227,52 @@ hold and no sound replays):
   the swipe-away reshow — would leave a live notification stranded on its old
   channel or showing the pre-edit text.)
 
+## Android Auto
+
+A fired reminder is invisible while the user is driving with Android Auto (AA), so
+the native client **projects nags into the car** and lets the user act on them by
+voice. This is **notification-only** (no `CarAppService` / templated car screen — a
+reminder app is not an approved AA distribution category); the phone/Wear keep the
+full hard-alarm guarantee unchanged.
+
+- **AA surfaces only `MessagingStyle` notifications** that carry a reply action
+  (`SEMANTIC_ACTION_REPLY` + a single `RemoteInput`, `showsUserInterface=false`) and a
+  mark-as-read action (`SEMANTIC_ACTION_MARK_AS_READ`, `showsUserInterface=false`).
+  Plus a manifest `<meta-data com.google.android.gms.car.application>` pointing at
+  `res/xml/automotive_app_desc.xml` (`<uses name="notification"/>`).
+- **Gated on active projection.** The phone shade notification is heavily tuned, so we
+  do **not** permanently convert it. `CarProjection` observes `androidx.car.app`'s
+  `CarConnection`; only while it reports `CONNECTION_TYPE_PROJECTION` does
+  `AlarmService.buildNotification` add a MessagingStyle mirror + the two **invisible**
+  car actions (`addCarProjection`). Off the car the notification is byte-identical to
+  before. When projection flips, `CarProjection` fires `ACTION_RESTYLE` so live nags
+  gain/lose the car form immediately (same re-post path used for prominence changes).
+  A cold-process first post can briefly be normal-style before the async `CarConnection`
+  value arrives; the resulting restyle re-posts it within ~a second.
+- **Managing from the car is the reply channel.** AA gives no arbitrary buttons, so the
+  reply `RemoteInput` is how the user acts: `AlarmReceiver.ACTION_CAR_REPLY` →
+  `AlarmService.handleCarReply` parses the spoken/typed text — "done/finished/..." →
+  `markDone` (a spoken Done is deliberate, so it skips the two-tap confirm), "snooze
+  15 minutes"/"in an hour" → `parseSnoozeMinutes` + `snooze`, "de-escalate/silence" →
+  `silence` (only when the occurrence is actually ringing as an alarm). Unrecognized
+  text is ignored so the nag persists. These reuse the existing companion actions, so
+  the car reply reaches the server (`PendingAck/Snooze/SilenceStore` + `SyncWorker.syncNow`)
+  and re-arms locally with **zero new plumbing**; Done/Snooze cancel the notification,
+  which clears the car card too.
+- **Mark-as-read is a deliberate no-op.** AA requires the action (and may fire it when it
+  reads a message aloud), but reading/dismissing a nag in the car must **never** satisfy
+  the persistence guarantee — the occurrence stays `FIRED` until an explicit Done.
+- **Alarm audio does not stream to AA.** A continuously-looping alarm tone is not an AA
+  capability; in-car an alarm shows as an urgent messaging heads-up (AA's own chime +
+  Assistant read-aloud). The real looping alarm + full-screen UI still fire on the phone.
+
+The car dependency is minSdk 23 while the app floor is 22; `tools:overrideLibrary` in
+the manifest reconciles that (AA needs 23+ anyway, and `CarProjection.init` is
+SDK-guarded). `setup-android.mjs` injects `androidx.car.app:app` and copies
+`android-res/xml/automotive_app_desc.xml` into `res/xml/`. **Runtime verification needs
+the Desktop Head Unit (DHU) or a real car** — it can't be exercised in the devcontainer;
+`npm run verify:android` only confirms it compiles/wires.
+
 ## Push channels
 
 - **Web Push (VAPID)** for browsers — `apps/api/src/lib/delivery/web-push.ts`.

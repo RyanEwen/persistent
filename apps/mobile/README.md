@@ -51,6 +51,11 @@ npm run prepare:android   # build web -> cap add android -> wire plugin -> cap s
      manifest (in place of Capacitor's `MessagingService`, via `tools:node="remove"`),
      so server FCM pushes are handled natively even when the bridge is dead — see
      `docs/alarm-architecture.md`,
+   - adds the `androidx.car.app` dependency and the
+     `com.google.android.gms.car.application` manifest meta-data (with a
+     `tools:overrideLibrary` for its minSdk 23), so reminder notifications project
+     into **Android Auto** (`CarProjection.kt` + `android-res/xml/automotive_app_desc.xml`);
+     see `docs/alarm-architecture.md` (Android Auto),
    - if `ANDROID_KEYSTORE_FILE` is set, copies the keystore in and injects a
      release `signingConfig` (passwords read from env at build time), plus
      `versionName`/`versionCode` from `ANDROID_VERSION_NAME`/`_CODE`.

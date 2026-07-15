@@ -17,6 +17,11 @@
 <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+<!-- androidx.car.app is minSdk 23 while the app floor is 22. Android Auto itself
+     needs API 23+, and CarProjection.init is SDK-guarded, so overriding the library's
+     minSdk here is safe (Gradle still injects the app's real minSdk). -->
+<uses-sdk tools:overrideLibrary="androidx.car.app" />
+
 <!-- ===== inside <application> ===== -->
 <service
     android:name="ca.persistent.app.alarm.AlarmService"
@@ -72,3 +77,10 @@
 <service
     android:name="com.capacitorjs.plugins.pushnotifications.MessagingService"
     tools:node="remove" />
+
+<!-- Declares that the app extends its notifications to Android Auto; points at
+     res/xml/automotive_app_desc.xml (<uses name="notification"/>). Required for Auto
+     to project our MessagingStyle reminder notifications. See docs/alarm-architecture.md. -->
+<meta-data
+    android:name="com.google.android.gms.car.application"
+    android:resource="@xml/automotive_app_desc" />

@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import androidx.core.app.RemoteInput
 
 /**
  * Receives the AlarmManager fire (and the notification "Done"/"Snooze" actions)
@@ -87,6 +88,16 @@ class AlarmReceiver : BroadcastReceiver() {
                     context.startService(serviceIntent)
                 }
             }
+            ACTION_CAR_REPLY -> {
+                // Reply from Android Auto (voice/inline): parse it as done/snooze/silence.
+                val reply = RemoteInput.getResultsFromIntent(intent)?.getCharSequence(KEY_CAR_REPLY)
+                AlarmService.handleCarReply(context, occurrenceId, reply)
+            }
+            ACTION_CAR_MARK_READ -> {
+                // Android Auto requires a mark-as-read action, but reading/dismissing a
+                // nag in the car must NEVER satisfy the persistence guarantee — so this
+                // is a deliberate no-op. The occurrence stays FIRED until an explicit Done.
+            }
         }
     }
 
@@ -99,6 +110,10 @@ class AlarmReceiver : BroadcastReceiver() {
         const val ACTION_SILENCE = "ca.persistent.app.ALARM_SILENCE"
         const val ACTION_RESHOW = "ca.persistent.app.ALARM_RESHOW"
         const val ACTION_OPEN = "ca.persistent.app.ALARM_OPEN"
+        // Android Auto notification actions (reply is parsed; mark-as-read is a no-op).
+        const val ACTION_CAR_REPLY = "ca.persistent.app.ALARM_CAR_REPLY"
+        const val ACTION_CAR_MARK_READ = "ca.persistent.app.ALARM_CAR_MARK_READ"
+        const val KEY_CAR_REPLY = "carReply"
         const val EXTRA_OCCURRENCE_ID = "occurrenceId"
         const val EXTRA_REMINDER_ID = "reminderId"
         const val EXTRA_MINUTES = "minutes"

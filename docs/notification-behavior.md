@@ -41,12 +41,14 @@ sibling escalation alarm is cancelled, on every one of the user's devices.
   (escalation) on-device alarms; closes the full-screen alarm activity.
 - Web/SW: closes the notification by its occurrence-id tag.
 
-**Done is always a two-tap confirm**, on every surface — the notification, the
+**Done is always a two-tap confirm** on every *tap* surface — the notification, the
 full-screen alarm, and the in-app card. The first tap arms the action (swapping
 the controls to *Confirm done* / *Not yet*, with the alarm still ringing); only
 the confirm tap acknowledges. This guards a persistence-grade reminder against a
 stray pocket tap or misclick clearing it by accident. *Not yet* restores the
-normal controls and changes nothing.
+normal controls and changes nothing. (The Android Auto **voice** surface is the
+one exception — see §5: a spoken "done" is inherently deliberate, so it
+acknowledges directly.)
 
 Done is the terminal action — it is the persistence guarantee being satisfied.
 
@@ -108,6 +110,30 @@ self-collapse (`keepNewestForReminder` / the `SUPERSEDED` status), which would
 let confirming a later dose silently erase an un-taken earlier one — wrong for a
 medication-grade persistence app. `SUPERSEDED` is retained only as a legacy
 status on historical rows and is never assigned anymore.
+
+## 5. Android Auto — the same actions, by voice, in the car
+
+While the phone is projecting to Android Auto, the native notification is mirrored
+into the car (as a `MessagingStyle` notification — the only form Auto surfaces).
+This is a **projection of the native surface, not a new outcome**: the same three
+actions apply and converge to the same server state as everywhere else. Because Auto
+offers no arbitrary buttons, the user acts by **voice reply**:
+
+- "done" / "finished" / "all done" → **Done** (acknowledges). This is the one place
+  Done is *not* a two-tap confirm — a spoken Done is inherently deliberate and there
+  is no pocket-tap to guard against.
+- "snooze 15 minutes" / "in an hour" → **Snooze** for the parsed duration (default
+  10 minutes if none is spoken).
+- "de-escalate" / "silence" → **Silence**, but only when the occurrence is actually
+  ringing as an escalated alarm (otherwise ignored).
+- An unrecognized reply is ignored — the nag persists.
+
+Auto's **mark-as-read** action (and reading the reminder aloud) **never**
+acknowledges — only an explicit spoken Done does; the persistence guarantee holds in
+the car exactly as on every other surface. A continuously-looping alarm tone is not
+an Auto capability, so in-car an alarm is an urgent messaging heads-up (Auto's chime
++ read-aloud) while the real looping alarm keeps ringing on the phone. See
+[`alarm-architecture.md`](alarm-architecture.md) (Android Auto) for the mechanism.
 
 > Consequence to keep in mind: a reminder a user ignores across several scheduled
 > times will accumulate one pending occurrence per missed time (each must be

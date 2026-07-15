@@ -17,6 +17,8 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.app.Person
+import androidx.core.app.RemoteInput
 import ca.persistent.app.R
 
 /**
@@ -47,6 +49,13 @@ class AlarmService : Service() {
     private val nm get() = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        // Watch for Android Auto projection so nags can mirror into the car (this is
+        // the universal notification poster, so arming it here covers every process).
+        CarProjection.init(this)
+    }
 
     private fun notifId(occurrenceId: String): Int = occurrenceId.hashCode()
 
@@ -705,7 +714,63 @@ class AlarmService : Service() {
         if (channel != CHANNEL_MINIMIZED && channel != CHANNEL_PEEK) {
             builder.setGroup(GROUP_KEY).setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
         }
+        if (CarProjection.projecting) addCarProjection(builder, spec, posted)
         return builder.build()
+    }
+
+    /**
+     * Mirror this nag into the form Android Auto surfaces. AA projects ONLY
+     * MessagingStyle notifications that carry a reply + a mark-as-read action, so we
+     * add a single-message conversation plus both required actions as INVISIBLE
+     * actions (they don't alter the phone shade beyond the messaging style). Applied
+     * only while projecting, so off the car the notification is unchanged.
+     *
+     * - Reply: the user speaks/types "done", "snooze 15 minutes", or "de-escalate";
+     *   AlarmReceiver.ACTION_CAR_REPLY -> handleCarReply parses it. The PendingIntent
+     *   must be MUTABLE so the system can attach the RemoteInput result.
+     * - Mark-as-read: required by AA but a deliberate no-op on our side (reading a nag
+     *   aloud must never ack it — the persistence guarantee).
+     */
+    private fun addCarProjection(builder: NotificationCompat.Builder, spec: AlarmSpec, posted: Long) {
+        val me = Person.Builder().setName("You").build()
+        val from = Person.Builder().setName(spec.title).setKey(spec.reminderId).build()
+        builder.setStyle(
+            NotificationCompat.MessagingStyle(me)
+                .setConversationTitle(spec.title)
+                // Reuse the pinned `posted` time so re-posts aren't seen as new messages.
+                .addMessage(spec.body.ifBlank { spec.title }, posted, from)
+        )
+
+        val replyPending = PendingIntent.getBroadcast(
+            this,
+            ("carreply:" + spec.occurrenceId).hashCode(),
+            Intent(this, AlarmReceiver::class.java)
+                .setAction(AlarmReceiver.ACTION_CAR_REPLY)
+                .putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, spec.occurrenceId),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+        )
+        builder.addInvisibleAction(
+            NotificationCompat.Action.Builder(R.drawable.ic_stat_bell, "Reply", replyPending)
+                .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY)
+                .setShowsUserInterface(false)
+                .addRemoteInput(RemoteInput.Builder(AlarmReceiver.KEY_CAR_REPLY).setLabel("Reply").build())
+                .build()
+        )
+
+        val markReadPending = PendingIntent.getBroadcast(
+            this,
+            ("carread:" + spec.occurrenceId).hashCode(),
+            Intent(this, AlarmReceiver::class.java)
+                .setAction(AlarmReceiver.ACTION_CAR_MARK_READ)
+                .putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, spec.occurrenceId),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        builder.addInvisibleAction(
+            NotificationCompat.Action.Builder(R.drawable.ic_stat_bell, "Mark as read", markReadPending)
+                .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_MARK_AS_READ)
+                .setShowsUserInterface(false)
+                .build()
+        )
     }
 
     /** Alarm: ring the chosen alarm tone continuously (looping) + vibrate until cleared. */
@@ -919,6 +984,9 @@ class AlarmService : Service() {
         const val ACTION_SNOOZE_LOCAL = "ca.persistent.app.SERVICE_SNOOZE_LOCAL"
         const val EXTRA_SNOOZE_MINUTES = "snoozeMinutes"
         const val DEFAULT_SNOOZE_MINUTES = 10
+        // Cap a voice-parsed snooze at a week — a sane upper bound for a spoken reply
+        // (the in-app picker's own MAX is a year; a car reply doesn't need that reach).
+        private const val MAX_CAR_SNOOZE_MINUTES = 7 * 24 * 60
         // Don't re-play the same occurrence's sound within this window — de-dups an
         // on-device alarm and a redundant server push landing near-simultaneously.
         // Longer than the local-alarm-vs-push gap (~1-2 min), shorter than the ~15-min
@@ -977,6 +1045,53 @@ class AlarmService : Service() {
             // it stops nagging on other devices, and closes the race where the server
             // escalates-and-pushes an occurrence the user has already confirmed.
             SyncWorker.syncNow(context)
+        }
+
+        /**
+         * Re-post live notifications (used when Android Auto projection starts or stops,
+         * so each nag gains or loses its MessagingStyle car form). No-op when nothing is
+         * showing — off the car there's nothing to re-style.
+         */
+        fun restyleAll(context: Context) {
+            if (activeIds.isNotEmpty()) {
+                context.startService(Intent(context, AlarmService::class.java).setAction(ACTION_RESTYLE))
+            }
+        }
+
+        /**
+         * A reply from Android Auto (voice or inline): interpret it as done / snooze /
+         * de-escalate on this occurrence. A spoken "done" is deliberate, so it acks
+         * directly (skipping the phone's two-tap confirm, which only guards accidental
+         * pocket taps). Unrecognized text is intentionally ignored so the nag persists —
+         * only an understood action clears it.
+         */
+        fun handleCarReply(context: Context, occurrenceId: String, rawText: CharSequence?) {
+            val text = rawText?.toString()?.trim()?.lowercase() ?: return
+            if (text.isEmpty()) return
+            when {
+                Regex("\\b(done|complete|completed|finish|finished|did it|all done|ack|acknowledge|yes)\\b")
+                    .containsMatchIn(text) -> markDone(context, occurrenceId)
+                Regex("\\b(snooze|later|remind)\\b").containsMatchIn(text) ->
+                    snooze(context, occurrenceId, parseSnoozeMinutes(text))
+                Regex("\\b(silence|de-?escalate|stop alarm|quiet)\\b").containsMatchIn(text) ->
+                    // Only meaningful for an escalation alarm that's actually ringing.
+                    if (isAlarmActive(occurrenceId)) silence(context, occurrenceId)
+                else -> Unit // keep nagging
+            }
+        }
+
+        /** Parse a spoken snooze duration ("snooze 15 minutes", "in an hour") to minutes,
+         *  falling back to [DEFAULT_SNOOZE_MINUTES] and clamping to [MAX_CAR_SNOOZE_MINUTES]. */
+        fun parseSnoozeMinutes(text: String): Int {
+            val hours = Regex("(\\d+)\\s*(h|hr|hrs|hour|hours)\\b").find(text)?.groupValues?.get(1)?.toIntOrNull()
+            val mins = Regex("(\\d+)\\s*(m|min|mins|minute|minutes)\\b").find(text)?.groupValues?.get(1)?.toIntOrNull()
+            val total = when {
+                hours != null || mins != null -> (hours ?: 0) * 60 + (mins ?: 0)
+                Regex("\\bhalf an hour\\b").containsMatchIn(text) -> 30
+                Regex("\\b(an hour|one hour|a hour)\\b").containsMatchIn(text) -> 60
+                else -> DEFAULT_SNOOZE_MINUTES
+            }
+            return total.coerceIn(1, MAX_CAR_SNOOZE_MINUTES)
         }
 
         /** First "Done" tap: switch the notification into its confirm state. */

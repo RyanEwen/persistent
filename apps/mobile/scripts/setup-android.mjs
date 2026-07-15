@@ -56,7 +56,12 @@ const appMarker = '<!-- ===== inside <application> ===== -->'
 const [permsRaw, compsRaw] = additions.split(appMarker)
 const permissions = permsRaw
   .split('\n')
-  .filter((line) => line.trim().startsWith('<uses-permission') || line.trim().startsWith('<uses-feature'))
+  .filter(
+    (line) =>
+      line.trim().startsWith('<uses-permission') ||
+      line.trim().startsWith('<uses-feature') ||
+      line.trim().startsWith('<uses-sdk')
+  )
   .join('\n')
 const components = compsRaw.trim()
 
@@ -201,6 +206,24 @@ if (existsSync(iconOverlay)) {
     )
     writeFileSync(appGradlePath, g)
     console.log('[setup-android] added androidx.work (WorkManager) dependency')
+  }
+}
+
+// --- 4f. Android Auto (CarConnection projection detection) ------------------
+// CarProjection observes androidx.car.app's CarConnection to tell when the phone is
+// projecting to Android Auto, so buildNotification can mirror nags as MessagingStyle
+// (the only form Auto surfaces). 1.4.0 is compatible with the project's compileSdk 34
+// / AGP 8.2.1; its minSdk 23 is reconciled via tools:overrideLibrary in the manifest.
+{
+  let g = readFileSync(appGradlePath, 'utf8')
+  if (!g.includes('androidx.car.app:app')) {
+    g = g.replace(
+      /dependencies\s*\{/,
+      `dependencies {
+    implementation "androidx.car.app:app:1.4.0"`
+    )
+    writeFileSync(appGradlePath, g)
+    console.log('[setup-android] added androidx.car.app (Android Auto) dependency')
   }
 }
 

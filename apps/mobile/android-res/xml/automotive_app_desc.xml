@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Declares that this app extends its notifications to Android Auto. Required (with
+  the com.google.android.gms.car.application meta-data in the manifest) for Android
+  Auto to project the app's MessagingStyle reminder notifications. See
+  docs/alarm-architecture.md (Android Auto). Copied into res/xml/ by
+  scripts/setup-android.mjs.
+-->
+<automotiveApp>
+    <uses name="notification" />
+</automotiveApp>
