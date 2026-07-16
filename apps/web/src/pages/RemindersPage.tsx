@@ -11,6 +11,7 @@ import Box from '@mui/joy/Box'
 import Typography from '@mui/joy/Typography'
 import Button from '@mui/joy/Button'
 import Chip from '@mui/joy/Chip'
+import AddIcon from '@mui/icons-material/Add'
 import { reminderBodyText } from '@persistent/shared'
 import type { Occurrence, Reminder } from '@persistent/shared'
 import { useReminders } from '../data/reminders.js'
@@ -74,19 +75,27 @@ export function RemindersPage() {
     <PullToRefresh onRefresh={() => Promise.all([reminders.refetch(), active.refetch()])}>
       <Stack spacing={3}>
         <Box>
-          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-            <Typography level="title-md">Reminders</Typography>
-            <Button component={RouterLink} to="/reminders/new" size="sm">
-              New
-            </Button>
-          </Stack>
+          <Typography level="title-md" sx={{ mb: 1 }}>
+            Reminders
+          </Typography>
 
           {reminders.isLoading && <Typography level="body-sm">Loading…</Typography>}
           {reminders.data && isEmpty && (
-            <Typography level="body-sm">No current reminders. Add one, or check History.</Typography>
+            <Typography level="body-sm" sx={{ mb: 1.5 }}>
+              No current reminders. Add one below, or check History.
+            </Typography>
           )}
 
           <Stack spacing={1.5}>
+            <Button
+              component={RouterLink}
+              to="/reminders/new"
+              size="lg"
+              startDecorator={<AddIcon />}
+              sx={{ width: '100%' }}
+            >
+              New reminder
+            </Button>
             {attention.map(({ reminder, occurrence }) => (
               <AttentionReminderCard
                 key={occurrence.id}

@@ -56,7 +56,8 @@ self.addEventListener('notificationclick', (event) => {
     event.waitUntil(silence(data.occurrenceId))
     return
   }
-  event.waitUntil(focusApp())
+  // Plain body tap: open the app focused on this reminder's detail view.
+  event.waitUntil(openReminder(data.reminderId))
 })
 
 self.addEventListener('notificationclose', (event) => {
@@ -132,5 +133,26 @@ function focusApp() {
       if ('focus' in client) return client.focus()
     }
     return self.clients.openWindow('/')
+  })
+}
+
+// Like focusApp, but steer the window to the tapped reminder's detail view. An
+// existing window is navigated in place (SPA routing lives at /reminders/:id),
+// otherwise a new one opens straight there.
+function openReminder(reminderId) {
+  const path = reminderId ? `/reminders/${reminderId}` : '/'
+  return self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+    for (const client of clients) {
+      if ('focus' in client) {
+        if ('navigate' in client) {
+          return client
+            .navigate(path)
+            .then((navigated) => (navigated || client).focus())
+            .catch(() => client.focus())
+        }
+        return client.focus()
+      }
+    }
+    return self.clients.openWindow(path)
   })
 }

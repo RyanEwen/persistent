@@ -1,8 +1,9 @@
 /**
  * One row in a reminder list — used by both the current list and History so they
- * render identically. A tappable card linking to the reminder's editor, showing
- * the category icon, title + status, and a "when" line (with an optional
- * secondary recurrence line).
+ * render identically. A tappable card linking to the reminder's detail view,
+ * showing the category icon, title + status, and a "when" line (with an optional
+ * secondary recurrence line). Kept compact (small card padding, single-line
+ * description) so many reminders fit on a phone screen.
  */
 import type { ReactNode } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
@@ -33,24 +34,16 @@ export function ReminderListItem({
   trailing?: ReactNode
 }) {
   return (
-    <Card component={RouterLink} to={to} variant="outlined" sx={{ textDecoration: 'none' }}>
+    <Card component={RouterLink} to={to} variant="outlined" size="sm" sx={{ textDecoration: 'none' }}>
       <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
-        <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0 }}>
-          <CategoryIcon category={category} size={32} />
+        <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
+          <CategoryIcon category={category} size={24} />
           <Box sx={{ minWidth: 0 }}>
             <Typography level="title-sm" noWrap>
               {title}
             </Typography>
             {description && (
-              <Typography
-                level="body-sm"
-                sx={{
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
-                  overflow: 'hidden'
-                }}
-              >
+              <Typography level="body-sm" noWrap>
                 {description}
               </Typography>
             )}

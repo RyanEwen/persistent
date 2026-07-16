@@ -42,7 +42,8 @@ sibling escalation alarm is cancelled, on every one of the user's devices.
 - Web/SW: closes the notification by its occurrence-id tag.
 
 **Done is always a two-tap confirm** on every *tap* surface — the notification, the
-full-screen alarm, and the in-app card. The first tap arms the action (swapping
+full-screen alarm, and the in-app card (on the reminders list or a reminder's
+detail view). The first tap arms the action (swapping
 the controls to *Confirm done* / *Not yet*, with the alarm still ringing); only
 the confirm tap acknowledges. This guards a persistence-grade reminder against a
 stray pocket tap or misclick clearing it by accident. *Not yet* restores the
@@ -101,9 +102,9 @@ firing with a later one:
   two notifications (or alarms), each with its own Done / Silence / Snooze.
 - Each must be confirmed **separately**. Confirming 13:00 does **not** clear 9:00;
   acking, snoozing, or silencing one occurrence affects only that occurrence.
-- This holds on every surface: the in-app list shows one attention card per
-  pending occurrence; the web SW tags notifications per occurrence; the native
-  client keys notifications and alarms per occurrence.
+- This holds on every surface: the in-app list (and a reminder's detail view)
+  shows one attention card per pending occurrence; the web SW tags notifications
+  per occurrence; the native client keys notifications and alarms per occurrence.
 
 This is a deliberate reversal of the old "one notification per reminder"
 self-collapse (`keepNewestForReminder` / the `SUPERSEDED` status), which would

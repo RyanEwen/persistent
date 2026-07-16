@@ -1,7 +1,7 @@
 /**
  * History: past entries — occurrences that were acknowledged or missed, most
  * recent first. Rendered the same way as the current list, and each links to its
- * reminder's editor so it can be edited or revived.
+ * reminder's detail view (where it can be opened, edited, or revived).
  */
 import Stack from '@mui/joy/Stack'
 import Typography from '@mui/joy/Typography'
