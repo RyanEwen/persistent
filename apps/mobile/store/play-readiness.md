@@ -48,9 +48,8 @@ with `user: null`, and other signed-out routes still show sign-in).
 Covers what's collected, the FCM / Web Push / Cloudflare / Google Sign-In third
 parties, the user-configured escalation contact, retention, and deletion.
 
-**One thing left for you:** the contact address is a placeholder constant,
-`privacy@persistent.dynamic-solutions.ca` (marked `TODO(store)` in the file).
-Confirm that mailbox exists and is monitored — Google verifies it.
+Contact address is `contact@dynamic-solutions.ca` — use the same one on the Play
+listing, since Google verifies it routes.
 
 Listing URL: `https://persistent.dynamic-solutions.ca/privacy`
 

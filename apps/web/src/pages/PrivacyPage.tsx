@@ -10,9 +10,8 @@ import Box from '@mui/joy/Box'
 import Typography from '@mui/joy/Typography'
 import Link from '@mui/joy/Link'
 
-// TODO(store): confirm this mailbox exists and is monitored before submitting to
-// Play — Google verifies the contact route on the listing.
-const CONTACT_EMAIL = 'privacy@persistent.dynamic-solutions.ca'
+// Also the contact address on the Play listing — Google verifies it routes.
+const CONTACT_EMAIL = 'contact@dynamic-solutions.ca'
 
 const LAST_UPDATED = '19 July 2026'
 

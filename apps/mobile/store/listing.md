@@ -123,7 +123,7 @@ Use a clean demo account — no real medication names in a public listing.
 - **App category:** Productivity *(Health & Fitness is tempting but invites medical-app scrutiny; Productivity is the safer classification)*
 - **Tags:** Reminders, To-Do Lists, Productivity
 - **Content rating questionnaire:** no objectionable content → Everyone. Answer **yes** to "users can communicate" only if the email-escalation contact counts as user-to-user messaging — it's a one-way system email, so **no** is defensible.
-- **Contact email:** required, publicly displayed
+- **Contact email:** `contact@dynamic-solutions.ca` (required, publicly displayed — same address as the privacy policy)
 - **Privacy policy URL:** required (account + email collection) — see blockers
 - **Ads:** No
 - **In-app purchases:** No
