@@ -57,7 +57,8 @@ export function AttentionReminderCard({
               <CategoryIcon category={reminder.category} />
               <Typography level="title-md">{reminder.title}</Typography>
             </Stack>
-            {body && <Typography level="body-sm">{body}</Typography>}
+            {/* pre-wrap so the line breaks the user typed into details survive. */}
+            {body && <Typography level="body-sm" sx={{ whiteSpace: 'pre-wrap' }}>{body}</Typography>}
             <Typography level="body-xs" sx={{ mt: 0.5 }}>
               {formatWhen(occurrence.scheduledFor, timeFormat)}
             </Typography>

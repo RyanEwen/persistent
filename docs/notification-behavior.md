@@ -23,6 +23,20 @@ guarantee* those mechanisms exist to deliver.
 - **Confirm / Done / acknowledge** — the user explicitly marks the occurrence
   complete. This is the *only* thing that ends a nag for good.
 
+Two things hold on every surface regardless of which action the user takes:
+
+- **Tapping the notification body opens the reminder.** A soft nag's body tap
+  brings the app forward on that reminder's detail view (an *alarm's* body tap is
+  the exception — it opens the full-screen control surface, so Done/Snooze stay one
+  tap away once the heads-up collapses). On Android this must be a direct activity
+  start; see the trampoline note in [`alarm-architecture.md`](alarm-architecture.md).
+- **A multi-line description renders on multiple lines.** Details are authored in a
+  multi-line textarea, so those line breaks are content: the web detail view and
+  attention cards use `pre-wrap`, the native notification uses `BigTextStyle`, the
+  full-screen alarm renders them as-is, and the escalation email is plain text. The
+  compact list row is the one deliberate exception — it is single-line by design, so
+  breaks collapse to spaces there.
+
 The three user actions on a firing are **Done**, **Silence**, and **Snooze**.
 Their guaranteed effects follow. (Silence is labeled **"De-escalate"** in the UI —
 it only ever appears on an escalated alarm, and that's what it does; the internal

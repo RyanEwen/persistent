@@ -19,6 +19,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.Person
 import androidx.core.app.RemoteInput
+import ca.persistent.app.MainActivity
 import ca.persistent.app.R
 
 /**
@@ -580,13 +581,20 @@ class AlarmService : Service() {
         // MediaPlayer — so every channel is silent; the channel only controls the
         // reminder's visual prominence in the shade (see channelFor).
         val channel = channelOverride ?: channelFor(spec)
-        val contentPending = PendingIntent.getBroadcast(
+        // Tapping the body opens the app on this reminder. This MUST be a direct
+        // getActivity: routing it through AlarmReceiver so the receiver could call
+        // startActivity is a "notification trampoline", which Android 12+ (targetSdk
+        // >= 31) silently blocks — the receiver ran, so the nav target was stored, but
+        // the app never came forward and the deep link only landed on the next manual
+        // open. MainActivity stores the extra into PendingNavStore itself.
+        val contentPending = PendingIntent.getActivity(
             this,
             ("open:" + spec.occurrenceId).hashCode(),
-            Intent(this, AlarmReceiver::class.java)
-                .setAction(AlarmReceiver.ACTION_OPEN)
+            Intent(this, MainActivity::class.java)
+                .setAction(Intent.ACTION_MAIN)
                 .putExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID, spec.occurrenceId)
-                .putExtra(AlarmReceiver.EXTRA_REMINDER_ID, spec.reminderId),
+                .putExtra(AlarmReceiver.EXTRA_REMINDER_ID, spec.reminderId)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val fullScreen = PendingIntent.getActivity(
@@ -714,7 +722,17 @@ class AlarmService : Service() {
         if (channel != CHANNEL_MINIMIZED && channel != CHANNEL_PEEK) {
             builder.setGroup(GROUP_KEY).setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
         }
-        if (CarProjection.projecting) addCarProjection(builder, spec, posted)
+        if (CarProjection.projecting) {
+            addCarProjection(builder, spec, posted)
+        } else if (!awaitingConfirm && spec.body.isNotBlank()) {
+            // setContentText alone collapses the body to a single ellipsized line even
+            // when the user expands the notification, so a multi-line description was
+            // unreadable on the phone. BigTextStyle keeps the author's line breaks and
+            // shows the whole body when expanded. Only on the non-projecting branch: a
+            // notification has exactly one style and Android Auto needs MessagingStyle,
+            // so the last setStyle would win and drop the car mirror.
+            builder.setStyle(NotificationCompat.BigTextStyle().bigText(spec.body))
+        }
         return builder.build()
     }
 
@@ -1031,9 +1049,6 @@ class AlarmService : Service() {
             }
         }
 
-        /** Bring the WebView app to the foreground (used by the notification tap). */
-        fun launchAppPublic(context: Context) = launchApp(context)
-
         /**
          * Called by the confirm action: queue the ack and stop the alarm. Deliberately
          * does NOT launch the app — the WebView posts the queued ack when it next runs.
@@ -1216,12 +1231,6 @@ class AlarmService : Service() {
                     Intent(context, AlarmService::class.java).setAction(ACTION_RESTYLE)
                 )
             }
-        }
-
-        private fun launchApp(context: Context) {
-            val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
-                ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            if (launch != null) context.startActivity(launch)
         }
     }
 }

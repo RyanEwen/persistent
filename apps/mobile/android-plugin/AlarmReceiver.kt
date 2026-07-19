@@ -45,13 +45,6 @@ class AlarmReceiver : BroadcastReceiver() {
                     AlarmPlugin.cancelAlarm(context, occurrenceId)
                 }
             }
-            ACTION_OPEN -> {
-                // Tapping the notification body: remember which reminder to open,
-                // then bring the app forward (the WebView navigates on resume).
-                val reminderId = intent.getStringExtra(EXTRA_REMINDER_ID)
-                if (!reminderId.isNullOrEmpty()) PendingNavStore.set(context, reminderId)
-                AlarmService.launchAppPublic(context)
-            }
             ACTION_DONE -> {
                 // First tap on the notification's "Done": do NOT ack yet. Swap the
                 // notification into a confirm state (Confirm done / Not yet) so an
@@ -109,7 +102,6 @@ class AlarmReceiver : BroadcastReceiver() {
         const val ACTION_SNOOZE = "ca.persistent.app.ALARM_SNOOZE"
         const val ACTION_SILENCE = "ca.persistent.app.ALARM_SILENCE"
         const val ACTION_RESHOW = "ca.persistent.app.ALARM_RESHOW"
-        const val ACTION_OPEN = "ca.persistent.app.ALARM_OPEN"
         // Android Auto notification actions (reply is parsed; mark-as-read is a no-op).
         const val ACTION_CAR_REPLY = "ca.persistent.app.ALARM_CAR_REPLY"
         const val ACTION_CAR_MARK_READ = "ca.persistent.app.ALARM_CAR_MARK_READ"

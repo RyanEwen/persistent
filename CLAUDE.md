@@ -50,6 +50,13 @@ guaranteed user-facing behavior of done / silence / snooze / independent
 occurrences is specified in `docs/notification-behavior.md`. See also
 `packages/shared/src/reminders.ts`.
 
+**Every reminder has a schedule — there is no unscheduled reminder in the model.**
+The editor's "Remind me now" (the default for a new reminder, versus "Schedule it")
+is a *UI mode only*: on save it materializes a `once` schedule at the creation
+instant (`apps/web/src/lib/immediate-schedule.ts`), which the server's one-shot
+back-fill window then fires immediately. So nothing hydrates back into that mode —
+reopening such a reminder shows an ordinary one-shot with a concrete date/time.
+
 ## Code style
 
 - TypeScript everywhere; keep strict mode intact. `verbatimModuleSyntax` is on,
@@ -86,12 +93,15 @@ directory guide `apps/api/CLAUDE.md`.
   (`npm run db:generate`) and update shared contracts when the schema changes.
 - Before finishing a task run `npm run validate` (lint + test + typecheck +
   prisma validate). Add focused tests for non-trivial behavior.
-- **Native (Kotlin) changes** aren't covered by `npm run validate`. The
+- **Native (Kotlin/Java) changes** aren't covered by `npm run validate`. The
   devcontainer ships JDK 17 + the Android SDK (platform-34, build-tools 34.0.0),
   so verify them by compiling: from `apps/mobile`, `npm run verify:android`
   (re-syncs `android-plugin/` into the generated project, then
-  `./gradlew :app:compileDebugKotlin`). Run `npm run prepare:android` once first
-  if the generated `apps/mobile/android` project doesn't exist yet.
+  `./gradlew :app:compileDebugKotlin :app:compileDebugJavaWithJavac`). Both tasks
+  matter — the plugin is Kotlin but `MainActivity.java` is Java, and the Kotlin
+  task alone compiles right past a broken `MainActivity`. Run
+  `npm run prepare:android` once first if the generated `apps/mobile/android`
+  project doesn't exist yet.
 
 ## How guidance is organized
 

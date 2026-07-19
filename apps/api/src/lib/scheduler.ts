@@ -20,7 +20,7 @@ import type { PushPayload, Schedule } from '@persistent/shared'
 import { prisma } from './prisma.js'
 import { logger } from './logger.js'
 import { expandSchedule } from './schedule-expand.js'
-import { notificationTitle, notificationBody } from './notification-format.js'
+import { notificationTitle, notificationBody, escalationEmailText } from './notification-format.js'
 import { dispatchToUser } from './delivery/index.js'
 import { sendCloudflareEmail } from './cloudflare-email.js'
 import { escalateAtFor, shouldEscalateNow } from './escalation.js'
@@ -294,12 +294,23 @@ async function escalate(userId: string, reminder: Reminder, occurrenceId: string
   )
 }
 
-/** Send the (independent) escalation email with the user's custom message, or a default. */
+/**
+ * Send the (independent) escalation email: the user's covering message plus the
+ * reminder's body, so the recipient sees *what* is overdue and not just its title
+ * (an escalation contact acting on "hasn't taken the 9:00 dose" needs the dose).
+ * This deliberately includes medications, and is deliberately not gated behind a
+ * per-reminder opt-in: withholding the dose from the person you nominated to chase
+ * a missed dose defeats the point of the escalation. The address and the covering
+ * message are the user's to choose, and a reminder with no details still sends
+ * just the message.
+ */
 async function sendEscalationEmail(reminder: Reminder): Promise<void> {
   const to = reminder.escalateEmail
   if (!to) return
-  const message =
-    reminder.escalateEmailMessage?.trim() || `The reminder "${reminder.title}" is overdue and hasn't been confirmed.`
-  await sendCloudflareEmail({ to, subject: `Reminder overdue: ${reminder.title}`, text: message })
+  await sendCloudflareEmail({
+    to,
+    subject: `Reminder overdue: ${reminder.title}`,
+    text: escalationEmailText(reminder)
+  })
 }
 

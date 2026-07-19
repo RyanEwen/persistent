@@ -17,3 +17,18 @@ export function notificationBody(reminder: Pick<Reminder, 'details' | 'category'
     details: reminder.details
   })
 }
+
+/**
+ * Text body of the escalation email: the user's covering message (or a default),
+ * then the reminder's own body so the recipient sees *what* is overdue and not
+ * just its title. Plain-text email, so the line breaks the user typed into
+ * details survive as written.
+ */
+export function escalationEmailText(
+  reminder: Pick<Reminder, 'title' | 'details' | 'category' | 'categoryData' | 'escalateEmailMessage'>
+): string {
+  const message =
+    reminder.escalateEmailMessage?.trim() || `The reminder "${reminder.title}" is overdue and hasn't been confirmed.`
+  const body = notificationBody(reminder)
+  return body ? `${message}\n\n${body}` : message
+}

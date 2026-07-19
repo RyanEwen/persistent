@@ -107,7 +107,9 @@ export function ReminderDetailPage() {
             )}
           </Stack>
           {body && (
-            <Typography level="body-sm" sx={{ mt: 0.5 }}>
+            // pre-wrap: details are authored in a multi-line textarea, so the line
+            // breaks the user typed are part of the content and must survive here.
+            <Typography level="body-sm" sx={{ mt: 0.5, whiteSpace: 'pre-wrap' }}>
               {body}
             </Typography>
           )}
@@ -117,7 +119,14 @@ export function ReminderDetailPage() {
           <Typography level="title-sm">Schedule</Typography>
           <Typography level="body-sm">{scheduleSummary(reminder.schedule, timeFormat)}</Typography>
           <Typography level="body-xs" sx={{ color: 'text.tertiary' }}>
-            {next ? `Next: ${formatWhen(next, timeFormat)}` : 'Paused — no upcoming fire'}
+            {/* "No upcoming fire" is the normal resting state of a one-shot that has
+                already fired (every "remind me now" reminder lands here immediately),
+                so it must not be reported as paused — only an inactive reminder is. */}
+            {!reminder.active
+              ? 'Paused — no upcoming fire'
+              : next
+                ? `Next: ${formatWhen(next, timeFormat)}`
+                : 'No upcoming fire'}
           </Typography>
         </Card>
 

@@ -119,6 +119,27 @@ drives them lives in `apps/web/src/native`.
     armed ahead of their scheduled time.)
   - Each occurrence gets its **own notification id**, so multiple due reminders
     show at once (the foreground service rebinds to a remaining one as they clear).
+  - **Tapping a soft nag's body opens the app on that reminder's detail view.**
+    The content intent **must be a direct `PendingIntent.getActivity` targeting
+    `MainActivity`** — never a broadcast to `AlarmReceiver` that then calls
+    `startActivity`. That indirection is a **notification trampoline**, which
+    Android 12+ (`targetSdk >= 31`) blocks *silently*: the receiver still runs, so
+    the nav target is still recorded, but the app never comes forward and the deep
+    link only lands the next time the user opens the app by hand. (That was exactly
+    the symptom before this was fixed — and it is invisible in logcat unless you
+    look for the `Indirect notification activity start (trampoline) ... blocked`
+    warning.) Routing is by extra, not URL scheme: `MainActivity` parks the reminder
+    id in `PendingNavStore` from `onCreate` (cold start) and `onNewIntent` (warm
+    tap, `launchMode=singleTask`), clearing the extra so a later relaunch from
+    Recents doesn't replay the navigation; the WebView drains the store on startup
+    and on each Capacitor `resume` (`nativeSync.ts`) because it owns the router.
+    An **alarm's** body tap is different — it opens the full-screen `AlarmActivity`
+    control surface, not the app (see above) — and that path was never a trampoline.
+  - The body is rendered with **`BigTextStyle`**, so a multi-line description shows
+    in full when the notification is expanded instead of being ellipsized to one
+    line. It is applied only on the non-projecting branch: a notification has
+    exactly one style, and Android Auto requires `MessagingStyle` (see below), so
+    setting both would silently drop the car mirror.
   - **Snooze** opens a duration picker (`SnoozePickerActivity`) offering presets, a
     custom number + unit, or "until" a specific date + time (converted to minutes
     from now, capped at `MAX_SNOOZE_MINUTES`); the chosen minutes are re-armed
@@ -348,9 +369,15 @@ the wall-clock time is earlier than the firing (so a 23:45 reminder escalating a
 and `/api/sync/occurrences` derive it from the same pure helper
 (`lib/escalation.ts`). Escalation always rings an alarm on the user's
 own devices and may **also email a contact** (`escalateEmail` +
-`escalateEmailMessage`, sent once via `sendCloudflareEmail` on escalation). It
-does **not** apply to `ALARM`-persistence reminders (they already ring
-continuously — enforced in the shared schema).
+`escalateEmailMessage`, sent once via `sendCloudflareEmail` on escalation). That
+email is the user's covering message (or a default) followed by the reminder's own
+body — the same `notificationBody` text every other channel shows, composed by the
+pure `escalationEmailText` (`lib/notification-format.ts`). It **deliberately
+includes medications** and is deliberately not gated: withholding the dose from the
+person nominated to chase a missed dose defeats the escalation. It is plain text,
+so multi-line details keep their line breaks. It does **not** apply to
+`ALARM`-persistence reminders (they already ring continuously — enforced in the
+shared schema).
 
 A fired occurrence is **never** auto-expired: it stays `FIRED` (or `ESCALATED`)
 until the user explicitly acknowledges it or deletes the reminder — that is the

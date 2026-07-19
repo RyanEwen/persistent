@@ -9,6 +9,7 @@ import Stack from '@mui/joy/Stack'
 import Typography from '@mui/joy/Typography'
 import FormControl from '@mui/joy/FormControl'
 import FormLabel from '@mui/joy/FormLabel'
+import FormHelperText from '@mui/joy/FormHelperText'
 import Input from '@mui/joy/Input'
 import Autocomplete from '@mui/joy/Autocomplete'
 import Textarea from '@mui/joy/Textarea'
@@ -41,6 +42,7 @@ import {
 } from '@persistent/shared'
 import { useReminders, useCreateReminder, useUpdateReminder, useDeleteReminder } from '../data/reminders.js'
 import { fireSummary } from '../lib/schedule-preview.js'
+import { immediateSchedule, localCalendarDate, localTimeOfDay } from '../lib/immediate-schedule.js'
 import { useSettings } from '../settings/useSettings.js'
 import { titleCase } from '../lib/format.js'
 import { CategoryIcon } from '../components/ReminderIcons.js'
@@ -69,22 +71,6 @@ const SHADE_PROMINENCE_LABELS: Record<ShadeProminence, string> = {
   MINIMIZED: 'Minimized'
 }
 
-function todayLocal(): string {
-  const now = new Date()
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-}
-
-/**
- * Current local time as "HH:mm". New reminders default to *now* so that, left
- * untouched, the reminder fires immediately. The server back-fills a one-shot
- * whose instant has already slipped into the past (minute truncation, request
- * latency, or the user lingering on the form), so it still fires right away.
- */
-function currentTime(): string {
-  const now = new Date()
-  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-}
-
 interface MedicationRow {
   name: string
   unit: string
@@ -100,6 +86,13 @@ interface FormState {
   details: string
   category: ReminderCategory
   medications: MedicationRow[]
+  /**
+   * False = the user didn't pick a date/time: the reminder just fires now (see
+   * buildSchedule). It is a UI mode only — an unscheduled reminder is stored as an
+   * ordinary one-shot at its creation instant, so there is no such thing as a
+   * saved "unscheduled" reminder to hydrate back into this flag.
+   */
+  scheduled: boolean
   kind: ScheduleKind
   timesOfDay: string[]
   daysOfWeek: number[]
@@ -132,8 +125,11 @@ function emptyForm(): FormState {
     details: '',
     category: 'NONE',
     medications: [emptyMedication()],
+    // New reminders start unscheduled — the common case is "remind me about this",
+    // not "remind me at a time". Picking Schedule reveals the date/time controls.
+    scheduled: false,
     kind: defaultKindForCategory('NONE'),
-    timesOfDay: [currentTime()],
+    timesOfDay: [localTimeOfDay()],
     daysOfWeek: [1, 2, 3, 4, 5],
     everyNDays: '2',
     skipWeekends: false,
@@ -148,7 +144,7 @@ function emptyForm(): FormState {
     escalateEmail: '',
     escalateEmailMessage: '',
     escalateEmailAfterMinutes: '60',
-    startDate: todayLocal(),
+    startDate: localCalendarDate(),
     endDate: '',
     active: true
   }
@@ -196,11 +192,15 @@ export function ReminderEditorPage() {
 
   // For a new reminder, the repeat default tracks the category until the user
   // edits Repeat themselves. Existing reminders keep their saved schedule.
+  // Medication implies a real schedule, so it also flips the reminder to
+  // scheduled — but only ever on, so an explicit Schedule choice is never undone.
   function setCategory(category: ReminderCategory) {
     setForm((prev) => ({
       ...prev,
       category,
-      ...(id ? {} : { kind: defaultKindForCategory(category) })
+      ...(id
+        ? {}
+        : { kind: defaultKindForCategory(category), scheduled: prev.scheduled || category === 'MEDICATION' })
     }))
   }
 
@@ -259,6 +259,9 @@ export function ReminderEditorPage() {
   }
 
   const busy = create.isPending || update.isPending
+  // Editing always shows the schedule controls: a saved reminder has a concrete
+  // schedule, and "remind me now" is a creation-time choice, not an edit to it.
+  const showSchedule = Boolean(id) || form.scheduled
   const fireSummaryText = fireSummary(
     {
       kind: form.kind,
@@ -420,6 +423,35 @@ export function ReminderEditorPage() {
           <TabPanel value="schedule" keepMounted>
             <Stack spacing={2}>
 
+        {!id && (
+          <FormControl>
+            <FormLabel>When</FormLabel>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Button
+                size="sm"
+                variant={form.scheduled ? 'outlined' : 'solid'}
+                onClick={() => set('scheduled', false)}
+              >
+                Remind me now
+              </Button>
+              <Button
+                size="sm"
+                variant={form.scheduled ? 'solid' : 'outlined'}
+                onClick={() => set('scheduled', true)}
+              >
+                Schedule it
+              </Button>
+            </Stack>
+            <FormHelperText>
+              {form.scheduled
+                ? 'Pick when it fires and whether it repeats.'
+                : 'Nags as soon as you create it — nothing to pick.'}
+            </FormHelperText>
+          </FormControl>
+        )}
+
+        {showSchedule && (
+          <>
         <FormControl>
           <FormLabel>Repeat</FormLabel>
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
@@ -558,6 +590,8 @@ export function ReminderEditorPage() {
               />
             </FormControl>
           </Stack>
+        )}
+          </>
         )}
 
             </Stack>
@@ -733,6 +767,10 @@ export function ReminderEditorPage() {
           <Alert color="neutral" variant="soft" size="sm">
             Inactive — won't fire until you turn it on.
           </Alert>
+        ) : !showSchedule ? (
+          <Alert color="primary" variant="soft" size="sm">
+            Fires right away
+          </Alert>
         ) : fireSummaryText ? (
           <Alert color="primary" variant="soft" size="sm">
             {fireSummaryText}
@@ -793,6 +831,12 @@ function toInput(form: FormState): ReminderInput {
         }
       : {}
 
+  // "Remind me now": no date/time was picked, so materialize a one-shot at this
+  // moment. Resolved here (at submit) rather than at form init so it reflects when
+  // the user actually created it, and once for both fields so the date and time
+  // can't straddle midnight.
+  const immediate = form.scheduled ? null : immediateSchedule()
+
   const canEscalate = form.persistence !== 'ALARM'
   const escalating = form.escalate && canEscalate
   const emailing = canEscalate && form.escalateEmailEnabled && Boolean(form.escalateEmail.trim())
@@ -802,7 +846,7 @@ function toInput(form: FormState): ReminderInput {
     details: form.details || null,
     category: form.category,
     categoryData,
-    schedule: buildSchedule(form),
+    schedule: immediate ? immediate.schedule : buildSchedule(form),
     persistence: form.persistence,
     // Alarm rings continuously (no interval). Notification re-sounds every N
     // minutes; 0 = sound once.
@@ -816,8 +860,8 @@ function toInput(form: FormState): ReminderInput {
     escalateEmailMessage: emailing && form.escalateEmailMessage.trim() ? form.escalateEmailMessage.trim() : null,
     escalateEmailAfterMinutes: emailing ? Number(form.escalateEmailAfterMinutes) || 60 : null,
     active: form.active,
-    startDate: form.startDate,
-    endDate: form.endDate || null
+    startDate: immediate ? immediate.startDate : form.startDate,
+    endDate: immediate ? null : form.endDate || null
   }
 }
 
@@ -846,6 +890,8 @@ function fromReminder(reminder: Reminder): FormState {
     details: reminder.details ?? '',
     category: reminder.category,
     medications,
+    // A saved reminder always has a concrete schedule to edit.
+    scheduled: true,
     kind: schedule.kind,
     timesOfDay: schedule.timesOfDay.length ? schedule.timesOfDay : ['08:00'],
     daysOfWeek: schedule.daysOfWeek ?? [1, 2, 3, 4, 5],
