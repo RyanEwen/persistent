@@ -17,7 +17,13 @@
 - **Errors:** throw `HttpError` and friends from `lib/http-error.ts`; the global
   handler in `app.ts` turns them into `{ error }` JSON. Express 5 forwards
   rejected promises automatically — async route handlers may throw directly.
-- **Env:** import `env` (and `demoMode`, `clientOrigins`) from `lib/env.ts`.
+- **Env:** import `env` (and `demoMode`, `clientOrigins`) from `lib/env.ts`. Adding
+  a variable takes **two** edits: the schema in `lib/env.ts` *and* the api
+  service's `environment:` block in `compose.server.yml`, which enumerates what the
+  container actually gets (the host `.env` is not copied into the image). A key in
+  one but not the other is silently `undefined` in production; `lib/env.test.ts`
+  fails the build if they drift. Optional vars arrive from compose as `""`, not
+  absent — wrap validators like `.email()`/`.min()` in `blankToUndefined`.
 - **Realtime + push on writes:** after mutating reminders/occurrences, call
   `broadcast(userId, …)` (`lib/realtime.ts`) so open clients refresh, and use the
   `dispatchToUser` / dismiss helpers so notifications stay in sync across devices.

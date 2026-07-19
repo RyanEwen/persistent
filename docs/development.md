@@ -79,6 +79,25 @@ npm run deploy:prod -- --dry-run
 Deploy target comes from your local `.env` (`DEPLOY_SSH_HOST`, `DEPLOY_REPO_PATH`,
 `DEPLOY_BRANCH`).
 
+### How production config reaches the container
+
+The server's `.env` is **not** copied into the image — `.dockerignore` excludes it,
+because `lib/env.ts` does `import 'dotenv/config'` and would otherwise read a
+baked-in copy, embedding secrets (DB password, VAPID private key, Cloudflare
+token) in a distributable layer and hiding the container's real configuration from
+`docker inspect`.
+
+Instead the host `.env` is used by compose for **substitution**, and
+`compose.server.yml` enumerates what the api service actually receives. That means
+**adding a variable to the schema is not enough** — a key read by
+`apps/api/src/lib/env.ts` but absent from that `environment:` block is silently
+`undefined` in production, which just looks like a disabled feature.
+`apps/api/src/lib/env.test.ts` enforces the invariant: every schema key must be
+declared in `compose.server.yml` or as a `Dockerfile ENV`.
+
+So to add config: schema in `env.ts` → `environment:` in `compose.server.yml` →
+value in the server's `.env` → redeploy.
+
 ## Releases & updates
 
 Pushing a `vX.Y.Z` tag runs `.github/workflows/release.yml`, which builds the web

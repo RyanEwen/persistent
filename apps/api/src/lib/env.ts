@@ -65,6 +65,15 @@ const envSchema = z.object({
   REVIEW_ACCOUNT_CODE: blankToUndefined(z.string().min(12, 'REVIEW_ACCOUNT_CODE must be at least 12 characters'))
 })
 
+/**
+ * Every variable this app reads. Exported so a test can assert the deployment
+ * actually supplies them: compose.server.yml enumerates the container's
+ * environment, so a key added here but not there is silently undefined in
+ * production — which is how GOOGLE_WEB_CLIENT_ID came to work only by accident,
+ * via a .env baked into the image. See env.test.ts.
+ */
+export const envKeys = Object.keys(envSchema.shape)
+
 const parsed = envSchema.safeParse(process.env)
 if (!parsed.success) {
   const issues = parsed.error.issues.map((issue) => `  - ${issue.path.join('.')}: ${issue.message}`).join('\n')

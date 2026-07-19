@@ -1,0 +1,35 @@
+# Build context excludes. The Dockerfile does `COPY . .`, so anything not listed
+# here ends up inside the image — including in the final runtime layer.
+
+# --- Secrets: never bake these into an image layer ---
+# The API loads config through lib/env.ts (`import 'dotenv/config'`), which reads
+# a .env from the working directory if one exists. Copying the host's .env in
+# would both embed production secrets (DB password, VAPID private key, Cloudflare
+# token) in a distributable layer and make the container's real configuration
+# invisible to `docker inspect`. Config comes from compose.server.yml instead —
+# every key the schema reads is declared there or as a Dockerfile ENV.
+.env
+.env.*
+.secrets/
+*.keystore
+*.jks
+
+# --- Not needed to build or run the server ---
+.git
+.github
+.devcontainer
+.claude
+docs
+
+# The Android client is built by CI, never by this image, and its generated
+# android/ directory is large.
+apps/mobile
+
+# Installed in-image by `npm ci`; copying host modules over that would break the
+# Prisma engine match (the host may not be debian-openssl-3.0.x).
+node_modules
+**/node_modules
+
+# Built in-image; a stale local copy must not shadow it.
+**/dist
+**/.vite
