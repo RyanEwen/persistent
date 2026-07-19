@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  `direct` flavor manifest — merged only into the sideloaded build.
+
+  REQUEST_INSTALL_PACKAGES lets UpdatePlugin hand a downloaded APK to the system
+  installer. That is the whole point of the direct build and is flatly prohibited
+  for anything distributed through Google Play (Device and Network Abuse policy),
+  so it lives here rather than in src/main and can never leak into the `play` AAB.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+</manifest>

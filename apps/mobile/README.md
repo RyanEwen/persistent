@@ -152,8 +152,38 @@ in the workspace `.env`, then:
 ```bash
 set -a; . ../../.env; set +a
 npm run prepare:android
-npm run assemble:release   # -> android/app/build/outputs/apk/release/app-release.apk
+npm run assemble:release   # -> android/app/build/outputs/apk/direct/release/app-direct-release.apk
+npm run bundle:play        # -> android/app/build/outputs/bundle/playRelease/app-play-release.aab
 ```
+
+## Product flavors (`play` | `direct`)
+
+One artifact cannot serve both channels, so the app builds in two flavors that
+differ **only** in the in-app updater:
+
+| | `direct` (GitHub releases) | `play` (Play Store) |
+| --- | --- | --- |
+| `UpdatePlugin` | compiled in, registered | absent |
+| `REQUEST_INSTALL_PACKAGES` | declared | **not** declared |
+| Updates via | in-app APK install | Google Play |
+
+Sources live in `android-plugin/flavor/<flavor>/`; `setup-android.mjs` copies them
+into `android/app/src/<flavor>/` and injects the `productFlavors` block. The shared
+`MainActivity` calls `FlavorPlugins.register(this)` rather than naming
+`UpdatePlugin`, which only exists in one flavor.
+
+**Never publish the `direct` build to Play** — `REQUEST_INSTALL_PACKAGES` plus a
+self-updater is a Device and Network Abuse violation. To confirm what a build
+actually contains:
+
+```bash
+grep -c REQUEST_INSTALL_PACKAGES \
+  android/app/build/intermediates/packaged_manifests/playRelease/AndroidManifest.xml   # expect 0
+```
+
+Because both flavors load the same hosted web UI, updater surfaces are gated at
+runtime on `hasNativeUpdater()` (`Capacitor.isPluginAvailable('Update')`), not at
+build time.
 
 ## Verifying the guarantee
 

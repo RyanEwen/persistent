@@ -15,7 +15,11 @@
 <uses-permission android:name="android.permission.VIBRATE" />
 <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+<!-- REQUEST_INSTALL_PACKAGES is deliberately NOT here: it belongs to the `direct`
+     flavor only (flavor/direct/AndroidManifest.xml). Google Play forbids an app it
+     distributes from updating itself, and that permission is the signal review
+     looks for — it must never reach the `play` build. -->
+
 
 <!-- androidx.car.app is minSdk 23 while the app floor is 22. Android Auto itself
      needs API 23+, and CarProjection.init is SDK-guarded, so overriding the library's

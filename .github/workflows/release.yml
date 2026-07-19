@@ -109,12 +109,31 @@ jobs:
             echo "GOOGLE_SERVICES_JSON not set — building without FCM"
           fi
           npx cap sync android
+          # `direct` is the sideloaded flavor — it keeps the in-app updater that
+          # GitHub-release installs rely on. The `play` flavor omits it (Play
+          # forbids self-updating), so it must never be the artifact published here.
           npm run assemble:release
+          npm run bundle:play
 
       - name: Stage APK
         run: |
-          cp apps/mobile/android/app/build/outputs/apk/release/app-release.apk \
+          cp apps/mobile/android/app/build/outputs/apk/direct/release/app-direct-release.apk \
              "persistent-${{ steps.ver.outputs.name }}.apk"
+
+      - name: Stage Play bundle
+        run: |
+          cp apps/mobile/android/app/build/outputs/bundle/playRelease/app-play-release.aab \
+             "persistent-${{ steps.ver.outputs.name }}-play.aab"
+
+      # The AAB is a workflow artifact, not a release asset: it is for uploading to
+      # the Play Console, and publishing it next to the sideload APK would invite
+      # installing the wrong one.
+      - name: Upload Play bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: play-bundle-${{ steps.ver.outputs.name }}
+          path: persistent-*-play.aab
+          if-no-files-found: error
 
       - name: Publish release
         uses: softprops/action-gh-release@v3

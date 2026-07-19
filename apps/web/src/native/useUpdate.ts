@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { PluginListenerHandle } from '@capacitor/core'
 import { apiFetch } from '../lib/apiClient.js'
-import { NativeApp, UpdatePlugin, isNative, type UpdateState } from './alarmBridge.js'
+import { NativeApp, UpdatePlugin, hasNativeUpdater, isNative, type UpdateState } from './alarmBridge.js'
 
 const WEB_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : '0.0.0'
 
@@ -103,7 +103,8 @@ export function useUpdate() {
   }, [])
 
   const start = useCallback(async (rel: ReleaseInfo): Promise<void> => {
-    if (!isNative()) {
+    // No native updater (web, or the Play flavor): hand off to the browser.
+    if (!hasNativeUpdater()) {
       window.open(rel.apkUrl, '_blank')
       return
     }
@@ -116,7 +117,7 @@ export function useUpdate() {
   }, [])
 
   useEffect(() => {
-    if (!isNative()) return
+    if (!hasNativeUpdater()) return
     let handle: PluginListenerHandle | undefined
     const listener = UpdatePlugin as unknown as {
       addListener: (event: string, cb: (s: UpdateState) => void) => Promise<PluginListenerHandle>

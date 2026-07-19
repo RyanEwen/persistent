@@ -12,10 +12,11 @@
     "setup:android": "node scripts/setup-android.mjs",
     "sync": "cap sync android",
     "open:android": "cap open android",
-    "assemble:android": "cd android && ./gradlew assembleDebug",
-    "assemble:release": "cd android && ./gradlew assembleRelease",
+    "assemble:android": "cd android && ./gradlew assembleDirectDebug",
+    "assemble:release": "cd android && ./gradlew assembleDirectRelease",
+    "bundle:play": "cd android && ./gradlew bundlePlayRelease",
     "prepare:android": "npm run build:web && npm run add:android && npm run setup:android && npm run sync",
-    "verify:android": "npm run setup:android && cd android && ./gradlew --console=plain :app:compileDebugKotlin :app:compileDebugJavaWithJavac"
+    "verify:android": "npm run setup:android && cd android && ./gradlew --console=plain :app:compilePlayDebugKotlin :app:compilePlayDebugJavaWithJavac :app:compileDirectDebugKotlin :app:compileDirectDebugJavaWithJavac"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.0",

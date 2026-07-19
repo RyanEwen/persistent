@@ -127,3 +127,16 @@ export const GoogleAuthNative = registerPlugin<GoogleAuthNativePlugin>('GoogleAu
 export function isNative(): boolean {
   return Capacitor.isNativePlatform()
 }
+
+/**
+ * Whether this build can install an APK itself.
+ *
+ * The Android app ships in two flavors that load this *same* hosted web bundle,
+ * so the update UI can't be compiled out — it has to ask at runtime. Only the
+ * `direct` (sideloaded) flavor registers the native `Update` plugin; the Play
+ * flavor deliberately omits it, because Play forbids an app it distributes from
+ * updating itself. Gate every updater surface on this.
+ */
+export function hasNativeUpdater(): boolean {
+  return isNative() && Capacitor.isPluginAvailable('Update')
+}

@@ -16,7 +16,7 @@ import DialogContent from '@mui/joy/DialogContent'
 import Typography from '@mui/joy/Typography'
 import Button from '@mui/joy/Button'
 import Stack from '@mui/joy/Stack'
-import { isNative } from './alarmBridge.js'
+import { hasNativeUpdater } from './alarmBridge.js'
 import { useUpdate, type ReleaseInfo } from './useUpdate.js'
 import { BackAwareModal } from '../components/BackAwareModal.js'
 
@@ -35,7 +35,8 @@ export function UpdateCheck() {
   const [prompt, setPrompt] = useState<ReleaseInfo | null>(null)
 
   useEffect(() => {
-    if (!isNative()) return
+    // Play-flavor builds have no Update plugin — Play does the updating.
+    if (!hasNativeUpdater()) return
     let cancelled = false
     let resumeHandle: PluginListenerHandle | undefined
 

@@ -107,12 +107,20 @@ directory guide `apps/api/CLAUDE.md`.
 - **Native (Kotlin/Java) changes** aren't covered by `npm run validate`. The
   devcontainer ships JDK 17 + the Android SDK (platform-34, build-tools 34.0.0),
   so verify them by compiling: from `apps/mobile`, `npm run verify:android`
-  (re-syncs `android-plugin/` into the generated project, then
-  `./gradlew :app:compileDebugKotlin :app:compileDebugJavaWithJavac`). Both tasks
-  matter — the plugin is Kotlin but `MainActivity.java` is Java, and the Kotlin
-  task alone compiles right past a broken `MainActivity`. Run
-  `npm run prepare:android` once first if the generated `apps/mobile/android`
-  project doesn't exist yet.
+  (re-syncs `android-plugin/` into the generated project, then compiles the Kotlin
+  **and** Java tasks for **both product flavors**). All four tasks matter — the
+  plugin is Kotlin but `MainActivity.java` is Java, and the Kotlin task alone
+  compiles right past a broken `MainActivity`. Run `npm run prepare:android` once
+  first if the generated `apps/mobile/android` project doesn't exist yet.
+- **Two Android flavors** (`apps/mobile/android-plugin/flavor/`): `play` for the
+  Play Store, `direct` for sideloaded GitHub releases. They differ only in the
+  in-app updater — `direct` registers `UpdatePlugin` and declares
+  `REQUEST_INSTALL_PACKAGES`; `play` has neither, because Play forbids an app it
+  distributes from updating itself. `MainActivity` is shared and calls
+  `FlavorPlugins.register(this)`, which each flavor supplies. Build with
+  `npm run assemble:release` (direct APK) or `npm run bundle:play` (Play AAB).
+  Both flavors load the *same* hosted web bundle, so any updater UI must gate on
+  `hasNativeUpdater()` (`apps/web/src/native/alarmBridge.ts`), never `isNative()`.
 
 ## How guidance is organized
 

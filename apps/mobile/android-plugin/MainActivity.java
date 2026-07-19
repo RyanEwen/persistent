@@ -13,7 +13,6 @@ import com.getcapacitor.BridgeActivity;
 import ca.persistent.app.alarm.AlarmPlugin;
 import ca.persistent.app.alarm.AlarmReceiver;
 import ca.persistent.app.alarm.PendingNavStore;
-import ca.persistent.app.alarm.UpdatePlugin;
 import ca.persistent.app.alarm.PasskeyPlugin;
 import ca.persistent.app.alarm.GoogleAuthPlugin;
 
@@ -21,9 +20,12 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(AlarmPlugin.class);
-        registerPlugin(UpdatePlugin.class);
         registerPlugin(PasskeyPlugin.class);
         registerPlugin(GoogleAuthPlugin.class);
+        // Flavor-specific plugins: `direct` registers the in-app updater, `play`
+        // registers nothing (see flavor/*/FlavorPlugins.java). UpdatePlugin cannot
+        // be named here because it is not compiled into the play flavor.
+        FlavorPlugins.register(this);
         super.onCreate(savedInstanceState);
         // Cold start from a notification tap: the WebView drains the store on startup.
         storePendingNav(getIntent());

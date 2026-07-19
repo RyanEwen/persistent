@@ -6,38 +6,64 @@ declare today. Roughly in order of how hard they are to fix.
 
 ---
 
-## 1. The in-app APK updater is a policy violation — must be removed 🔴
-
-`apps/mobile/android-plugin/UpdatePlugin.kt` downloads a release APK via
-`DownloadManager` and launches the package installer; the manifest carries
-`REQUEST_INSTALL_PACKAGES`; `apps/api/src/routes/app-release.ts` polls GitHub
-Releases for the newest build; `apps/web/src/components/GetTheApp.tsx` links to
-the GitHub release page.
+## 1. In-app APK updater ✅ DONE (split into product flavors)
 
 Google Play's **Device and Network Abuse** policy prohibits an app distributed on
-Play from updating itself through any mechanism other than Play's own update
-system. This is not a gray area and `REQUEST_INSTALL_PACKAGES` is exactly the
-signal review looks for.
+Play from updating itself by any other route, and `REQUEST_INSTALL_PACKAGES` is
+the signal review looks for. Sideloading is still wanted, so the app now builds in
+two flavors instead of dropping the updater outright:
 
-**Fix:** for the Play build, drop `UpdatePlugin.kt`, remove the
-`REQUEST_INSTALL_PACKAGES` permission from `setup-android.mjs`, and hide the
-in-app update prompt and the GitHub download link. Play handles updates.
+| | `direct` (GitHub) | `play` (Store) |
+| --- | --- | --- |
+| `UpdatePlugin` | yes | **no** |
+| `REQUEST_INSTALL_PACKAGES` | yes | **no** |
 
-Worth deciding first: **do you want Play to replace GitHub distribution, or run
-alongside it?** They can't share one build. If you keep sideloading for yourself,
-you need a product flavor — Play build without the updater, direct build with it —
-because a single artifact can't satisfy both.
+- Flavor sources: `apps/mobile/android-plugin/flavor/{play,direct}/`
+- `setup-android.mjs` copies them into `android/app/src/<flavor>/` and injects the `productFlavors` block
+- Shared `MainActivity` calls `FlavorPlugins.register(this)` — it can't name `UpdatePlugin`, which exists in only one flavor
+- Build: `npm run assemble:release` (direct APK) / `npm run bundle:play` (Play AAB)
 
-## 2. `targetSdkVersion 34` is below Play's minimum 🔴
+**Verified on the built artifacts, not just the source:** the `playDebug` packaged
+manifest contains **0** occurrences of `REQUEST_INSTALL_PACKAGES` and the flavor's
+compiled output contains **0** `UpdatePlugin` classes; `directDebug` has both. Both
+flavors compile (Kotlin + Java).
+
+The web UI is the same hosted bundle for both flavors, so it cannot be compiled
+differently — every updater surface gates on `hasNativeUpdater()`
+(`Capacitor.isPluginAvailable('Update')`) instead of `isNative()`.
+
+⚠️ **Never upload the `direct` artifact to Play.** Check before submitting:
+
+```bash
+grep -c REQUEST_INSTALL_PACKAGES \
+  apps/mobile/android/app/build/intermediates/packaged_manifests/playRelease/AndroidManifest.xml   # expect 0
+```
+
+## 2. `targetSdkVersion 34` is below Play's minimum 🔴 — now the only hard blocker
 
 `apps/mobile/android/variables.gradle` has `compileSdkVersion = 34`,
 `targetSdkVersion = 34`. Play requires new apps and updates to target a recent API
 level — API 35 as of Aug 2025, with API 36 taking effect Aug 31 2026. Confirm the
-exact current floor in Play Console, but 34 will be rejected either way.
+exact floor in Play Console, but 34 will be rejected either way.
 
-Raising it is not a one-line change: API 35 enforces edge-to-edge display and
-tightens foreground-service behavior, both of which touch this app's alarm UI
-directly. Budget real time and re-run `npm run verify:android`.
+This is a **toolchain upgrade, not a version bump**. Current state:
+
+| | now | needed |
+| --- | --- | --- |
+| compileSdk / targetSdk | 34 | 35+ |
+| Android Gradle Plugin | 8.2.1 | 8.6+ (AGP 8.2 rejects compileSdk 35) |
+| Gradle | 8.2.1 | matching AGP requirement |
+| Installed SDK platforms | `android-34` only | `android-35` (`sdkmanager "platforms;android-35"`) |
+| build-tools | 34.0.0 | 35.x |
+
+On top of the toolchain: API 35 **enforces edge-to-edge**, so the WebView shell and
+the full-screen `AlarmActivity` both need insets handled or the alarm UI will draw
+under the status/nav bars — on the surface that matters most. Capacitor 6 targets
+34 by default, so check whether the AGP bump wants a Capacitor upgrade too.
+
+Sequence: install platform-35 → bump AGP/Gradle → bump compileSdk/targetSdk →
+`npm run verify:android` (all four tasks) → **fire a real alarm on a device** and
+confirm the full-screen surface still lays out correctly.
 
 ## 3. Privacy policy ✅ DONE
 
@@ -89,15 +115,22 @@ Note `SCHEDULE_EXACT_ALARM` and `USE_EXACT_ALARM` are declared together — chec
 whether both are actually needed at your min/target SDK, since each extra
 restricted permission is another thing review can object to.
 
-## 6. Play wants an AAB, and Play App Signing 🟡
+## 6. AAB build ✅ DONE — Play App Signing still to decide 🟡
 
-`npm run assemble:release` produces an APK. Play requires an **Android App Bundle**
-(`./gradlew bundleRelease`) for new apps. Also decide on Play App Signing: if you
-enroll, Play holds the signing key and your existing `release.keystore` becomes
-the upload key. *(The keystore is correctly gitignored — verified.)*
+`npm run bundle:play` produces the AAB (`bundlePlayRelease`), and
+`.github/workflows/release.yml` builds it alongside the sideload APK on every tag.
+It is uploaded as a **workflow artifact**, deliberately not as a release asset —
+publishing it next to the APK would invite installing the wrong one.
 
-CI currently builds a signed APK for GitHub Releases; it'll need a parallel bundle
-step for Play.
+Still yours to decide: **Play App Signing.** If you enroll, Play holds the signing
+key and your existing `release.keystore` becomes the upload key. *(The keystore is
+correctly gitignored — verified.)*
+
+Note the signing-cert consequence for passkeys: enrolling in Play App Signing means
+Play re-signs the app, so the **fingerprint changes**. `assetlinks.json` and
+`ANDROID_APP_ORIGIN` in `apps/api/src/lib/webauthn.ts` both hard-code the current
+cert and would need Play's signing certificate added, or passkeys break on the
+Play build.
 
 ## 7. `versionCode` must be monotonic 🟢
 
@@ -118,11 +151,13 @@ GitHub, and never reuse one.
 ## Suggested order
 
 1. ~~Account deletion endpoint + Settings UI~~ ✅
-2. ~~Write and host the privacy policy~~ ✅ (confirm the contact mailbox)
-3. Decide GitHub-vs-Play distribution (gates #4)
-4. Strip the updater → product flavor if needed
-5. Raise targetSdk to 35+, fix edge-to-edge, `verify:android`
-6. Bundle build in CI, capture screenshots, submit
+2. ~~Write and host the privacy policy~~ ✅
+3. ~~Split the updater into play/direct flavors~~ ✅
+4. ~~AAB build in CI~~ ✅
+5. ~~Capture screenshots~~ ✅ (`graphics/screenshots/`)
+6. **Raise targetSdk to 35+** — toolchain upgrade, then re-verify the alarm UI
+7. Decide Play App Signing (watch the passkey cert consequence in #6)
+8. Write the restricted-permission declarations in Play Console (#5), answer Data Safety (`listing.md`), submit
 
-The two quick ones are done. Steps 3–5 are the real work, and step 3 is a product
-decision only you can make.
+**#6 is the only remaining hard blocker.** Everything else left is Play Console
+paperwork or a decision, not code.

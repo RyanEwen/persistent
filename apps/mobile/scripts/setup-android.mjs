@@ -40,12 +40,56 @@ if (!existsSync(join(mobileRoot, 'android'))) {
 }
 
 // --- 1. Copy the Kotlin sources ---------------------------------------------
+// UpdatePlugin is the exception: it installs downloaded APKs, which Google Play
+// forbids, so it belongs to the `direct` flavor's source set rather than main
+// (see step 1b). Everything else is shared.
+const DIRECT_ONLY_KT = new Set(['UpdatePlugin.kt'])
+
 mkdirSync(alarmPkgDir, { recursive: true })
-const kotlinFiles = readdirSync(pluginDir).filter((f) => f.endsWith('.kt'))
+const kotlinFiles = readdirSync(pluginDir)
+  .filter((f) => f.endsWith('.kt'))
+  .filter((f) => !DIRECT_ONLY_KT.has(f))
 for (const file of kotlinFiles) {
   copyFileSync(join(pluginDir, file), join(alarmPkgDir, file))
 }
+// A pre-flavor checkout put UpdatePlugin.kt in main; leaving it there would
+// compile it into the play flavor too, so drop any stale copy.
+for (const file of DIRECT_ONLY_KT) {
+  const stale = join(alarmPkgDir, file)
+  if (existsSync(stale)) {
+    rmSync(stale)
+    console.log(`[setup-android] removed stale ${file} from src/main (now direct-only)`)
+  }
+}
 console.log(`[setup-android] copied ${kotlinFiles.length} Kotlin sources -> ${alarmPkgDir}`)
+
+// --- 1b. Flavor source sets (play | direct) ---------------------------------
+// `play`   — the Play Store build: no updater, no REQUEST_INSTALL_PACKAGES.
+// `direct` — the sideloaded GitHub-release build: keeps the in-app updater.
+// Both provide ca.persistent.app.FlavorPlugins so the shared MainActivity can
+// call it without naming a class that only exists in one flavor.
+const flavorSrcDir = join(pluginDir, 'flavor')
+for (const flavor of ['play', 'direct']) {
+  const srcDir = join(flavorSrcDir, flavor)
+  if (!existsSync(srcDir)) fail(`Missing flavor sources at ${srcDir}`)
+  const destPkg = join(mobileRoot, 'android', 'app', 'src', flavor, 'java', 'ca', 'persistent', 'app')
+  mkdirSync(destPkg, { recursive: true })
+  copyFileSync(join(srcDir, 'FlavorPlugins.java'), join(destPkg, 'FlavorPlugins.java'))
+
+  const flavorManifestSrc = join(srcDir, 'AndroidManifest.xml')
+  if (existsSync(flavorManifestSrc)) {
+    const destRoot = join(mobileRoot, 'android', 'app', 'src', flavor)
+    mkdirSync(destRoot, { recursive: true })
+    copyFileSync(flavorManifestSrc, join(destRoot, 'AndroidManifest.xml'))
+  }
+}
+// UpdatePlugin only exists in the direct flavor.
+const directAlarmPkg = join(mobileRoot, 'android', 'app', 'src', 'direct', 'java', 'ca', 'persistent', 'app', 'alarm')
+mkdirSync(directAlarmPkg, { recursive: true })
+for (const file of DIRECT_ONLY_KT) {
+  copyFileSync(join(pluginDir, file), join(directAlarmPkg, file))
+}
+console.log('[setup-android] installed play/direct flavor source sets')
 
 // --- 2. Merge the manifest additions ----------------------------------------
 const manifestPath = join(androidApp, 'AndroidManifest.xml')
@@ -141,6 +185,33 @@ if (!appGradle.includes("apply plugin: 'kotlin-android'")) {
   )
   writeFileSync(appGradlePath, appGradle)
   console.log("[setup-android] applied kotlin-android plugin in android/app/build.gradle")
+}
+
+// --- 4a2. Product flavors (play | direct) -----------------------------------
+// One artifact cannot serve both channels: Play forbids self-updating, and the
+// sideloaded build needs exactly that. `play` omits UpdatePlugin and
+// REQUEST_INSTALL_PACKAGES; `direct` keeps both. No applicationIdSuffix — they are
+// the same app, so the direct build can still be replaced by a Play install.
+{
+  let g = readFileSync(appGradlePath, 'utf8')
+  if (!g.includes('flavorDimensions')) {
+    g = g.replace(
+      /(\n\s*buildTypes\s*\{)/,
+      `
+    flavorDimensions "distribution"
+    productFlavors {
+        play {
+            dimension "distribution"
+        }
+        direct {
+            dimension "distribution"
+        }
+    }
+$1`
+    )
+    writeFileSync(appGradlePath, g)
+    console.log('[setup-android] added play/direct product flavors')
+  }
 }
 
 // --- 4b. Launcher icons -----------------------------------------------------

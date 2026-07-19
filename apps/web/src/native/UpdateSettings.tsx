@@ -1,8 +1,12 @@
 /**
  * "About" / updates card for the Settings page: shows the current version and,
- * on the native app, a manual "Check for updates" control that surfaces release
- * notes and downloads + installs a newer APK in-app. On the web it just reports
- * the version (the service worker handles web updates).
+ * on the sideloaded Android build, a manual "Check for updates" control that
+ * surfaces release notes and installs a newer APK in-app.
+ *
+ * The manual control is gated on `hasNativeUpdater()`, not `isNative()`: the Play
+ * flavor is also native but deliberately ships without the Update plugin, since
+ * Play forbids an app it distributes from updating itself. Both flavors load this
+ * same hosted bundle, so the distinction can only be made at runtime.
  */
 import { useState } from 'react'
 import Card from '@mui/joy/Card'
@@ -11,7 +15,7 @@ import Box from '@mui/joy/Box'
 import Typography from '@mui/joy/Typography'
 import Button from '@mui/joy/Button'
 import Alert from '@mui/joy/Alert'
-import { isNative } from './alarmBridge.js'
+import { hasNativeUpdater } from './alarmBridge.js'
 import { useUpdate } from './useUpdate.js'
 
 export function UpdateSettings() {
@@ -23,9 +27,12 @@ export function UpdateSettings() {
       <Typography level="title-sm">About</Typography>
       <Typography level="body-sm">Version {currentVersion}</Typography>
 
-      {!isNative() ? (
+      {/* Only the sideloaded `direct` flavor can install an APK. The Play build
+          loads this same hosted bundle, so the check is at runtime, not build time. */}
+      {!hasNativeUpdater() ? (
         <Typography level="body-xs">
-          The web app updates itself automatically. Install the Android app for in-app updates.
+          This app updates itself automatically — from Google Play on the Play build, and via the service worker on
+          the web.
         </Typography>
       ) : (
         <Stack spacing={1} sx={{ mt: 0.5 }}>
