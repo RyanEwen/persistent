@@ -84,3 +84,16 @@ export const passkeyRegisterFinishSchema = z.object({
   response: z.unknown(),
   name: z.string().trim().max(60).optional()
 })
+
+/**
+ * Body for DELETE /api/auth/me — permanent account deletion.
+ *
+ * The caller must echo back their own email address. Deletion is irreversible
+ * and cascades to every reminder, occurrence, session, passkey, and push
+ * subscription, so a session cookie alone is deliberately not enough to trigger
+ * it. Required by Google Play's data-deletion policy.
+ */
+export const deleteAccountSchema = z.object({
+  confirmEmail: emailSchema
+})
+export type DeleteAccountInput = z.infer<typeof deleteAccountSchema>

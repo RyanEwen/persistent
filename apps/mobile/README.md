@@ -138,6 +138,14 @@ from `server.url`, web-only changes reach devices via a prod deploy with no new
 APK — rebuild the APK only for native changes (alarm/update plugins, manifest,
 launcher icon).
 
+> **This self-update path cannot ship on Google Play.** Play forbids an app
+> distributed through it from updating itself by any other mechanism, and
+> `REQUEST_INSTALL_PACKAGES` is the flag review looks for. Store listing copy,
+> graphics, and the full list of blockers (this one, `targetSdk`, restricted
+> permission declarations, AAB packaging) are in [`store/`](store/) — see
+> [`store/play-readiness.md`](store/play-readiness.md) before attempting a Play
+> submission.
+
 To build a signed release locally, set the `ANDROID_*` vars (see `.env.example`)
 in the workspace `.env`, then:
 

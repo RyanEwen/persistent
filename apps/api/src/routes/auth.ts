@@ -5,6 +5,7 @@
  * - POST /api/auth/verify-code   — verify, upsert the user, start a session.
  * - POST /api/auth/logout        — revoke the current session.
  * - GET  /api/auth/me            — current user or null.
+ * - DELETE /api/auth/me          — permanently delete the account and all its data.
  */
 import { Router } from 'express'
 import {
@@ -16,6 +17,7 @@ import {
 import type { AuthenticationResponseJSON, AuthenticatorTransportFuture, RegistrationResponseJSON } from '@simplewebauthn/server'
 import { OAuth2Client } from 'google-auth-library'
 import {
+  deleteAccountSchema,
   googleLoginSchema,
   passkeyListResponseSchema,
   passkeyRegisterFinishSchema,
@@ -30,6 +32,7 @@ import { createSession, revokeSession, setSessionCookie, clearSessionCookie } fr
 import { requireUserId } from '../lib/auth-middleware.js'
 import { RP_NAME, relyingParty, setChallengeCookie, clearChallengeCookie, requireChallenge } from '../lib/webauthn.js'
 import { rateLimit } from '../lib/rate-limit.js'
+import { logger } from '../lib/logger.js'
 import { toPasskey, toSessionUser } from '../lib/serializers.js'
 
 export const authRouter = Router()
@@ -132,6 +135,39 @@ authRouter.get('/me', async (request, response) => {
   }
   const user = await prisma.user.findUnique({ where: { id: request.userId } })
   response.json({ user: user ? toSessionUser(user) : null })
+})
+
+/**
+ * Permanently delete the signed-in account and everything it owns.
+ *
+ * Every child row (Session, Passkey, Reminder, ReminderOccurrence,
+ * PushSubscription) is removed by the schema's `onDelete: Cascade`, so deleting
+ * the User row is sufficient and atomic. Irreversible — there is no soft-delete
+ * or restore window, which is why the caller must echo their own email back.
+ */
+authRouter.delete('/me', async (request, response) => {
+  const userId = requireUserId(request)
+  const parsed = deleteAccountSchema.safeParse(request.body)
+  if (!parsed.success) throw badRequest('Confirm your email address to delete your account.')
+
+  const user = await prisma.user.findUnique({ where: { id: userId } })
+  if (!user) throw notFound('Account not found.')
+  // Guards against a mistyped confirmation deleting the wrong (i.e. this) account.
+  if (parsed.data.confirmEmail !== user.email.toLowerCase()) {
+    throw badRequest("That email doesn't match this account.")
+  }
+
+  // EmailCode is keyed by email address, not userId, so it has no cascade —
+  // clear it explicitly or the address outlives the account it identified.
+  await prisma.$transaction([
+    prisma.emailCode.deleteMany({ where: { email: user.email } }),
+    prisma.user.delete({ where: { id: userId } })
+  ])
+  clearSessionCookie(response)
+  // Irreversible and user-initiated: worth an operational record, but it is a
+  // successful action rather than a failure, so info rather than warn.
+  logger.info('account deleted', { userId })
+  response.json({ ok: true })
 })
 
 // --- Passkeys (WebAuthn) ----------------------------------------------------

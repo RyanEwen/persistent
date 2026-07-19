@@ -24,6 +24,7 @@ import { formatDateTime } from '../lib/datetime.js'
 import { AlarmPlugin, isNative } from '../native/alarmBridge.js'
 import { UpdateSettings } from '../native/UpdateSettings.js'
 import { PasskeysCard } from '../components/PasskeysCard.js'
+import { DeleteAccountCard } from '../components/DeleteAccountCard.js'
 
 export function SettingsPage() {
   const { user, logout } = useAuth()
@@ -218,7 +219,19 @@ export function SettingsPage() {
         </Typography>
       </Card>
 
+      <Card variant="outlined">
+        <Typography level="title-sm">Privacy</Typography>
+        <Typography level="body-sm">
+          What Persistent stores and who it's shared with:{' '}
+          <Link component={RouterLink} to="/privacy">
+            Privacy policy
+          </Link>
+        </Typography>
+      </Card>
+
       <UpdateSettings />
+
+      <DeleteAccountCard />
     </Stack>
   )
 }

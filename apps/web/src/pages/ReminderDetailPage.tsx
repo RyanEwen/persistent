@@ -20,12 +20,14 @@ import Chip from '@mui/joy/Chip'
 import SnoozeIcon from '@mui/icons-material/Snooze'
 import EditIcon from '@mui/icons-material/Edit'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
+import HistoryIcon from '@mui/icons-material/History'
 import { reminderBodyText } from '@persistent/shared'
 import { useReminders } from '../data/reminders.js'
 import { useActiveOccurrences, useAckOccurrence, useSnoozeOccurrence, useSilenceOccurrence } from '../data/occurrences.js'
 import { scheduleSummary } from '../lib/scheduleSummary.js'
 import { formatWhen } from '../lib/datetime.js'
 import { reminderNextFire } from '../lib/schedule-preview.js'
+import { isOutsideReminderWindow } from '../lib/occurrenceSchedule.js'
 import { useSettings } from '../settings/useSettings.js'
 import { CategoryIcon, StatusChip } from '../components/ReminderIcons.js'
 import { OccurrenceActions } from '../components/OccurrenceActions.js'
@@ -133,37 +135,59 @@ export function ReminderDetailPage() {
         {occurrences.length > 0 && (
           <Stack spacing={1.5}>
             <Typography level="title-sm">Needs attention</Typography>
-            {occurrences.map((occurrence) => (
-              <Card key={occurrence.id} color="warning" variant="soft">
-                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
-                  <Box sx={{ minWidth: 0 }}>
-                    <Typography level="body-sm">{formatWhen(occurrence.scheduledFor, timeFormat)}</Typography>
-                    {occurrence.status === 'SNOOZED' && occurrence.snoozedUntil && (
-                      <Typography
-                        level="body-xs"
-                        color="primary"
-                        startDecorator={<SnoozeIcon sx={{ fontSize: 14 }} />}
-                      >
-                        Snoozed until {formatWhen(occurrence.snoozedUntil, timeFormat)}
-                      </Typography>
-                    )}
+            {occurrences.map((occurrence) => {
+              // Same treatment as the list card: a firing the reminder's current
+              // window no longer covers is labelled honestly rather than as "Due".
+              const orphaned = isOutsideReminderWindow(reminder, occurrence)
+              return (
+                <Card key={occurrence.id} color="warning" variant="soft">
+                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography level="body-sm">{formatWhen(occurrence.scheduledFor, timeFormat)}</Typography>
+                      {occurrence.status === 'SNOOZED' && occurrence.snoozedUntil && (
+                        <Typography
+                          level="body-xs"
+                          color="primary"
+                          startDecorator={<SnoozeIcon sx={{ fontSize: 14 }} />}
+                        >
+                          Snoozed until {formatWhen(occurrence.snoozedUntil, timeFormat)}
+                        </Typography>
+                      )}
+                      {orphaned && (
+                        <Typography level="body-xs" color="warning" sx={{ mt: 0.5 }}>
+                          Fired before this reminder was rescheduled. Clearing it won't affect the new schedule.
+                        </Typography>
+                      )}
+                    </Box>
+                    <Box sx={{ flexShrink: 0 }}>
+                      {orphaned ? (
+                        <Chip
+                          size="sm"
+                          variant="soft"
+                          color="warning"
+                          startDecorator={<HistoryIcon sx={{ fontSize: 14 }} />}
+                        >
+                          Unconfirmed
+                        </Chip>
+                      ) : (
+                        <StatusChip status={occurrence.status} />
+                      )}
+                    </Box>
+                  </Stack>
+                  <Box sx={{ mt: 1 }}>
+                    <OccurrenceActions
+                      occurrence={occurrence}
+                      doneLabel={orphaned ? 'Clear' : 'Done'}
+                      onDone={() => ack.mutate({ id: occurrence.id, arg: undefined })}
+                      doneLoading={ack.isPending}
+                      onSnooze={() => setSnoozeFor(occurrence.id)}
+                      onSilence={() => silence.mutate({ id: occurrence.id, arg: undefined })}
+                      silenceLoading={silence.isPending}
+                    />
                   </Box>
-                  <Box sx={{ flexShrink: 0 }}>
-                    <StatusChip status={occurrence.status} />
-                  </Box>
-                </Stack>
-                <Box sx={{ mt: 1 }}>
-                  <OccurrenceActions
-                    occurrence={occurrence}
-                    onDone={() => ack.mutate({ id: occurrence.id, arg: undefined })}
-                    doneLoading={ack.isPending}
-                    onSnooze={() => setSnoozeFor(occurrence.id)}
-                    onSilence={() => silence.mutate({ id: occurrence.id, arg: undefined })}
-                    silenceLoading={silence.isPending}
-                  />
-                </Box>
-              </Card>
-            ))}
+                </Card>
+              )
+            })}
           </Stack>
         )}
       </Stack>

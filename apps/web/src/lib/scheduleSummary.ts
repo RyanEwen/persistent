@@ -10,6 +10,8 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 export function scheduleSummary(schedule: Schedule, timeFormat: TimeFormat): string {
   const times = schedule.timesOfDay.map((t) => formatTimeOfDay(t, timeFormat)).join(', ')
   switch (schedule.kind) {
+    case 'none':
+      return 'No date or time'
     case 'once':
       return `Once at ${times}`
     case 'daily':

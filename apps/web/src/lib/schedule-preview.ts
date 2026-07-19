@@ -50,6 +50,9 @@ function dayMatches(kind: ScheduleKind, cur: Date, start: Date, input: ScheduleP
   const weekday = cur.getDay()
   const weekend = weekday === 0 || weekday === 6
   switch (kind) {
+    // An unscheduled reminder has no firing day — it fired once on creation.
+    case 'none':
+      return false
     case 'once':
       return sameDate(cur, start)
     case 'daily':

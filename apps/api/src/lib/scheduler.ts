@@ -67,6 +67,18 @@ async function runSafely(label: string, fn: () => Promise<void>): Promise<void> 
 export async function materializeReminder(reminder: Reminder, timeZone: string, now = new Date()): Promise<void> {
   if (!reminder.active) return
   const schedule = reminder.schedule as unknown as Schedule
+  // An unscheduled reminder ("remind me about this", no date/time) fires exactly
+  // once: immediately, on creation. Anchoring that firing to `createdAt` rather
+  // than `now` makes this idempotent against the @@unique([reminderId,
+  // scheduledFor]) — every later materialization pass resolves to the same
+  // instant and is skipped, so it can never re-nag.
+  if (schedule.kind === 'none') {
+    await prisma.reminderOccurrence.createMany({
+      data: [{ reminderId: reminder.id, userId: reminder.userId, scheduledFor: reminder.createdAt }],
+      skipDuplicates: true
+    })
+    return
+  }
   // A one-shot has a single firing instant. If it has already slipped into the
   // past — the user defaulted it to "now" but submitted a moment later, lingered
   // on the form, or picked an earlier time — still materialize it (within a recent

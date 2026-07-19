@@ -53,7 +53,7 @@ export type OccurrenceStatus = (typeof occurrenceStatuses)[number]
 
 // --- Schedule ---
 
-export const scheduleKinds = ['once', 'daily', 'weekly', 'interval', 'custom'] as const
+export const scheduleKinds = ['none', 'once', 'daily', 'weekly', 'interval', 'custom'] as const
 export const scheduleKindSchema = z.enum(scheduleKinds)
 export type ScheduleKind = (typeof scheduleKinds)[number]
 
@@ -62,22 +62,41 @@ export const timeOfDaySchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Ex
 
 /**
  * Structured recurrence. Times are interpreted in the owning user's time zone.
+ * - none:     no date or time — "remind me about this". Fires once, immediately,
+ *             when the reminder is created, then never again. `timesOfDay` is
+ *             empty and `startDate` is only a record of when it was created.
  * - once:     fires on `startDate` at each `timesOfDay`, never repeats.
  * - daily:    every day (optionally `skipWeekends`).
  * - weekly:   on the weekdays in `daysOfWeek`.
  * - interval: every `everyNDays` days from `startDate` (optionally `skipWeekends`).
  * - custom:   same as weekly (explicit `daysOfWeek`) — distinct label for UI intent.
+ *
+ * `none` is a real stored state, not a UI mode: an unscheduled reminder must
+ * round-trip through the editor as unscheduled rather than reappearing as a
+ * one-shot at whatever instant it happened to be created.
  */
 export const scheduleSchema = z
   .object({
     kind: scheduleKindSchema,
-    timesOfDay: z.array(timeOfDaySchema).min(1).max(24),
+    // Empty only for `none`, which has no time of day at all (see superRefine).
+    timesOfDay: z.array(timeOfDaySchema).max(24),
     // 0 = Sunday .. 6 = Saturday. Required for weekly/custom.
     daysOfWeek: z.array(z.number().int().min(0).max(6)).max(7).optional(),
     everyNDays: z.number().int().min(1).max(365).optional(),
     skipWeekends: z.boolean().optional()
   })
   .superRefine((value, ctx) => {
+    // Every kind but `none` fires at a wall-clock time, so it needs at least one.
+    if (value.kind !== 'none' && value.timesOfDay.length === 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['timesOfDay'], message: 'Pick at least one time of day.' })
+    }
+    if (value.kind === 'none' && value.timesOfDay.length > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['timesOfDay'],
+        message: 'An unscheduled reminder has no time of day.'
+      })
+    }
     if ((value.kind === 'weekly' || value.kind === 'custom') && (!value.daysOfWeek || value.daysOfWeek.length === 0)) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['daysOfWeek'], message: 'Pick at least one weekday.' })
     }

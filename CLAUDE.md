@@ -50,12 +50,23 @@ guaranteed user-facing behavior of done / silence / snooze / independent
 occurrences is specified in `docs/notification-behavior.md`. See also
 `packages/shared/src/reminders.ts`.
 
-**Every reminder has a schedule — there is no unscheduled reminder in the model.**
-The editor's "Remind me now" (the default for a new reminder, versus "Schedule it")
-is a *UI mode only*: on save it materializes a `once` schedule at the creation
-instant (`apps/web/src/lib/immediate-schedule.ts`), which the server's one-shot
-back-fill window then fires immediately. So nothing hydrates back into that mode —
-reopening such a reminder shows an ordinary one-shot with a concrete date/time.
+**A reminder with no date/time is a real stored state**, schedule kind `none` —
+the editor's "Remind me now" (the default for a new reminder, versus "Schedule
+it"). It fires exactly once, anchored to the reminder's `createdAt`, and never
+again: `materializeReminder` short-circuits on `none` and the
+`@@unique([reminderId, scheduledFor])` makes repeat passes idempotent. `startDate`
+on such a reminder is only a record of when it was created.
+
+Giving an unscheduled reminder a real schedule **retires its immediate firing**
+(`PUT /api/reminders/:id`) — that firing was an artifact of having no schedule,
+not a commitment to a date. This is the one exception to "only Done clears a
+firing"; an edit between two *real* schedules never clears an unconfirmed one
+(see `docs/notification-behavior.md` §1, and §6 for how the UI labels a firing
+that a later reschedule left behind).
+
+`none` was previously a UI-only mode faked as a `once` schedule at the creation
+instant, which meant it could not round-trip through the editor and left an
+orphaned "Due" firing whenever the reminder was later rescheduled.
 
 ## Code style
 

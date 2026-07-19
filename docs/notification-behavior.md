@@ -156,3 +156,32 @@ an Auto capability, so in-car an alarm is an urgent messaging heads-up (Auto's c
 > forgotten. The smallest repeat granularity is per-time-of-day (there is no
 > sub-hour auto-repeat), so this does not produce runaway stacks; within a single
 > firing, re-nagging is the re-sound interval, not new occurrences.
+
+## 6. Editing a reminder never silently clears an unconfirmed firing
+
+Rescheduling is not a way to make a nag go away. Editing a reminder drops its
+not-yet-fired (`PENDING`) occurrences and re-materializes from the new schedule,
+but an occurrence that has already **fired and not been confirmed survives the
+edit** — §1 still holds, and only Done ends it. A reminder whose 09:00 dose is
+unconfirmed keeps nagging about that dose even if you retime it to 10:00.
+
+The visible consequence: move a reminder's start date into the future while an
+earlier firing is unconfirmed, and that firing keeps nagging against a schedule
+that no longer contains its date. That is intended, but "Due" describes it badly —
+the reminder now claims to start next week, yet something is due today. So the UI
+tells the two apart (`isOutsideReminderWindow`, `apps/web/src/lib/occurrenceSchedule.ts`):
+a firing whose date falls outside the reminder's current start/end window is
+labelled **Unconfirmed** rather than Due, carries a line explaining it fired before
+the reschedule, and offers **Clear** in place of Done. It still takes the same
+two-tap confirm and the same acknowledge — only the wording changes, because
+calling it "Done" would claim the user completed something the reminder has moved
+on from.
+
+The comparison is deliberately by **date, not time of day**: retiming a reminder
+whose dose is still unconfirmed must keep that dose nagging, because the day it
+belongs to is still covered.
+
+**The one exception** is a reminder that had no schedule at all (kind `none` — see
+the root `CLAUDE.md`). Its single firing is an artifact of being unscheduled, not a
+commitment to a date, so giving it a real schedule retires that firing instead of
+leaving it behind.

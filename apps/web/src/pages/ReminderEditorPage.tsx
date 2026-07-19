@@ -52,7 +52,13 @@ import { useToast } from '../components/ToastProvider.js'
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
+/** Repeat options offered once the user has chosen to schedule — 'none' is the
+ *  absence of a schedule, so it belongs to the When toggle above, not here. */
+const REPEAT_KINDS = scheduleKinds.filter((k) => k !== 'none')
+
 const SCHEDULE_KIND_LABELS: Record<ScheduleKind, string> = {
+  // 'none' is chosen via the When toggle, not the Repeat row (see REPEAT_KINDS).
+  none: 'No date or time',
   once: 'No repeat',
   daily: 'Daily',
   weekly: 'Weekly',
@@ -259,9 +265,10 @@ export function ReminderEditorPage() {
   }
 
   const busy = create.isPending || update.isPending
-  // Editing always shows the schedule controls: a saved reminder has a concrete
-  // schedule, and "remind me now" is a creation-time choice, not an edit to it.
-  const showSchedule = Boolean(id) || form.scheduled
+  // Driven purely by the toggle now that `none` is a real saved state: editing an
+  // unscheduled reminder must keep showing it as unscheduled (and offer to give it
+  // a schedule) instead of forcing the date/time controls open.
+  const showSchedule = form.scheduled
   const fireSummaryText = fireSummary(
     {
       kind: form.kind,
@@ -423,39 +430,41 @@ export function ReminderEditorPage() {
           <TabPanel value="schedule" keepMounted>
             <Stack spacing={2}>
 
-        {!id && (
-          <FormControl>
-            <FormLabel>When</FormLabel>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              <Button
-                size="sm"
-                variant={form.scheduled ? 'outlined' : 'solid'}
-                onClick={() => set('scheduled', false)}
-              >
-                Remind me now
-              </Button>
-              <Button
-                size="sm"
-                variant={form.scheduled ? 'solid' : 'outlined'}
-                onClick={() => set('scheduled', true)}
-              >
-                Schedule it
-              </Button>
-            </Stack>
-            <FormHelperText>
-              {form.scheduled
-                ? 'Pick when it fires and whether it repeats.'
+        {/* Shown when editing too: "no date/time" is a saved state, so an
+            unscheduled reminder has to be able to show it and to gain a schedule. */}
+        <FormControl>
+          <FormLabel>When</FormLabel>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            <Button
+              size="sm"
+              variant={form.scheduled ? 'outlined' : 'solid'}
+              onClick={() => set('scheduled', false)}
+            >
+              {id ? 'No date or time' : 'Remind me now'}
+            </Button>
+            <Button
+              size="sm"
+              variant={form.scheduled ? 'solid' : 'outlined'}
+              onClick={() => set('scheduled', true)}
+            >
+              Schedule it
+            </Button>
+          </Stack>
+          <FormHelperText>
+            {form.scheduled
+              ? 'Pick when it fires and whether it repeats.'
+              : id
+                ? "Has no date or time. It already nagged once, when you created it."
                 : 'Nags as soon as you create it — nothing to pick.'}
-            </FormHelperText>
-          </FormControl>
-        )}
+          </FormHelperText>
+        </FormControl>
 
         {showSchedule && (
           <>
         <FormControl>
           <FormLabel>Repeat</FormLabel>
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-            {scheduleKinds.map((k) => (
+            {REPEAT_KINDS.map((k) => (
               <Button
                 key={k}
                 size="sm"
@@ -768,8 +777,10 @@ export function ReminderEditorPage() {
             Inactive — won't fire until you turn it on.
           </Alert>
         ) : !showSchedule ? (
-          <Alert color="primary" variant="soft" size="sm">
-            Fires right away
+          // An unscheduled reminder fires once, on creation — so this is a promise
+          // when creating one and a statement of history when editing one.
+          <Alert color={id ? 'neutral' : 'primary'} variant="soft" size="sm">
+            {id ? 'Already nagged when you created it — nothing more scheduled.' : 'Fires right away'}
           </Alert>
         ) : fireSummaryText ? (
           <Alert color="primary" variant="soft" size="sm">
@@ -890,10 +901,12 @@ function fromReminder(reminder: Reminder): FormState {
     details: reminder.details ?? '',
     category: reminder.category,
     medications,
-    // A saved reminder always has a concrete schedule to edit.
-    scheduled: true,
-    kind: schedule.kind,
-    timesOfDay: schedule.timesOfDay.length ? schedule.timesOfDay : ['08:00'],
+    // `none` round-trips as unscheduled; anything else has a concrete schedule to
+    // edit. Its kind/times fall back to sensible defaults so that switching an
+    // unscheduled reminder to Schedule lands on a usable form rather than blanks.
+    scheduled: schedule.kind !== 'none',
+    kind: schedule.kind === 'none' ? defaultKindForCategory(reminder.category) : schedule.kind,
+    timesOfDay: schedule.timesOfDay.length ? schedule.timesOfDay : [localTimeOfDay()],
     daysOfWeek: schedule.daysOfWeek ?? [1, 2, 3, 4, 5],
     everyNDays: schedule.everyNDays != null ? String(schedule.everyNDays) : '2',
     skipWeekends: schedule.skipWeekends ?? false,

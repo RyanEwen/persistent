@@ -1,13 +1,13 @@
 /**
- * The schedule a reminder gets when the user creates one *without* picking a
- * date/time ("Remind me now" in the editor).
+ * Local date/time helpers for the reminder editor, plus the schedule a reminder
+ * gets when the user creates one *without* picking a date/time.
  *
- * There is no unscheduled reminder in the data model — every reminder has a
- * schedule — so "no date/time" is materialized as a one-shot at the current local
- * minute. That instant has usually already slipped into the past by the time the
- * request lands (minute truncation + latency), which is exactly the case the
- * server's one-shot back-fill window and `firesRightAway` are built for, so the
- * reminder nags immediately.
+ * "No date/time" is its own stored schedule kind (`none`) — the server fires it
+ * once on creation and never again. It used to be faked as a one-shot at the
+ * creation minute, which meant the editor could not tell an unscheduled reminder
+ * from one genuinely scheduled for that instant: reopening it showed a date the
+ * user never picked, and giving it a real schedule left the immediate firing
+ * behind, nagging as "Due" against a schedule that no longer contained it.
  */
 import type { Schedule } from '@persistent/shared'
 
@@ -21,10 +21,14 @@ export function localTimeOfDay(now: Date = new Date()): string {
   return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
 }
 
-/** The `{ schedule, startDate }` pair for a reminder that should fire right away. */
+/**
+ * The `{ schedule, startDate }` pair for a reminder with no date/time. `startDate`
+ * is only a record of when it was created — an unscheduled reminder fires from its
+ * creation instant, not from a calendar date.
+ */
 export function immediateSchedule(now: Date = new Date()): { schedule: Schedule; startDate: string } {
   return {
-    schedule: { kind: 'once', timesOfDay: [localTimeOfDay(now)] },
+    schedule: { kind: 'none', timesOfDay: [] },
     startDate: localCalendarDate(now)
   }
 }

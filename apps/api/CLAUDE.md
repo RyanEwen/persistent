@@ -7,6 +7,10 @@
   that establishes the user). Get it with `requireUserId(request)`. For
   edit/delete, first `findFirst({ where: { id, userId } })` and 404 if missing —
   never trust a path id alone. `Setting` is the only intentionally global model.
+  `EmailCode` is keyed by **email rather than `userId`** (it predates the user it
+  signs up), so it is neither user-scoped nor cascade-deleted — scope it by the
+  authenticated user's own stored email, and remember it when deleting an account
+  (`docs/auth-architecture.md`).
 - **Validate at the boundary.** Parse request bodies with the Zod schemas from
   `@persistent/shared` (e.g. `reminderInputSchema.safeParse`) and throw
   `badRequest` on failure. Don't hand-roll shape checks.

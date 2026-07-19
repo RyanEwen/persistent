@@ -21,6 +21,8 @@ interface AuthContextValue {
   loginWithPasskey: () => Promise<void>
   loginWithGoogle: (credential: string) => Promise<void>
   logout: () => Promise<void>
+  /** Drop all local session state after the account was deleted server-side. */
+  refreshAfterDeletion: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -102,6 +104,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         notify(extractErrorMessage(error, "Couldn't reach the server to sign out."), 'danger')
       }
+      queryClient.clear()
+      await queryClient.invalidateQueries({ queryKey: queryKeys.auth })
+    },
+    refreshAfterDeletion: async () => {
+      // The server already destroyed the session and every row behind it, so
+      // unlike logout there is nothing to call and nothing that can fail —
+      // just tear down local state (including the persisted query cache, which
+      // would otherwise leave the deleted account's reminders readable offline).
+      stopWs()
+      queryClient.setQueryData<AuthState>(queryKeys.auth, { user: null })
       queryClient.clear()
       await queryClient.invalidateQueries({ queryKey: queryKeys.auth })
     }

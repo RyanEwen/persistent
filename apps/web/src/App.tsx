@@ -15,6 +15,7 @@ import { ReminderEditorPage } from './pages/ReminderEditorPage.js'
 import { HistoryPage } from './pages/HistoryPage.js'
 import { SettingsPage } from './pages/SettingsPage.js'
 import { HelpPage } from './pages/HelpPage.js'
+import { PrivacyPage } from './pages/PrivacyPage.js'
 import { UpdateCheck } from './native/UpdateCheck.js'
 import { registerNavHandler } from './native/navTo.js'
 
@@ -33,8 +34,15 @@ export function App() {
     )
   }
 
+  // The privacy policy must resolve for a signed-out visitor (Google Play checks
+  // the listing's policy URL without a session), so it routes ahead of the gate.
   if (!user) {
-    return <SignInPage />
+    return (
+      <Routes>
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="*" element={<SignInPage />} />
+      </Routes>
+    )
   }
 
   return (
@@ -48,6 +56,7 @@ export function App() {
         <Route path="/history" element={<HistoryPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/help" element={<HelpPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AppLayout>

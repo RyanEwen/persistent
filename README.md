@@ -25,7 +25,11 @@ medications, appointments, and important tasks.
   schedule; multi-line notes that stay multi-line wherever you read them;
   medication lists, custom snooze and re-nag intervals, per-reminder
   notification-shade prominence (Android), and a history of what you've done.
-- **Simple sign-in.** A one-time email code, a passkey, or Sign in with Google.
+- **Simple sign-in.** A one-time email code, a passkey, or Sign in with Google —
+  there is no password to forget or leak.
+- **Your data stays yours.** No ads, no analytics, no tracking. Delete your
+  account and everything in it from Settings, at any time; see the
+  [privacy policy](https://persistent.dynamic-solutions.ca/privacy).
 
 ## Get it
 

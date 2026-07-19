@@ -17,7 +17,10 @@
   — live updates arrive over `/ws` (`lib/wsClient.ts`) and invalidate query keys
   defined in `lib/queryClient.ts`.
 - **Auth:** use the `useAuth()` hook (`auth/useAuth.tsx`). The WebSocket starts/
-  stops with the session automatically.
+  stops with the session automatically. `App.tsx` renders `SignInPage` for anyone
+  signed out, so a route that must work **without** a session (currently only
+  `/privacy`, which Google Play fetches logged-out) has to be declared in the
+  signed-out `<Routes>` above that gate as well as in the app shell below it.
 - **Mutations** are registered as defaults in `lib/queryClient.ts`
   (`registerMutationDefaults`) keyed by `mutationKeys`; hooks in `src/data/` just
   reference the key. Defaults own the optimistic cache update + `onSettled`

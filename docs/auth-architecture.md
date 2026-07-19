@@ -84,3 +84,26 @@ The whole boundary is: **every domain query filters by `userId`.** There is no
 row-level tenancy magic — it is explicit in each query, and edit/delete first
 re-fetch `{ id, userId }`. The only non-user-scoped model is `Setting` (global
 config such as the generated VAPID keypair).
+
+## Account deletion
+
+`DELETE /api/auth/me` permanently deletes the signed-in account. It is
+irreversible — there is no soft-delete or restore window — so it is deliberately
+harder to trigger than any other action: the caller must echo the account's own
+email address in the body (`deleteAccountSchema`), which the server compares
+against the authenticated user's stored email. A session cookie alone is not
+enough. The web entry point is Settings → Delete account, whose confirm button
+stays disabled until the typed address matches.
+
+Everything the user owns goes with it. `Session`, `Passkey`, `Reminder`,
+`ReminderOccurrence`, and `PushSubscription` all carry `onDelete: Cascade` on
+their `User` relation, so deleting the `User` row removes them atomically.
+
+**`EmailCode` is the exception**: it is keyed by email address rather than
+`userId` (it has to exist before any user does — it is the sign-up path), so it
+has no cascade and is deleted explicitly in the same transaction. Without that,
+the address would outlive the account it identified.
+
+Google Play requires both an in-app deletion path and a publicly reachable URL
+describing it; the latter is the privacy policy at `/privacy`, which is routed
+ahead of the auth gate so it resolves for a signed-out visitor.

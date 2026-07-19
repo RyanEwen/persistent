@@ -16,7 +16,9 @@ export function OccurrenceActions({
   doneLoading,
   onSnooze,
   onSilence,
-  silenceLoading
+  silenceLoading,
+  size = 'md',
+  doneLabel = 'Done'
 }: {
   occurrence: Occurrence
   onDone: () => void
@@ -24,32 +26,49 @@ export function OccurrenceActions({
   onSnooze: () => void
   onSilence: () => void
   silenceLoading: boolean
+  /** 'sm' on the list card, where the row shares width with the reminder text. */
+  size?: 'sm' | 'md'
+  /**
+   * Verb for the terminal action. 'Clear' on an occurrence the reminder's schedule
+   * no longer covers, where "Done" would claim the user completed something the
+   * reminder has already moved on from. Same acknowledge either way.
+   */
+  doneLabel?: 'Done' | 'Clear'
 }) {
   const [confirming, setConfirming] = useState(false)
   return (
-    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center">
+    // Right-anchored, with Done/Confirm done always the rightmost (thumb-nearest)
+    // button and the secondary actions trailing off to its left.
+    <Stack
+      direction="row"
+      spacing={1}
+      flexWrap="wrap"
+      useFlexGap
+      alignItems="center"
+      justifyContent="flex-end"
+    >
       {confirming ? (
         <>
-          <Button color="success" loading={doneLoading} onClick={onDone}>
-            Confirm done
-          </Button>
-          <Button variant="outlined" color="neutral" disabled={doneLoading} onClick={() => setConfirming(false)}>
+          <Button size={size} variant="outlined" color="neutral" disabled={doneLoading} onClick={() => setConfirming(false)}>
             Not yet
+          </Button>
+          <Button size={size} color="success" loading={doneLoading} onClick={onDone}>
+            {doneLabel === 'Clear' ? 'Confirm clear' : 'Confirm done'}
           </Button>
         </>
       ) : (
         <>
-          <Button color="success" onClick={() => setConfirming(true)}>
-            Done
-          </Button>
-          <Button variant="outlined" color="neutral" onClick={onSnooze}>
-            Snooze
-          </Button>
           {occurrence.status === 'ESCALATED' && (
-            <Button variant="outlined" color="warning" loading={silenceLoading} onClick={onSilence}>
+            <Button size={size} variant="outlined" color="warning" loading={silenceLoading} onClick={onSilence}>
               De-escalate
             </Button>
           )}
+          <Button size={size} variant="outlined" color="neutral" onClick={onSnooze}>
+            Snooze
+          </Button>
+          <Button size={size} color="success" onClick={() => setConfirming(true)}>
+            {doneLabel}
+          </Button>
         </>
       )}
     </Stack>

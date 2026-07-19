@@ -80,6 +80,33 @@ remindersRouter.put('/:id', async (request, response) => {
 
   // Drop not-yet-fired occurrences so the new schedule re-materializes cleanly.
   await prisma.reminderOccurrence.deleteMany({ where: { reminderId: reminder.id, status: 'PENDING' } })
+  // Giving a schedule to a previously unscheduled reminder retires its immediate
+  // "remind me about this" firing. That firing was an artifact of having no
+  // schedule, not a commitment to a date, so carrying it forward would leave the
+  // reminder nagging about a moment its new schedule doesn't contain. Narrowly
+  // scoped to this transition: an edit between two real schedules never clears an
+  // unconfirmed firing (docs/notification-behavior.md §1).
+  const wasUnscheduled = (existing.schedule as unknown as { kind?: string }).kind === 'none'
+  if (wasUnscheduled && parsed.data.schedule.kind !== 'none') {
+    const retired = await prisma.reminderOccurrence.findMany({
+      where: { reminderId: reminder.id, userId, status: { in: ['FIRED', 'ESCALATED', 'SNOOZED'] } },
+      select: { id: true }
+    })
+    if (retired.length > 0) {
+      await prisma.reminderOccurrence.deleteMany({ where: { userId, id: { in: retired.map((o) => o.id) } } })
+      logger.info('retired unscheduled firings on schedule assignment', {
+        reminderId: reminder.id,
+        count: retired.length
+      })
+      // Clear the live notification/alarm on every device, same as a delete does.
+      for (const occurrence of retired) {
+        broadcast(userId, { type: 'dismiss', occurrenceId: occurrence.id })
+        await dispatchToUser(userId, { type: 'dismiss', occurrenceId: occurrence.id }).catch((error) =>
+          logger.warn('retire dismiss dispatch failed', { error: String(error), occurrenceId: occurrence.id })
+        )
+      }
+    }
+  }
   await materializeForUser(reminder.id, userId)
   await fireDueForReminder(reminder.id)
   broadcast(userId, { type: 'reminder.changed', reminderId: reminder.id })
