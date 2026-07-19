@@ -9,6 +9,10 @@ package ca.persistent.app;
 import android.content.Intent;
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.view.View;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import com.getcapacitor.BridgeActivity;
 import ca.persistent.app.alarm.AlarmPlugin;
 import ca.persistent.app.alarm.AlarmReceiver;
@@ -27,8 +31,32 @@ public class MainActivity extends BridgeActivity {
         // be named here because it is not compiled into the play flavor.
         FlavorPlugins.register(this);
         super.onCreate(savedInstanceState);
+        applySystemBarInsets();
         // Cold start from a notification tap: the WebView drains the store on startup.
         storePendingNav(getIntent());
+    }
+
+    /**
+     * Inset the WebView by the system bars.
+     *
+     * Android 15 (API 35) enforces edge-to-edge for apps targeting 35, so the
+     * system no longer insets the window. The hosted web UI sets
+     * `viewport-fit=cover` but uses no `env(safe-area-inset-*)` rules, so without
+     * this its header would slide under the status bar and the bottom nav under the
+     * gesture bar. Padding the content root here restores the pre-35 layout without
+     * touching the web bundle, which is shared with the browser PWA.
+     */
+    private void applySystemBarInsets() {
+        final View content = findViewById(android.R.id.content);
+        if (content == null) return;
+        ViewCompat.setOnApplyWindowInsetsListener(content, (v, windowInsets) -> {
+            Insets bars = windowInsets.getInsets(
+                WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout()
+            );
+            v.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+            return windowInsets;
+        });
+        ViewCompat.requestApplyInsets(content);
     }
 
     @Override

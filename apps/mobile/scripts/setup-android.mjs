@@ -187,6 +187,51 @@ if (!appGradle.includes("apply plugin: 'kotlin-android'")) {
   console.log("[setup-android] applied kotlin-android plugin in android/app/build.gradle")
 }
 
+// --- 4a1. SDK level + toolchain ---------------------------------------------
+// Capacitor 6's template pins compileSdk/targetSdk 34 and AGP 8.2.1, but Google
+// Play requires new apps and updates to target API 35+. AGP 8.2 refuses to build
+// against compileSdk 35, and AGP 8.6 in turn needs Gradle 8.7 — so all three move
+// together or none do. Each patch is idempotent (matches the old value only).
+const TARGET_SDK = 35
+const AGP_VERSION = '8.6.1'
+const GRADLE_VERSION = '8.7'
+
+{
+  const variablesPath = join(mobileRoot, 'android', 'variables.gradle')
+  if (existsSync(variablesPath)) {
+    let v = readFileSync(variablesPath, 'utf8')
+    const before = v
+    v = v.replace(/compileSdkVersion\s*=\s*\d+/, `compileSdkVersion = ${TARGET_SDK}`)
+    v = v.replace(/targetSdkVersion\s*=\s*\d+/, `targetSdkVersion = ${TARGET_SDK}`)
+    if (v !== before) {
+      writeFileSync(variablesPath, v)
+      console.log(`[setup-android] set compileSdk/targetSdk to ${TARGET_SDK}`)
+    }
+  }
+
+  let rg = readFileSync(rootGradlePath, 'utf8')
+  const agpBefore = rg
+  rg = rg.replace(
+    /classpath 'com\.android\.tools\.build:gradle:[^']+'/,
+    `classpath 'com.android.tools.build:gradle:${AGP_VERSION}'`
+  )
+  if (rg !== agpBefore) {
+    writeFileSync(rootGradlePath, rg)
+    console.log(`[setup-android] set Android Gradle Plugin to ${AGP_VERSION}`)
+  }
+
+  const wrapperPath = join(mobileRoot, 'android', 'gradle', 'wrapper', 'gradle-wrapper.properties')
+  if (existsSync(wrapperPath)) {
+    let w = readFileSync(wrapperPath, 'utf8')
+    const wBefore = w
+    w = w.replace(/gradle-[\d.]+-all\.zip/, `gradle-${GRADLE_VERSION}-all.zip`)
+    if (w !== wBefore) {
+      writeFileSync(wrapperPath, w)
+      console.log(`[setup-android] set Gradle wrapper to ${GRADLE_VERSION}`)
+    }
+  }
+}
+
 // --- 4a2. Product flavors (play | direct) -----------------------------------
 // One artifact cannot serve both channels: Play forbids self-updating, and the
 // sideloaded build needs exactly that. `play` omits UpdatePlugin and

@@ -15,6 +15,8 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 
 /**
  * Shared visual language for the over-the-lock-screen alarm surfaces
@@ -60,6 +62,35 @@ internal object AlarmUi {
      * LinearLayout) to add children to, plus the [root] to pass to setContentView.
      */
     class Scaffold(val root: ScrollView, val content: LinearLayout)
+
+    /**
+     * Inset [view] by the system bars (status bar, nav bar, display cutout).
+     *
+     * Android 15 (API 35) enforces edge-to-edge for apps targeting 35: the system
+     * stops insetting the window, so without this the alarm's title and its
+     * Done/Snooze buttons draw *under* the status and navigation bars — on the one
+     * surface where a mis-tap matters most.
+     *
+     * The view's padding at call time is treated as the baseline and the insets are
+     * added to it, so this is safe to call once per view and independent of whatever
+     * padding the scaffold already set.
+     */
+    fun applySystemBarInsets(view: View) {
+        val base = intArrayOf(view.paddingLeft, view.paddingTop, view.paddingRight, view.paddingBottom)
+        ViewCompat.setOnApplyWindowInsetsListener(view) { v, windowInsets ->
+            val bars = windowInsets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+            )
+            v.setPadding(
+                base[0] + bars.left,
+                base[1] + bars.top,
+                base[2] + bars.right,
+                base[3] + bars.bottom
+            )
+            windowInsets
+        }
+        ViewCompat.requestApplyInsets(view)
+    }
 
     fun scaffold(context: Context): Scaffold {
         val content = LinearLayout(context).apply {

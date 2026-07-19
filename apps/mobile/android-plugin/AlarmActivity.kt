@@ -111,6 +111,9 @@ class AlarmActivity : Activity() {
         content.addStacked(actions)
 
         setContentView(scaffold.root)
+        // API 35 enforces edge-to-edge; without this the alarm's buttons sit under
+        // the system bars. See AlarmUi.applySystemBarInsets.
+        AlarmUi.applySystemBarInsets(scaffold.root)
     }
 
     override fun onDestroy() {

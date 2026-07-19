@@ -54,6 +54,8 @@ class SnoozePickerActivity : Activity() {
         val scaffold = AlarmUi.scaffold(this)
         content = scaffold.content
         setContentView(scaffold.root)
+        // Same edge-to-edge enforcement as AlarmActivity (API 35+).
+        AlarmUi.applySystemBarInsets(scaffold.root)
         renderMain()
     }
 
