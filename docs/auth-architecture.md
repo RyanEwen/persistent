@@ -107,3 +107,35 @@ the address would outlive the account it identified.
 Google Play requires both an in-app deletion path and a publicly reachable URL
 describing it; the latter is the privacy policy at `/privacy`, which is routed
 ahead of the auth gate so it resolves for a signed-out visitor.
+
+## App-store review access
+
+Every sign-in path needs something a reviewer doesn't have: a mailbox to receive
+the one-time code, a Google account, or an enrolled passkey. Google Play's "App
+access" form expects credentials that just work, and demo mode can't serve —
+it returns the code for *every* address, which is why `demoMode` is hard-disabled
+in production (`env.DEMO_MODE && !isProduction`).
+
+So exactly one account may sign in with a fixed code from the environment
+(`apps/api/src/lib/review-access.ts`):
+
+- `REVIEW_ACCOUNT_EMAIL` + `REVIEW_ACCOUNT_CODE` — **both** required, otherwise the
+  path doesn't exist. Unset everywhere by default, including dev.
+- `POST /api/auth/request-code` short-circuits for that address: nothing is issued
+  or emailed, and the response is shaped like any other so the account isn't
+  externally distinguishable.
+- `POST /api/auth/verify-code` accepts the fixed code for that address only, and
+  otherwise falls through to the normal `EmailCode` check.
+- The code is compared in constant time (`timingSafeEqual`, with a length guard so
+  it can't throw) and is never logged.
+- `REVIEW_ACCOUNT_CODE` must be ≥12 characters — enforced by the env schema at
+  boot, so a weak value fails loudly rather than quietly becoming a shared password.
+
+`verify-code` is also IP rate-limited (20 per 15 min). That matters more here than
+elsewhere: unlike an emailed code, the review code never expires, so it is the one
+credential worth guessing.
+
+**Operational rules.** Point it at a throwaway account holding demo reminders, never
+a real one — a reviewer will sign in and look around. Rotate the code after a review
+concludes; it lives in a console form, not a secret store. Removing both vars
+disables the path entirely with no other effect.

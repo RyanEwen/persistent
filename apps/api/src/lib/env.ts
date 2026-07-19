@@ -37,7 +37,15 @@ const envSchema = z.object({
   // ID tokens are verified against it (it's also the native serverClientId). The
   // Android client id only needs to exist in the Cloud project (package + SHA-1);
   // it isn't read here. Empty disables Google login.
-  GOOGLE_WEB_CLIENT_ID: z.string().optional()
+  GOOGLE_WEB_CLIENT_ID: z.string().optional(),
+
+  // App-store review access: one designated account may sign in with this fixed
+  // code, because a reviewer cannot receive an emailed one-time code. Both must be
+  // set for the path to exist; see lib/review-access.ts. The code is a shared
+  // secret typed into a Play Console form — keep it long and rotate it after a
+  // review. A short value is rejected at boot rather than silently accepted.
+  REVIEW_ACCOUNT_EMAIL: z.string().email().optional(),
+  REVIEW_ACCOUNT_CODE: z.string().min(12, 'REVIEW_ACCOUNT_CODE must be at least 12 characters').optional()
 })
 
 const parsed = envSchema.safeParse(process.env)

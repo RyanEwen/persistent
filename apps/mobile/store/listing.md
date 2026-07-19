@@ -121,6 +121,36 @@ account contains actual prescriptions; a Play listing is public and permanent.
 - **Ads:** No
 - **In-app purchases:** No
 
+### App access (required — the whole app is behind sign-in)
+
+Play reviewers must be given working credentials, and they cannot use any normal
+path here: sign-in is passwordless (emailed one-time code, Google, or passkey) and
+a reviewer has no access to the mailbox. A designated review account can therefore
+sign in with a fixed code — see `docs/auth-architecture.md` and set
+`REVIEW_ACCOUNT_EMAIL` / `REVIEW_ACCOUNT_CODE` in the **production** env.
+
+Choose "All functionality is restricted" and give one instruction set:
+
+```
+Username / email:  <REVIEW_ACCOUNT_EMAIL>
+Password / code:   <REVIEW_ACCOUNT_CODE>
+
+Instructions:
+1. Open the app and tap "Use email instead".
+2. Enter the email address above, then tap "Send sign-in code".
+3. Enter the code above and tap "Sign in".
+   (This account uses a fixed code; no email is sent and none is needed.)
+
+The account is pre-populated with example reminders. To see the core behaviour,
+open a reminder that is due and tap Done — it asks for a second confirming tap,
+which is the app's central guarantee: a reminder is only cleared by an explicit
+confirmation, never by dismissing a notification.
+```
+
+Do not paste the real code into this file — it is a shared secret and this repo is
+version-controlled. Keep it in the server `.env` and the Play Console form only,
+and rotate it once the review concludes.
+
 ---
 
 ## Data safety declaration

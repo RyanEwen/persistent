@@ -26,7 +26,10 @@ export type RequestCodeResponse = z.infer<typeof requestCodeResponseSchema>
 /** Body for POST /api/auth/verify-code. */
 export const verifyCodeSchema = z.object({
   email: emailSchema,
-  code: z.string().trim().min(4).max(12),
+  // Emailed codes are 6 digits; the ceiling is generous because the app-store
+  // review account signs in with a long fixed code (see review-access.ts), which a
+  // 12-char cap would reject before the server ever looked at it.
+  code: z.string().trim().min(4).max(64),
   // Captured at verify time so schedules render in the user's local zone.
   timeZone: z.string().max(64).optional(),
   displayName: z.string().trim().max(120).optional()

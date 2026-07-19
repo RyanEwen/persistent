@@ -32,6 +32,7 @@ import { createSession, revokeSession, setSessionCookie, clearSessionCookie } fr
 import { requireUserId } from '../lib/auth-middleware.js'
 import { RP_NAME, relyingParty, setChallengeCookie, clearChallengeCookie, requireChallenge } from '../lib/webauthn.js'
 import { rateLimit } from '../lib/rate-limit.js'
+import { isReviewAccount, isReviewLogin } from '../lib/review-access.js'
 import { logger } from '../lib/logger.js'
 import { toPasskey, toSessionUser } from '../lib/serializers.js'
 
@@ -45,6 +46,18 @@ authRouter.post('/request-code', async (request, response) => {
   const parsed = requestCodeSchema.safeParse(request.body)
   if (!parsed.success) throw badRequest('Enter a valid email address.')
 
+  // The review account's code is fixed, so there is nothing to issue or send —
+  // just advance the client to the code screen. Reporting the same shape as a real
+  // request keeps the account indistinguishable from any other from the outside.
+  if (isReviewAccount(parsed.data.email)) {
+    response.json({
+      ok: true as const,
+      expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+      previewCode: null
+    })
+    return
+  }
+
   const result = await issueEmailCode(parsed.data.email)
   response.json({
     ok: true as const,
@@ -54,11 +67,20 @@ authRouter.post('/request-code', async (request, response) => {
 })
 
 authRouter.post('/verify-code', async (request, response) => {
+  // Codes are short and the review account's never expires, so this endpoint is
+  // the one worth throttling against guessing. Generous enough that a user
+  // mistyping a real code several times is unaffected.
+  const verifyIp = request.ip ?? 'unknown'
+  if (!rateLimit(`verify-code:${verifyIp}`, 20, 15 * 60_000)) {
+    throw tooManyRequests('Too many attempts. Try again later.')
+  }
   const parsed = verifyCodeSchema.safeParse(request.body)
   if (!parsed.success) throw badRequest('Enter the code from your email.')
   const { email, code, timeZone, displayName } = parsed.data
 
-  const ok = await verifyEmailCode(email, code)
+  // The review account bypasses the emailed-code table entirely (see
+  // lib/review-access.ts); every other address goes through it as normal.
+  const ok = isReviewLogin(email, code) || (await verifyEmailCode(email, code))
   if (!ok) throw badRequest('That code is invalid or expired.')
 
   const user = await prisma.user.upsert({
