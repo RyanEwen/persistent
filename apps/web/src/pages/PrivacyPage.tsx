@@ -118,7 +118,8 @@ export function PrivacyPage() {
           </Typography>
           <Typography level="body-sm">
             If you cannot sign in, email <Link href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</Link> from the
-            address on the account and we will delete it for you.
+            address on the account and we will delete it for you. Full instructions:{' '}
+            <Link href="/delete-account">deleting your account</Link>.
           </Typography>
         </Section>
 

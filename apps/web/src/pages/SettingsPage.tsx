@@ -226,6 +226,10 @@ export function SettingsPage() {
           <Link component={RouterLink} to="/privacy">
             Privacy policy
           </Link>
+          {' · '}
+          <Link component={RouterLink} to="/delete-account">
+            Deleting your account
+          </Link>
         </Typography>
       </Card>
 

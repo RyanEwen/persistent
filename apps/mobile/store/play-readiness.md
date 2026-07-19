@@ -113,9 +113,13 @@ that the address outlived the account.
 Guards verified: wrong email → 400, missing body → 400, no session → 401, and the
 account survives all three.
 
-You can now truthfully tick "users can request data deletion" in Data Safety. The
-web deletion URL Play asks for can point at `/settings` or the policy's deletion
-section.
+You can now truthfully tick "users can request data deletion" in Data Safety.
+
+Play also wants a **public deletion URL**, which it fetches without a session:
+`https://persistent.dynamic-solutions.ca/delete-account`
+(`apps/web/src/pages/DeleteAccountPage.tsx`, routed ahead of the auth gate like
+`/privacy`). It states what is deleted, walks through Settings → Delete account,
+and gives an email fallback for anyone who can't sign in.
 
 ## 5. Restricted permissions each need a Play Console declaration 🟡
 

@@ -16,6 +16,7 @@ import { HistoryPage } from './pages/HistoryPage.js'
 import { SettingsPage } from './pages/SettingsPage.js'
 import { HelpPage } from './pages/HelpPage.js'
 import { PrivacyPage } from './pages/PrivacyPage.js'
+import { DeleteAccountPage } from './pages/DeleteAccountPage.js'
 import { UpdateCheck } from './native/UpdateCheck.js'
 import { registerNavHandler } from './native/navTo.js'
 
@@ -34,12 +35,14 @@ export function App() {
     )
   }
 
-  // The privacy policy must resolve for a signed-out visitor (Google Play checks
-  // the listing's policy URL without a session), so it routes ahead of the gate.
+  // Google Play fetches the listing's privacy-policy and account-deletion URLs
+  // without a session, so both must resolve signed out — hence routing them ahead
+  // of the gate as well as inside the app shell below.
   if (!user) {
     return (
       <Routes>
         <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/delete-account" element={<DeleteAccountPage />} />
         <Route path="*" element={<SignInPage />} />
       </Routes>
     )
@@ -57,6 +60,7 @@ export function App() {
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/help" element={<HelpPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/delete-account" element={<DeleteAccountPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AppLayout>

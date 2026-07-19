@@ -117,7 +117,8 @@ account contains actual prescriptions; a Play listing is public and permanent.
 - **Tags:** Reminders, To-Do Lists, Productivity
 - **Content rating questionnaire:** no objectionable content → Everyone. Answer **yes** to "users can communicate" only if the email-escalation contact counts as user-to-user messaging — it's a one-way system email, so **no** is defensible.
 - **Contact email:** `contact@dynamic-solutions.ca` (required, publicly displayed — same address as the privacy policy)
-- **Privacy policy URL:** required (account + email collection) — see blockers
+- **Privacy policy URL:** `https://persistent.dynamic-solutions.ca/privacy`
+- **Account deletion URL** (Data safety → *Provide a way for users to request account deletion*): `https://persistent.dynamic-solutions.ca/delete-account` — resolves signed out, explains the in-app route and gives an email fallback
 - **Ads:** No
 - **In-app purchases:** No
 
