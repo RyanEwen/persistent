@@ -90,31 +90,24 @@ Persistent requires a free account so your reminders can sync across devices and
 | --- | --- | --- |
 | App icon | 512×512 PNG, 32-bit, no transparency | ✅ `graphics/play-icon.png` |
 | Feature graphic | 1024×500 PNG/JPG, no transparency | ✅ `graphics/feature-graphic.png` |
-| Phone screenshots | 2–8, min 320px, 16:9 or 9:16 | ❌ **must capture on device** |
+| Phone screenshots | 2–8, min 320px, 16:9 or 9:16 | ✅ 5 in `graphics/screenshots/` (see below) |
 | 7" / 10" tablet screenshots | optional | ❌ optional |
 
 Sources are `graphics/*.svg`; re-render with
 `rsvg-convert -w 512 -h 512 play-icon.svg -o play-icon.png`.
 
-### Screenshots — the one asset I can't generate
+### Capturing more
 
-Play needs real screenshots and they're the highest-leverage part of the listing.
-Capture on the device (wireless ADB is already set up — see
-`.devcontainer/adb-discover.py`):
+Wireless ADB is already set up (`.devcontainer/adb-discover.py`; the phone's
+wireless-debug port rotates every time the toggle is flipped):
 
 ```
-adb exec-out screencap -p > apps/mobile/store/graphics/screen-1.png
+adb exec-out screencap -p > shot.png
+adb shell screenrecord --time-limit 20 /sdcard/v.mp4 && adb pull /sdcard/v.mp4
 ```
 
-Suggested five, in this order — lead with the thing no competitor has:
-
-1. **A ringing full-screen alarm** with the two-tap Done armed (*"Won't take a swipe for an answer"*)
-2. **The reminders list** with two pending occurrences of the same reminder (*"Every dose is its own reminder"*)
-3. **The editor** showing the escalation settings (*"Nags harder if you ignore it"*)
-4. **A notification** with Done / Snooze / De-escalate visible (*"Three honest actions"*)
-5. **Android Auto** or the history view (*"Answer by voice"* / *"See what you actually confirmed"*)
-
-Use a clean demo account — no real medication names in a public listing.
+**Always capture against the demo account, never a real one.** The owner's real
+account contains actual prescriptions; a Play listing is public and permanent.
 
 ---
 
@@ -160,3 +153,41 @@ Security practices to declare:
 Because the app stores medication names and doses, expect Play to route the
 listing through **health-app review**. Keep the "not a medical device" line in the
 full description; it's doing real work there.
+
+---
+
+## Captured screenshots
+
+In `graphics/screenshots/`, taken on a Pixel 9 Pro (960x2142) against a **demo
+account** — no real medication data. Ordered as they should appear in Play.
+
+| File | Shows |
+| --- | --- |
+| `01-independent-doses.png` | Two unconfirmed Amoxicillin doses (8:00 a.m. + 2:00 p.m.) nagging separately — the differentiator |
+| `02-reminder-detail.png` | Reminder detail: daily 3x schedule, both doses under "Needs attention" |
+| `03-escalation-settings.png` | Escalate-to-alarm settings: delay presets, escalate-at-a-time, email a contact |
+| `04-notification-actions.png` | Notification with Done / Snooze, two doses stacked (cropped to 9:16; quick-settings removed) |
+| `05-history.png` | History: what was confirmed and when |
+
+Not yet captured: the ringing full-screen alarm. It needs an `ALARM` reminder to
+actually fire, which rings the device loudly.
+
+### Video
+
+`graphics/video/` holds two screen recordings (16s each, 960x2142):
+
+- `swipe-away-comes-back.mp4` — swiping the notification away; it re-posts itself.
+- `two-step-done.mp4` — Done arms "Confirm done" / "Not yet"; confirming clears the card.
+
+Play's promo-video slot takes a **YouTube URL**, not an upload, so these are raw
+source for editing/uploading rather than direct listing assets.
+
+### Reproducing
+
+Sign in as the demo account (`ryan.ewen+persistentdemo@gmail.com`), then note that
+a repeating schedule only materializes *forward* from now — to get already-passed
+dose times, create the reminder as `once` with the past times (the server
+back-fills within `MATERIALIZE_WINDOW_MS`, 48h), let both fire, then edit it to
+`daily`. The fired occurrences survive that edit by design
+(`docs/notification-behavior.md` §6), so the card shows real dose times instead of
+firings a couple of minutes apart.
