@@ -44,6 +44,11 @@ services:
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:persistent@local}
       FCM_SERVICE_ACCOUNT_FILE: ${FCM_SERVICE_ACCOUNT_FILE:-}
       FCM_PROJECT_ID: ${FCM_PROJECT_ID:-}
+      GOOGLE_WEB_CLIENT_ID: ${GOOGLE_WEB_CLIENT_ID:-}
+      # App-store review access (see apps/api/src/lib/review-access.ts). Empty ->
+      # the fixed-code sign-in path does not exist.
+      REVIEW_ACCOUNT_EMAIL: ${REVIEW_ACCOUNT_EMAIL:-}
+      REVIEW_ACCOUNT_CODE: ${REVIEW_ACCOUNT_CODE:-}
     # FCM service-account key, mounted read-only from the host's gitignored
     # .secrets/ (survives `git reset --hard` on deploy). Point
     # FCM_SERVICE_ACCOUNT_FILE in .env at the in-container path on the right.

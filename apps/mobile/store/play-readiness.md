@@ -39,31 +39,51 @@ grep -c REQUEST_INSTALL_PACKAGES \
   apps/mobile/android/app/build/intermediates/packaged_manifests/playRelease/AndroidManifest.xml   # expect 0
 ```
 
-## 2. `targetSdkVersion 34` is below Play's minimum 🔴 — now the only hard blocker
+## 2. targetSdk 35 ✅ DONE (device check outstanding)
 
-`apps/mobile/android/variables.gradle` has `compileSdkVersion = 34`,
-`targetSdkVersion = 34`. Play requires new apps and updates to target a recent API
-level — API 35 as of Aug 2025, with API 36 taking effect Aug 31 2026. Confirm the
-exact floor in Play Console, but 34 will be rejected either way.
+Play requires new apps and updates to target API 35+. This was a toolchain
+upgrade, not a version bump — AGP 8.2.1 refuses `compileSdk 35`, and AGP 8.6 needs
+Gradle 8.7, so all three moved together:
 
-This is a **toolchain upgrade, not a version bump**. Current state:
-
-| | now | needed |
+| | was | now |
 | --- | --- | --- |
-| compileSdk / targetSdk | 34 | 35+ |
-| Android Gradle Plugin | 8.2.1 | 8.6+ (AGP 8.2 rejects compileSdk 35) |
-| Gradle | 8.2.1 | matching AGP requirement |
-| Installed SDK platforms | `android-34` only | `android-35` (`sdkmanager "platforms;android-35"`) |
-| build-tools | 34.0.0 | 35.x |
+| compileSdk / targetSdk | 34 | **35** |
+| Android Gradle Plugin | 8.2.1 | **8.6.1** |
+| Gradle | 8.2.1 | **8.7** |
+| SDK platform / build-tools | `android-34` / 34.0.0 | + `android-35` / 35.0.0 |
 
-On top of the toolchain: API 35 **enforces edge-to-edge**, so the WebView shell and
-the full-screen `AlarmActivity` both need insets handled or the alarm UI will draw
-under the status/nav bars — on the surface that matters most. Capacitor 6 targets
-34 by default, so check whether the AGP bump wants a Capacitor upgrade too.
+`android/` is gitignored, so `setup-android.mjs` patches all three idempotently
+rather than the upgrade living in untracked files. Both flavors compile (Kotlin +
+Java).
 
-Sequence: install platform-35 → bump AGP/Gradle → bump compileSdk/targetSdk →
-`npm run verify:android` (all four tasks) → **fire a real alarm on a device** and
-confirm the full-screen surface still lays out correctly.
+**Edge-to-edge:** API 35 stops the system insetting the window, and the app had no
+inset handling anywhere. The hosted web UI sets `viewport-fit=cover` but uses no
+`env(safe-area-inset-*)` rules, so the list would have run under the status bar
+and the **full-screen alarm's Done/Snooze buttons under the system bars**. Insets
+are now applied natively in `AlarmActivity`, `SnoozePickerActivity`
+(`AlarmUi.applySystemBarInsets`) and the WebView (`MainActivity`) — natively, so
+the web bundle shared with the browser PWA is untouched.
+
+⚠️ **Not yet verified on a device.** Compiling proves nothing about layout. Before
+submitting, install on an Android 15+ device, fire a real `ALARM` reminder, and
+confirm the buttons clear the system bars and the lock-screen surface still looks
+right.
+
+## 2b. App access for reviewers ✅ DONE
+
+Play reviewers must be given credentials, and none of this app's sign-in paths
+work for them: the emailed one-time code needs a mailbox they don't have, and demo
+mode can't help because it returns the code for *every* address (hence
+`demoMode` being hard-disabled in production).
+
+One designated account can now sign in with a fixed code —
+`REVIEW_ACCOUNT_EMAIL` + `REVIEW_ACCOUNT_CODE`, both required, unset by default
+(`apps/api/src/lib/review-access.ts`, documented in `docs/auth-architecture.md`).
+The Play Console "App access" wording is in [`listing.md`](listing.md); the secret
+itself is deliberately not in this repo.
+
+Set on the production server and passed through `compose.server.yml`. Rotate the
+code once the review concludes.
 
 ## 3. Privacy policy ✅ DONE
 
@@ -155,9 +175,16 @@ GitHub, and never reuse one.
 3. ~~Split the updater into play/direct flavors~~ ✅
 4. ~~AAB build in CI~~ ✅
 5. ~~Capture screenshots~~ ✅ (`graphics/screenshots/`)
-6. **Raise targetSdk to 35+** — toolchain upgrade, then re-verify the alarm UI
-7. Decide Play App Signing (watch the passkey cert consequence in #6)
-8. Write the restricted-permission declarations in Play Console (#5), answer Data Safety (`listing.md`), submit
+6. ~~Raise targetSdk to 35 + handle edge-to-edge~~ ✅
+7. ~~Reviewer sign-in credentials~~ ✅
+8. **Verify the alarm UI on an Android 15+ device** — the one thing compiling can't prove
+9. Decide Play App Signing (watch the passkey cert consequence in #6)
+10. Play Console paperwork: restricted-permission declarations (#5), Data Safety and App access (`listing.md`), then submit
 
-**#6 is the only remaining hard blocker.** Everything else left is Play Console
-paperwork or a decision, not code.
+**No code blockers remain.** What's left is one device check, one decision, and
+console paperwork.
+
+Still worth capturing when convenient: a screenshot of the **ringing full-screen
+alarm**, which would be the strongest first image in the listing. It needs an
+`ALARM` reminder to actually fire, so it rings the device — pair it with the
+step-8 device check.

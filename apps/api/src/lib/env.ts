@@ -11,6 +11,20 @@ const booleanish = z
   .optional()
   .transform((value) => value === 'true' || value === '1')
 
+/**
+ * Treat an empty/whitespace-only value as "not set" before validating.
+ *
+ * Compose passes optional config as `${VAR:-}`, which is an empty string rather
+ * than an absent variable, so a validator like `.email()` would otherwise fail on
+ * a deployment that simply hasn't configured that feature.
+ */
+function blankToUndefined<T extends z.ZodTypeAny>(schema: T) {
+  return z.preprocess((value) => {
+    if (typeof value === 'string' && value.trim() === '') return undefined
+    return value
+  }, schema.optional())
+}
+
 const envSchema = z.object({
   NODE_ENV: z.string().default('development'),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
@@ -44,8 +58,11 @@ const envSchema = z.object({
   // set for the path to exist; see lib/review-access.ts. The code is a shared
   // secret typed into a Play Console form — keep it long and rotate it after a
   // review. A short value is rejected at boot rather than silently accepted.
-  REVIEW_ACCOUNT_EMAIL: z.string().email().optional(),
-  REVIEW_ACCOUNT_CODE: z.string().min(12, 'REVIEW_ACCOUNT_CODE must be at least 12 characters').optional()
+  // `blankToUndefined` matters here: compose.server.yml passes `${VAR:-}`, so an
+  // unconfigured deployment supplies an empty string rather than nothing. Without
+  // it, `.email()` / `.min(12)` would reject "" and the API would refuse to boot.
+  REVIEW_ACCOUNT_EMAIL: blankToUndefined(z.string().email()),
+  REVIEW_ACCOUNT_CODE: blankToUndefined(z.string().min(12, 'REVIEW_ACCOUNT_CODE must be at least 12 characters'))
 })
 
 const parsed = envSchema.safeParse(process.env)
