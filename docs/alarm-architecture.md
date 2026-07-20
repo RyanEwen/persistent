@@ -200,6 +200,15 @@ is least likely to report it as broken. `presentAlarmSurface` therefore checks
 `Settings.canDrawOverlays` first and logs (tag `PersistAlarm`) rather than
 attempting a launch that will be refused.
 
+When the service raises the surface itself, the shade notification drops to a
+no-peek alarm channel (`IMPORTANCE_DEFAULT`) and omits the full-screen intent —
+otherwise a heads-up banner pops on top of the very surface it is advertising.
+Both alarm channels are silent (the tone comes from `MediaPlayer`), so this
+changes prominence only: the alarm still rings and the notification still carries
+Done/Snooze for after the user leaves the surface. If the launch throws anyway,
+the loud notification is re-posted, because a ringing alarm with neither a surface
+nor a banner is the one outcome this service must never produce.
+
 `AlarmPlugin.alarmReadiness()` reports notifications / full-screen / exact-alarm /
 **overlay**; `AlarmPermissionsBanner` (web) renders a non-dismissible banner for
 every gap, with a button that opens the right system screen, and re-checks on app

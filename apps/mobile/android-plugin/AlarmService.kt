@@ -343,22 +343,40 @@ class AlarmService : Service() {
      * than pretend it worked; the locked/screen-off path still works via the
      * full-screen intent, which is not subject to BAL.
      */
+    /**
+     * Will [presentAlarmSurface] actually put the activity up for this fire?
+     *
+     * Decided before the notification is built, because the answer picks the
+     * channel: when we are showing the full-screen surface ourselves, the shade
+     * notification must not *also* pop a heads-up banner over it.
+     */
+    private fun willPresentAlarmSurface(spec: AlarmSpec): Boolean {
+        if (!spec.alarm) return false
+        val power = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+        val keyguard = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
+        // Locked / screen-off is the full-screen intent's job, and it shows no
+        // heads-up there anyway.
+        if (!power.isInteractive || keyguard.isKeyguardLocked) return false
+        return canLaunchAlarmActivity()
+    }
+
+    /** Whether Android will let us start [AlarmActivity] from the service. */
+    private fun canLaunchAlarmActivity(): Boolean =
+        Build.VERSION.SDK_INT < 35 || Settings.canDrawOverlays(this)
+
     private fun presentAlarmSurface(spec: AlarmSpec, force: Boolean = false) {
         if (!force) {
             val power = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
             val keyguard = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
             if (!power.isInteractive || keyguard.isKeyguardLocked) return
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && !Settings.canDrawOverlays(this)) {
-            // Only matters where BAL actually blocks us; below that the launch works.
-            if (Build.VERSION.SDK_INT >= 35) {
-                android.util.Log.w(
-                    "PersistAlarm",
-                    "Cannot show the full-screen alarm surface: 'display over other apps' is not granted, " +
-                        "so Android 15 blocks the activity launch. The alarm still rings as a heads-up."
-                )
-                return
-            }
+        if (!canLaunchAlarmActivity()) {
+            android.util.Log.w(
+                "PersistAlarm",
+                "Cannot show the full-screen alarm surface: 'display over other apps' is not granted, " +
+                    "so Android 15 blocks the activity launch. The alarm still rings as a heads-up."
+            )
+            return
         }
         try {
             startActivity(
@@ -369,10 +387,14 @@ class AlarmService : Service() {
                     .putExtra("canSilence", spec.canSilence)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
             )
-        } catch (_: Exception) {
-            // Background-activity-launch can be denied on some OS versions; the
-            // heads-up banner and the ongoing notification (whose tap opens this
-            // same surface) remain as the fallback.
+        } catch (error: Exception) {
+            // The launch can still be denied (OEM policies, an OS version we didn't
+            // anticipate). We suppressed the heads-up on the assumption it would
+            // succeed, so put the loud notification back — otherwise a ringing alarm
+            // would have neither a surface nor a banner, which is the one outcome
+            // this service must never produce.
+            android.util.Log.w("PersistAlarm", "alarm surface launch failed, restoring heads-up: $error")
+            repostOnChannel(spec.occurrenceId, spec, CHANNEL_ALARM)
         }
     }
 
@@ -602,7 +624,13 @@ class AlarmService : Service() {
         // The notification never carries audio — we play the chosen sound via
         // MediaPlayer — so every channel is silent; the channel only controls the
         // reminder's visual prominence in the shade (see channelFor).
-        val channel = channelOverride ?: channelFor(spec)
+        // When we're about to raise the full-screen surface ourselves, drop to the
+        // no-peek alarm channel: the heads-up banner would land on top of the very
+        // surface it's advertising. Both channels are silent (we ring via
+        // MediaPlayer), so this changes prominence only — the alarm still sounds and
+        // the notification still carries Done/Snooze for after the surface is left.
+        val channel = channelOverride
+            ?: if (willPresentAlarmSurface(spec)) CHANNEL_ALARM_NO_PEEK else channelFor(spec)
         // Tapping the body opens the app on this reminder. This MUST be a direct
         // getActivity: routing it through AlarmReceiver so the receiver could call
         // startActivity is a "notification trampoline", which Android 12+ (targetSdk
@@ -727,7 +755,10 @@ class AlarmService : Service() {
             // the user-facing label for the silence action).
             if (spec.alarm && spec.canSilence) builder.addAction(0, "De-escalate", silencePending)
         }
-        if (spec.alarm) {
+        // The full-screen intent is what covers the locked / screen-off case. When we
+        // are launching the activity directly it adds nothing and is a second
+        // heads-up trigger, so leave it off for that post.
+        if (spec.alarm && channel != CHANNEL_ALARM_NO_PEEK) {
             builder.setFullScreenIntent(fullScreen, true)
         }
         if (spec.ongoing) {
@@ -972,6 +1003,20 @@ class AlarmService : Service() {
                 }
             )
         }
+        if (manager.getNotificationChannel(CHANNEL_ALARM_NO_PEEK) == null) {
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    CHANNEL_ALARM_NO_PEEK,
+                    "Alarms (surface shown)",
+                    NotificationManager.IMPORTANCE_DEFAULT
+                ).apply {
+                    description = "Ringing alarms while the full-screen alarm is already on screen"
+                    setSound(null, null)
+                    enableVibration(false)
+                    setBypassDnd(true)
+                }
+            )
+        }
         if (manager.getNotificationChannel(CHANNEL_NORMAL) == null) {
             manager.createNotificationChannel(
                 NotificationChannel(CHANNEL_NORMAL, "Reminders", NotificationManager.IMPORTANCE_HIGH).apply {
@@ -1035,6 +1080,13 @@ class AlarmService : Service() {
         // Alarms/escalations keep the legacy channel id so existing installs retain
         // its DND-bypass grant; the two non-alarm channels split by prominence.
         private const val CHANNEL_ALARM = "reminders_silent"
+        /**
+         * Same as [CHANNEL_ALARM] but IMPORTANCE_DEFAULT, so it never pops a heads-up
+         * banner. Used for the one case where the banner would be redundant: we are
+         * putting the full-screen alarm up ourselves, and showing both at once is
+         * just clutter over the surface the user is already looking at.
+         */
+        private const val CHANNEL_ALARM_NO_PEEK = "reminders_alarm_no_peek"
         private const val CHANNEL_NORMAL = "reminders_normal"
         private const val CHANNEL_MINIMIZED = "reminders_minimized"
         private const val CHANNEL_PEEK = "reminders_peek"
