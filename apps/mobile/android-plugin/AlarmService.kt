@@ -52,11 +52,43 @@ class AlarmService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    /**
+     * Re-raises the alarm surface whenever the screen comes back on while an alarm
+     * is ringing.
+     *
+     * Locking the phone mid-alarm used to lose the surface: the activity is no
+     * longer top when the keyguard appears, and the notification's full-screen
+     * intent only fires at post time, so it never came back. The alarm kept ringing
+     * with no way to stop it short of unlocking and hunting for the app — the exact
+     * fumbling this app exists to prevent, at the worst possible moment.
+     *
+     * `ACTION_SCREEN_ON` covers waking to the lock screen (AlarmActivity sets
+     * `showWhenLocked`, so it draws over the keyguard) and `ACTION_USER_PRESENT`
+     * covers the unlock itself, so the surface is there either way.
+     */
+    private val screenReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val ringing = active.values.firstOrNull { it.alarm && alarmIds.contains(it.occurrenceId) } ?: return
+            // force: the screen may still register as non-interactive here, and the
+            // whole point is that this must not be gated.
+            presentAlarmSurface(ringing, force = true)
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         // Watch for Android Auto projection so nags can mirror into the car (this is
         // the universal notification poster, so arming it here covers every process).
         CarProjection.init(this)
+        androidx.core.content.ContextCompat.registerReceiver(
+            this,
+            screenReceiver,
+            android.content.IntentFilter().apply {
+                addAction(Intent.ACTION_SCREEN_ON)
+                addAction(Intent.ACTION_USER_PRESENT)
+            },
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
+        )
     }
 
     private fun notifId(occurrenceId: String): Int = occurrenceId.hashCode()
@@ -1053,6 +1085,7 @@ class AlarmService : Service() {
         stopSound()
         for (r in loops.values) handler.removeCallbacks(r)
         loops.clear()
+        runCatching { unregisterReceiver(screenReceiver) }
         super.onDestroy()
     }
 

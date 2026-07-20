@@ -229,7 +229,6 @@ GitHub, and never reuse one.
 **No code blockers remain.** What's left is one device check, one decision, and
 console paperwork.
 
-Still worth capturing when convenient: a screenshot of the **ringing full-screen
-alarm**, which would be the strongest first image in the listing. It needs an
-`ALARM` reminder to actually fire, so it rings the device — pair it with the
-step-8 device check.
+All listing screenshots are captured, including the ringing full-screen alarm
+(`graphics/screenshots/00-ringing-alarm.png`), taken on Android 15 during the
+device verification.

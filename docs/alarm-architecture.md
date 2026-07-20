@@ -200,6 +200,16 @@ is least likely to report it as broken. `presentAlarmSurface` therefore checks
 `Settings.canDrawOverlays` first and logs (tag `PersistAlarm`) rather than
 attempting a launch that will be refused.
 
+**The surface must be recoverable, always.** Locking the phone mid-alarm used to
+lose it: the activity is no longer top when the keyguard appears, and a
+notification's full-screen intent only fires at post time, so it never came back —
+leaving an alarm ringing with no way to stop it short of unlocking and hunting for
+the app. `AlarmService` therefore registers a receiver for `ACTION_SCREEN_ON` and
+`ACTION_USER_PRESENT` while an alarm is ringing and force-presents the surface on
+either, so waking to the lock screen (AlarmActivity sets `showWhenLocked`) or
+unlocking both land straight back on Done/Snooze. The activity also holds
+`FLAG_KEEP_SCREEN_ON`, so the screen will not time out on its own during an alarm.
+
 When the service raises the surface itself, the shade notification drops to a
 no-peek alarm channel (`IMPORTANCE_DEFAULT`) and omits the full-screen intent —
 otherwise a heads-up banner pops on top of the very surface it is advertising.

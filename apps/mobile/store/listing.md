@@ -194,14 +194,15 @@ account** — no real medication data. Ordered as they should appear in Play.
 
 | File | Shows |
 | --- | --- |
+| `00-ringing-alarm.png` | The full-screen alarm, mid two-tap confirm — the thing no other reminder app does. Lead with this. |
 | `01-independent-doses.png` | Two unconfirmed Amoxicillin doses (8:00 a.m. + 2:00 p.m.) nagging separately — the differentiator |
 | `02-reminder-detail.png` | Reminder detail: daily 3x schedule, both doses under "Needs attention" |
 | `03-escalation-settings.png` | Escalate-to-alarm settings: delay presets, escalate-at-a-time, email a contact |
 | `04-notification-actions.png` | Notification with Done / Snooze, two doses stacked (cropped to 9:16; quick-settings removed) |
 | `05-history.png` | History: what was confirmed and when |
 
-Not yet captured: the ringing full-screen alarm. It needs an `ALARM` reminder to
-actually fire, which rings the device loudly.
+All five plus the ringing alarm are captured. The alarm shot was taken on Android
+15 with a neutral reminder title and contains no personal data.
 
 ### Video
 
