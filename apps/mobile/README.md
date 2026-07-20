@@ -94,24 +94,41 @@ device over the network (Android **Wireless debugging**):
 
 ```bash
 adb pair    <phone-ip>:<pair-port>   # one time, enter the 6-digit code
-adb connect <phone-ip>:5555
+adb connect <phone-ip>:<debug-port>  # NOT 5555 — see below
 adb devices                          # confirm it shows up
-npm run assemble:android             # build the APK
-adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+npm run assemble:android             # build the direct-flavor debug APK
+adb install -r android/app/build/outputs/apk/direct/debug/app-direct-debug.apk
 ```
 
 The adb auth key lives in `~/.android`, which the devcontainer persists in a
 named volume, so the device's "always allow from this computer" trust **survives
 container rebuilds** — you pair once, not every rebuild.
 
-The live connection still drops on each container start (it's only in the adb
-server's memory). To auto-reconnect, set `ADB_CONNECT` in the workspace `.env` to
-a space/comma-separated list of `host:port` targets; `.devcontainer/adb-connect.sh`
-(wired to `postStartCommand`) reconnects on every start:
+Two things make the connection fiddly, and `.devcontainer/` handles both:
+
+- The live connection is only in the adb server's memory, so it **drops on every
+  container start**.
+- Android's wireless-debug **port rotates every time the toggle is flipped**, so a
+  pinned address goes stale (it is never 5555).
+
+`.devcontainer/adb-connect.sh` (wired to `postStartCommand`) tries any
+`ADB_CONNECT` targets from the workspace `.env` first, then hands off to
+`.devcontainer/adb-discover.py` in the background, which re-finds the phone by
+scanning and remembers the result in `~/.android/adb-endpoint` (a persisted
+volume) so the next start is instant.
 
 ```bash
-# .env
-ADB_CONNECT=192.168.1.50:5555
+# .env — optional; discovery also works from the remembered endpoint alone
+ADB_CONNECT=192.168.1.50:43193
+```
+
+mDNS would be the obvious way to discover this and does not work here: it is
+multicast, which doesn't cross the container's Docker/WSL bridge. Hence the scan —
+see the header of `adb-discover.py`. To re-find the phone by hand:
+
+```bash
+python3 .devcontainer/adb-discover.py            # scan using remembered/.env hints
+python3 .devcontainer/adb-discover.py 192.168.2.98:40001   # try a known endpoint first
 ```
 
 ## Rebuild + run after web changes
