@@ -104,6 +104,11 @@ directory guide `apps/api/CLAUDE.md`.
   (`npm run db:generate`) and update shared contracts when the schema changes.
 - Before finishing a task run `npm run validate` (lint + test + typecheck +
   prisma validate). Add focused tests for non-trivial behavior.
+- `npm test` discovers `*.test.ts` under `apps/`, `packages/` **and `scripts/`**.
+  The last is for repo-hygiene checks belonging to no single workspace — currently
+  that the lockfile's recorded workspace versions match their `package.json`
+  (`scripts/dev/workspace-versions.test.ts`), since a version bump doesn't
+  regenerate the lockfile on its own. Fix with `npm install --package-lock-only`.
 - **Native (Kotlin/Java) changes** aren't covered by `npm run validate`. The
   devcontainer ships JDK 17 + the Android SDK (platform-34, build-tools 34.0.0),
   so verify them by compiling: from `apps/mobile`, `npm run verify:android`

@@ -45,6 +45,11 @@ Requirements:
 - Keep `apps/web/package.json` `version` in sync: set it to the new version
   (this is the in-app displayed version / web build version). The APK's
   versionName comes from the tag in CI; versionCode from the run number.
+- **Regenerate the lockfile after bumping**: `npm install --package-lock-only`.
+  `package-lock.json` records each workspace's version, editing `package.json`
+  alone leaves it stale, and `npm ci` then bakes the wrong version into the built
+  image. `scripts/dev/workspace-versions.test.ts` fails the build if you forget,
+  so `npm run validate` catches it — but do it as part of the bump commit.
 - Do NOT invent a version when uncertain — show the computed bump and the commit
   summary it's based on; if the invocation says `confirm first` or `dry run`,
   stop after showing the plan (don't tag).
@@ -57,7 +62,8 @@ Recommended steps:
 3. Compute the next `vX.Y.Z`. Summarize: last version, new version, the bump
    level, and the notable commits driving it.
 4. If `confirm first` / `dry run`: print the summary and stop.
-5. Otherwise bump `apps/web/package.json` to the new version and commit it
+5. Otherwise bump `apps/web/package.json` to the new version, run
+   `npm install --package-lock-only` so the lockfile follows, and commit both
    (`Bump version to X.Y.Z`; no `Co-Authored-By` trailer or AI attribution).
    Run `npm run validate` first; fix failures before continuing.
 6. `git push`, then `git tag vX.Y.Z && git push origin vX.Y.Z`.

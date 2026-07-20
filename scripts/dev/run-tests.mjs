@@ -1,14 +1,17 @@
 #!/usr/bin/env node
 /**
- * Test runner: discovers every `*.test.ts` under apps/ and packages/ and runs
- * them through Node's built-in test runner with the tsx loader (so we test the
- * TypeScript sources directly, no build step).
+ * Test runner: discovers every `*.test.ts` under apps/, packages/ and scripts/
+ * and runs them through Node's built-in test runner with the tsx loader (so we
+ * test the TypeScript sources directly, no build step).
+ *
+ * scripts/ is included for repo-hygiene checks that belong to no single workspace
+ * (e.g. package-lock staying in sync with the workspace versions).
  */
 import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
-const ROOTS = ['apps', 'packages']
+const ROOTS = ['apps', 'packages', 'scripts']
 const IGNORE = new Set(['node_modules', 'dist', '.vite', 'android', 'ios'])
 
 function findTests(dir, out) {
