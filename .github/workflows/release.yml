@@ -1,9 +1,17 @@
 name: release
 
-# Build a signed Android APK and attach it to a GitHub Release whenever a
-# `v*` tag is pushed (e.g. `git tag v0.2.0 && git push origin v0.2.0`).
-# The in-app update check (apps/web/src/native/UpdateCheck.tsx) reads the
-# latest release and prompts users to download the new APK.
+# On a `v*` tag (e.g. `git tag v0.2.0 && git push origin v0.2.0`), build both
+# Android flavors and ship them to their respective channels:
+#
+#   direct -> signed APK attached to a GitHub Release. The in-app update check
+#             (apps/web/src/native/UpdateCheck.tsx) reads that release and offers
+#             the new APK.
+#   play   -> AAB uploaded to Google Play (internal track by default), and kept
+#             as a workflow artifact either way.
+#
+# The Play upload is skipped unless PLAY_SERVICE_ACCOUNT_JSON is set, so this runs
+# unchanged before the listing exists. See apps/mobile/store/play-readiness.md for
+# the one-time Play Console setup.
 
 on:
   push:
@@ -14,6 +22,18 @@ on:
       version:
         description: 'Version to build (e.g. v0.2.0)'
         required: true
+      play_track:
+        description: 'Play track to publish to'
+        required: false
+        default: internal
+        type: choice
+        options: [internal, alpha, beta, production]
+      play_status:
+        description: "Play release status ('draft' is required while the app has never been published)"
+        required: false
+        default: completed
+        type: choice
+        options: [completed, draft]
 
 permissions:
   contents: write
@@ -142,3 +162,47 @@ jobs:
           name: ${{ steps.ver.outputs.tag }}
           body_path: RELEASE_NOTES.md
           files: persistent-*.apk
+
+      # --- Google Play ------------------------------------------------------
+      # Inert until PLAY_SERVICE_ACCOUNT_JSON exists, so this can sit here through
+      # however many GitHub-only releases happen before the Play listing is live.
+      # `secrets` can't be read in a step-level `if`, hence the probe step.
+      - name: Check Play publishing config
+        id: play
+        env:
+          PLAY_SA: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -n "$PLAY_SA" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "Play service account present — will publish."
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "PLAY_SERVICE_ACCOUNT_JSON not set — skipping Play upload (AAB is still a workflow artifact)."
+          fi
+
+      # Play shows this as the release's "what's new" and hard-caps it at 500
+      # characters, so the GitHub notes are reused and truncated on a line boundary
+      # rather than mid-sentence.
+      - name: Prepare Play release notes
+        if: steps.play.outputs.enabled == 'true'
+        run: |
+          mkdir -p play-whatsnew
+          awk 'NR>2' RELEASE_NOTES.md \
+            | grep -v '^\*\*Full changelog\*\*' \
+            | awk '{ if (len + length($0) + 1 > 480) exit; print; len += length($0) + 1 }' \
+            > play-whatsnew/whatsnew-en-US
+          # Never ship an empty note — Play rejects it.
+          [ -s play-whatsnew/whatsnew-en-US ] || echo "Bug fixes and improvements." > play-whatsnew/whatsnew-en-US
+          echo "--- whatsnew-en-US ---"; cat play-whatsnew/whatsnew-en-US
+
+      - name: Publish to Google Play
+        if: steps.play.outputs.enabled == 'true'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ca.persistent.app
+          releaseFiles: persistent-${{ steps.ver.outputs.name }}-play.aab
+          track: ${{ github.event.inputs.play_track || 'internal' }}
+          status: ${{ github.event.inputs.play_status || 'completed' }}
+          releaseName: ${{ steps.ver.outputs.name }}
+          whatsNewDirectory: play-whatsnew

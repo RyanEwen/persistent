@@ -126,11 +126,17 @@ npm run open:android  # build/run in Android Studio
 ## Releases & in-app updates
 
 Tagging `v*` (e.g. `git tag v0.2.0 && git push origin v0.2.0`) triggers
-`.github/workflows/release.yml`, which builds a signed APK and attaches it to a
-GitHub Release. The keystore is decoded from the `ANDROID_KEYSTORE_BASE64` secret
-and signed with `ANDROID_KEYSTORE_PASSWORD` / `ANDROID_KEY_ALIAS` /
-`ANDROID_KEY_PASSWORD`; the same key must be used every time or updates won't
-install over each other.
+`.github/workflows/release.yml`, which builds **both** flavors: the `direct` APK is
+attached to a GitHub Release, and the `play` AAB is uploaded to Google Play's
+internal track (and kept as a workflow artifact regardless). The keystore is
+decoded from the `ANDROID_KEYSTORE_BASE64` secret and signed with
+`ANDROID_KEYSTORE_PASSWORD` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD`; the
+same key must be used every time or updates won't install over each other.
+
+Play upload is skipped unless the `PLAY_SERVICE_ACCOUNT_JSON` secret is set — see
+[`store/play-readiness.md`](store/play-readiness.md) §6b for the one-time Play
+Console setup and the two traps (`draft` status before first publish, and
+`versionCode` collisions with a manual upload).
 
 The app checks GitHub for a newer release on launch (and from Settings → About):
 `UpdatePlugin` downloads the APK and launches the installer. Because the UI loads

@@ -101,19 +101,29 @@ value in the server's `.env` → redeploy.
 ## Releases & updates
 
 Pushing a `vX.Y.Z` tag runs `.github/workflows/release.yml`, which builds the web
-bundle, assembles a **signed** APK, generates changelog notes from the commits
-since the previous tag, and publishes a GitHub Release (APK + notes). The app
-checks GitHub on launch (and from Settings → About) and offers an in-app
-download/install of a newer APK. Because the APK loads the UI from production,
-web-only changes ship via a deploy with no new APK — release a new APK only for
-native changes (alarm/update/passkey/Google plugins, manifest, icon).
+bundle, assembles **both signed Android flavors**, generates changelog notes from
+the commits since the previous tag, and ships each to its channel:
+
+- **`direct` APK → GitHub Release.** The app checks GitHub on launch (and from
+  Settings → About) and offers an in-app download/install of a newer APK.
+- **`play` AAB → Google Play**, internal track by default, reusing the same notes
+  truncated to Play's 500-character limit. Skipped unless the
+  `PLAY_SERVICE_ACCOUNT_JSON` secret is set, so tagging behaves identically before
+  the listing exists. One-time Play Console setup and its two traps (`draft` status
+  before first publish, `versionCode` vs. a manual upload) are in
+  `apps/mobile/store/play-readiness.md` §6b.
+
+Because the app loads the UI from production, web-only changes ship via a deploy
+with no new build — cut a release only for native changes (alarm/update/passkey/
+Google plugins, manifest, icon).
 
 ## Slash commands (`.claude/commands/`)
 
 - `/commit` — review (docs + data-isolation + logging) + validate + commit.
 - `/deploy` — `/commit` then push + SSH-Docker deploy.
 - `/release` — derive the next version from changes since the last release, tag,
-  and let CI build the signed APK + GitHub Release.
+  and let CI build both flavors: the signed APK onto a GitHub Release and the
+  AAB onto Google Play (the Play upload is skipped until its secret is set).
 - `/audit-docs` — resync all docs with the code.
 
 ## Docs

@@ -139,6 +139,39 @@ Note `SCHEDULE_EXACT_ALARM` and `USE_EXACT_ALARM` are declared together — chec
 whether both are actually needed at your min/target SDK, since each extra
 restricted permission is another thing review can object to.
 
+## 6b. Automated publishing ✅ WIRED (dormant until you add the secret)
+
+`.github/workflows/release.yml` uploads the AAB to Google Play on every `v*` tag,
+using the same release notes as the GitHub Release truncated to Play's
+500-character limit. It is a no-op until `PLAY_SERVICE_ACCOUNT_JSON` exists, so
+tagging behaves exactly as today until you switch it on.
+
+**One-time setup, in order:**
+
+1. **Create the app in Play Console.** The API cannot create an app, only publish
+   to one that exists.
+2. **Upload the first AAB by hand** (`npm run bundle:play`, or grab the
+   `play-bundle-*` workflow artifact). Play requires a manual first release; the
+   API takes over afterwards.
+3. **Create a service account** in Google Cloud, then in Play Console →
+   *Users and permissions* invite it and grant **Release manager** (or at minimum
+   *Releases: create and edit*) for this app. Download its JSON key.
+4. **Add the GitHub secret** `PLAY_SERVICE_ACCOUNT_JSON` — the JSON key file's
+   contents, pasted whole (not base64).
+
+After that a tag publishes automatically. `workflow_dispatch` exposes `play_track`
+(`internal` default) and `play_status` if you need a one-off alpha/beta/production
+push.
+
+**Two traps:**
+
+- **`play_status` must be `draft` until the app has been published once.** The API
+  rejects a `completed` release on an app that has never gone live.
+- **`versionCode` is `github.run_number`.** Play requires it to strictly increase
+  and never repeat, so if a manual upload used a *higher* code than the current run
+  number, every automated upload is rejected until the run number passes it. Check
+  the code on your first manual upload against the workflow's run number.
+
 ## 6. AAB build ✅ DONE — Play App Signing still to decide 🟡
 
 `npm run bundle:play` produces the AAB (`bundlePlayRelease`), and
@@ -181,9 +214,11 @@ GitHub, and never reuse one.
 5. ~~Capture screenshots~~ ✅ (`graphics/screenshots/`)
 6. ~~Raise targetSdk to 35 + handle edge-to-edge~~ ✅
 7. ~~Reviewer sign-in credentials~~ ✅
-8. **Verify the alarm UI on an Android 15+ device** — the one thing compiling can't prove
-9. Decide Play App Signing (watch the passkey cert consequence in #6)
-10. Play Console paperwork: restricted-permission declarations (#5), Data Safety and App access (`listing.md`), then submit
+8. ~~Automated Play publishing in CI~~ ✅ (dormant — see #6b)
+9. **Verify the alarm UI on an Android 15+ device** — the one thing compiling can't prove
+10. Decide Play App Signing (watch the passkey cert consequence in #6)
+11. Play Console paperwork: restricted-permission declarations (#5), Data Safety, App access and the deletion URL (`listing.md`), then submit
+12. Create the app, upload one AAB manually, then add `PLAY_SERVICE_ACCOUNT_JSON` to switch CI publishing on (#6b)
 
 **No code blockers remain.** What's left is one device check, one decision, and
 console paperwork.

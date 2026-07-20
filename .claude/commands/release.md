@@ -1,5 +1,5 @@
 ---
-description: "Cut a new release: derive the next version from changes since the last release, bump it, tag, and let CI build the signed APK + GitHub Release."
+description: "Cut a new release: derive the next version from changes since the last release, bump it, tag, and let CI build the signed APK (GitHub Release) and the AAB (Google Play)."
 argument-hint: "[major|minor|patch to force a bump | confirm first | dry run]"
 ---
 
@@ -8,12 +8,22 @@ Cut a new app release.
 Invocation input (optional): $ARGUMENTS
 
 The release pipeline is `.github/workflows/release.yml`: pushing a `vX.Y.Z` tag
-builds the web bundle, assembles a **signed** APK, generates changelog notes from
-the commits since the previous tag (filtered to end-user-facing changes only —
-internal/docs/tooling commits are excluded; see the `EXCLUDE` list in the
-workflow), and publishes a GitHub Release (APK + notes). The app surfaces those
-notes in the in-app update prompt. This command decides the
-next version, records it, and pushes the tag.
+builds the web bundle, assembles **both signed Android flavors**, generates
+changelog notes from the commits since the previous tag (filtered to
+end-user-facing changes only — internal/docs/tooling commits are excluded; see the
+`EXCLUDE` list in the workflow), and ships each flavor to its channel:
+
+- `direct` → **signed APK** on a GitHub Release, with the notes shown in the
+  in-app update prompt.
+- `play` → **AAB** uploaded to Google Play (internal track by default), reusing
+  the same notes truncated to Play's 500-character "what's new" limit. Skipped
+  entirely unless the `PLAY_SERVICE_ACCOUNT_JSON` secret exists, so tagging works
+  the same before the listing goes live.
+
+Never publish the `direct` APK to Play — it carries the in-app updater and
+`REQUEST_INSTALL_PACKAGES`, which Play prohibits.
+
+This command decides the next version, records it, and pushes the tag.
 
 Requirements:
 - The working tree must be clean and `HEAD` must equal `origin/<default branch>`
@@ -53,7 +63,9 @@ Recommended steps:
 6. `git push`, then `git tag vX.Y.Z && git push origin vX.Y.Z`.
 7. Watch the workflow: `gh run watch <id> --exit-status` (find it via
    `gh run list --workflow=release.yml --limit 1`). Confirm the release published
-   with the APK asset (`gh release view vX.Y.Z`).
+   with the APK asset (`gh release view vX.Y.Z`). If Play publishing is enabled,
+   check the run log's "Publish to Google Play" step too — it reports "skipping"
+   when `PLAY_SERVICE_ACCOUNT_JSON` isn't set, which is expected pre-listing.
 8. Report the new version, the bump reasoning, and the release URL.
 
 Notes:
