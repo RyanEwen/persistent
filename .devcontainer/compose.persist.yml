@@ -14,6 +14,7 @@ services:
       - persistent-vscode-server:/home/node/.vscode-server/extensions
       - persistent-bash-history:/commandhistory
       - ${HOME}/.ssh:/home/node/.ssh:ro
+      - ${HOME}/development/claude-shared-settings.json:/etc/claude-code/managed-settings.json:ro
 volumes:
   persistent-config-data:
     name: ${DEVCONTAINER_CONFIG_VOLUME:-persistent-config-data}
