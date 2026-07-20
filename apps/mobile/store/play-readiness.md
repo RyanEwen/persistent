@@ -64,10 +64,15 @@ are now applied natively in `AlarmActivity`, `SnoozePickerActivity`
 (`AlarmUi.applySystemBarInsets`) and the WebView (`MainActivity`) — natively, so
 the web bundle shared with the browser PWA is untouched.
 
-⚠️ **Not yet verified on a device.** Compiling proves nothing about layout. Before
-submitting, install on an Android 15+ device, fire a real `ALARM` reminder, and
-confirm the buttons clear the system bars and the lock-screen surface still looks
-right.
+**Verified on a Pixel 9 Pro (Android 15).** Insets are correct — the header clears
+the status bar and the bottom nav clears the gesture bar.
+
+The device check also caught a regression compiling could never have shown: under
+`targetSdk 35`, Android refused the alarm's activity launch with `BAL_BLOCK`, so a
+ringing alarm collapsed to a heads-up banner **whenever the phone was unlocked**
+(locked was unaffected, which is what made it easy to miss). Fixed by holding
+`SYSTEM_ALERT_WINDOW` — see #5 and `docs/alarm-architecture.md`. Re-tested with the
+phone unlocked: full-screen surface restored, zero BAL blocks in logcat.
 
 ## 2b. App access for reviewers ✅ DONE
 
@@ -134,6 +139,7 @@ bounced:
 | `FOREGROUND_SERVICE_SPECIAL_USE` | Highest-risk one. Google reviews `specialUse` case-by-case and rejects weak justifications. Reuse the manifest property text: an alarm must keep sounding until explicitly confirmed, and no existing FGS type covers it. |
 | `USE_FULL_SCREEN_INTENT` | Alarm surface must wake the screen over the lock screen. Alarm/calling apps qualify. |
 | `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | Only allowed for a narrow set of cases; exact-alarm apps qualify, but be ready to argue that Doze would otherwise defer a medication alarm. |
+| `SYSTEM_ALERT_WINDOW` | **Added for targetSdk 35.** Not used to draw an overlay — it is the exemption from Android 15's background-activity-launch rules, without which a ringing alarm cannot take over the screen while the phone is unlocked (verified: `BAL_BLOCK` in logcat). Say exactly that; "display over other apps" is heavily scrutinised and a vague justification will be rejected. See `docs/alarm-architecture.md`. |
 
 Note `SCHEDULE_EXACT_ALARM` and `USE_EXACT_ALARM` are declared together — check
 whether both are actually needed at your min/target SDK, since each extra

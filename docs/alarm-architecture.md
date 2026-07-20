@@ -167,19 +167,48 @@ drives them lives in `apps/web/src/native`.
 - A `BOOT_COMPLETED` receiver re-schedules pending alarms from the local mirror.
 
 Permissions: `SCHEDULE_EXACT_ALARM`/`USE_EXACT_ALARM`, `POST_NOTIFICATIONS`,
-`FOREGROUND_SERVICE` (+ `_SPECIAL_USE`), `USE_FULL_SCREEN_INTENT`, `WAKE_LOCK`,
-`RECEIVE_BOOT_COMPLETED`; prompt for battery-optimization exemption. On Android
-14+ `USE_FULL_SCREEN_INTENT` is a user-grantable runtime permission (off by
-default for non-calling/alarm apps), so `AlarmPlugin.ensureFullScreenIntent()`
-checks `canUseFullScreenIntent()` and opens the per-app setting to grant it —
-without it the escalation only shows a heads-up banner that collapses instead of
-the full-screen alarm. The alarm notification is `VISIBILITY_PUBLIC` so its
-content shows on the lock screen (the user can see which reminder is firing).
-`AlarmPlugin.alarmReadiness()` reports whether notifications / full-screen /
-exact-alarm are actually grantable; if `POST_NOTIFICATIONS` is denied the app
-warns on startup (`warnIfAlarmsCantShow`), because a fired alarm would otherwise
-sound with no shade surface — and the native force-launch above is the last-resort
-backstop, not a substitute for the grant.
+`FOREGROUND_SERVICE` (+ `_SPECIAL_USE`), `USE_FULL_SCREEN_INTENT`,
+`SYSTEM_ALERT_WINDOW`, `WAKE_LOCK`, `RECEIVE_BOOT_COMPLETED`; prompt for
+battery-optimization exemption. On Android 14+ `USE_FULL_SCREEN_INTENT` is a
+user-grantable runtime permission (off by default for non-calling/alarm apps), so
+`AlarmPlugin.ensureFullScreenIntent()` checks `canUseFullScreenIntent()` and opens
+the per-app setting to grant it — without it the escalation only shows a heads-up
+banner that collapses instead of the full-screen alarm. The alarm notification is
+`VISIBILITY_PUBLIC` so its content shows on the lock screen (the user can see
+which reminder is firing).
+
+### "Display over other apps" is load-bearing on Android 15
+
+`SYSTEM_ALERT_WINDOW` is not used to draw an overlay. Holding it is what exempts
+the app from Android 15's **background-activity-launch (BAL)** rules.
+
+A full-screen intent only auto-launches `AlarmActivity` when the screen is off or
+locked. While the device is *unlocked and in use*, Android shows a collapsing
+heads-up banner instead, so `AlarmService.presentAlarmSurface` launches the
+activity itself to keep the controls on screen. Under `targetSdk 35` that launch is
+refused — a foreground service no longer qualifies on its own:
+
+```
+Background activity launch blocked! goo.gle/android-bal
+  callingPackage: ca.persistent.app; callingPackageTargetSdk: 35;
+  callingUidProcState: FOREGROUND_SERVICE; ... (BAL_BLOCK)
+```
+
+The failure is **silent and partial**: alarms still take over the locked screen, so
+it only shows up when one fires while the phone is in use — exactly when the user
+is least likely to report it as broken. `presentAlarmSurface` therefore checks
+`Settings.canDrawOverlays` first and logs (tag `PersistAlarm`) rather than
+attempting a launch that will be refused.
+
+`AlarmPlugin.alarmReadiness()` reports notifications / full-screen / exact-alarm /
+**overlay**; `AlarmPermissionsBanner` (web) renders a non-dismissible banner for
+every gap, with a button that opens the right system screen, and re-checks on app
+resume. Non-dismissible is deliberate: each of these fails silently, so the only
+thing that should clear the warning is actually granting it. If
+`POST_NOTIFICATIONS` is denied the app also warns on startup
+(`warnIfAlarmsCantShow`), because a fired alarm would otherwise sound with no shade
+surface — and the native force-launch above is the last-resort backstop, not a
+substitute for the grant.
 
 ## Notification shade prominence
 

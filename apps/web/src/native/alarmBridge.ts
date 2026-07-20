@@ -46,12 +46,26 @@ export interface AlarmPluginPlugin {
   silence(options: { occurrenceId: string }): Promise<void>
   requestBatteryExemption(): Promise<{ granted: boolean }>
   canScheduleExactAlarms(): Promise<{ allowed: boolean }>
+  /** Open the system "display over other apps" screen (see `overlay` below). */
+  requestOverlayPermission(): Promise<{ granted: boolean }>
   /**
    * Whether a fired alarm can actually be shown. `notifications` false
    * (POST_NOTIFICATIONS denied) means a ringing alarm would have no visible/
    * stoppable surface; `fullScreen`/`exactAlarms` degrade reliability only.
+   *
+   * `overlay` is "display over other apps". It sounds cosmetic and isn't: on
+   * Android 15 it is what exempts us from the background-activity-launch rules, so
+   * without it a ringing alarm cannot take over the screen **while the device is
+   * unlocked** and collapses to a heads-up banner with Done/Snooze buried in the
+   * shade. Locked/screen-off is unaffected (the full-screen intent handles it).
+   * Always true below Android 15, where the launch isn't blocked.
    */
-  alarmReadiness(): Promise<{ notifications: boolean; fullScreen: boolean; exactAlarms: boolean }>
+  alarmReadiness(): Promise<{
+    notifications: boolean
+    fullScreen: boolean
+    exactAlarms: boolean
+    overlay: boolean
+  }>
   /**
    * Set the device default shade prominence (for reminders set to INHERIT) and
    * re-post any live notifications so the change applies immediately.

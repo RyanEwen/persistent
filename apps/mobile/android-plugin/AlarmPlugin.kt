@@ -156,7 +156,36 @@ class AlarmPlugin : Plugin() {
                 .put("notifications", notifications)
                 .put("fullScreen", fullScreen)
                 .put("exactAlarms", exactAlarms)
+                .put("overlay", canShowAlarmSurfaceWhileUnlocked())
         )
+    }
+
+    /**
+     * Whether a ringing alarm can take over the screen while the device is *unlocked*.
+     *
+     * Android 15 refuses the activity launch from our foreground service unless the
+     * app is exempt from the background-activity-launch rules, and "display over
+     * other apps" is the exemption we hold (see AlarmService.presentAlarmSurface).
+     * Below Android 15 the launch is allowed regardless, so report true there rather
+     * than nagging for a permission that would change nothing.
+     */
+    private fun canShowAlarmSurfaceWhileUnlocked(): Boolean =
+        if (Build.VERSION.SDK_INT >= 35) Settings.canDrawOverlays(context) else true
+
+    /** Open the system "display over other apps" screen for this app. */
+    @PluginMethod
+    fun requestOverlayPermission(call: PluginCall) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
+            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+                .setData(Uri.parse("package:${context.packageName}"))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            try {
+                context.startActivity(intent)
+            } catch (_: Exception) {
+                // Some OEMs don't expose this screen; the heads-up banner remains.
+            }
+        }
+        call.resolve(JSObject().put("granted", canShowAlarmSurfaceWhileUnlocked()))
     }
 
     @PluginMethod

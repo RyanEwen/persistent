@@ -161,6 +161,11 @@ async function requestPermissions(): Promise<void> {
   // Without the full-screen-intent grant (Android 14+) the escalation alarm only
   // shows a collapsing heads-up; ask for it so the alarm stays on screen / locked.
   await AlarmPlugin.ensureFullScreenIntent().catch(() => ({ allowed: false }))
+  // "Display over other apps" — on Android 15 this is what lets a ringing alarm
+  // take over the screen while the phone is unlocked; without it the launch is
+  // refused as a background activity start. No-op once granted, and on older
+  // versions where it isn't needed.
+  await AlarmPlugin.requestOverlayPermission().catch(() => ({ granted: false }))
   await warnIfAlarmsCantShow()
 }
 
@@ -174,12 +179,16 @@ async function requestPermissions(): Promise<void> {
  */
 async function warnIfAlarmsCantShow(): Promise<void> {
   const ready = await AlarmPlugin.alarmReadiness().catch(() => null)
-  if (ready && !ready.notifications) {
+  if (!ready) return
+  if (!ready.notifications) {
     notify(
       'Notifications are off for Persistent — alarms will sound with no way to see or stop them. Turn notifications on in system settings.',
       'danger'
     )
   }
+  // `overlay`, `fullScreen` and `exactAlarms` gaps are surfaced by
+  // AlarmPermissionsBanner instead — a toast disappears, and these need to stay
+  // visible until they're actually granted.
 }
 
 /**

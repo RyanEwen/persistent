@@ -15,6 +15,7 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.Person
@@ -331,12 +332,33 @@ class AlarmService : Service() {
      * `force` skips that gating: when the notification itself can't be shown there is
      * no full-screen intent to rely on, so we always launch the surface (it shows
      * over the lock screen) — the alarm must never ring with nothing to stop it.
+     *
+     * **Android 15 (targetSdk 35) blocks this launch** unless the app is exempt from
+     * the background-activity-launch rules: a foreground service alone no longer
+     * qualifies, and the attempt is refused with `BAL_BLOCK` / "Background activity
+     * launch blocked". Holding "display over other apps" (`SYSTEM_ALERT_WINDOW`) is
+     * the exemption we rely on. It is a user-granted special access, so it can be
+     * absent — in that case the launch would silently fail and the alarm would
+     * degrade to a collapsing heads-up banner. We skip the attempt and log it rather
+     * than pretend it worked; the locked/screen-off path still works via the
+     * full-screen intent, which is not subject to BAL.
      */
     private fun presentAlarmSurface(spec: AlarmSpec, force: Boolean = false) {
         if (!force) {
             val power = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
             val keyguard = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
             if (!power.isInteractive || keyguard.isKeyguardLocked) return
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && !Settings.canDrawOverlays(this)) {
+            // Only matters where BAL actually blocks us; below that the launch works.
+            if (Build.VERSION.SDK_INT >= 35) {
+                android.util.Log.w(
+                    "PersistAlarm",
+                    "Cannot show the full-screen alarm surface: 'display over other apps' is not granted, " +
+                        "so Android 15 blocks the activity launch. The alarm still rings as a heads-up."
+                )
+                return
+            }
         }
         try {
             startActivity(

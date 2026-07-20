@@ -15,6 +15,12 @@
 <uses-permission android:name="android.permission.VIBRATE" />
 <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+<!-- "Display over other apps". Not used to draw an overlay: holding it is what
+     exempts the app from Android 15's background-activity-launch rules, which
+     otherwise block AlarmService from putting the full-screen alarm up while the
+     device is unlocked (see AlarmService.showAlarmSurface). Without it a ringing
+     alarm degrades to a heads-up banner that collapses, burying Done/Snooze. -->
+<uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 <!-- REQUEST_INSTALL_PACKAGES is deliberately NOT here: it belongs to the `direct`
      flavor only (flavor/direct/AndroidManifest.xml). Google Play forbids an app it
      distributes from updating itself, and that permission is the signal review
