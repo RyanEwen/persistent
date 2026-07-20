@@ -1,4 +1,12 @@
-# Play Store readiness — blockers before `ca.persistent.app` can ship
+# Play Store readiness — blockers before the Play build can ship
+
+**Package names differ by flavor.** Play requires `ca.dynamicsolutions.persistent`,
+so that is the `play` flavor's `applicationId`; the sideloaded GitHub build keeps
+`ca.persistent.app`. Both are independent of the Kotlin/Java namespace, which stays
+`ca.persistent.app` throughout. Consequences that bit us once already: Firebase
+needs an Android app per package (else `processPlayReleaseGoogleServices` fails),
+and `assetlinks.json` + `ANDROID_APP_ORIGIN` need an entry per package *and* per
+signing certificate or passkeys break on that build.
 
 Found while assembling the listing. The copy and graphics are the easy part; these
 are the things that will get the submission rejected or that you cannot truthfully

@@ -1,7 +1,10 @@
 # Google Play store listing — Persistent
 
 Copy-paste source for the Play Console "Main store listing" page.
-Package: `ca.persistent.app` · Category: Productivity
+Package: `ca.dynamicsolutions.persistent` (Play) · Category: Productivity
+
+The sideloaded GitHub build keeps `ca.persistent.app`; only the Play flavor carries
+the new applicationId, so the two can coexist on a device.
 
 ---
 
