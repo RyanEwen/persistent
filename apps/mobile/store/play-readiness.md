@@ -138,7 +138,13 @@ and gives an email fallback for anyone who can't sign in.
 
 These are permitted for this app — a reminder/alarm app is exactly the allowed
 use case — but each requires a written justification, and vague answers get
-bounced:
+bounced.
+
+Play additionally demands a **demonstration video** for the foreground-service,
+full-screen-intent and exact-alarm declarations. Recordings are in
+`graphics/video/permission-*.mp4` (see [`listing.md`](listing.md) for what each
+shows); upload them to YouTube as unlisted and paste the URLs, since the forms
+take a link rather than a file.
 
 | Permission | What to say |
 | --- | --- |

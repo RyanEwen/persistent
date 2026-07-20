@@ -209,13 +209,28 @@ All five plus the ringing alarm are captured. The alarm shot was taken on Androi
 
 ### Video
 
-`graphics/video/` holds two screen recordings (16s each, 960x2142):
+`graphics/video/` holds screen recordings, all 960x2142, captured on the demo
+account so no real medication data appears.
 
-- `swipe-away-comes-back.mp4` — swiping the notification away; it re-posts itself.
-- `two-step-done.mp4` — Done arms "Confirm done" / "Not yet"; confirming clears the card.
+**Marketing** (optional, for the promo slot):
 
-Play's promo-video slot takes a **YouTube URL**, not an upload, so these are raw
-source for editing/uploading rather than direct listing assets.
+- `swipe-away-comes-back.mp4` (16s) — swiping the notification away; it re-posts itself.
+- `two-step-done.mp4` (16s) — Done arms "Confirm done" / "Not yet"; confirming clears the card.
+
+**Permission declarations** (required — Play asks for a demonstration video for
+each of these; see `play-readiness.md` §5):
+
+| File | Declaration | Shows |
+| --- | --- | --- |
+| `permission-foreground-service.mp4` (36s) | Foreground Service | Alarm rings, app backgrounded, keeps ringing via the service, ongoing notification in the shade |
+| `permission-full-screen-intent.mp4` (42s) | Full-screen intent | Device locked, alarm fires, full-screen surface over the lock screen |
+| `permission-exact-alarm.mp4` (18s) | Exact alarms | Reminder scheduled for a set minute, firing exactly at it |
+
+`permission-exact-alarm-frame.png` is a still from that last recording showing the
+surface at the scheduled minute, if a reviewer wants a static reference.
+
+**Every video slot in Play takes a YouTube URL, not a file upload.** Put these up
+as unlisted and paste the links — the `.mp4`s here are source, not listing assets.
 
 ### Reproducing
 
