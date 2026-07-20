@@ -38,3 +38,6 @@ coverage/
 # Android release keystore (kept out of git; CI uses the base64 secret)
 apps/mobile/release.keystore
 *.keystore
+
+# Build artifacts staged for a Play upload
+*.aab
