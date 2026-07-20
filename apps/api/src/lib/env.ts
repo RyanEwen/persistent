@@ -61,6 +61,13 @@ const envSchema = z.object({
   // `blankToUndefined` matters here: compose.server.yml passes `${VAR:-}`, so an
   // unconfigured deployment supplies an empty string rather than nothing. Without
   // it, `.email()` / `.min(12)` would reject "" and the API would refuse to boot.
+  // Accepted `android:apk-key-hash:<base64url(sha256(cert))>` origins for passkeys,
+  // comma-separated. One per signing certificate: the upload/release key, plus
+  // Play's own key once enrolled in Play App Signing (Play re-signs, so the Play
+  // build reports a different origin than the sideloaded one). Unset falls back to
+  // the release key baked into lib/webauthn.ts.
+  ANDROID_APP_ORIGIN: blankToUndefined(z.string()),
+
   REVIEW_ACCOUNT_EMAIL: blankToUndefined(z.string().email()),
   REVIEW_ACCOUNT_CODE: blankToUndefined(z.string().min(12, 'REVIEW_ACCOUNT_CODE must be at least 12 characters'))
 })

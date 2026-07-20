@@ -187,6 +187,11 @@ if (!appGradle.includes("apply plugin: 'kotlin-android'")) {
   console.log("[setup-android] applied kotlin-android plugin in android/app/build.gradle")
 }
 
+// Play requires this package name for the listing. applicationId is independent of
+// the Kotlin/Java namespace, so the sources stay under ca.persistent.app and only
+// the installed identity of the Play build changes.
+const PLAY_APPLICATION_ID = 'ca.dynamicsolutions.persistent'
+
 // --- 4a1. SDK level + toolchain ---------------------------------------------
 // Capacitor 6's template pins compileSdk/targetSdk 34 and AGP 8.2.1, but Google
 // Play requires new apps and updates to target API 35+. AGP 8.2 refuses to build
@@ -239,6 +244,17 @@ const GRADLE_VERSION = '8.7'
 // the same app, so the direct build can still be replaced by a Play install.
 {
   let g = readFileSync(appGradlePath, 'utf8')
+  // A project generated before the applicationId override already has the flavor
+  // block, so the "add it once" path below would skip it forever and the Play
+  // build would keep the wrong package name. Patch the existing block too.
+  if (g.includes('flavorDimensions') && !g.includes(PLAY_APPLICATION_ID)) {
+    g = g.replace(
+      /(play\s*\{\s*\n\s*dimension "distribution")/,
+      `$1\n            applicationId "${PLAY_APPLICATION_ID}"`
+    )
+    writeFileSync(appGradlePath, g)
+    console.log(`[setup-android] set play applicationId to ${PLAY_APPLICATION_ID}`)
+  }
   if (!g.includes('flavorDimensions')) {
     g = g.replace(
       /(\n\s*buildTypes\s*\{)/,
@@ -247,6 +263,10 @@ const GRADLE_VERSION = '8.7'
     productFlavors {
         play {
             dimension "distribution"
+            // Play requires this package name for the listing. applicationId is
+            // independent of the Kotlin/Java namespace, so the sources stay under
+            // ca.persistent.app and only the installed identity changes.
+            applicationId "${PLAY_APPLICATION_ID}"
         }
         direct {
             dimension "distribution"

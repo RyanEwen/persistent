@@ -20,7 +20,8 @@
     "lint": "eslint .",
     "test": "node scripts/dev/run-tests.mjs",
     "typecheck": "npm run typecheck --workspace @persistent/shared && npm run build --workspace @persistent/shared && npm run typecheck --workspace @persistent/api && npm run typecheck --workspace @persistent/web",
-    "validate": "npm run lint && npm run test && npm run typecheck && npm run prisma:validate --workspace @persistent/api"
+    "validate": "npm run lint && npm run test && npm run typecheck && npm run prisma:validate --workspace @persistent/api",
+    "android:origin": "node scripts/dev/android-origin.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.24.0",

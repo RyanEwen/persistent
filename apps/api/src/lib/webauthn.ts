@@ -4,7 +4,7 @@
  * httpOnly cookie (prefixed with the flow kind) and verified on finish.
  */
 import type { Request, Response } from 'express'
-import { clientOrigins } from './env.js'
+import { clientOrigins, env } from './env.js'
 import { badRequest } from './http-error.js'
 import { readCookie, writeCookie } from './auth-session.js'
 
@@ -13,11 +13,25 @@ const CHALLENGE_COOKIE = 'persistent_pk_challenge'
 const CHALLENGE_MAX_AGE_SECONDS = 60 * 10
 
 // The native app reports its origin as android:apk-key-hash:<base64url(sha256(cert))>
-// instead of the https URL, so it must be an accepted origin too. This is the
-// base64url of the release signing cert — keep it in sync with the SHA-256 in
-// apps/web/public/.well-known/assetlinks.json (env override for other builds).
-const ANDROID_APP_ORIGIN =
-  process.env.ANDROID_APP_ORIGIN?.trim() || 'android:apk-key-hash:TeqrYvSE9JO8zCVuXNwiUkDQKT7CsnFR1ss1TWHGpf0'
+// rather than the https URL, so each signing certificate the app may ship under
+// needs its own accepted origin.
+//
+// There can be more than one. Enrolling in Play App Signing means Play re-signs the
+// app with *its* key, so the Play build reports a different origin than the
+// sideloaded build signed with the release/upload key — and both must be accepted
+// or passkeys break on one of them. Set ANDROID_APP_ORIGIN to a comma-separated
+// list to cover both; the default is the release key alone.
+//
+// Keep this in lockstep with `sha256_cert_fingerprints` in
+// apps/web/public/.well-known/assetlinks.json, which is the same set of
+// certificates expressed as hex. `npm run android:origin -- <SHA-256>` converts
+// one to the other.
+const DEFAULT_ANDROID_APP_ORIGIN = 'android:apk-key-hash:TeqrYvSE9JO8zCVuXNwiUkDQKT7CsnFR1ss1TWHGpf0'
+
+const androidAppOrigins = (env.ANDROID_APP_ORIGIN ?? DEFAULT_ANDROID_APP_ORIGIN)
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean)
 
 type ChallengeKind = 'registration' | 'authentication'
 
@@ -26,7 +40,7 @@ export function relyingParty(): { id: string; origins: string[] } {
   const origins = clientOrigins.map((o) => o.trim()).filter(Boolean)
   const first = origins[0]
   if (!first) throw new Error('CLIENT_ORIGIN must include at least one origin for passkeys.')
-  return { id: new URL(first).hostname, origins: [...origins, ANDROID_APP_ORIGIN] }
+  return { id: new URL(first).hostname, origins: [...origins, ...androidAppOrigins] }
 }
 
 export function setChallengeCookie(response: Response, kind: ChallengeKind, challenge: string): void {

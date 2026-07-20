@@ -47,6 +47,9 @@ services:
       GOOGLE_WEB_CLIENT_ID: ${GOOGLE_WEB_CLIENT_ID:-}
       # App-store review access (see apps/api/src/lib/review-access.ts). Empty ->
       # the fixed-code sign-in path does not exist.
+      # Comma-separated apk-key-hash origins, one per signing cert (release key,
+      # plus Play's key once enrolled in Play App Signing). See lib/webauthn.ts.
+      ANDROID_APP_ORIGIN: ${ANDROID_APP_ORIGIN:-}
       REVIEW_ACCOUNT_EMAIL: ${REVIEW_ACCOUNT_EMAIL:-}
       REVIEW_ACCOUNT_CODE: ${REVIEW_ACCOUNT_CODE:-}
     # FCM service-account key, mounted read-only from the host's gitignored
