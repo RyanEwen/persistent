@@ -106,11 +106,12 @@ the commits since the previous tag, and ships each to its channel:
 
 - **`direct` APK → GitHub Release.** The app checks GitHub on launch (and from
   Settings → About) and offers an in-app download/install of a newer APK.
-- **`play` AAB → Google Play**, internal track by default, reusing the same notes
-  truncated to Play's 500-character limit. Skipped unless the
-  `PLAY_SERVICE_ACCOUNT_JSON` secret is set, so tagging behaves identically before
-  the listing exists. One-time Play Console setup and its two traps (`draft` status
-  before first publish, `versionCode` vs. a manual upload) are in
+- **`play` AAB → Google Play**, released to the **`internal` and `alpha`** tracks
+  from one upload, reusing the same notes truncated to Play's 500-character limit.
+  Skipped unless the `PLAY_SERVICE_ACCOUNT_JSON` secret is set, so tagging behaves
+  identically on forks. A pre-flight runs before the Android build and fails fast
+  on a `versionCode` that Play already has. Publishing internals are in
+  `apps/mobile/scripts/play-publish.mjs`; Console setup is in
   `apps/mobile/store/play-readiness.md` §6b.
 
 Because the app loads the UI from production, web-only changes ship via a deploy
@@ -123,7 +124,7 @@ Google plugins, manifest, icon).
 - `/deploy` — `/commit` then push + SSH-Docker deploy.
 - `/release` — derive the next version from changes since the last release, tag,
   and let CI build both flavors: the signed APK onto a GitHub Release and the
-  AAB onto Google Play (the Play upload is skipped until its secret is set).
+  AAB onto Google Play's `internal` + `alpha` tracks.
 - `/audit-docs` — resync all docs with the code.
 
 ## Docs

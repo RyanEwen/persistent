@@ -40,12 +40,20 @@ The web UI is the same hosted bundle for both flavors, so it cannot be compiled
 differently — every updater surface gates on `hasNativeUpdater()`
 (`Capacitor.isPluginAvailable('Update')`) instead of `isNative()`.
 
-⚠️ **Never upload the `direct` artifact to Play.** Check before submitting:
+⚠️ **Never upload the `direct` artifact to Play.** CI now asserts this on every
+release ("Verify the Play bundle has no self-updater"): it locates the `playRelease`
+packaged manifest and fails the run if `REQUEST_INSTALL_PACKAGES` appears. To check
+by hand:
 
 ```bash
 grep -c REQUEST_INSTALL_PACKAGES \
   apps/mobile/android/app/build/intermediates/packaged_manifests/playRelease/AndroidManifest.xml   # expect 0
 ```
+
+(CI searches for that path rather than hard-coding it, since AGP relocates
+`packaged_manifests` between versions. If the manifest can't be found the step
+warns instead of failing, so an AGP upgrade can't block a release — but that
+warning means the check has stopped running and the path needs updating.)
 
 ## 2. targetSdk 35 ✅ DONE (device check outstanding)
 
@@ -159,14 +167,51 @@ Note `SCHEDULE_EXACT_ALARM` and `USE_EXACT_ALARM` are declared together — chec
 whether both are actually needed at your min/target SDK, since each extra
 restricted permission is another thing review can object to.
 
-## 6b. Automated publishing ✅ WIRED (dormant until you add the secret)
+## 6b. Automated publishing ✅ LIVE (internal + alpha)
 
-`.github/workflows/release.yml` uploads the AAB to Google Play on every `v*` tag,
+`.github/workflows/release.yml` releases the AAB to Google Play on every `v*` tag,
 using the same release notes as the GitHub Release truncated to Play's
-500-character limit. It is a no-op until `PLAY_SERVICE_ACCOUNT_JSON` exists, so
-tagging behaves exactly as today until you switch it on.
+500-character limit. The one-time setup below is done and
+`PLAY_SERVICE_ACCOUNT_JSON` is set, so tags publish without a Console visit.
 
-**One-time setup, in order:**
+**A tag goes to `internal` *and* `alpha`** — one build, one versionCode, both
+tracks. Promotion to beta/production stays a deliberate Console action.
+
+That "both tracks" requirement is why publishing is a script
+(`apps/mobile/scripts/play-publish.mjs`) rather than an off-the-shelf upload
+action: **Play rejects a second upload of a versionCode it already has**, so two
+sequential single-track uploads cannot put one build on two tracks. The script
+creates a single Play edit, uploads once, attaches that versionCode to every
+requested track, and commits once. It is dependency-free (Node 20 fetch + RS256
+signing), and its request sequence is covered by `play-publish.test.ts` against a
+mock Play API.
+
+**Pre-flight.** Before the Android build, CI runs
+`node scripts/play-publish.mjs --check --version-code <n>`, which authenticates,
+prints every track's current releases, and fails in seconds if `<n>` isn't strictly
+above everything on Play. This matters because **versionCode is baked in at
+assemble time** — without the pre-flight a collision only surfaces at upload, after
+a full build. It uses a throwaway edit and deletes it, so it changes nothing.
+
+**versionCode is `github.run_number` + `PLAY_VERSION_CODE_OFFSET`.** Play requires a
+strictly increasing, never-reused code. The run number does that unaided; the
+offset (an Actions *variable*, not a secret; unset means 0) is the escape hatch for
+when a manual upload already burned a higher code. The pre-flight failure prints the
+exact offset to set:
+
+```bash
+gh variable set PLAY_VERSION_CODE_OFFSET --body "100"
+```
+
+Raise it only — lowering it re-burns codes Play has already seen.
+
+**Ad-hoc runs.** `workflow_dispatch` takes an existing tag plus `play_tracks`
+(`internal,alpha` default, or a single track) and `play_status` (`completed` /
+`draft`). It builds *the named tag*, not the branch it was dispatched from. Note it
+is a fresh build, so it gets a new versionCode — it is not a promotion of the
+build already on internal.
+
+**Setup that was done (for reference, or a second app):**
 
 1. **Create the app in Play Console.** The API cannot create an app, only publish
    to one that exists.
@@ -179,18 +224,11 @@ tagging behaves exactly as today until you switch it on.
 4. **Add the GitHub secret** `PLAY_SERVICE_ACCOUNT_JSON` — the JSON key file's
    contents, pasted whole (not base64).
 
-After that a tag publishes automatically. `workflow_dispatch` exposes `play_track`
-(`internal` default) and `play_status` if you need a one-off alpha/beta/production
-push.
-
-**Two traps:**
-
-- **`play_status` must be `draft` until the app has been published once.** The API
-  rejects a `completed` release on an app that has never gone live.
-- **`versionCode` is `github.run_number`.** Play requires it to strictly increase
-  and never repeat, so if a manual upload used a *higher* code than the current run
-  number, every automated upload is rejected until the run number passes it. Check
-  the code on your first manual upload against the workflow's run number.
+**Remaining trap:** `play_status` must be `draft` on an app that has never been
+published — the API rejects `completed` on a draft app. This app is past that, so
+`completed` is the default. The script also handles Play declining to auto-submit
+for review (it retries the commit with `changesNotSentForReview=true`) rather than
+failing the release.
 
 ## 6. AAB build ✅ DONE — Play App Signing still to decide 🟡
 
@@ -234,14 +272,15 @@ GitHub, and never reuse one.
 5. ~~Capture screenshots~~ ✅ (`graphics/screenshots/`)
 6. ~~Raise targetSdk to 35 + handle edge-to-edge~~ ✅
 7. ~~Reviewer sign-in credentials~~ ✅
-8. ~~Automated Play publishing in CI~~ ✅ (dormant — see #6b)
-9. **Verify the alarm UI on an Android 15+ device** — the one thing compiling can't prove
-10. Decide Play App Signing (watch the passkey cert consequence in #6)
-11. Play Console paperwork: restricted-permission declarations (#5), Data Safety, App access and the deletion URL (`listing.md`), then submit
-12. Create the app, upload one AAB manually, then add `PLAY_SERVICE_ACCOUNT_JSON` to switch CI publishing on (#6b)
+8. ~~Automated Play publishing in CI~~ ✅ live, internal + alpha (#6b)
+9. ~~Verify the alarm UI on an Android 15+ device~~ ✅ (Pixel 9 Pro, Android 15 — see #2)
+10. ~~Create the app, upload one AAB manually, add `PLAY_SERVICE_ACCOUNT_JSON`~~ ✅ (#6b)
+11. Decide Play App Signing (watch the passkey cert consequence in #6)
+12. Play Console paperwork: restricted-permission declarations (#5), Data Safety, App access and the deletion URL (`listing.md`), then submit
 
-**No code blockers remain.** What's left is one device check, one decision, and
-console paperwork.
+**No code blockers remain.** What's left is one decision (Play App Signing) and
+console paperwork. Tagging a release now puts the build in front of internal and
+alpha testers with no manual step.
 
 All listing screenshots are captured, including the ringing full-screen alarm
 (`graphics/screenshots/00-ringing-alarm.png`), taken on Android 15 during the

@@ -144,16 +144,26 @@ npm run open:android  # build/run in Android Studio
 
 Tagging `v*` (e.g. `git tag v0.2.0 && git push origin v0.2.0`) triggers
 `.github/workflows/release.yml`, which builds **both** flavors: the `direct` APK is
-attached to a GitHub Release, and the `play` AAB is uploaded to Google Play's
-internal track (and kept as a workflow artifact regardless). The keystore is
-decoded from the `ANDROID_KEYSTORE_BASE64` secret and signed with
+attached to a GitHub Release, and the `play` AAB is released to Google Play on the
+**`internal` and `alpha` tracks** (and kept as a workflow artifact regardless). The
+keystore is decoded from the `ANDROID_KEYSTORE_BASE64` secret and signed with
 `ANDROID_KEYSTORE_PASSWORD` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD`; the
 same key must be used every time or updates won't install over each other.
 
-Play upload is skipped unless the `PLAY_SERVICE_ACCOUNT_JSON` secret is set — see
-[`store/play-readiness.md`](store/play-readiness.md) §6b for the one-time Play
-Console setup and the two traps (`draft` status before first publish, and
-`versionCode` collisions with a manual upload).
+Both tracks are served by one upload: `scripts/play-publish.mjs` creates a single
+Play edit, uploads the AAB once and attaches that versionCode to every requested
+track. Uploading per-track instead would fail — Play rejects a versionCode it has
+already seen. `workflow_dispatch` can retarget the tracks (`play_tracks`) and hold
+a release as a `draft` for a one-off; anything past `alpha` is a deliberate
+Console promotion.
+
+Play upload is skipped unless the `PLAY_SERVICE_ACCOUNT_JSON` secret is set. Before
+the Android build, the workflow pre-flights the release — it authenticates, prints
+every track's current versionCodes, and fails within seconds if this run's
+versionCode isn't strictly higher than everything on Play (the code is baked in at
+assemble time, so finding that afterwards would waste the whole build). The fix it
+prints is the `PLAY_VERSION_CODE_OFFSET` repo variable, added to the run number.
+See [`store/play-readiness.md`](store/play-readiness.md) §6b.
 
 The app checks GitHub for a newer release on launch (and from Settings → About):
 `UpdatePlugin` downloads the APK and launches the installer. Because the UI loads

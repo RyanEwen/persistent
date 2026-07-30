@@ -1,0 +1,49 @@
+name: play-check
+
+# Answers "can CI publish to Play right now?" without cutting a release.
+#
+# Run it from the Actions tab (or `gh workflow run play-check.yml`). It
+# authenticates with PLAY_SERVICE_ACCOUNT_JSON, lists every track's current
+# releases and versionCodes, and — with a version_code input — reports whether
+# that code is still usable. Nothing is uploaded and no release is created; the
+# throwaway Play edit it opens is deleted again.
+#
+# Use it after changing the service account, its Play Console permissions, or the
+# tracks, rather than discovering a problem mid-release.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_code:
+        description: 'Optional: a versionCode to test for headroom (defaults to this run number, which is not the release run number)'
+        required: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      - name: Check Play publishing config
+        id: play
+        env:
+          PLAY_SA: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$PLAY_SA" ]; then
+            echo "::error::PLAY_SERVICE_ACCOUNT_JSON is not set — CI cannot publish to Play."
+            exit 1
+          fi
+          echo "PLAY_SERVICE_ACCOUNT_JSON is present."
+
+      # The script needs no dependencies, so there is no install step.
+      - name: Report Play tracks
+        working-directory: apps/mobile
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          node scripts/play-publish.mjs --check \
+            --version-code "${{ github.event.inputs.version_code || 0 }}"

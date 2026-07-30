@@ -15,10 +15,12 @@ end-user-facing changes only — internal/docs/tooling commits are excluded; see
 
 - `direct` → **signed APK** on a GitHub Release, with the notes shown in the
   in-app update prompt.
-- `play` → **AAB** uploaded to Google Play (internal track by default), reusing
-  the same notes truncated to Play's 500-character "what's new" limit. Skipped
-  entirely unless the `PLAY_SERVICE_ACCOUNT_JSON` secret exists, so tagging works
-  the same before the listing goes live.
+- `play` → **AAB** released to Google Play on the **`internal` and `alpha`** tracks
+  (one upload, one versionCode, both tracks — see
+  `apps/mobile/scripts/play-publish.mjs`), reusing the same notes truncated to
+  Play's 500-character "what's new" limit. Skipped entirely unless the
+  `PLAY_SERVICE_ACCOUNT_JSON` secret exists, so tagging still works on forks.
+  Promotion beyond alpha is a deliberate Play Console action, not part of a tag.
 
 Never publish the `direct` APK to Play — it carries the in-app updater and
 `REQUEST_INSTALL_PACKAGES`, which Play prohibits.
@@ -44,7 +46,8 @@ Requirements:
   minor: `0.1.3 → 0.2.0`, major: `0.1.3 → 1.0.0`).
 - Keep `apps/web/package.json` `version` in sync: set it to the new version
   (this is the in-app displayed version / web build version). The APK's
-  versionName comes from the tag in CI; versionCode from the run number.
+  versionName comes from the tag in CI; versionCode from the run number plus the
+  `PLAY_VERSION_CODE_OFFSET` repo variable (unset = 0).
 - **Regenerate the lockfile after bumping**: `npm install --package-lock-only`.
   `package-lock.json` records each workspace's version, editing `package.json`
   alone leaves it stale, and `npm ci` then bakes the wrong version into the built
@@ -69,9 +72,11 @@ Recommended steps:
 6. `git push`, then `git tag vX.Y.Z && git push origin vX.Y.Z`.
 7. Watch the workflow: `gh run watch <id> --exit-status` (find it via
    `gh run list --workflow=release.yml --limit 1`). Confirm the release published
-   with the APK asset (`gh release view vX.Y.Z`). If Play publishing is enabled,
-   check the run log's "Publish to Google Play" step too — it reports "skipping"
-   when `PLAY_SERVICE_ACCOUNT_JSON` isn't set, which is expected pre-listing.
+   with the APK asset (`gh release view vX.Y.Z`), then check the "Release to Google
+   Play" step logged the versionCode against both `internal` and `alpha`. A failure
+   in the earlier "Pre-flight Play release" step means the versionCode collides
+   with one Play already has — the step's output names the
+   `PLAY_VERSION_CODE_OFFSET` value to set, after which re-run the workflow.
 8. Report the new version, the bump reasoning, and the release URL.
 
 Notes:
