@@ -19,6 +19,7 @@ import { PrivacyPage } from './pages/PrivacyPage.js'
 import { DeleteAccountPage } from './pages/DeleteAccountPage.js'
 import { UpdateCheck } from './native/UpdateCheck.js'
 import { registerNavHandler } from './native/navTo.js'
+import { useNativeBack } from './native/useNativeBack.js'
 
 export function App() {
   const { user, loading } = useAuth()
@@ -26,6 +27,8 @@ export function App() {
 
   // Let native code (notification taps) drive navigation.
   useEffect(() => registerNavHandler((path) => navigate(path)), [navigate])
+  // Android Back follows the screen hierarchy instead of browser history.
+  useNativeBack()
 
   if (loading) {
     return (

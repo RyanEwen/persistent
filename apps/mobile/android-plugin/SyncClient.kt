@@ -74,6 +74,8 @@ object SyncClient {
             alarm = json.optBoolean("alarm", false),
             ongoing = json.optBoolean("ongoing", true),
             soundUri = AlarmStore.soundUri(context, soundKind),
+            // Only the soft-notification path re-sounds; an alarm rings continuously.
+            nagSoundUri = if (soundKind == "alarm") "" else AlarmStore.soundUri(context, "nag"),
             reminderId = json.optString("reminderId", ""),
             canSilence = json.optBoolean("canSilence", false),
             shadeProminence = json.optString("shadeProminence", "INHERIT")

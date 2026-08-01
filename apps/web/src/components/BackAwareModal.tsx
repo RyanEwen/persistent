@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, type ComponentProps } from 'react'
 import Modal from '@mui/joy/Modal'
+import { setBackAwareDialogProbe } from './backAwareDialogStack.js'
 
 /**
  * Joy Modal wrapper that treats browser/Android Back as dialog dismissal.
@@ -24,6 +25,10 @@ let dialogHistoryListenerInstalled = false
 const activeDialogEntries: ActiveDialogEntry[] = []
 const dismissedDialogTokens = new Set<string>()
 const closingDialogTokensFromHistory = new Set<string>()
+
+// The native Back handler must let an open dialog swallow Back before it
+// navigates; hand it a reader over the live stack rather than a copy of the count.
+setBackAwareDialogProbe(() => activeDialogEntries.length > 0)
 
 function createDialogHistoryToken() {
   dialogHistoryTokenCounter += 1

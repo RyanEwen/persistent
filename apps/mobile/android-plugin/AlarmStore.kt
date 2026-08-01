@@ -17,6 +17,7 @@ object AlarmStore {
     private const val KEY_API_BASE_URL = "api_base_url"
     private const val KEY_ALARM_SOUND = "alarm_sound_uri"
     private const val KEY_NOTIFICATION_SOUND = "notification_sound_uri"
+    private const val KEY_NAG_SOUND = "nag_sound_uri"
     private const val KEY_AUTH_COOKIE = "auth_cookie"
     private const val KEY_LAST_PEEK = "last_peek_at"
 
@@ -34,12 +35,14 @@ object AlarmStore {
         apiBaseUrl: String,
         alarmSoundUri: String,
         notificationSoundUri: String,
+        nagSoundUri: String,
         authCookie: String
     ) {
         prefs(context).edit()
             .putString(KEY_API_BASE_URL, apiBaseUrl)
             .putString(KEY_ALARM_SOUND, alarmSoundUri)
             .putString(KEY_NOTIFICATION_SOUND, notificationSoundUri)
+            .putString(KEY_NAG_SOUND, nagSoundUri)
             .putString(KEY_AUTH_COOKIE, authCookie)
             .apply()
     }
@@ -54,9 +57,13 @@ object AlarmStore {
      */
     fun authCookie(context: Context): String = prefs(context).getString(KEY_AUTH_COOKIE, "") ?: ""
 
-    /** Chosen tone URI for the given kind ("alarm"/"notification"); "" = system default. */
+    /** Chosen tone URI for the given kind ("alarm"/"notification"/"nag"); "" = system default. */
     fun soundUri(context: Context, kind: String): String {
-        val key = if (kind == "alarm") KEY_ALARM_SOUND else KEY_NOTIFICATION_SOUND
+        val key = when (kind) {
+            "alarm" -> KEY_ALARM_SOUND
+            "nag" -> KEY_NAG_SOUND
+            else -> KEY_NOTIFICATION_SOUND
+        }
         return prefs(context).getString(key, "") ?: ""
     }
 

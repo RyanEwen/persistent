@@ -15,8 +15,12 @@ data class AlarmSpec(
     val alarm: Boolean,
     // true = stays put / re-appears if swiped away; false = ordinary dismissable.
     val ongoing: Boolean,
-    // Chosen sound URI ("" = system default for the alarm/notification type).
+    // Chosen sound URI for the FIRST fire ("" = system default for the type).
     val soundUri: String,
+    // Tone for the follow-up nags — each re-sound while still unconfirmed.
+    // "" = reuse soundUri, so an unset nag tone behaves exactly as before.
+    // Only used when soundIntervalSeconds > 0; an alarm loops one continuous tone.
+    val nagSoundUri: String = "",
     // Parent reminder id, so tapping the notification can open its editor.
     val reminderId: String = "",
     // true = an escalation alarm the user may silence back to a soft nag; false for
@@ -35,6 +39,7 @@ data class AlarmSpec(
         .put("alarm", alarm)
         .put("ongoing", ongoing)
         .put("soundUri", soundUri)
+        .put("nagSoundUri", nagSoundUri)
         .put("reminderId", reminderId)
         .put("canSilence", canSilence)
         .put("shadeProminence", shadeProminence)
@@ -52,6 +57,7 @@ data class AlarmSpec(
                 alarm = call.getBoolean("alarm") ?: false,
                 ongoing = call.getBoolean("ongoing") ?: true,
                 soundUri = call.getString("soundUri") ?: "",
+                nagSoundUri = call.getString("nagSoundUri") ?: "",
                 reminderId = call.getString("reminderId") ?: "",
                 canSilence = call.getBoolean("canSilence") ?: false,
                 shadeProminence = call.getString("shadeProminence") ?: "INHERIT"
@@ -71,6 +77,7 @@ data class AlarmSpec(
                 alarm = json.optBoolean("alarm", false),
                 ongoing = json.optBoolean("ongoing", true),
                 soundUri = json.optString("soundUri", ""),
+                nagSoundUri = json.optString("nagSoundUri", ""),
                 reminderId = json.optString("reminderId", ""),
                 canSilence = json.optBoolean("canSilence", false),
                 shadeProminence = json.optString("shadeProminence", "INHERIT")

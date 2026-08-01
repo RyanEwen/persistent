@@ -101,6 +101,8 @@ class FcmService : MessagingService() {
             // firing before this device has synced it) plays the user's sound instead
             // of the system default. "" (never mirrored) still means default.
             soundUri = AlarmStore.soundUri(context, if (alarm) "alarm" else "notification"),
+            // An alarm loops one continuous tone, so it has no separate follow-up tone.
+            nagSoundUri = if (alarm) "" else AlarmStore.soundUri(context, "nag"),
             reminderId = data["reminderId"] ?: "",
             canSilence = type == "escalate",
             shadeProminence = "INHERIT"
@@ -116,6 +118,7 @@ class FcmService : MessagingService() {
             putExtra("alarm", spec.alarm)
             putExtra("ongoing", spec.ongoing)
             putExtra("soundUri", spec.soundUri)
+            putExtra("nagSoundUri", spec.nagSoundUri)
             putExtra("reminderId", spec.reminderId)
             putExtra("canSilence", spec.canSilence)
             putExtra("shadeProminence", spec.shadeProminence)

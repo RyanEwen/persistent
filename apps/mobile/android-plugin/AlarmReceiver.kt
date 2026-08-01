@@ -30,6 +30,7 @@ class AlarmReceiver : BroadcastReceiver() {
                     putExtra("alarm", spec.alarm)
                     putExtra("ongoing", spec.ongoing)
                     putExtra("soundUri", spec.soundUri)
+                    putExtra("nagSoundUri", spec.nagSoundUri)
                     putExtra("reminderId", spec.reminderId)
                     putExtra("canSilence", spec.canSilence)
                     putExtra("shadeProminence", spec.shadeProminence)

@@ -3,7 +3,7 @@
  * mutations and the tab shell; each tab's fields live in a sibling file, and the
  * state <-> DTO conversions live in `formState.ts`.
  */
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import Stack from '@mui/joy/Stack'
 import Typography from '@mui/joy/Typography'
@@ -23,15 +23,19 @@ import { useReminders, useCreateReminder, useUpdateReminder, useDeleteReminder }
 import { fireSummary } from '../../lib/schedule-preview.js'
 import { useSettings } from '../../settings/useSettings.js'
 import { useToast } from '../../components/ToastProvider.js'
+import { setBackInterceptor } from '../../native/backInterceptor.js'
+import { parentRoute } from '../../native/useNativeBack.js'
 import { DetailsTab } from './DetailsTab.js'
 import { ScheduleTab } from './ScheduleTab.js'
 import { NotificationsTab } from './NotificationsTab.js'
 import { EscalationTab } from './EscalationTab.js'
+import { DiscardChangesDialog } from './DiscardChangesDialog.js'
 import {
   defaultKindForType,
   emptyForm,
   emptyMedication,
   fromReminder,
+  isFormDirty,
   previewInput,
   todoNeedsItems,
   toInput,
@@ -53,12 +57,39 @@ export function ReminderEditorPage() {
 
   const existing = useMemo(() => reminders.data?.find((r) => r.id === id), [reminders.data, id])
   const [form, setForm] = useState<FormState>(() => (existing ? fromReminder(existing) : emptyForm()))
+  // The state the editor was opened in, to tell edits from the untouched form.
+  const [original, setOriginal] = useState<FormState>(form)
+  // Where to go once the user confirms discarding; null = no prompt showing.
+  const [discardTo, setDiscardTo] = useState<string | null>(null)
+  // Set while leaving deliberately (saved, deleted, or discarded), so the guard
+  // doesn't challenge a departure the user already agreed to.
+  const [leaving, setLeaving] = useState(false)
 
   // If the reminder loads after first render (deep link), hydrate once.
   const [hydratedId, setHydratedId] = useState<string | null>(existing?.id ?? null)
   if (existing && existing.id !== hydratedId) {
-    setForm(fromReminder(existing))
+    const hydrated = fromReminder(existing)
+    setForm(hydrated)
+    // Re-baseline too, or the reminder simply arriving would read as an edit.
+    setOriginal(hydrated)
     setHydratedId(existing.id)
+  }
+
+  const dirty = !leaving && isFormDirty(original, form)
+
+  // Android Back: ask before dropping edits instead of discarding silently.
+  useEffect(() => {
+    return setBackInterceptor(() => {
+      if (!dirty) return false
+      setDiscardTo(parentRoute(window.location.pathname) ?? '/')
+      return true
+    })
+  }, [dirty])
+
+  /** Leave for `to`, pausing on the discard prompt when there are unsaved edits. */
+  function leaveFor(to: string) {
+    if (dirty) setDiscardTo(to)
+    else navigate(to)
   }
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
@@ -126,6 +157,7 @@ export function ReminderEditorPage() {
     setError(null)
     const input = toInput(form)
     const savedMessage = id ? 'Saved' : 'Created'
+    setLeaving(true)
     // Capture the edit time now (survives offline queueing) so the server can
     // apply last-edit-wins on replay.
     const editedAt = new Date().toISOString()
@@ -144,12 +176,15 @@ export function ReminderEditorPage() {
       toast(savedMessage)
       navigate('/')
     } catch (err) {
+      // Still here, edits intact — re-arm the guard that the departure disabled.
+      setLeaving(false)
       setError(extractErrorMessage(err))
     }
   }
 
   async function onDelete() {
     if (!id) return
+    setLeaving(true)
     if (!navigator.onLine) {
       remove.mutate(id)
       toast('Deleted', 'neutral')
@@ -161,6 +196,7 @@ export function ReminderEditorPage() {
       toast('Deleted', 'neutral')
       navigate('/')
     } catch (err) {
+      setLeaving(false)
       setError(extractErrorMessage(err))
     }
   }
@@ -303,7 +339,7 @@ export function ReminderEditorPage() {
             <Button type="submit" loading={busy} disabled={missingTodoItems} sx={{ flex: 1 }}>
               {id ? 'Save' : 'Create'}
             </Button>
-            <Button variant="outlined" color="neutral" onClick={() => navigate('/')}>
+            <Button variant="outlined" color="neutral" onClick={() => leaveFor('/')}>
               Cancel
             </Button>
           </Stack>
@@ -321,6 +357,16 @@ export function ReminderEditorPage() {
           )}
         </Stack>
       </Sheet>
+      <DiscardChangesDialog
+        open={discardTo !== null}
+        onKeepEditing={() => setDiscardTo(null)}
+        onDiscard={() => {
+          const to = discardTo ?? '/'
+          setDiscardTo(null)
+          setLeaving(true)
+          navigate(to)
+        }}
+      />
     </form>
   )
 }

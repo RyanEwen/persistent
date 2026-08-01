@@ -35,8 +35,10 @@ export function SettingsPage() {
     setThemeId,
     alarmSound,
     notificationSound,
+    nagSound,
     setAlarmSound,
     setNotificationSound,
+    setNagSound,
     shadeProminence,
     setShadeProminence
   } = useSettings()
@@ -130,6 +132,26 @@ export function SettingsPage() {
                 Choose
               </Button>
             </FormControl>
+            <FormControl orientation="horizontal" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+              <Box>
+                <FormLabel>Nag sound</FormLabel>
+                <Typography level="body-xs">
+                  {nagSound.uri ? nagSound.title : `Same as notification (${notificationSound.title})`}
+                </Typography>
+              </Box>
+              <Button
+                size="sm"
+                variant="outlined"
+                onClick={() => chooseSound('notification', nagSound, setNagSound)}
+              >
+                Choose
+              </Button>
+            </FormControl>
+            <Typography level="body-xs">
+              The notification sound plays when a reminder first fires; the nag sound plays on each repeat after
+              that, for reminders with a nag interval set. Alarms ring one continuous tone, so this doesn't apply
+              to them.
+            </Typography>
             <FormControl orientation="horizontal" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
               <Box>
                 <FormLabel>Alarm sound</FormLabel>

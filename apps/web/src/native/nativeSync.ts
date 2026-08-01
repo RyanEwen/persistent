@@ -28,7 +28,7 @@ interface SyncResponse {
 }
 
 /** Read the user's chosen sound URIs from the persisted settings (no React here). */
-function chosenSoundUri(kind: 'alarmSound' | 'notificationSound'): string {
+function chosenSoundUri(kind: 'alarmSound' | 'notificationSound' | 'nagSound'): string {
   try {
     const raw = localStorage.getItem('persistent-settings')
     if (raw) {
@@ -71,6 +71,9 @@ function toScheduledAlarm(alarm: DeviceAlarm): ScheduledAlarm {
     alarm: alarm.alarm,
     ongoing: alarm.ongoing,
     soundUri: chosenSoundUri(alarm.soundKind === 'alarm' ? 'alarmSound' : 'notificationSound'),
+    // Only the soft-notification path re-sounds, so an alarm carries no nag tone —
+    // it loops one continuous tone until confirmed.
+    nagSoundUri: alarm.soundKind === 'alarm' ? '' : chosenSoundUri('nagSound'),
     reminderId: alarm.reminderId,
     canSilence: alarm.canSilence,
     shadeProminence: alarm.shadeProminence
@@ -88,7 +91,8 @@ async function mirrorSyncConfig(): Promise<void> {
   await AlarmPlugin.setSyncConfig({
     apiBaseUrl: window.location.origin,
     alarmSoundUri: chosenSoundUri('alarmSound'),
-    notificationSoundUri: chosenSoundUri('notificationSound')
+    notificationSoundUri: chosenSoundUri('notificationSound'),
+    nagSoundUri: chosenSoundUri('nagSound')
   }).catch(() => {})
 }
 
@@ -271,6 +275,13 @@ export async function initNative(): Promise<void> {
       scheduleResync()
     }
   })
+  // The reliable deep-link path: native pushes this the moment a tap parks a
+  // target, whether or not the activity ever paused.
+  void AlarmPlugin.addListener('pendingNavigation', () => {
+    void consumePendingNavigation().catch(() => {})
+  })
+  // Kept as a backstop for the cold-ish cases (process restored, plugin not yet
+  // loaded when the intent landed) — draining twice is harmless, it's consume-once.
   void App.addListener('resume', () => {
     void consumePendingNavigation().catch(() => {})
     scheduleResync()

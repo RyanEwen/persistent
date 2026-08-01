@@ -33,6 +33,16 @@ import org.json.JSONArray
 @CapacitorPlugin(name = "AlarmPlugin")
 class AlarmPlugin : Plugin() {
 
+    override fun load() {
+        super.load()
+        live = this
+    }
+
+    override fun handleOnDestroy() {
+        if (live === this) live = null
+        super.handleOnDestroy()
+    }
+
     @PluginMethod
     fun schedule(call: PluginCall) {
         val alarm = AlarmSpec.fromCall(call) ?: run {
@@ -75,6 +85,7 @@ class AlarmPlugin : Plugin() {
             apiBaseUrl = apiBaseUrl,
             alarmSoundUri = call.getString("alarmSoundUri") ?: "",
             notificationSoundUri = call.getString("notificationSoundUri") ?: "",
+            nagSoundUri = call.getString("nagSoundUri") ?: "",
             authCookie = cookie
         )
         call.resolve()
@@ -294,6 +305,28 @@ class AlarmPlugin : Plugin() {
     }
 
     companion object {
+        /**
+         * The loaded plugin, or null before the WebView is up / after it is gone.
+         * Only used to push [notifyPendingNavigation]; everything else is call-driven.
+         */
+        @Volatile
+        private var live: AlarmPlugin? = null
+
+        /**
+         * Tell the WebView a notification tap left a reminder to open.
+         *
+         * Needed because the WebView otherwise only drains PendingNavStore on
+         * Capacitor's `resume`, and `resume` does NOT fire when the activity was
+         * already foreground — pulling down the shade over a running app never pauses
+         * it, so a tap there stored the target and nothing ever picked it up. That is
+         * the "tapped the notification and nothing happened" case. A cold start has no
+         * plugin yet, which is fine: the startup drain in initNativeSync covers it.
+         */
+        @JvmStatic
+        fun notifyPendingNavigation() {
+            live?.notifyListeners("pendingNavigation", JSObject())
+        }
+
         /**
          * Reconcile the on-device alarm set to [incoming] and re-arm. Shared by the
          * JS `scheduleAll` bridge call and the native [SyncWorker], so a foreground

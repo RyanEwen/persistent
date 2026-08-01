@@ -19,8 +19,15 @@ export interface ScheduledAlarm {
   alarm: boolean
   /** Stays put / re-appears if swiped (true for both persistence levels). */
   ongoing: boolean
-  /** Chosen sound URI; '' = system default for the type. */
+  /** Chosen sound URI for the first fire; '' = system default for the type. */
   soundUri: string
+  /**
+   * Tone for the follow-up nags (each re-sound while unconfirmed). '' = reuse
+   * `soundUri`, i.e. the nag sounds the same as the fire. Only meaningful when
+   * `soundIntervalSeconds > 0`; an ALARM loops one continuous tone and has no
+   * separate follow-up to re-tone.
+   */
+  nagSoundUri: string
   /** Parent reminder id, so tapping the notification opens its editor. */
   reminderId: string
   /**
@@ -89,11 +96,26 @@ export interface AlarmPluginPlugin {
   /** Reminder id from a tapped notification (cleared on read); '' if none. */
   consumePendingNavigation(): Promise<{ reminderId: string }>
   /**
+   * Fired when a notification tap parks a reminder to open. The `resume` event
+   * can't carry this: it doesn't fire when the activity was already foreground
+   * (the shade doesn't pause it), which is exactly the tap that appeared to do
+   * nothing. Cold starts are covered by the drain in `initNativeSync`.
+   */
+  addListener(
+    eventName: 'pendingNavigation',
+    listener: () => void
+  ): Promise<{ remove: () => Promise<void> }>
+  /**
    * Mirror what the background sync worker needs but can't read from the WebView:
    * the API origin and the chosen sound URIs. Also flushes the WebView cookie jar
    * so the worker can authenticate while the app is closed.
    */
-  setSyncConfig(options: { apiBaseUrl: string; alarmSoundUri: string; notificationSoundUri: string }): Promise<void>
+  setSyncConfig(options: {
+    apiBaseUrl: string
+    alarmSoundUri: string
+    notificationSoundUri: string
+    nagSoundUri: string
+  }): Promise<void>
   /**
    * Ensure the periodic background re-sync worker is enqueued (idempotent). It
    * re-pulls the server's alarms and re-arms on-device on a ~15-min cadence and on

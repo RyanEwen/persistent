@@ -80,6 +80,9 @@ public class MainActivity extends BridgeActivity {
         String reminderId = intent.getStringExtra(AlarmReceiver.EXTRA_REMINDER_ID);
         if (TextUtils.isEmpty(reminderId)) return;
         PendingNavStore.INSTANCE.set(this, reminderId);
+        // Push it to the WebView rather than waiting for Capacitor's `resume`, which
+        // never arrives when the activity was already foreground behind the shade.
+        AlarmPlugin.notifyPendingNavigation();
         // Consume it so a later relaunch from Recents (which replays the same intent)
         // doesn't bounce the user back to this reminder.
         intent.removeExtra(AlarmReceiver.EXTRA_REMINDER_ID);

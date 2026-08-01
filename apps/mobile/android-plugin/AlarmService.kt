@@ -112,6 +112,7 @@ class AlarmService : Service() {
                         alarm = intent.getBooleanExtra("alarm", false),
                         ongoing = intent.getBooleanExtra("ongoing", true),
                         soundUri = intent.getStringExtra("soundUri") ?: "",
+                        nagSoundUri = intent.getStringExtra("nagSoundUri") ?: "",
                         reminderId = intent.getStringExtra("reminderId") ?: "",
                         canSilence = intent.getBooleanExtra("canSilence", false),
                         shadeProminence = intent.getStringExtra("shadeProminence") ?: "INHERIT"
@@ -929,14 +930,21 @@ class AlarmService : Service() {
         vibrate()
     }
 
-    /** Notification: re-post + re-sound every N seconds so it keeps nagging. */
+    /**
+     * Notification: re-post + re-sound every N seconds so it keeps nagging.
+     *
+     * This is the only place the nag tone applies — the first fire already played
+     * `soundUri` in startAlarm, and everything from here on is a follow-up. An unset
+     * nag tone falls back to the fire tone, so behavior is unchanged until the user
+     * actually picks one.
+     */
     private fun startReNotifyLoop(spec: AlarmSpec) {
         val intervalMs = spec.soundIntervalSeconds * 1000L
         val runnable = object : Runnable {
             override fun run() {
                 val current = active[spec.occurrenceId] ?: return
                 nm.notify(notifId(current.occurrenceId), buildNotification(current))
-                playNotificationSound(current.soundUri)
+                playNotificationSound(current.nagSoundUri.ifEmpty { current.soundUri })
                 handler.postDelayed(this, intervalMs)
             }
         }

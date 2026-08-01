@@ -22,6 +22,13 @@ interface Settings {
   themeId: ThemeId
   alarmSound: SoundChoice
   notificationSound: SoundChoice
+  /**
+   * Tone for the follow-up nags — each re-sound of a PERSISTENT notification that
+   * hasn't been confirmed. Separate from `notificationSound` (the first fire) so a
+   * repeat can be made more insistent, or quieter, than the original. Default
+   * (empty uri) reuses the notification tone, which is the old behavior.
+   */
+  nagSound: SoundChoice
   shadeProminence: ShadeDefault
 }
 
@@ -39,6 +46,7 @@ interface SettingsContextValue extends Settings {
   setThemeId: (id: ThemeId) => void
   setAlarmSound: (sound: SoundChoice) => void
   setNotificationSound: (sound: SoundChoice) => void
+  setNagSound: (sound: SoundChoice) => void
   setShadeProminence: (prominence: ShadeDefault) => void
 }
 
@@ -59,6 +67,7 @@ function loadSettings(): StoredState {
     themeId: DEFAULT_THEME_ID,
     alarmSound: DEFAULT_SOUND,
     notificationSound: DEFAULT_SOUND,
+    nagSound: DEFAULT_SOUND,
     shadeProminence: 'NORMAL'
   }
   try {
@@ -75,6 +84,7 @@ function loadSettings(): StoredState {
         themeId: APP_THEMES.some((t) => t.id === parsed.themeId) ? (parsed.themeId as ThemeId) : defaults.themeId,
         alarmSound: toSound(parsed.alarmSound),
         notificationSound: toSound(parsed.notificationSound),
+        nagSound: toSound(parsed.nagSound),
         shadeProminence: parsed.shadeProminence === 'MINIMIZED' ? 'MINIMIZED' : 'NORMAL'
       }
     }
@@ -107,6 +117,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setThemeId: (themeId) => update({ themeId }),
     setAlarmSound: (alarmSound) => update({ alarmSound }),
     setNotificationSound: (notificationSound) => update({ notificationSound }),
+    setNagSound: (nagSound) => update({ nagSound }),
     setShadeProminence: (shadeProminence) => update({ shadeProminence })
   }
 

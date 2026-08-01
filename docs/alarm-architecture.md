@@ -131,8 +131,17 @@ drives them lives in `apps/web/src/native`.
     warning.) Routing is by extra, not URL scheme: `MainActivity` parks the reminder
     id in `PendingNavStore` from `onCreate` (cold start) and `onNewIntent` (warm
     tap, `launchMode=singleTask`), clearing the extra so a later relaunch from
-    Recents doesn't replay the navigation; the WebView drains the store on startup
-    and on each Capacitor `resume` (`nativeSync.ts`) because it owns the router.
+    Recents doesn't replay the navigation; the WebView drains the store because it
+    owns the router.
+    **The drain is event-driven, not `resume`-driven.** `MainActivity` calls
+    `AlarmPlugin.notifyPendingNavigation()` whenever it parks a target, which emits
+    a `pendingNavigation` event the WebView listens for. Draining on Capacitor's
+    `resume` alone is not enough: pulling the shade down over a *running* app never
+    pauses the activity, so no `resume` follows the tap — the target was stored and
+    nothing ever picked it up, and the tap appeared to do nothing at all. `resume`
+    and the startup drain remain as backstops for the case where the intent lands
+    before the plugin has loaded; `PendingNavStore.consume` is consume-once, so
+    draining from several paths is harmless.
     An **alarm's** body tap is different — it opens the full-screen `AlarmActivity`
     control surface, not the app (see above) — and that path was never a trampoline.
   - The body is rendered with **`BigTextStyle`**, so a multi-line description shows
@@ -156,6 +165,16 @@ drives them lives in `apps/web/src/native`.
   picker; the chosen URIs are stored in settings and passed through as the
   alarm/notification tone (system default otherwise). The service plays audio
   itself (silent channel) so each tone is honored.
+- **Three tones, because a fire and a nag are different events** (see the
+  vocabulary in [`notification-behavior.md`](notification-behavior.md)): the
+  *notification* tone plays when an occurrence first fires, the *nag* tone on each
+  re-sound of the `soundIntervalSeconds` loop while it stays unconfirmed, and the
+  *alarm* tone for a ringing alarm. Both are carried per-alarm as `soundUri` and
+  `nagSoundUri`; `startReNotifyLoop` is the only consumer of the latter and falls
+  back to `soundUri` when it is empty, so an unset nag tone behaves exactly as
+  before. An `ALARM` carries no nag tone at all — it loops one continuous tone, so
+  there is no separate follow-up to re-tone. Every path that builds a spec fills
+  both: the JS bridge, `SyncClient` (background worker) and `FcmService` (push).
 - Stops **only** on **Done**, a deliberate **two-tap confirm** on every surface
   (notification, full-screen `AlarmActivity`, and the in-app card): the first tap
   swaps the controls to *Confirm done* / *Not yet* (the alarm keeps ringing) so an
@@ -228,6 +247,33 @@ thing that should clear the warning is actually granting it. If
 (`warnIfAlarmsCantShow`), because a fired alarm would otherwise sound with no shade
 surface — and the native force-launch above is the last-resort backstop, not a
 substitute for the grant.
+
+## Back behaves like an app, not a browser
+
+The Android client is a WebView, so Capacitor's default Back walks the **WebView's
+history** — the trail of every hop the user made. That is wrong for an app: a trail
+means the presses needed to leave a screen depend on how you reached it, and after a
+few minutes of use Back retraces a long path instead of going up.
+
+`native/useNativeBack.ts` registers a Capacitor `backButton` listener, which
+suppresses that default entirely and replaces it with Android's **hierarchy**
+model:
+
+1. An open dialog swallows Back and closes (asked via
+   `components/backAwareDialogStack.ts`, since `BackAwareModal` tracks dialogs as
+   history entries rather than routes).
+2. On a detail/editor screen, go **up one level** — editor to the reminder it
+   edits, reminder to the list, Help/Privacy/Delete-account back to Settings.
+3. On a bottom-nav tab other than the first, go to the first tab.
+4. On the first tab, leave the app.
+
+The parent is derived from the **path**, not from history (`parentRoute`, covered by
+`useNativeBack.test.ts`). This matters most for the notification deep link: it lands
+the user on a reminder with no trail behind it at all, and Back still has to go
+somewhere sensible. Navigation up uses `replace`, so going up shrinks the stack
+rather than extending it.
+
+Web/PWA is deliberately untouched — browser Back stays browser Back there.
 
 ## Notification shade prominence
 
