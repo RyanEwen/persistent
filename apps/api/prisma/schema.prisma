@@ -178,6 +178,12 @@ model ReminderOccurrence {
   scheduledFor DateTime
   status       OccurrenceStatus @default(PENDING)
   firedAt      DateTime?
+  /// When the server last put this occurrence in front of the user: the fire, a
+  /// snooze revival, an escalation. Distinct from `firedAt`, which is pinned to
+  /// the FIRST fire because the escalation backstop is anchored to it — so a
+  /// snooze revived hours later keeps its old `firedAt` and needs its own stamp
+  /// to sort as the freshest thing on the list (docs/notification-behavior.md §4a).
+  lastNotifiedAt DateTime?
   acknowledgedAt DateTime?
   snoozedUntil DateTime?
   escalatedAt  DateTime?

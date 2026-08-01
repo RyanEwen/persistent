@@ -18,13 +18,17 @@ import type { Occurrence } from '@persistent/shared'
 /**
  * When this firing last appeared, as an epoch time.
  *
- * `firedAt` rather than `scheduledFor`, because they diverge exactly where it
- * matters: an unscheduled firing has no meaningful scheduled time, and an
- * orphaned one is dated to a schedule the reminder has since moved off. Both
- * still *appeared* when they appeared.
+ * `lastNotifiedAt` first, because `firedAt` is pinned to the *first* fire (the
+ * escalation backstop is anchored there), so a snooze revived hours later would
+ * otherwise sort as though it were still that old. It falls back through `firedAt`
+ * to `scheduledFor` for rows written before the column existed.
+ *
+ * Never `scheduledFor` on its own where the others exist: an unscheduled firing
+ * has no meaningful scheduled time, and an orphaned one is dated to a schedule the
+ * reminder has since moved off. Both still *appeared* when they appeared.
  */
 export function firingRecency(occurrence: Occurrence): number {
-  return Date.parse(occurrence.firedAt ?? occurrence.scheduledFor)
+  return Date.parse(occurrence.lastNotifiedAt ?? occurrence.firedAt ?? occurrence.scheduledFor)
 }
 
 function escalationRank(occurrence: Occurrence): number {

@@ -164,6 +164,12 @@ shade, where a nag re-stamps its post time so it rises back up. The firing that
 just arrived is the one the user is reacting to; an older one does not need to hold
 the top of the list, because staying until confirmed is what the nag is *for*.
 
+"Newest" means `ReminderOccurrence.lastNotifiedAt` — when the server last put the
+firing in front of the user (the fire, a snooze revival, an escalation). It exists
+because `firedAt` cannot answer that question: `firedAt` is pinned to the **first**
+fire so the escalation backstop stays anchored there (§3), so a snooze that came
+back an hour ago would otherwise still sort as hours old.
+
 The one exception is an **escalation**, which outranks recency: it is ringing an
 alarm right now. It is also the only firing that gets a loud card
 (`firingTone.ts`), so urgency is graded the same way in both places.

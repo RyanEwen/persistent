@@ -161,9 +161,10 @@ async function tick(): Promise<void> {
  * can't double-dispatch the same occurrence if they overlap.
  */
 async function fireOccurrence(occurrenceId: string): Promise<void> {
+  const now = new Date()
   const claimed = await prisma.reminderOccurrence.updateMany({
     where: { id: occurrenceId, status: 'PENDING' },
-    data: { status: 'FIRED', firedAt: new Date() }
+    data: { status: 'FIRED', firedAt: now, lastNotifiedAt: now }
   })
   if (claimed.count === 0) return // already fired by a concurrent path
   const occurrence = await prisma.reminderOccurrence.findUnique({
@@ -213,7 +214,7 @@ async function sweep(): Promise<void> {
     if (shouldEscalateNow(escalateAt, occurrence.snoozedUntil, now)) {
       const updated = await prisma.reminderOccurrence.update({
         where: { id: occurrence.id },
-        data: { status: 'ESCALATED', escalatedAt: now, snoozedUntil: null },
+        data: { status: 'ESCALATED', escalatedAt: now, lastNotifiedAt: now, snoozedUntil: null },
         include: { reminder: true }
       })
       await escalate(updated.userId, updated.reminder, updated.id, updated.scheduledFor)
@@ -247,7 +248,9 @@ async function sweep(): Promise<void> {
   }
 
   // 2) Revive elapsed snoozes that didn't escalate. Keep the original firedAt so
-  // the escalation backstop stays anchored to the first fire.
+  // the escalation backstop stays anchored to the first fire — but stamp
+  // lastNotifiedAt, because coming back from a snooze IS a fresh appearance and
+  // should sort as the newest thing on the list.
   const snoozed = await prisma.reminderOccurrence.findMany({
     where: { status: 'SNOOZED', snoozedUntil: { lte: now } },
     include: { reminder: true },
@@ -256,7 +259,7 @@ async function sweep(): Promise<void> {
   for (const occurrence of snoozed) {
     const updated = await prisma.reminderOccurrence.update({
       where: { id: occurrence.id },
-      data: { status: 'FIRED', snoozedUntil: null },
+      data: { status: 'FIRED', lastNotifiedAt: now, snoozedUntil: null },
       include: { reminder: true }
     })
     // A revived snooze nags again on its own; it never supersedes its siblings.
@@ -292,7 +295,7 @@ async function reviveMissed(): Promise<void> {
     for (const occurrence of missed) {
       const updated = await prisma.reminderOccurrence.update({
         where: { id: occurrence.id },
-        data: { status: 'FIRED', firedAt: now, snoozedUntil: null },
+        data: { status: 'FIRED', firedAt: now, lastNotifiedAt: now, snoozedUntil: null },
         include: { reminder: true }
       })
       fireNotification(updated.userId, updated.reminder, updated.id, updated.scheduledFor, false)

@@ -39,6 +39,8 @@ interface SeedOccurrence {
   scheduledFor: Date
   status: OccurrenceStatus
   firedAt?: Date | null
+  /** Defaults to `firedAt`; set explicitly to model a snooze revived later. */
+  lastNotifiedAt?: Date | null
   acknowledgedAt?: Date | null
   snoozedUntil?: Date | null
   escalatedAt?: Date | null
@@ -127,6 +129,25 @@ const seeds: Seed[] = [
     },
     occurrences: [
       { scheduledFor: ago(45 * MINUTE), status: 'SNOOZED', firedAt: ago(45 * MINUTE), snoozedUntil: ahead(25 * MINUTE) }
+    ]
+  },
+  {
+    note: 'revived snooze — fired this morning, came back a minute ago, so it sorts first',
+    reminder: {
+      title: 'Chase the invoice',
+      details: 'Second follow-up.',
+      type: 'NONE',
+      schedule: { kind: 'daily', timesOfDay: ['08:00'] },
+      startDate: isoDay(-5)
+    },
+    occurrences: [
+      {
+        scheduledFor: ago(9 * HOUR),
+        status: 'FIRED',
+        // firedAt stays anchored to the first fire; lastNotifiedAt is the revival.
+        firedAt: ago(9 * HOUR),
+        lastNotifiedAt: ago(MINUTE)
+      }
     ]
   },
   {
@@ -280,6 +301,7 @@ async function main(): Promise<void> {
           scheduledFor: occurrence.scheduledFor,
           status: occurrence.status,
           firedAt: occurrence.firedAt ?? null,
+          lastNotifiedAt: occurrence.lastNotifiedAt ?? occurrence.firedAt ?? null,
           acknowledgedAt: occurrence.acknowledgedAt ?? null,
           snoozedUntil: occurrence.snoozedUntil ?? null,
           escalatedAt: occurrence.escalatedAt ?? null,

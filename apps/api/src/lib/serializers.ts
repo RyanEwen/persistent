@@ -72,6 +72,7 @@ export function toOccurrence(row: ReminderOccurrence & { reminder: ReminderRow }
     scheduledFor: row.scheduledFor.toISOString(),
     status: row.status,
     firedAt: row.firedAt?.toISOString() ?? null,
+    lastNotifiedAt: row.lastNotifiedAt?.toISOString() ?? null,
     acknowledgedAt: row.acknowledgedAt?.toISOString() ?? null,
     snoozedUntil: row.snoozedUntil?.toISOString() ?? null,
     escalatedAt: row.escalatedAt?.toISOString() ?? null,

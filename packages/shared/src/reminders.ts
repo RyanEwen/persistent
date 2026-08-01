@@ -358,6 +358,11 @@ export const occurrenceSchema = z.object({
   scheduledFor: z.string().datetime(),
   status: occurrenceStatusSchema,
   firedAt: z.string().datetime().nullable(),
+  // When the server last put this firing in front of the user — the fire, a snooze
+  // revival, an escalation. `firedAt` can't answer that: it is pinned to the FIRST
+  // fire so the escalation backstop stays anchored there, so a snooze revived hours
+  // later still reads as old. This is what orders the lists (`firingOrder.ts`).
+  lastNotifiedAt: z.string().datetime().nullable(),
   acknowledgedAt: z.string().datetime().nullable(),
   snoozedUntil: z.string().datetime().nullable(),
   escalatedAt: z.string().datetime().nullable(),
