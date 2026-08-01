@@ -112,6 +112,14 @@ directory guide `apps/api/CLAUDE.md`.
 - `npm run dev` — shared (watch) + api + web concurrently.
 - `npm run db:migrate` — create/apply Prisma migrations. Regenerate the client
   (`npm run db:generate`) and update shared contracts when the schema changes.
+  **Never point `prisma migrate diff --shadow-database-url` at `DATABASE_URL`** —
+  Prisma resets the shadow database, so that wipes the dev data. `prisma migrate
+  status` answers "is the schema in step?" without touching anything.
+- `npm run db:seed` — fill a dev account with reminders covering every type,
+  schedule kind and occurrence state (due, escalated, snoozed, orphaned, part-ticked
+  checklist, paused, history). Replaces that user's reminders only — the account,
+  passkeys and sessions survive, so it never signs you out. `-- --keep` to append,
+  `-- --email=…` to pick the user.
 - Before finishing a task run `npm run validate` (lint + test + typecheck +
   prisma validate). Add focused tests for non-trivial behavior.
 - `npm test` discovers `*.test.ts` under `apps/`, `packages/` **and `scripts/`**.
