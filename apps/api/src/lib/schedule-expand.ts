@@ -74,6 +74,14 @@ function isActiveDay(day: DateTime, anchor: DateTime, schedule: Schedule): boole
     case 'weekly':
     case 'custom':
       return (schedule.daysOfWeek ?? []).includes(weekdaySun0)
+    case 'monthly': {
+      // A named day the month doesn't have (the 31st in February) simply doesn't
+      // occur that month — never clamped back onto the 28th, which would fire a
+      // "the 31st" reminder on a day the user didn't pick. `lastDayOfMonth` is the
+      // way to say "end of the month", and is additive with the named days.
+      if ((schedule.daysOfMonth ?? []).includes(day.day)) return true
+      return Boolean(schedule.lastDayOfMonth) && day.day === day.daysInMonth
+    }
     case 'interval': {
       const every = schedule.everyNDays ?? 1
       const days = Math.round(day.startOf('day').diff(anchor.startOf('day'), 'days').days)

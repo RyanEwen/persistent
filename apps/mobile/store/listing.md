@@ -62,9 +62,13 @@ Confirm on your phone and it clears on your tablet and in your browser at the sa
 BUILT FOR MEDICATION
 Tag a reminder as Medication and list what it's for — each drug with its dose and unit ("Ibuprofen 200 mg, Tylenol 500 mg"). The reminder tells you exactly what to take, and your history shows what you actually confirmed taking and when.
 
+CHECKLISTS
+Some reminders cover several things at once. Tag one as a Checklist, list the items, and tick them off as you go — each firing tracks its own ticks, so a repeating checklist starts fresh every time. It still keeps nagging until you confirm it: ticking the last item doesn't let you off the hook.
+
 SCHEDULING
 • One-off reminders at a date and time
 • Daily, weekly, every-N-days, or fully custom day-of-week schedules
+• Monthly on the days you choose — the 1st, the 1st and 15th, or the last day of every month
 • Up to 24 times per day, per reminder
 • Start and end dates, an option to skip weekends, and a pause switch
 • Snooze by preset, a custom duration, or until a specific date and time
@@ -168,7 +172,7 @@ crashlytics / firebase-analytics / posthog / amplitude / gtag returns zero hits)
 | --- | --- | --- | --- | --- |
 | Email address | Yes | Yes | Account management, app functionality | Sign-in codes via Cloudflare; user-set escalation contact |
 | Name | Yes | No | Account management | `displayName`, only if signing in with Google |
-| **Health info** | Yes | Yes | App functionality | Medication category stores drug name + dose; push payloads carry titles |
+| **Health info** | Yes | Yes | App functionality | Medication reminders store drug name + dose; push payloads carry titles |
 | Other user-generated content | Yes | Yes | App functionality | Reminder titles/details, sent in push payloads and escalation emails |
 | Device or other IDs | Yes | Yes | App functionality | Web Push endpoints / FCM tokens |
 | App activity / other actions | Yes | No | App functionality | Occurrence log: fired, acknowledged, snoozed times |

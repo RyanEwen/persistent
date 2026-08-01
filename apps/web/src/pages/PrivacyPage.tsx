@@ -50,12 +50,12 @@ export function PrivacyPage() {
           </Typography>
           <Typography level="body-sm">
             <strong>Your reminders.</strong> The title, details, schedule, and settings of every reminder you
-            create. If you use the Medication category, that includes the medication names, doses, and units
-            you enter — health information you have chosen to record.
+            create, including the items on a checklist reminder. If you use the Medication type, that includes the
+            medication names, doses, and units you enter — health information you have chosen to record.
           </Typography>
           <Typography level="body-sm">
-            <strong>Reminder history.</strong> When each reminder fired, and whether and when you confirmed,
-            snoozed, or ignored it.
+            <strong>Reminder history.</strong> When each reminder fired, which checklist items you ticked off,
+            and whether and when you confirmed, snoozed, or ignored it.
           </Typography>
           <Typography level="body-sm">
             <strong>Devices.</strong> A push token or push endpoint for each device you enable notifications

@@ -9,7 +9,13 @@
  * reflects them immediately, even with no network.
  */
 import { QueryClient, QueryCache, MutationCache } from '@tanstack/react-query'
-import { extractErrorMessage, type Reminder, type ReminderInput } from '@persistent/shared'
+import {
+  extractErrorMessage,
+  type CheckItemInput,
+  type Occurrence,
+  type Reminder,
+  type ReminderInput
+} from '@persistent/shared'
 import { apiFetch } from './apiClient.js'
 import { notify } from './toast.js'
 
@@ -51,7 +57,8 @@ export const mutationKeys = {
   deleteReminder: ['reminders', 'delete'] as const,
   ackOccurrence: ['occurrences', 'ack'] as const,
   snoozeOccurrence: ['occurrences', 'snooze'] as const,
-  silenceOccurrence: ['occurrences', 'silence'] as const
+  silenceOccurrence: ['occurrences', 'silence'] as const,
+  checkOccurrenceItem: ['occurrences', 'check'] as const
 }
 
 let tempCounter = 0
@@ -67,8 +74,8 @@ function optimisticReminder(input: ReminderInput, id = tempId()): Reminder {
     id,
     title: input.title,
     details: input.details ?? null,
-    category: input.category ?? 'NONE',
-    categoryData: input.categoryData ?? {},
+    type: input.type ?? 'NONE',
+    typeData: input.typeData ?? {},
     schedule: input.schedule,
     persistence: input.persistence ?? 'PERSISTENT',
     soundIntervalSeconds: input.soundIntervalSeconds ?? null,
@@ -91,6 +98,10 @@ interface RemindersSnapshot {
   previous?: Reminder[]
 }
 
+interface OccurrencesSnapshot {
+  previous?: Occurrence[]
+}
+
 /**
  * Register mutation defaults so queued-while-offline mutations carry their own
  * mutationFn (needed to resume after a reload) and reminder writes update the
@@ -101,6 +112,11 @@ export function registerMutationDefaults(): void {
   const invalidateReminders = () => queryClient.invalidateQueries({ queryKey: queryKeys.reminders })
   const rollback = (_e: unknown, _v: unknown, ctx: RemindersSnapshot | undefined) => {
     if (ctx?.previous) queryClient.setQueryData(queryKeys.reminders, ctx.previous)
+  }
+  // Declared up here, not inline: an inline arrow annotating its variables param
+  // as `unknown` pins the mutation's inferred variables type to `unknown` too.
+  const rollbackOccurrences = (_e: unknown, _v: unknown, ctx: OccurrencesSnapshot | undefined) => {
+    if (ctx?.previous) queryClient.setQueryData(queryKeys.occurrencesActive, ctx.previous)
   }
 
   queryClient.setMutationDefaults(mutationKeys.createReminder, {
@@ -171,6 +187,29 @@ export function registerMutationDefaults(): void {
 
   queryClient.setMutationDefaults(mutationKeys.silenceOccurrence, {
     mutationFn: ({ id }: { id: string; arg: void }) => apiFetch(`/api/occurrences/${id}/silence`, { method: 'POST' }),
+    onSettled: invalidateOccurrences
+  })
+
+  // Ticking a checklist item is the one occurrence action the user does *while
+  // deciding*, often several in a row, so it updates the cache optimistically —
+  // a checkbox that waits for a round trip feels broken. Queued offline it
+  // replays as an idempotent per-item toggle (see checkItemInputSchema).
+  queryClient.setMutationDefaults(mutationKeys.checkOccurrenceItem, {
+    mutationFn: ({ id, arg }: { id: string; arg: CheckItemInput }) =>
+      apiFetch(`/api/occurrences/${id}/check`, { method: 'POST', body: JSON.stringify(arg) }),
+    onMutate: async ({ id, arg }: { id: string; arg: CheckItemInput }): Promise<OccurrencesSnapshot> => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.occurrencesActive })
+      const previous = queryClient.getQueryData<Occurrence[]>(queryKeys.occurrencesActive)
+      queryClient.setQueryData<Occurrence[]>(queryKeys.occurrencesActive, (list) =>
+        (list ?? []).map((occurrence) => {
+          if (occurrence.id !== id) return occurrence
+          const checked = occurrence.checkedItemIds.filter((itemId) => itemId !== arg.itemId)
+          return { ...occurrence, checkedItemIds: arg.checked ? [...checked, arg.itemId] : checked }
+        })
+      )
+      return { previous }
+    },
+    onError: rollbackOccurrences,
     onSettled: invalidateOccurrences
   })
 }

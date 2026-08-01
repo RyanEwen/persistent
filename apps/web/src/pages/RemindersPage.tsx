@@ -15,7 +15,13 @@ import AddIcon from '@mui/icons-material/Add'
 import { reminderBodyText } from '@persistent/shared'
 import type { Occurrence, Reminder } from '@persistent/shared'
 import { useReminders } from '../data/reminders.js'
-import { useActiveOccurrences, useAckOccurrence, useSnoozeOccurrence, useSilenceOccurrence } from '../data/occurrences.js'
+import {
+  useActiveOccurrences,
+  useAckOccurrence,
+  useSnoozeOccurrence,
+  useSilenceOccurrence,
+  useCheckOccurrenceItem
+} from '../data/occurrences.js'
 import { scheduleSummary } from '../lib/scheduleSummary.js'
 import { formatWhen } from '../lib/datetime.js'
 import { reminderNextFire } from '../lib/schedule-preview.js'
@@ -43,6 +49,7 @@ export function RemindersPage() {
   const ack = useAckOccurrence()
   const snooze = useSnoozeOccurrence()
   const silence = useSilenceOccurrence()
+  const checkItem = useCheckOccurrenceItem()
   const { timeFormat } = useSettings()
   const [snoozeFor, setSnoozeFor] = useState<string | null>(null)
 
@@ -107,6 +114,7 @@ export function RemindersPage() {
                 onSnooze={() => setSnoozeFor(occurrence.id)}
                 onSilence={() => silence.mutate({ id: occurrence.id, arg: undefined })}
                 silenceLoading={silence.isPending}
+                onToggleItem={(itemId, checked) => checkItem.mutate({ id: occurrence.id, arg: { itemId, checked } })}
               />
             ))}
             {idle.map(({ reminder, next }) => {
@@ -116,7 +124,7 @@ export function RemindersPage() {
                 <ReminderListItem
                   key={reminder.id}
                   to={`/reminders/${reminder.id}`}
-                  category={reminder.category}
+                  type={reminder.type}
                   title={reminder.title}
                   status={reminder.lastOccurrence?.status}
                   description={reminderBodyText(reminder)}

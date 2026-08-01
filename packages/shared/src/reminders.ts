@@ -9,11 +9,14 @@ import { z } from 'zod'
 
 // --- Enums (kept in sync with the Prisma enums of the same name) ---
 
-// Order here drives the category picker order in the UI: none first (the
-// default), then task, then medication, then the rest.
-export const reminderCategories = ['NONE', 'TASK', 'MEDICATION', 'APPOINTMENT'] as const
-export const reminderCategorySchema = z.enum(reminderCategories)
-export type ReminderCategory = (typeof reminderCategories)[number]
+// What kind of thing the reminder is. A type earns its place by selecting extra
+// fields the editor shows and how `reminderBodyText` describes it — TODO its
+// checklist, MEDICATION its doses. NONE is the plain default and carries nothing.
+// (TASK and APPOINTMENT existed but only ever changed an icon, so they were
+// dropped; existing rows fell back to NONE.) Order drives the picker order.
+export const reminderTypes = ['NONE', 'TODO', 'MEDICATION'] as const
+export const reminderTypeSchema = z.enum(reminderTypes)
+export type ReminderType = (typeof reminderTypes)[number]
 
 /**
  * How hard the reminder nags:
@@ -53,7 +56,7 @@ export type OccurrenceStatus = (typeof occurrenceStatuses)[number]
 
 // --- Schedule ---
 
-export const scheduleKinds = ['none', 'once', 'daily', 'weekly', 'interval', 'custom'] as const
+export const scheduleKinds = ['none', 'once', 'daily', 'weekly', 'monthly', 'interval', 'custom'] as const
 export const scheduleKindSchema = z.enum(scheduleKinds)
 export type ScheduleKind = (typeof scheduleKinds)[number]
 
@@ -68,6 +71,7 @@ export const timeOfDaySchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Ex
  * - once:     fires on `startDate` at each `timesOfDay`, never repeats.
  * - daily:    every day (optionally `skipWeekends`).
  * - weekly:   on the weekdays in `daysOfWeek`.
+ * - monthly:  on the calendar days in `daysOfMonth`, and/or the month's last day.
  * - interval: every `everyNDays` days from `startDate` (optionally `skipWeekends`).
  * - custom:   same as weekly (explicit `daysOfWeek`) — distinct label for UI intent.
  *
@@ -82,6 +86,13 @@ export const scheduleSchema = z
     timesOfDay: z.array(timeOfDaySchema).max(24),
     // 0 = Sunday .. 6 = Saturday. Required for weekly/custom.
     daysOfWeek: z.array(z.number().int().min(0).max(6)).max(7).optional(),
+    // 1..31 calendar days. Monthly only; a day the month doesn't have (the 31st
+    // in February) is SKIPPED that month, never clamped back to the 28th — a
+    // reminder set for the 31st means the 31st. Use `lastDayOfMonth` for
+    // "end of the month", which is what clamping would only approximate.
+    daysOfMonth: z.array(z.number().int().min(1).max(31)).max(31).optional(),
+    // Monthly only: also fire on whatever the final day of that month is (28-31).
+    lastDayOfMonth: z.boolean().optional(),
     everyNDays: z.number().int().min(1).max(365).optional(),
     skipWeekends: z.boolean().optional()
   })
@@ -100,13 +111,22 @@ export const scheduleSchema = z
     if ((value.kind === 'weekly' || value.kind === 'custom') && (!value.daysOfWeek || value.daysOfWeek.length === 0)) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['daysOfWeek'], message: 'Pick at least one weekday.' })
     }
+    // Either named days or "last day of the month" satisfies monthly — "the last
+    // day" is a complete schedule on its own, with no numbered day to pick.
+    if (value.kind === 'monthly' && !value.lastDayOfMonth && !value.daysOfMonth?.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['daysOfMonth'],
+        message: 'Pick at least one day of the month.'
+      })
+    }
     if (value.kind === 'interval' && !value.everyNDays) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['everyNDays'], message: 'Set the day interval.' })
     }
   })
 export type Schedule = z.infer<typeof scheduleSchema>
 
-// --- Category-specific data ---
+// --- Type-specific data ---
 
 /** A single medication on a reminder; the dose itself is quantity + unit. */
 export const medicationDataSchema = z.object({
@@ -119,15 +139,33 @@ export type MedicationData = z.infer<typeof medicationDataSchema>
 
 /**
  * A medication reminder can cover several medications taken together. Stored in
- * categoryData under `medications`. (Legacy rows may instead carry a single
+ * typeData under `medications`. (Legacy rows may instead carry a single
  * name/unit/quantity at the top level — readers should fall back to that.)
  */
 export const medicationListSchema = z.array(medicationDataSchema).max(20)
 export type MedicationList = z.infer<typeof medicationListSchema>
 
-/** Loose JSON bag for per-category fields; medication uses `medicationDataSchema`. */
-export const categoryDataSchema = z.record(z.unknown())
-export type CategoryData = z.infer<typeof categoryDataSchema>
+/**
+ * One item on a TODO reminder's checklist.
+ *
+ * `id` is a client-minted stable key, not an index: the checked set lives on the
+ * *occurrence* (see `checkedItemIds`), so editing the reminder's list — renaming
+ * an item, reordering it, inserting one above — must not silently move a tick
+ * from one item to another. Ids are opaque; only their stability matters.
+ */
+export const todoItemSchema = z.object({
+  id: z.string().trim().min(1).max(64),
+  text: z.string().trim().min(1).max(200)
+})
+export type TodoItem = z.infer<typeof todoItemSchema>
+
+/** A TODO reminder's checklist. Stored in typeData under `items`. */
+export const todoItemListSchema = z.array(todoItemSchema).max(50)
+export type TodoItemList = z.infer<typeof todoItemListSchema>
+
+/** Loose JSON bag for per-type fields; medication uses `medicationDataSchema`, todo `todoItemSchema`. */
+export const typeDataSchema = z.record(z.unknown())
+export type TypeData = z.infer<typeof typeDataSchema>
 
 // --- Display text shared by notifications + cards ---
 
@@ -137,9 +175,9 @@ export function formatMedication(med: MedicationData): string {
   return [med.name, dose].filter(Boolean).join(' ')
 }
 
-/** Medications on a reminder's categoryData (the `medications` array, or a legacy single row). */
-export function medicationList(categoryData: CategoryData): MedicationData[] {
-  const data = (categoryData ?? {}) as { medications?: MedicationData[] } & MedicationData
+/** Medications on a reminder's typeData (the `medications` array, or a legacy single row). */
+export function medicationList(typeData: TypeData): MedicationData[] {
+  const data = (typeData ?? {}) as { medications?: MedicationData[] } & MedicationData
   const meds = data.medications?.length
     ? data.medications
     : data.name || data.unit || data.quantity != null
@@ -149,23 +187,71 @@ export function medicationList(categoryData: CategoryData): MedicationData[] {
 }
 
 /** "Ibuprofen 200 mg, Tylenol 500 mg" or '' when there are none. */
-export function formatMedications(categoryData: CategoryData): string {
-  return medicationList(categoryData).map(formatMedication).join(', ')
+export function formatMedications(typeData: TypeData): string {
+  return medicationList(typeData).map(formatMedication).join(', ')
 }
 
-/** Description for notifications + list cards: medications (if any) then details. */
+/**
+ * Checklist items on a reminder's typeData. Parsed defensively (typeData is a
+ * loose JSON bag that older rows and other types fill differently), so a
+ * malformed or absent `items` reads as an empty list rather than throwing.
+ */
+export function todoItems(typeData: TypeData): TodoItem[] {
+  const parsed = todoItemListSchema.safeParse((typeData ?? {}).items ?? [])
+  return parsed.success ? parsed.data : []
+}
+
+/**
+ * The checklist as notification/email text — one item per line, so the native
+ * `BigTextStyle` body and the plain-text escalation email both read as a list.
+ * Deliberately unticked: a notification is pre-armed on the device and an email
+ * is already sent, so neither can track a checked state that moves afterwards.
+ */
+export function formatTodoItems(typeData: TypeData): string {
+  return todoItems(typeData)
+    .map((item) => `• ${item.text}`)
+    .join('\n')
+}
+
+/**
+ * How far through a checklist one firing is. `checkedItemIds` is filtered against
+ * the reminder's *current* items, so ticks left behind by a since-deleted item
+ * never inflate the count past the total.
+ */
+export function todoProgress(items: TodoItem[], checkedItemIds: readonly string[]): { done: number; total: number } {
+  const checked = new Set(checkedItemIds)
+  return { done: items.filter((item) => checked.has(item.id)).length, total: items.length }
+}
+
+/**
+ * Description for notifications + list cards: the type's own content (a
+ * medication's doses, a todo's checklist) then details.
+ *
+ * A checklist is multi-line by nature, so its parts join with newlines rather
+ * than the usual middle dot — the surfaces that render this all preserve line
+ * breaks (`pre-wrap` in-app, `BigTextStyle` natively, plain text by email), and
+ * "• Milk\n• Bread · from the corner shop" would read as part of the last item.
+ */
 export function reminderBodyText(source: {
-  category: ReminderCategory
-  categoryData: CategoryData
+  type: ReminderType
+  typeData: TypeData
   details: string | null
 }): string {
   const parts: string[] = []
-  if (source.category === 'MEDICATION') {
-    const meds = formatMedications(source.categoryData)
+  let multiline = false
+  if (source.type === 'MEDICATION') {
+    const meds = formatMedications(source.typeData)
     if (meds) parts.push(meds)
   }
+  if (source.type === 'TODO') {
+    const items = formatTodoItems(source.typeData)
+    if (items) {
+      parts.push(items)
+      multiline = true
+    }
+  }
   if (source.details) parts.push(source.details)
-  return parts.join(' · ')
+  return parts.join(multiline ? '\n' : ' · ')
 }
 
 // --- Reminder DTO + create/update inputs ---
@@ -174,8 +260,8 @@ export const reminderSchema = z.object({
   id: z.string(),
   title: z.string(),
   details: z.string().nullable(),
-  category: reminderCategorySchema,
-  categoryData: categoryDataSchema,
+  type: reminderTypeSchema,
+  typeData: typeDataSchema,
   schedule: scheduleSchema,
   persistence: persistenceLevelSchema,
   soundIntervalSeconds: z.number().int().nullable(),
@@ -211,8 +297,8 @@ export const reminderInputSchema = z
   .object({
     title: z.string().trim().min(1).max(200),
     details: z.string().trim().max(2000).optional().nullable(),
-    category: reminderCategorySchema.default('NONE'),
-    categoryData: categoryDataSchema.default({}),
+    type: reminderTypeSchema.default('NONE'),
+    typeData: typeDataSchema.default({}),
     schedule: scheduleSchema,
     persistence: persistenceLevelSchema.default('PERSISTENT'),
     // null = no repeating sound; otherwise seconds between sound repeats (up to ~1 year).
@@ -231,6 +317,20 @@ export const reminderInputSchema = z
   .superRefine((value, ctx) => {
     if (value.endDate && value.endDate < value.startDate) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['endDate'], message: 'End date must be on or after the start date.' })
+    }
+    // A checklist reminder with no checklist is just a reminder — say so rather
+    // than saving a TODO the detail view has nothing to render.
+    if (value.type === 'TODO') {
+      const items = todoItems(value.typeData)
+      if (items.length === 0) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['typeData'], message: 'Add at least one item.' })
+      }
+      // Item ids key the per-occurrence checked set, so a duplicate would tick two
+      // items at once. Rejected here rather than silently de-duplicated: the client
+      // mints these, and a collision means its id generator is broken.
+      if (new Set(items.map((item) => item.id)).size !== items.length) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['typeData'], message: 'Checklist items need distinct ids.' })
+      }
     }
     // An ALARM already rings continuously until done, so escalation is redundant.
     if (
@@ -267,12 +367,17 @@ export const occurrenceSchema = z.object({
   // (server push is otherwise the only escalation path). Optional: only the sync
   // endpoint sets it.
   escalateAt: z.string().datetime().nullable().optional(),
+  // TODO reminders: which checklist item ids this firing has ticked off. Held per
+  // occurrence, not per reminder, so a repeating checklist starts each firing
+  // blank — yesterday's ticks say nothing about today's. Ids of since-deleted
+  // items may linger here; read them through `todoProgress`, which filters.
+  checkedItemIds: z.array(z.string()).default([]),
   // Denormalized snapshot of the parent reminder for the "due now" list.
   reminder: reminderSchema.pick({
     title: true,
     details: true,
-    category: true,
-    categoryData: true,
+    type: true,
+    typeData: true,
     persistence: true,
     soundIntervalSeconds: true,
     shadeProminence: true
@@ -291,3 +396,17 @@ export const snoozeInputSchema = z.object({
   minutes: z.number().int().min(1).max(MAX_SNOOZE_MINUTES)
 })
 export type SnoozeInput = z.infer<typeof snoozeInputSchema>
+
+/**
+ * Tick or untick one checklist item on one firing.
+ *
+ * Deliberately a per-item toggle rather than "here is the whole checked set":
+ * these mutations queue offline and replay later, and a whole-set write would let
+ * a stale replay wipe ticks made in the meantime. Each toggle is idempotent, so
+ * replaying one twice is harmless.
+ */
+export const checkItemInputSchema = z.object({
+  itemId: z.string().trim().min(1).max(64),
+  checked: z.boolean()
+})
+export type CheckItemInput = z.infer<typeof checkItemInputSchema>

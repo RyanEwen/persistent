@@ -12,15 +12,15 @@ import Card from '@mui/joy/Card'
 import Stack from '@mui/joy/Stack'
 import Box from '@mui/joy/Box'
 import Typography from '@mui/joy/Typography'
-import Chip from '@mui/joy/Chip'
 import SnoozeIcon from '@mui/icons-material/Snooze'
-import HistoryIcon from '@mui/icons-material/History'
-import { reminderBodyText, type Occurrence, type Reminder } from '@persistent/shared'
+import { reminderBodyText, todoItems, type Occurrence, type Reminder } from '@persistent/shared'
 import { formatWhen } from '../lib/datetime.js'
 import type { TimeFormat } from '../lib/datetime.js'
-import { isOutsideReminderWindow } from '../lib/occurrenceSchedule.js'
-import { CategoryIcon, StatusChip } from './ReminderIcons.js'
+import { TypeIcon } from './ReminderIcons.js'
+import { FiringStatusChip } from './FiringStatusChip.js'
+import { firingTone } from '../lib/firingTone.js'
 import { OccurrenceActions } from './OccurrenceActions.js'
+import { TodoChecklist } from './TodoChecklist.js'
 
 export function AttentionReminderCard({
   reminder,
@@ -30,7 +30,8 @@ export function AttentionReminderCard({
   doneLoading,
   onSnooze,
   onSilence,
-  silenceLoading
+  silenceLoading,
+  onToggleItem
 }: {
   reminder: Reminder
   occurrence: Occurrence
@@ -40,14 +41,20 @@ export function AttentionReminderCard({
   onSnooze: () => void
   onSilence: () => void
   silenceLoading: boolean
+  onToggleItem: (itemId: string, checked: boolean) => void
 }) {
-  const body = reminderBodyText(reminder)
-  // Fired before the reminder's current start/end window — the schedule was edited
-  // after this one fired. It still needs an explicit action (only the user clears a
-  // firing), but calling it "Due" hides why a reminder starting later is nagging now.
-  const orphaned = isOutsideReminderWindow(reminder, occurrence)
+  // A checklist renders as real checkboxes below, so the body text drops the
+  // bulleted copy of it that reminderBodyText builds for notifications. The editor
+  // saves no details on a checklist (the list is the description), so this is
+  // normally empty — it still renders any a pre-checklist row carried in.
+  const items = reminder.type === 'TODO' ? todoItems(reminder.typeData) : []
+  const body = items.length > 0 ? (reminder.details ?? '') : reminderBodyText(reminder)
+  // How loudly this firing presents itself, and whether "Due" is honest for it —
+  // an escalation shouts, an ordinary due reminder is outlined, and a firing with
+  // no deadline behind it reads as Unconfirmed. See FiringStatusChip.
+  const { orphaned, color, variant, doneLabel } = firingTone(reminder, occurrence)
   return (
-    <Card color="warning" variant="soft">
+    <Card color={color} variant={variant}>
       {/* Two columns: the tappable info region on the left, the status chip and the
           action buttons stacked on the right. The buttons sit beside the text rather
           than below it so they consume the text block's existing height instead of
@@ -73,7 +80,7 @@ export function AttentionReminderCard({
           sx={{ color: 'inherit', display: 'block', textDecoration: 'none', flex: '1 1 8.5rem', minWidth: '8.5rem' }}
         >
           <Stack direction="row" spacing={1} alignItems="center">
-            <CategoryIcon category={reminder.category} />
+            <TypeIcon type={reminder.type} />
             <Typography level="title-md">{reminder.title}</Typography>
           </Stack>
           {/* pre-wrap so the line breaks the user typed into details survive. */}
@@ -88,16 +95,10 @@ export function AttentionReminderCard({
           )}
         </Box>
         <Stack spacing={1} alignItems="flex-end" sx={{ flexShrink: 0, ml: 'auto' }}>
-          {orphaned ? (
-            <Chip size="sm" variant="soft" color="warning" startDecorator={<HistoryIcon sx={{ fontSize: 14 }} />}>
-              Unconfirmed
-            </Chip>
-          ) : (
-            <StatusChip status={occurrence.status} />
-          )}
+          <FiringStatusChip reminder={reminder} occurrence={occurrence} />
           <OccurrenceActions
             size="sm"
-            doneLabel={orphaned ? 'Clear' : 'Done'}
+            doneLabel={doneLabel}
             occurrence={occurrence}
             onDone={onDone}
             doneLoading={doneLoading}
@@ -107,10 +108,18 @@ export function AttentionReminderCard({
           />
         </Stack>
       </Stack>
+      {/* Full width, below the row, and outside the link — a checkbox tap must tick
+          the item, not navigate to the reminder. Ticking never confirms the firing;
+          Done above still does (docs/notification-behavior.md §1a). */}
+      {items.length > 0 && (
+        <Box sx={{ mt: 0.5 }}>
+          <TodoChecklist items={items} checkedItemIds={occurrence.checkedItemIds} onToggle={onToggleItem} />
+        </Box>
+      )}
       {/* Full width, below the row: the sentence needs the whole card to read as one
           line or two, not the narrow column left over beside the buttons. */}
       {orphaned && (
-        <Typography level="body-xs" color="warning" sx={{ mt: 0.5 }}>
+        <Typography level="body-xs" sx={{ mt: 0.5, color: 'text.tertiary' }}>
           Fired before this reminder was rescheduled. Clearing it won't affect the new schedule.
         </Typography>
       )}

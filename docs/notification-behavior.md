@@ -14,6 +14,13 @@ guarantee* those mechanisms exist to deliver.
 
 - **Occurrence** — one firing of a reminder (`ReminderOccurrence`). A reminder
   with three times of day, or a repeating schedule, produces many occurrences.
+- **Fire** — the moment an occurrence comes due and first appears. Each occurrence
+  fires exactly once.
+- **Nag** — the *follow-up*, not the first appearance: everything that keeps a
+  fired-but-unconfirmed occurrence in front of the user afterwards (re-appearing
+  when swiped away, the `PERSISTENT` re-sound interval, the escalation). User-facing
+  copy must keep these apart — "it nags as soon as you create it" describes a first
+  fire as a follow-up, which is what made the two read as the same thing.
 - **Notification** — the soft nag: a notification that re-appears until confirmed
   (and, on `PERSISTENT` reminders, optionally re-sounds on an interval).
 - **Alarm** — the hard nag: looping sound + vibration, full-screen on Android,
@@ -35,7 +42,8 @@ Two things hold on every surface regardless of which action the user takes:
   attention cards use `pre-wrap`, the native notification uses `BigTextStyle`, the
   full-screen alarm renders them as-is, and the escalation email is plain text. The
   compact list row is the one deliberate exception — it is single-line by design, so
-  breaks collapse to spaces there.
+  breaks collapse to spaces there. A checklist reminder's body is its items, one per
+  line, and depends on exactly the same thing.
 
 The three user actions on a firing are **Done**, **Silence**, and **Snooze**.
 Their guaranteed effects follow. (Silence is labeled **"De-escalate"** in the UI —
@@ -66,6 +74,24 @@ one exception — see §5: a spoken "done" is inherently deliberate, so it
 acknowledges directly.)
 
 Done is the terminal action — it is the persistence guarantee being satisfied.
+
+### 1a. A checklist is ticked off, but only Done confirms it
+
+A `TODO` (Checklist) reminder carries several items, and each firing tracks which
+of them it has ticked (`ReminderOccurrence.checkedItems` — per firing, so a
+repeating checklist starts blank each time; see `data-event-contract.md`).
+
+Ticking every item **does not acknowledge the occurrence.** Done remains the only
+thing that clears a firing, for the same reason it is a two-tap confirm: a
+checklist is ticked *while working through it*, so auto-confirming on the last tick
+would let a mid-task tap end the nag. A fully-ticked list says so and points at
+Done rather than acting for the user. The reverse also holds — Done works at any
+point, whether or not every item is ticked; the ticks are a working aid, not a
+gate. What was actually ticked survives in History.
+
+Ticks are in-app only. A notification's body lists the items unticked, because it
+is pre-armed on the device (or already sent, for the escalation email) and cannot
+track a checked state that moves afterwards.
 
 ## 2. Silence — drops the alarm back to the notification it escalated from
 
@@ -176,6 +202,19 @@ the reschedule, and offers **Clear** in place of Done. It still takes the same
 two-tap confirm and the same acknowledge — only the wording changes, because
 calling it "Done" would claim the user completed something the reminder has moved
 on from.
+
+Two other firings are labelled **Unconfirmed** rather than Due, for the same
+reason — "Due" claims a deadline that never existed:
+
+- an **unscheduled** reminder's firing (kind `none`), which happened on creation
+  because the user asked to be reminded, not because a time arrived;
+- an **orphaned** firing, as described above.
+
+Urgency in the UI is graded to match: only an **escalated** firing gets a filled,
+loud card. An ordinary due reminder is outlined, and the two Unconfirmed cases are
+quieter still (`apps/web/src/lib/firingTone.ts`, shared by the list and the detail
+view). None of this changes what the firing *is* — every one of them still nags
+until confirmed; only how hard it shouts.
 
 The comparison is deliberately by **date, not time of day**: retiming a reminder
 whose dose is still unconfirmed must keep that dose nagging, because the day it

@@ -43,6 +43,9 @@
 - **Time zones:** schedule expansion is the only place that converts local
   times to instants — always go through `expandSchedule` (luxon, DST-correct),
   using the owning user's `timeZone`. Never construct firing instants ad hoc.
+  `apps/web/src/lib/schedule-preview.ts` mirrors these rules for the editor's
+  "fires next" line — a new schedule kind has to land in both, or the preview
+  quietly disagrees with what the server will do.
 - **Serialization:** convert Prisma rows to client DTOs via `lib/serializers.ts`
   so the JSON matches the shared Zod schemas (dates as ISO strings, etc.).
 - **Tests:** pure logic (schedule expansion, formatting) gets `*.test.ts` next to

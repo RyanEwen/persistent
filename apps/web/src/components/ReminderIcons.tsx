@@ -1,14 +1,13 @@
 /**
- * Icons for a reminder's category (type) and an occurrence's status
- * (doneness / snoozed / escalated). Centralized so the mapping stays consistent
- * wherever reminders/occurrences are listed.
+ * Icons for a reminder's type and an occurrence's status (doneness / snoozed /
+ * escalated). Centralized so the mapping stays consistent wherever
+ * reminders/occurrences are listed.
  */
 import Chip from '@mui/joy/Chip'
 import type { ColorPaletteProp } from '@mui/joy/styles'
 import type { SvgIconComponent } from '@mui/icons-material'
 import MedicationIcon from '@mui/icons-material/Medication'
-import EventIcon from '@mui/icons-material/Event'
-import TaskAltIcon from '@mui/icons-material/TaskAlt'
+import ChecklistIcon from '@mui/icons-material/Checklist'
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone'
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive'
 import SnoozeIcon from '@mui/icons-material/Snooze'
@@ -16,43 +15,31 @@ import CampaignIcon from '@mui/icons-material/Campaign'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'
 import SkipNextIcon from '@mui/icons-material/SkipNext'
-import type { OccurrenceStatus, ReminderCategory } from '@persistent/shared'
+import type { OccurrenceStatus, ReminderType } from '@persistent/shared'
+import { reminderTypeLabel } from '../lib/format.js'
 
 type IconSize = 'small' | 'medium' | 'large' | 'inherit'
 
-const CATEGORY_ICON: Record<ReminderCategory, SvgIconComponent> = {
+const TYPE_ICON: Record<ReminderType, SvgIconComponent> = {
   NONE: NotificationsNoneIcon,
-  TASK: TaskAltIcon,
-  MEDICATION: MedicationIcon,
-  APPOINTMENT: EventIcon
+  TODO: ChecklistIcon,
+  MEDICATION: MedicationIcon
 }
 
-const CATEGORY_TITLE: Record<ReminderCategory, string> = {
-  NONE: 'Reminder',
-  TASK: 'Task',
-  MEDICATION: 'Medication',
-  APPOINTMENT: 'Appointment'
-}
-
-export function CategoryIcon({
-  category,
+export function TypeIcon({
+  type,
   fontSize = 'small',
   size
 }: {
-  category: ReminderCategory
+  type: ReminderType
   fontSize?: IconSize
   /** Explicit pixel size; overrides fontSize when set. */
   size?: number
 }) {
-  const Icon = CATEGORY_ICON[category]
+  const Icon = TYPE_ICON[type]
   // aria-label (not titleAccess) so no <title> text leaks into e.g. Select values.
   return (
-    <Icon
-      fontSize={fontSize}
-      sx={size ? { fontSize: size } : undefined}
-      role="img"
-      aria-label={CATEGORY_TITLE[category]}
-    />
+    <Icon fontSize={fontSize} sx={size ? { fontSize: size } : undefined} role="img" aria-label={reminderTypeLabel(type)} />
   )
 }
 

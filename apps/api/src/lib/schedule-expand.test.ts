@@ -131,3 +131,85 @@ test('spring-forward DST day keeps the wall-clock time', () => {
   })
   assert.deepEqual(localTimes(dates), ['2026-03-07 09:00', '2026-03-08 09:00', '2026-03-09 09:00'])
 })
+
+// --- Monthly -----------------------------------------------------------------
+
+test('monthly fires on the named day of each month', () => {
+  const schedule: Schedule = { kind: 'monthly', timesOfDay: ['09:00'], daysOfMonth: [1] }
+  const dates = expandSchedule({
+    schedule,
+    startDate: '2026-06-15',
+    endDate: null,
+    timeZone: TZ,
+    ...window('2026-06-15T00:00', '2026-09-02T00:00')
+  })
+  assert.deepEqual(localTimes(dates), ['2026-07-01 09:00', '2026-08-01 09:00', '2026-09-01 09:00'])
+})
+
+test('monthly honors several days of the month', () => {
+  const schedule: Schedule = { kind: 'monthly', timesOfDay: ['09:00'], daysOfMonth: [1, 15] }
+  const dates = expandSchedule({
+    schedule,
+    startDate: '2026-06-01',
+    endDate: null,
+    timeZone: TZ,
+    ...window('2026-06-01T00:00', '2026-07-02T00:00')
+  })
+  assert.deepEqual(localTimes(dates), ['2026-06-01 09:00', '2026-06-15 09:00', '2026-07-01 09:00'])
+})
+
+test('a day the month does not have is skipped, never clamped back onto the last day', () => {
+  // "The 31st" means the 31st. February has none, so February simply doesn't fire
+  // — clamping onto the 28th would ring on a day the user never picked.
+  const schedule: Schedule = { kind: 'monthly', timesOfDay: ['09:00'], daysOfMonth: [31] }
+  const dates = expandSchedule({
+    schedule,
+    startDate: '2026-01-01',
+    endDate: null,
+    timeZone: TZ,
+    ...window('2026-01-01T00:00', '2026-04-01T00:00')
+  })
+  assert.deepEqual(localTimes(dates), ['2026-01-31 09:00', '2026-03-31 09:00'])
+})
+
+test("lastDayOfMonth tracks each month's real length", () => {
+  const schedule: Schedule = { kind: 'monthly', timesOfDay: ['18:00'], lastDayOfMonth: true }
+  const dates = expandSchedule({
+    schedule,
+    startDate: '2026-01-01',
+    endDate: null,
+    timeZone: TZ,
+    ...window('2026-01-01T00:00', '2026-05-01T00:00')
+  })
+  assert.deepEqual(localTimes(dates), [
+    '2026-01-31 18:00',
+    '2026-02-28 18:00',
+    '2026-03-31 18:00',
+    '2026-04-30 18:00'
+  ])
+})
+
+test('lastDayOfMonth is additive with named days and never double-fires', () => {
+  // The 30th IS April's last day — the two rules coincide and must yield one firing.
+  const schedule: Schedule = { kind: 'monthly', timesOfDay: ['09:00'], daysOfMonth: [30], lastDayOfMonth: true }
+  const dates = expandSchedule({
+    schedule,
+    startDate: '2026-04-01',
+    endDate: null,
+    timeZone: TZ,
+    ...window('2026-04-01T00:00', '2026-05-01T00:00')
+  })
+  assert.deepEqual(localTimes(dates), ['2026-04-30 09:00'])
+})
+
+test('monthly respects the end date', () => {
+  const schedule: Schedule = { kind: 'monthly', timesOfDay: ['09:00'], daysOfMonth: [1] }
+  const dates = expandSchedule({
+    schedule,
+    startDate: '2026-06-01',
+    endDate: '2026-07-15',
+    timeZone: TZ,
+    ...window('2026-06-01T00:00', '2026-09-01T00:00')
+  })
+  assert.deepEqual(localTimes(dates), ['2026-06-01 09:00', '2026-07-01 09:00'])
+})

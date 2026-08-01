@@ -10,8 +10,8 @@ function reminder(overrides: Partial<Reminder> = {}): Reminder {
   return {
     title: 'Take meds',
     details: null,
-    category: 'NONE',
-    categoryData: {},
+    type: 'NONE',
+    typeData: {},
     persistence: 'PERSISTENT',
     soundIntervalSeconds: 0,
     shadeProminence: 'INHERIT',

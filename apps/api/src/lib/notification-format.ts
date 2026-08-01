@@ -4,16 +4,16 @@
  * body formatter with the web client via @persistent/shared.
  */
 import type { Reminder } from '@prisma/client'
-import { reminderBodyText, type CategoryData, type ReminderCategory } from '@persistent/shared'
+import { reminderBodyText, type TypeData, type ReminderType } from '@persistent/shared'
 
 export function notificationTitle(reminder: Pick<Reminder, 'title'>): string {
   return reminder.title
 }
 
-export function notificationBody(reminder: Pick<Reminder, 'details' | 'category' | 'categoryData'>): string {
+export function notificationBody(reminder: Pick<Reminder, 'details' | 'type' | 'typeData'>): string {
   return reminderBodyText({
-    category: reminder.category as ReminderCategory,
-    categoryData: (reminder.categoryData ?? {}) as CategoryData,
+    type: reminder.type as ReminderType,
+    typeData: (reminder.typeData ?? {}) as TypeData,
     details: reminder.details
   })
 }
@@ -25,7 +25,7 @@ export function notificationBody(reminder: Pick<Reminder, 'details' | 'category'
  * details survive as written.
  */
 export function escalationEmailText(
-  reminder: Pick<Reminder, 'title' | 'details' | 'category' | 'categoryData' | 'escalateEmailMessage'>
+  reminder: Pick<Reminder, 'title' | 'details' | 'type' | 'typeData' | 'escalateEmailMessage'>
 ): string {
   const message =
     reminder.escalateEmailMessage?.trim() || `The reminder "${reminder.title}" is overdue and hasn't been confirmed.`

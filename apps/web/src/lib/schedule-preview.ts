@@ -1,8 +1,8 @@
 /**
  * Computes a human "fires next" preview for the reminder editor so the firing
  * time is visible at the point of saving. This mirrors the schedule semantics in
- * packages/shared/src/reminders.ts (once/daily/weekly/interval/custom) closely
- * enough for a preview; the server scheduler remains the source of truth.
+ * packages/shared/src/reminders.ts (once/daily/weekly/monthly/interval/custom)
+ * closely enough for a preview; the server scheduler remains the source of truth.
  */
 import type { Reminder, Schedule, ScheduleKind } from '@persistent/shared'
 import { formatTimeOfDay, formatDate, type TimeFormat } from './datetime.js'
@@ -11,6 +11,10 @@ export interface SchedulePreviewInput {
   kind: ScheduleKind
   timesOfDay: string[]
   daysOfWeek: number[]
+  /** Monthly: calendar days 1-31. A day the month lacks is skipped, not clamped. */
+  daysOfMonth: number[]
+  /** Monthly: also fire on the month's final day, whatever its number. */
+  lastDayOfMonth: boolean
   everyNDays: number
   skipWeekends: boolean
   startDate: string // YYYY-MM-DD (local)
@@ -60,6 +64,12 @@ function dayMatches(kind: ScheduleKind, cur: Date, start: Date, input: ScheduleP
     case 'weekly':
     case 'custom':
       return input.daysOfWeek.includes(weekday)
+    case 'monthly': {
+      if (input.daysOfMonth.includes(cur.getDate())) return true
+      // Day 0 of the next month is the last day of this one.
+      const lastDay = new Date(cur.getFullYear(), cur.getMonth() + 1, 0).getDate()
+      return input.lastDayOfMonth && cur.getDate() === lastDay
+    }
     case 'interval': {
       const diff = Math.round((cur.getTime() - start.getTime()) / DAY_MS)
       if (diff < 0 || diff % Math.max(1, input.everyNDays) !== 0) return false
@@ -128,6 +138,8 @@ export function reminderNextFire(reminder: Reminder, now: Date = new Date()): Da
       kind: s.kind,
       timesOfDay: s.timesOfDay,
       daysOfWeek: s.daysOfWeek ?? [],
+      daysOfMonth: s.daysOfMonth ?? [],
+      lastDayOfMonth: s.lastDayOfMonth ?? false,
       everyNDays: s.everyNDays ?? 1,
       skipWeekends: s.skipWeekends ?? false,
       startDate: reminder.startDate,

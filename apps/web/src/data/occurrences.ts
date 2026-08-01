@@ -4,7 +4,7 @@
  * mutation defaults (queued + replayed on reconnect); WS events refresh here.
  */
 import { useMutation, useQuery } from '@tanstack/react-query'
-import type { Occurrence } from '@persistent/shared'
+import type { CheckItemInput, Occurrence } from '@persistent/shared'
 import { apiFetch } from '../lib/apiClient.js'
 import { mutationKeys, queryKeys } from '../lib/queryClient.js'
 
@@ -43,4 +43,14 @@ export function useSnoozeOccurrence() {
 /** Silence an escalation alarm: stop the alarm but keep the reminder nagging. */
 export function useSilenceOccurrence() {
   return useMutation<unknown, Error, { id: string; arg: void }>({ mutationKey: mutationKeys.silenceOccurrence })
+}
+
+/**
+ * Tick / untick one checklist item on one firing. Ticking everything does not
+ * confirm the firing — Done still does that (docs/notification-behavior.md §1a).
+ */
+export function useCheckOccurrenceItem() {
+  return useMutation<unknown, Error, { id: string; arg: CheckItemInput }>({
+    mutationKey: mutationKeys.checkOccurrenceItem
+  })
 }

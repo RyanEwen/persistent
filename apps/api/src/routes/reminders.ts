@@ -149,8 +149,8 @@ function toReminderData(
   return {
     title: input.title,
     details: input.details ?? null,
-    category: input.category,
-    categoryData: input.categoryData as Prisma.InputJsonValue,
+    type: input.type,
+    typeData: input.typeData as Prisma.InputJsonValue,
     schedule: input.schedule as unknown as Prisma.InputJsonValue,
     persistence: input.persistence,
     soundIntervalSeconds: input.soundIntervalSeconds,

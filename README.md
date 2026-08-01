@@ -22,9 +22,15 @@ medications, appointments, and important tasks.
 - **Works offline.** The Android app schedules exact on-device alarms, so
   reminders fire even with no signal, and sync across your devices.
 - **Flexible.** Remind me now with no date to pick, or a one-time or repeating
-  schedule; multi-line notes that stay multi-line wherever you read them;
-  medication lists, custom snooze and re-nag intervals, per-reminder
+  schedule — daily, weekdays, every N days, or monthly on the days you choose
+  (including the last day of every month). Multi-line notes that stay multi-line
+  wherever you read them; medication lists, custom snooze and re-nag intervals,
+  separate tones for a reminder firing and for its follow-up nags, per-reminder
   notification-shade prominence (Android), and a history of what you've done.
+- **Checklists.** A reminder can cover several things at once — a morning routine,
+  a packing list. Tick items off as you go; each firing tracks its own ticks, so a
+  repeating checklist starts fresh every time. Ticking everything still doesn't
+  confirm it — only you do.
 - **Simple sign-in.** A one-time email code, a passkey, or Sign in with Google —
   there is no password to forget or leak.
 - **Your data stays yours.** No ads, no analytics, no tracking. Delete your

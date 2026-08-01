@@ -28,7 +28,10 @@ test('an unscheduled reminder has no wall-clock fire to back-fill', () => {
   // be routed through that path.
   const { schedule, startDate } = immediateSchedule(NOW)
   assert.equal(
-    firesRightAway({ ...schedule, daysOfWeek: [], everyNDays: 1, skipWeekends: false, startDate, endDate: '' }, NOW),
+    firesRightAway(
+      { ...schedule, daysOfWeek: [], daysOfMonth: [], lastDayOfMonth: false, everyNDays: 1, skipWeekends: false, startDate, endDate: '' },
+      NOW
+    ),
     false
   )
 })
@@ -40,6 +43,8 @@ test('a genuine one-shot whose minute just passed still fires right away', () =>
         kind: 'once',
         timesOfDay: ['12:00'],
         daysOfWeek: [],
+        daysOfMonth: [],
+        lastDayOfMonth: false,
         everyNDays: 1,
         skipWeekends: false,
         startDate: '2026-07-01',

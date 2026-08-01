@@ -39,6 +39,16 @@ best-effort (`requireInteraction` + re-fire on dismissal in the service worker).
 
 ## Core data model
 
+A reminder's **`type`** (`NONE` / `TODO` / `MEDICATION`) selects the extra fields
+it carries in **`typeData`** — a medication's doses, a `TODO`'s checklist `items`.
+(It was called `category`/`categoryData` until the type started selecting behavior
+rather than just an icon. `TASK` and `APPOINTMENT` were dropped in the same pass:
+they selected nothing, so they were an icon pretending to be a type.) A `TODO` is a single
+reminder covering several items; the items belong to the reminder, but **which of
+them are ticked belongs to the occurrence** (`ReminderOccurrence.checkedItems`), so
+a repeating checklist starts each firing blank. Ticking every item does *not*
+acknowledge the firing — only Done does (`docs/notification-behavior.md` §1a).
+
 `Reminder` (the definition the user manages) → expanded by the scheduler into
 `ReminderOccurrence` rows (one per firing). The persistence guarantee = an
 occurrence is `FIRED` and not yet `ACKNOWLEDGED`. **Every occurrence is

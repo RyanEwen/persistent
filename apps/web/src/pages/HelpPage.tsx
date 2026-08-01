@@ -29,17 +29,37 @@ export function HelpPage() {
 
       <Section title="What Persistent does">
         <Typography level="body-sm">
-          Persistent is a reminder that doesn&apos;t give up. When a reminder is due it nags — a notification that
-          keeps coming back (and can re-sound, or ring as a full alarm) — until you <b>explicitly mark it done</b>.
-          Swiping it away isn&apos;t enough; that&apos;s the whole point.
+          Persistent is a reminder that doesn&apos;t give up. When a reminder is due it <b>fires</b>. If you don&apos;t
+          confirm it, it keeps <b>nagging</b> — the notification comes back (and can re-sound, or ring as a full
+          alarm) — until you <b>explicitly mark it done</b>. Swiping it away isn&apos;t enough; that&apos;s the whole
+          point.
         </Typography>
       </Section>
 
       <Section title="Creating a reminder">
         <Typography level="body-sm">
-          Tap <b>New</b> on the Reminders screen. Give it a title, pick a category if you like (Task, Medication,
-          Appointment), and set a schedule: a one-off time, or a repeat (daily, certain weekdays, every N days) with
-          one or more times of day. Add optional details — for medications you can list what to take and the dose.
+          Tap <b>New</b> on the Reminders screen. Give it a title, pick a type if you like (Checklist or
+          Medication), and set a schedule: a one-off time, or a repeat (daily, certain weekdays, monthly
+          on the days you choose, every N days) with one or more times of day. Add optional details — for medications
+          you can list what to take and the dose.
+        </Typography>
+      </Section>
+
+      <Section title="Checklists">
+        <Typography level="body-sm">
+          A <b>Checklist</b> reminder covers several things at once — a morning routine, a packing list, everything to
+          lock up at night. Add the items when you create it, then tick them off as you go. Each firing has its own
+          ticks, so a repeating checklist starts fresh every time. Ticking everything does <b>not</b> confirm the
+          reminder: it keeps nagging until you tap <b>Done</b>, exactly like any other reminder.
+        </Typography>
+      </Section>
+
+      <Section title="Monthly reminders">
+        <Typography level="body-sm">
+          Pick <b>Monthly</b> and choose the days it should fire on — the 1st, the 1st and the 15th, whatever you
+          need. A month that doesn&apos;t have the day you picked is skipped rather than moved, so a reminder set for
+          the 31st stays silent in February. For the end of every month regardless of length, tick <b>Last day of the
+          month</b> instead.
         </Typography>
       </Section>
 

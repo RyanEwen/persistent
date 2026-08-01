@@ -1,6 +1,6 @@
 /**
  * Occurrence routes: the "due now / needs confirmation" feed plus the explicit
- * completion (ack), snooze, and silence actions.
+ * completion (ack), snooze, silence, and checklist-item actions.
  *
  * Acknowledging or snoozing broadcasts a `dismiss` (over WS and push) so the
  * notification clears on every one of the user's devices — the cross-device
@@ -9,7 +9,13 @@
  * keeps the occurrence FIRED/nagging, and suppresses any further escalation.
  */
 import { Router } from 'express'
-import { snoozeInputSchema, type OccurrenceStatus } from '@persistent/shared'
+import {
+  checkItemInputSchema,
+  snoozeInputSchema,
+  todoItems,
+  type OccurrenceStatus,
+  type TypeData
+} from '@persistent/shared'
 import { prisma } from '../lib/prisma.js'
 import { requireUser, requireUserId } from '../lib/auth-middleware.js'
 import { badRequest, conflict, notFound } from '../lib/http-error.js'
@@ -122,6 +128,65 @@ occurrencesRouter.post('/:id/snooze', async (request, response) => {
   })
 
   await dismissEverywhere(userId, updated.id)
+  broadcast(userId, { type: 'occurrence.changed', occurrence: toOccurrence(updated) })
+  response.json({ occurrence: toOccurrence(updated) })
+})
+
+// Tick / untick one checklist item on one firing (TODO reminders). The checked set
+// belongs to the occurrence, not the reminder, so a repeating checklist starts each
+// firing blank.
+//
+// This deliberately does NOT acknowledge the occurrence when the last item is
+// ticked: only Done clears a firing (docs/notification-behavior.md §1a), and a
+// checklist you tick as you go would otherwise silently confirm itself mid-task.
+occurrencesRouter.post('/:id/check', async (request, response) => {
+  const userId = requireUserId(request)
+  const parsed = checkItemInputSchema.safeParse(request.body)
+  if (!parsed.success) throw badRequest('Invalid checklist item.')
+
+  const existing = await prisma.reminderOccurrence.findFirst({
+    where: { id: request.params.id, userId },
+    include: { reminder: true }
+  })
+  if (!existing) throw notFound('Occurrence not found.')
+  if (existing.reminder.type !== 'TODO') throw badRequest('This reminder has no checklist.')
+
+  const items = todoItems((existing.reminder.typeData ?? {}) as TypeData)
+  if (!items.some((item) => item.id === parsed.data.itemId)) throw notFound('Checklist item not found.')
+
+  // Only a nagging firing has a checklist to work through. Same guard as
+  // silence/snooze: a toggle queued on a device and drained after the ack must not
+  // rewrite a finished firing's record of what was actually done.
+  if (existing.status !== 'FIRED' && existing.status !== 'ESCALATED' && existing.status !== 'SNOOZED') {
+    response.json({ occurrence: toOccurrence(existing) })
+    return
+  }
+
+  // Applied as ONE atomic statement rather than the obvious read-modify-write,
+  // which loses a tick whenever two arrive together — and they do: working down a
+  // checklist means tapping several items in quick succession, and each tap is its
+  // own request. Read-modify-write has both read `[]` before either write lands, so
+  // the second overwrites the first.
+  //
+  // `-` removes every matching element (so re-ticking can't duplicate, making the
+  // toggle idempotent for offline replays) and `||` appends. The only raw query in
+  // the codebase; the tagged template parameterizes, and `userId` still scopes it.
+  const { itemId, checked } = parsed.data
+  await prisma.$executeRaw`
+    UPDATE "ReminderOccurrence"
+    SET "checkedItems" = CASE
+      WHEN ${checked}::boolean THEN ("checkedItems" - ${itemId}::text) || jsonb_build_array(${itemId}::text)
+      ELSE "checkedItems" - ${itemId}::text
+    END
+    WHERE "id" = ${existing.id} AND "userId" = ${userId}
+  `
+  const updated = await prisma.reminderOccurrence.findFirstOrThrow({
+    where: { id: existing.id, userId },
+    include: { reminder: true }
+  })
+
+  // WS only: no notification text changes (a pre-armed device alarm can't track a
+  // moving checked state), so there is nothing to push or re-sync on-device.
   broadcast(userId, { type: 'occurrence.changed', occurrence: toOccurrence(updated) })
   response.json({ occurrence: toOccurrence(updated) })
 })

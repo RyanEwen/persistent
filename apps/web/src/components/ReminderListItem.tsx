@@ -1,7 +1,7 @@
 /**
  * One row in a reminder list — used by both the current list and History so they
  * render identically. A tappable card linking to the reminder's detail view,
- * showing the category icon, title + status, and a "when" line (with an optional
+ * showing the type icon, title + status, and a "when" line (with an optional
  * secondary recurrence line). Kept compact (small card padding, single-line
  * description) so many reminders fit on a phone screen.
  */
@@ -11,12 +11,12 @@ import Card from '@mui/joy/Card'
 import Stack from '@mui/joy/Stack'
 import Box from '@mui/joy/Box'
 import Typography from '@mui/joy/Typography'
-import type { OccurrenceStatus, ReminderCategory } from '@persistent/shared'
-import { CategoryIcon, StatusChip } from './ReminderIcons.js'
+import type { OccurrenceStatus, ReminderType } from '@persistent/shared'
+import { TypeIcon, StatusChip } from './ReminderIcons.js'
 
 export function ReminderListItem({
   to,
-  category,
+  type,
   title,
   status,
   description,
@@ -25,7 +25,7 @@ export function ReminderListItem({
   trailing
 }: {
   to: string
-  category: ReminderCategory
+  type: ReminderType
   title: string
   status?: OccurrenceStatus | null
   description?: string
@@ -37,7 +37,7 @@ export function ReminderListItem({
     <Card component={RouterLink} to={to} variant="outlined" size="sm" sx={{ textDecoration: 'none' }}>
       <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
         <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
-          <CategoryIcon category={category} size={24} />
+          <TypeIcon type={type} size={24} />
           <Box sx={{ minWidth: 0 }}>
             <Typography level="title-sm" noWrap>
               {title}

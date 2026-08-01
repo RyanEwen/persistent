@@ -15,6 +15,8 @@ function input(overrides: Partial<SchedulePreviewInput>): SchedulePreviewInput {
     kind: 'once',
     timesOfDay: ['12:00'],
     daysOfWeek: [],
+    daysOfMonth: [],
+    lastDayOfMonth: false,
     everyNDays: 1,
     skipWeekends: false,
     startDate: ymd(NOW),
@@ -51,4 +53,34 @@ test('no time set is genuinely no upcoming fire', () => {
   const noTime = input({ timesOfDay: [] })
   assert.equal(firesRightAway(noTime, NOW), false)
   assert.equal(fireSummary(noTime, '24h', NOW), null)
+})
+
+// --- Monthly: the preview must agree with the server's expansion --------------
+
+test("monthly on the 1st rolls to next month once this month's day has passed", () => {
+  // NOW is Jul 1 12:00:30, so today's 09:00 firing is already behind us.
+  const monthly = input({ kind: 'monthly', timesOfDay: ['09:00'], daysOfMonth: [1] })
+  assert.match(fireSummary(monthly, '24h', NOW) ?? '', /^Fires on Aug 1/)
+})
+
+test('monthly picks the soonest of several days of the month', () => {
+  const monthly = input({ kind: 'monthly', timesOfDay: ['09:00'], daysOfMonth: [1, 15] })
+  assert.match(fireSummary(monthly, '24h', NOW) ?? '', /^Fires on Jul 15/)
+})
+
+test('a day the month lacks is skipped, matching the server (never clamped)', () => {
+  // September has no 31st, so a "31st" reminder next fires in October.
+  const monthly = input({
+    kind: 'monthly',
+    timesOfDay: ['09:00'],
+    daysOfMonth: [31],
+    startDate: '2026-09-01',
+    endDate: ''
+  })
+  assert.match(fireSummary(monthly, '24h', new Date(2026, 8, 1, 12, 0)) ?? '', /^Fires on Oct 31/)
+})
+
+test("lastDayOfMonth resolves to the month's real final day", () => {
+  const monthly = input({ kind: 'monthly', timesOfDay: ['09:00'], lastDayOfMonth: true })
+  assert.match(fireSummary(monthly, '24h', NOW) ?? '', /^Fires on Jul 31/)
 })

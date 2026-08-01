@@ -38,3 +38,14 @@ export function isOutsideReminderWindow(reminder: Reminder, occurrence: Occurren
   if (reminder.endDate && day > reminder.endDate) return true
   return false
 }
+
+/**
+ * True for a reminder with no date or time at all (schedule kind `none`).
+ *
+ * Its single firing happens on creation, so it was never *due* at a moment —
+ * "Due" claims a deadline the user never set. It still has to be confirmed like
+ * any other firing; only the label and the urgency of the styling change.
+ */
+export function isUnscheduledFiring(reminder: Reminder): boolean {
+  return reminder.schedule.kind === 'none'
+}

@@ -20,17 +20,25 @@ import Chip from '@mui/joy/Chip'
 import SnoozeIcon from '@mui/icons-material/Snooze'
 import EditIcon from '@mui/icons-material/Edit'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
-import HistoryIcon from '@mui/icons-material/History'
-import { reminderBodyText } from '@persistent/shared'
+import { reminderBodyText, todoItems } from '@persistent/shared'
 import { useReminders } from '../data/reminders.js'
-import { useActiveOccurrences, useAckOccurrence, useSnoozeOccurrence, useSilenceOccurrence } from '../data/occurrences.js'
+import {
+  useActiveOccurrences,
+  useAckOccurrence,
+  useSnoozeOccurrence,
+  useSilenceOccurrence,
+  useCheckOccurrenceItem
+} from '../data/occurrences.js'
 import { scheduleSummary } from '../lib/scheduleSummary.js'
 import { formatWhen } from '../lib/datetime.js'
 import { reminderNextFire } from '../lib/schedule-preview.js'
-import { isOutsideReminderWindow } from '../lib/occurrenceSchedule.js'
+
 import { useSettings } from '../settings/useSettings.js'
-import { CategoryIcon, StatusChip } from '../components/ReminderIcons.js'
+import { TypeIcon } from '../components/ReminderIcons.js'
+import { FiringStatusChip } from '../components/FiringStatusChip.js'
+import { firingTone } from '../lib/firingTone.js'
 import { OccurrenceActions } from '../components/OccurrenceActions.js'
+import { TodoChecklist } from '../components/TodoChecklist.js'
 import { SnoozeDialog } from '../components/SnoozeDialog.js'
 import { PullToRefresh } from '../components/PullToRefresh.js'
 
@@ -41,6 +49,7 @@ export function ReminderDetailPage() {
   const ack = useAckOccurrence()
   const snooze = useSnoozeOccurrence()
   const silence = useSilenceOccurrence()
+  const checkItem = useCheckOccurrenceItem()
   const { timeFormat } = useSettings()
   const [snoozeFor, setSnoozeFor] = useState<string | null>(null)
 
@@ -64,7 +73,11 @@ export function ReminderDetailPage() {
     )
   }
 
-  const body = reminderBodyText(reminder)
+  // The checklist is rendered as real checkboxes per firing below, so the header
+  // body drops the bulleted copy reminderBodyText builds for notifications. The
+  // editor saves no details on a checklist, so this is normally empty.
+  const items = reminder.type === 'TODO' ? todoItems(reminder.typeData) : []
+  const body = items.length > 0 ? (reminder.details ?? '') : reminderBodyText(reminder)
   const next = reminderNextFire(reminder)
   // Each pending occurrence gets its own action block, soonest (most overdue) first.
   const occurrences = (active.data ?? [])
@@ -98,7 +111,7 @@ export function ReminderDetailPage() {
 
         <Box>
           <Stack direction="row" spacing={1} alignItems="center">
-            <CategoryIcon category={reminder.category} />
+            <TypeIcon type={reminder.type} />
             <Typography level="title-lg" sx={{ minWidth: 0 }}>
               {reminder.title}
             </Typography>
@@ -132,15 +145,33 @@ export function ReminderDetailPage() {
           </Typography>
         </Card>
 
+        {/* With nothing due there is no firing to tick against — a checked set
+            belongs to an occurrence — so the list shows as the definition it is. */}
+        {items.length > 0 && occurrences.length === 0 && (
+          <Card variant="soft">
+            <Typography level="title-sm">Checklist</Typography>
+            <Stack spacing={0.25}>
+              {items.map((item) => (
+                <Typography key={item.id} level="body-sm">
+                  • {item.text}
+                </Typography>
+              ))}
+            </Stack>
+            <Typography level="body-xs" sx={{ color: 'text.tertiary' }}>
+              Ticked off each time this reminder fires.
+            </Typography>
+          </Card>
+        )}
+
         {occurrences.length > 0 && (
           <Stack spacing={1.5}>
             <Typography level="title-sm">Needs attention</Typography>
             {occurrences.map((occurrence) => {
-              // Same treatment as the list card: a firing the reminder's current
-              // window no longer covers is labelled honestly rather than as "Due".
-              const orphaned = isOutsideReminderWindow(reminder, occurrence)
+              // Same treatment as the list card, from the same helper: only an
+              // escalation shouts, and "Due" is used only where it's honest.
+              const { orphaned, color, variant, doneLabel } = firingTone(reminder, occurrence)
               return (
-                <Card key={occurrence.id} color="warning" variant="soft">
+                <Card key={occurrence.id} color={color} variant={variant}>
                   <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
                     <Box sx={{ minWidth: 0 }}>
                       <Typography level="body-sm">{formatWhen(occurrence.scheduledFor, timeFormat)}</Typography>
@@ -154,30 +185,30 @@ export function ReminderDetailPage() {
                         </Typography>
                       )}
                       {orphaned && (
-                        <Typography level="body-xs" color="warning" sx={{ mt: 0.5 }}>
+                        <Typography level="body-xs" sx={{ mt: 0.5, color: 'text.tertiary' }}>
                           Fired before this reminder was rescheduled. Clearing it won't affect the new schedule.
                         </Typography>
                       )}
                     </Box>
                     <Box sx={{ flexShrink: 0 }}>
-                      {orphaned ? (
-                        <Chip
-                          size="sm"
-                          variant="soft"
-                          color="warning"
-                          startDecorator={<HistoryIcon sx={{ fontSize: 14 }} />}
-                        >
-                          Unconfirmed
-                        </Chip>
-                      ) : (
-                        <StatusChip status={occurrence.status} />
-                      )}
+                      <FiringStatusChip reminder={reminder} occurrence={occurrence} />
                     </Box>
                   </Stack>
+                  {items.length > 0 && (
+                    <Box sx={{ mt: 1 }}>
+                      <TodoChecklist
+                        items={items}
+                        checkedItemIds={occurrence.checkedItemIds}
+                        onToggle={(itemId, checked) =>
+                          checkItem.mutate({ id: occurrence.id, arg: { itemId, checked } })
+                        }
+                      />
+                    </Box>
+                  )}
                   <Box sx={{ mt: 1 }}>
                     <OccurrenceActions
                       occurrence={occurrence}
-                      doneLabel={orphaned ? 'Clear' : 'Done'}
+                      doneLabel={doneLabel}
                       onDone={() => ack.mutate({ id: occurrence.id, arg: undefined })}
                       doneLoading={ack.isPending}
                       onSnooze={() => setSnoozeFor(occurrence.id)}

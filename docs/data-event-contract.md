@@ -83,6 +83,29 @@ and the on-device escalation alarm). The server reverts `ESCALATED → FIRED`, t
 broadcasts a `silence` WS event **and** sends a `silence` push so every device
 downgrades its ringing alarm to a soft notification instead of clearing it.
 
+## Checklist ticks
+
+A `TODO` reminder's items live on the reminder (`typeData.items`, each with a
+stable client-minted id); the *ticked* ids live per firing, on the occurrence
+(`ReminderOccurrence.checkedItems`). A repeating checklist therefore starts every
+firing blank — yesterday's ticks say nothing about today's.
+
+`POST /api/occurrences/:id/check` takes `{ itemId, checked }` — one item at a
+time, deliberately, rather than "here is the whole checked set": these mutations
+queue offline and replay later, and a whole-set write would let a stale replay
+wipe ticks made in the meantime. Each toggle is idempotent, so a replayed
+duplicate is a no-op. It applies only to a *nagging* occurrence
+(`FIRED`/`SNOOZED`/`ESCALATED`) — same guard as silence/snooze, so a toggle drained
+after the ack can't rewrite a finished firing's record.
+
+Ticking every item **does not acknowledge** the occurrence — only Done clears a
+firing (`notification-behavior.md` §1). The server broadcasts `occurrence.changed`
+over WS but sends **no push and no sync nudge**: a device alarm is armed ahead of
+time with static text, so it cannot track a checked state that moves afterwards,
+and nothing about the notification changes. The web client applies the toggle
+optimistically (`mutationKeys.checkOccurrenceItem`) — a checkbox that waits for a
+round trip feels broken.
+
 ## Native sync nudge
 
 Reminder create/update/delete has no self-contained fire/dismiss payload, but a

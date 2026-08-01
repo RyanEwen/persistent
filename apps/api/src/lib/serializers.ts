@@ -3,7 +3,7 @@
  * sees consistent and matching the Zod schemas in @persistent/shared.
  */
 import type { Reminder as ReminderRow, ReminderOccurrence, User, Passkey } from '@prisma/client'
-import type { Occurrence, Reminder, SessionUser, Schedule, CategoryData, PasskeyInfo } from '@persistent/shared'
+import type { Occurrence, Reminder, SessionUser, Schedule, TypeData, PasskeyInfo } from '@persistent/shared'
 
 export function toPasskey(row: Passkey): PasskeyInfo {
   return {
@@ -35,8 +35,8 @@ export function toReminder(
     id: row.id,
     title: row.title,
     details: row.details,
-    category: row.category,
-    categoryData: (row.categoryData ?? {}) as CategoryData,
+    type: row.type,
+    typeData: (row.typeData ?? {}) as TypeData,
     schedule: row.schedule as unknown as Schedule,
     persistence: row.persistence,
     soundIntervalSeconds: row.soundIntervalSeconds,
@@ -57,6 +57,14 @@ export function toReminder(
   }
 }
 
+/**
+ * `checkedItems` is a loose JSON column, so narrow it to the string array the DTO
+ * promises rather than trusting the shape. Anything else reads as "nothing ticked".
+ */
+export function toCheckedItemIds(value: ReminderOccurrence['checkedItems']): string[] {
+  return Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : []
+}
+
 export function toOccurrence(row: ReminderOccurrence & { reminder: ReminderRow }): Occurrence {
   return {
     id: row.id,
@@ -68,11 +76,12 @@ export function toOccurrence(row: ReminderOccurrence & { reminder: ReminderRow }
     snoozedUntil: row.snoozedUntil?.toISOString() ?? null,
     escalatedAt: row.escalatedAt?.toISOString() ?? null,
     supersededAt: row.supersededAt?.toISOString() ?? null,
+    checkedItemIds: toCheckedItemIds(row.checkedItems),
     reminder: {
       title: row.reminder.title,
       details: row.reminder.details,
-      category: row.reminder.category,
-      categoryData: (row.reminder.categoryData ?? {}) as CategoryData,
+      type: row.reminder.type,
+      typeData: (row.reminder.typeData ?? {}) as TypeData,
       persistence: row.reminder.persistence,
       soundIntervalSeconds: row.reminder.soundIntervalSeconds,
       shadeProminence: row.reminder.shadeProminence
