@@ -9,9 +9,17 @@ const REMINDER_TYPE_LABELS: Record<ReminderType, string> = {
   MEDICATION: 'Medication'
 }
 
-/** The user-facing name of a reminder type, for pickers, icons and copy. */
+/**
+ * The user-facing name of a reminder type, for pickers, icons and copy.
+ *
+ * A value from outside the enum falls back to the raw value, and a *missing* one
+ * to the generic label — an older persisted cache carries no `type` at all
+ * (it predates the rename from `category`), so the absent case is the one that
+ * actually happens.
+ */
 export function reminderTypeLabel(type: ReminderType): string {
-  return REMINDER_TYPE_LABELS[type]
+  if (!type) return REMINDER_TYPE_LABELS.NONE
+  return (REMINDER_TYPE_LABELS as Record<string, string | undefined>)[type] ?? titleCase(type)
 }
 
 /** "MEDICATION" -> "Medication", "NONE" -> "None". */

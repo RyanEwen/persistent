@@ -27,7 +27,12 @@
   invalidation, so a mutation queued offline can be replayed after reload
   (`resumePausedMutations`). The matching WS event also invalidates, so clients
   converge. The query cache is persisted to localStorage (`lib/persistQuery.ts`)
-  for offline reads.
+  for offline reads, and **busted on every app version**: it holds DTOs shaped by
+  the build that wrote them, so restoring an older release's rows into newer
+  components feeds them fields that release never had. Components must survive one
+  anyway — look enum-ish values up defensively (`components/ReminderIcons.tsx`),
+  because a React element type that resolves to `undefined` takes down the whole
+  view rather than one row.
 - **Push:** the web subscription flow lives in `lib/push.ts`; the service worker
   (`public/push-handler.js`) renders notifications and handles Done/Snooze/Silence
   actions + best-effort re-fire (Silence shows only on escalations). Remember the

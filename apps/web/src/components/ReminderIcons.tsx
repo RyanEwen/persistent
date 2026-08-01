@@ -2,6 +2,14 @@
  * Icons for a reminder's type and an occurrence's status (doneness / snoozed /
  * escalated). Centralized so the mapping stays consistent wherever
  * reminders/occurrences are listed.
+ *
+ * Every lookup goes through `lookup`, which tolerates a key this build doesn't
+ * know. The maps stay exhaustive over the current enums — adding a type still
+ * forces an icon — but a value from outside them (a restored cache written by an
+ * older release, a server enum the client hasn't shipped yet) must degrade to a
+ * generic icon rather than resolve to `undefined`: React rejects an undefined
+ * element type outright, so one unknown value would take down the whole view
+ * rather than one row of it.
  */
 import Chip from '@mui/joy/Chip'
 import type { ColorPaletteProp } from '@mui/joy/styles'
@@ -20,6 +28,11 @@ import { reminderTypeLabel } from '../lib/format.js'
 
 type IconSize = 'small' | 'medium' | 'large' | 'inherit'
 
+/** Map lookup that survives a key from outside the enum (see the file header). */
+function lookup<T>(map: Record<string, T>, key: string, fallback: T): T {
+  return map[key] ?? fallback
+}
+
 const TYPE_ICON: Record<ReminderType, SvgIconComponent> = {
   NONE: NotificationsNoneIcon,
   TODO: ChecklistIcon,
@@ -36,7 +49,7 @@ export function TypeIcon({
   /** Explicit pixel size; overrides fontSize when set. */
   size?: number
 }) {
-  const Icon = TYPE_ICON[type]
+  const Icon = lookup(TYPE_ICON, type, NotificationsNoneIcon)
   // aria-label (not titleAccess) so no <title> text leaks into e.g. Select values.
   return (
     <Icon fontSize={fontSize} sx={size ? { fontSize: size } : undefined} role="img" aria-label={reminderTypeLabel(type)} />
@@ -64,8 +77,8 @@ const STATUS_TITLE: Record<OccurrenceStatus, string> = {
 }
 
 export function StatusIcon({ status, fontSize = 'small' }: { status: OccurrenceStatus; fontSize?: IconSize }) {
-  const Icon = STATUS_ICON[status]
-  return <Icon fontSize={fontSize} role="img" aria-label={STATUS_TITLE[status]} />
+  const Icon = lookup(STATUS_ICON, status, NotificationsActiveIcon)
+  return <Icon fontSize={fontSize} role="img" aria-label={lookup(STATUS_TITLE, status, status)} />
 }
 
 const STATUS_COLOR: Record<OccurrenceStatus, ColorPaletteProp> = {
@@ -80,15 +93,15 @@ const STATUS_COLOR: Record<OccurrenceStatus, ColorPaletteProp> = {
 
 /** A colored, labeled status chip (e.g. green "Done", red "Missed") for list rows. */
 export function StatusChip({ status }: { status: OccurrenceStatus }) {
-  const Icon = STATUS_ICON[status]
+  const Icon = lookup(STATUS_ICON, status, NotificationsActiveIcon)
   return (
     <Chip
       size="sm"
       variant="soft"
-      color={STATUS_COLOR[status]}
+      color={lookup(STATUS_COLOR, status, 'neutral')}
       startDecorator={<Icon sx={{ fontSize: 16 }} />}
     >
-      {STATUS_TITLE[status]}
+      {lookup(STATUS_TITLE, status, status)}
     </Chip>
   )
 }
