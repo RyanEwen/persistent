@@ -301,10 +301,10 @@ class AlarmService : Service() {
     private fun startAlarm(spec: AlarmSpec, silent: Boolean = false) {
         ensureChannels()
         active[spec.occurrenceId] = spec
-        // Stamp the post time once, on first fire, and keep it across every re-post
-        // (re-notify loop / swipe-reshow / re-bind). The shade orders by `when`, so a
-        // pinned, strictly-increasing timestamp keeps the newest reminder on top
-        // instead of letting an older one float back up when it re-notifies.
+        // Stamp the post time on first fire and keep it across incidental re-posts
+        // (swipe-reshow / re-bind / restyle), so the shade — which orders by `when` —
+        // isn't reshuffled by bookkeeping. A real nag deliberately re-stamps it
+        // (startReNotifyLoop): whatever fired or nagged most recently belongs on top.
         postedAt.getOrPut(spec.occurrenceId) { System.currentTimeMillis() }
         activeIds.add(spec.occurrenceId)
         if (spec.alarm) alarmIds.add(spec.occurrenceId) else alarmIds.remove(spec.occurrenceId)
@@ -653,7 +653,16 @@ class AlarmService : Service() {
             .build()
     }
 
-    private fun buildNotification(spec: AlarmSpec, channelOverride: String? = null): android.app.Notification {
+    /**
+     * Build one nag's notification. [renotify] marks a post that is a genuine
+     * follow-up nag rather than an incidental refresh, which is what lets it alert
+     * again — see the `setOnlyAlertOnce` note below.
+     */
+    private fun buildNotification(
+        spec: AlarmSpec,
+        channelOverride: String? = null,
+        renotify: Boolean = false
+    ): android.app.Notification {
         // The notification never carries audio — we play the chosen sound via
         // MediaPlayer — so every channel is silent; the channel only controls the
         // reminder's visual prominence in the shade (see channelFor).
@@ -746,8 +755,10 @@ class AlarmService : Service() {
         )
 
         val awaitingConfirm = confirming.contains(spec.occurrenceId)
-        // Pinned post time -> newest reminder sorts to the top of the shade and stays
-        // there across re-posts (sortKey is inverted so the largest `when` sorts first).
+        // Post time is pinned across incidental re-posts (keep-alive, re-bind, style
+        // refresh) so those don't shuffle the shade, and re-stamped by a real nag in
+        // startReNotifyLoop so the nag rises back to the top. sortKey is inverted, so
+        // the largest `when` sorts first.
         val posted = postedAt[spec.occurrenceId] ?: System.currentTimeMillis()
         val builder = NotificationCompat.Builder(this, channel)
             .setContentTitle(spec.title)
@@ -759,16 +770,19 @@ class AlarmService : Service() {
             .setAutoCancel(!spec.ongoing)
             .setWhen(posted)
             .setShowWhen(true)
-            // A soft nag is re-posted constantly for reasons that are NOT a fresh
-            // fire — the keep-alive, the foreground-service re-assertion on every
-            // sync, style refreshes. On a NORMAL-prominence (IMPORTANCE_HIGH) channel
-            // each such re-post would otherwise pop a fresh heads-up banner, so the
-            // notification "keeps popping up" though nothing new happened (silently,
-            // since we drive tone via MediaPlayer). alertOnce suppresses the heads-up
-            // on those updates; the first fire still alerts (it's a new post), and the
-            // audible nag is unaffected (MediaPlayer, not the channel). Alarms keep
-            // re-alerting — they're meant to be relentless.
-            .setOnlyAlertOnce(!spec.alarm)
+            // A soft nag is re-posted constantly for reasons that are NOT a nag — the
+            // keep-alive, the foreground-service re-assertion on every sync, style
+            // refreshes. On a NORMAL-prominence (IMPORTANCE_HIGH) channel each such
+            // re-post would otherwise pop a fresh heads-up banner, so the notification
+            // "keeps popping up" though nothing new happened. alertOnce suppresses the
+            // heads-up on those updates.
+            //
+            // A *real* nag is the exception, and passes renotify: the whole point of
+            // the follow-up is to be noticed again, so it peeks like a new
+            // notification instead of only re-sounding under a shade the user never
+            // opens. The first fire alerts either way (it's a new post), and alarms
+            // never suppress — they're meant to be relentless.
+            .setOnlyAlertOnce(!spec.alarm && !renotify)
             // Show full content on the lock screen so the user can see *which*
             // reminder is firing without unlocking — the alarm must be findable.
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
@@ -933,17 +947,24 @@ class AlarmService : Service() {
     /**
      * Notification: re-post + re-sound every N seconds so it keeps nagging.
      *
-     * This is the only place the nag tone applies — the first fire already played
-     * `soundUri` in startAlarm, and everything from here on is a follow-up. An unset
-     * nag tone falls back to the fire tone, so behavior is unchanged until the user
-     * actually picks one.
+     * A nag is a fresh appearance, not a silent refresh. Re-stamping `postedAt`
+     * floats it back to the top of the shade, and `renotify` lets it peek again, so
+     * a follow-up behaves like a new notification rather than a sound coming from a
+     * row buried under everything that has arrived since. Sound alone is missable —
+     * on mute it is nothing at all.
+     *
+     * This is also the only place the nag tone applies — the first fire already
+     * played `soundUri` in startAlarm, and everything from here on is a follow-up. An
+     * unset nag tone falls back to the fire tone, so behavior is unchanged until the
+     * user actually picks one.
      */
     private fun startReNotifyLoop(spec: AlarmSpec) {
         val intervalMs = spec.soundIntervalSeconds * 1000L
         val runnable = object : Runnable {
             override fun run() {
                 val current = active[spec.occurrenceId] ?: return
-                nm.notify(notifId(current.occurrenceId), buildNotification(current))
+                postedAt[current.occurrenceId] = System.currentTimeMillis()
+                nm.notify(notifId(current.occurrenceId), buildNotification(current, renotify = true))
                 playNotificationSound(current.nagSoundUri.ifEmpty { current.soundUri })
                 handler.postDelayed(this, intervalMs)
             }

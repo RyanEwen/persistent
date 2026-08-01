@@ -18,11 +18,15 @@ guarantee* those mechanisms exist to deliver.
   fires exactly once.
 - **Nag** — the *follow-up*, not the first appearance: everything that keeps a
   fired-but-unconfirmed occurrence in front of the user afterwards (re-appearing
-  when swiped away, the `PERSISTENT` re-sound interval, the escalation). User-facing
+  when swiped away, the `PERSISTENT` nag interval, the escalation). User-facing
   copy must keep these apart — "it nags as soon as you create it" describes a first
   fire as a follow-up, which is what made the two read as the same thing.
 - **Notification** — the soft nag: a notification that re-appears until confirmed
-  (and, on `PERSISTENT` reminders, optionally re-sounds on an interval).
+  (and, on `PERSISTENT` reminders, optionally nags again on an interval). A nag
+  **presents itself again**, it doesn't just make a noise: it returns to the top of
+  the shade and peeks like a newly-arrived notification. A reminder the user has to
+  confirm is worth interrupting for twice, and a sound is missable — under a stack
+  of newer notifications, or on a muted phone, a re-sound alone is nothing.
 - **Alarm** — the hard nag: looping sound + vibration, full-screen on Android,
   not dismissable. A reminder is an alarm either because its persistence is
   `ALARM`, or because a `PERSISTENT` reminder **escalated** (after N minutes, or
@@ -151,6 +155,18 @@ self-collapse (`keepNewestForReminder` / the `SUPERSEDED` status), which would
 let confirming a later dose silently erase an un-taken earlier one — wrong for a
 medication-grade persistence app. `SUPERSEDED` is retained only as a legacy
 status on historical rows and is never assigned anymore.
+
+### 4a. Whatever fired or nagged most recently sits on top
+
+Where several firings are shown at once, the newest is first — in the in-app list,
+on a reminder's detail view (`apps/web/src/lib/firingOrder.ts`) and in the Android
+shade, where a nag re-stamps its post time so it rises back up. The firing that
+just arrived is the one the user is reacting to; an older one does not need to hold
+the top of the list, because staying until confirmed is what the nag is *for*.
+
+The one exception is an **escalation**, which outranks recency: it is ringing an
+alarm right now. It is also the only firing that gets a loud card
+(`firingTone.ts`), so urgency is graded the same way in both places.
 
 ## 5. Android Auto — the same actions, by voice, in the car
 

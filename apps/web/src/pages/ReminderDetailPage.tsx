@@ -37,6 +37,7 @@ import { useSettings } from '../settings/useSettings.js'
 import { TypeIcon } from '../components/ReminderIcons.js'
 import { FiringStatusChip } from '../components/FiringStatusChip.js'
 import { firingTone } from '../lib/firingTone.js'
+import { compareFirings } from '../lib/firingOrder.js'
 import { OccurrenceActions } from '../components/OccurrenceActions.js'
 import { TodoChecklist } from '../components/TodoChecklist.js'
 import { SnoozeDialog } from '../components/SnoozeDialog.js'
@@ -79,10 +80,9 @@ export function ReminderDetailPage() {
   const items = reminder.type === 'TODO' ? todoItems(reminder.typeData) : []
   const body = items.length > 0 ? (reminder.details ?? '') : reminderBodyText(reminder)
   const next = reminderNextFire(reminder)
-  // Each pending occurrence gets its own action block, soonest (most overdue) first.
-  const occurrences = (active.data ?? [])
-    .filter((o) => o.reminderId === reminder.id)
-    .sort((a, b) => new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime())
+  // Each pending occurrence gets its own action block, ordered as on the main
+  // list — escalations first, then most recently fired (`lib/firingOrder.ts`).
+  const occurrences = (active.data ?? []).filter((o) => o.reminderId === reminder.id).sort(compareFirings)
 
   return (
     <PullToRefresh onRefresh={() => Promise.all([reminders.refetch(), active.refetch()])}>

@@ -81,7 +81,13 @@ drives them lives in `apps/web/src/native`.
 - On fire, a **foreground service** posts an ongoing notification and, by
   persistence level:
   - **Notification (`PERSISTENT`)** — plays the chosen notification sound once;
-    optionally re-posts + re-sounds every N minutes (`soundIntervalSeconds`).
+    optionally nags every N minutes (`soundIntervalSeconds`). A nag is a *fresh
+    appearance*, not a sound over a static row: it re-stamps its post time so it
+    rises back to the top of the shade, and re-alerts (a heads-up peek) like a new
+    notification would. Sound alone is missable, and on a muted phone it is nothing
+    at all. Only real nags do this — the keep-alive and other bookkeeping re-posts
+    below stay silent and non-alerting (`setOnlyAlertOnce`), or every resync would
+    pop a banner for something that hasn't changed.
   - **Alarm (`ALARM`)** — full-screen intent + **continuously looping** the chosen
     alarm sound + vibration (no interval; it's relentless). Like the system clock's
     alarm, the full-screen `AlarmActivity` is kept on screen whether locked or not:

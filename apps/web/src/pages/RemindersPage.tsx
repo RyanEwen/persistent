@@ -1,8 +1,9 @@
 /**
  * Main view. Each FIRED/ESCALATED/SNOOZED occurrence floats to the top as its own
  * attention card (Done/Snooze/Silence) — a reminder with several times of day can
- * show several cards at once, each confirmed independently. Reminders with nothing
- * pending follow as plain list items in soonest-fire order.
+ * show several cards at once, each confirmed independently, most recently fired
+ * first (`lib/firingOrder.ts`). Reminders with nothing pending follow as plain
+ * list items in soonest-fire order.
  */
 import { useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
@@ -13,7 +14,7 @@ import Button from '@mui/joy/Button'
 import Chip from '@mui/joy/Chip'
 import AddIcon from '@mui/icons-material/Add'
 import { reminderBodyText } from '@persistent/shared'
-import type { Occurrence, Reminder } from '@persistent/shared'
+import type { Reminder } from '@persistent/shared'
 import { useReminders } from '../data/reminders.js'
 import {
   useActiveOccurrences,
@@ -22,6 +23,7 @@ import {
   useSilenceOccurrence,
   useCheckOccurrenceItem
 } from '../data/occurrences.js'
+import { compareFirings } from '../lib/firingOrder.js'
 import { scheduleSummary } from '../lib/scheduleSummary.js'
 import { formatWhen } from '../lib/datetime.js'
 import { reminderNextFire } from '../lib/schedule-preview.js'
@@ -36,11 +38,6 @@ import { PullToRefresh } from '../components/PullToRefresh.js'
 // stay current, and repeating reminders always do (they keep recurring).
 function isFinished(reminder: Reminder): boolean {
   return reminder.schedule.kind === 'once' && reminder.lastOccurrence?.status === 'ACKNOWLEDGED'
-}
-
-// Most urgent first within the attention group: escalations, then by how overdue.
-function attentionRank(occurrence: Occurrence): number {
-  return occurrence.status === 'ESCALATED' ? 0 : 1
 }
 
 export function RemindersPage() {
@@ -61,12 +58,8 @@ export function RemindersPage() {
       const reminder = reminderById.get(occurrence.reminderId)
       return reminder ? [{ reminder, occurrence }] : []
     })
-    // Escalations first, then most overdue (earliest scheduled) first.
-    .sort(
-      (a, b) =>
-        attentionRank(a.occurrence) - attentionRank(b.occurrence) ||
-        new Date(a.occurrence.scheduledFor).getTime() - new Date(b.occurrence.scheduledFor).getTime()
-    )
+    // Escalations first, then whatever fired most recently (see firingOrder.ts).
+    .sort((a, b) => compareFirings(a.occurrence, b.occurrence))
 
   // Reminders with nothing pending: plain list rows, soonest-fire first, paused/
   // finished (no upcoming fire) sinking to the bottom.
