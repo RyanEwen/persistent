@@ -2,8 +2,10 @@
  * Main view. Each FIRED/ESCALATED/SNOOZED occurrence floats to the top as its own
  * attention card (Done/Snooze/Silence) — a reminder with several times of day can
  * show several cards at once, each confirmed independently, most recently fired
- * first (`lib/firingOrder.ts`). Reminders with nothing pending follow as plain
- * list items in soonest-fire order.
+ * first (`lib/firingOrder.ts`). Reminders with nothing pending follow under an
+ * "Upcoming" divider as plain list items in soonest-fire order — the two groups
+ * answer different questions ("what do I have to deal with" vs "what is coming"),
+ * and the cards alone didn't make the boundary obvious once there were several.
  */
 import { useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
@@ -12,6 +14,7 @@ import Box from '@mui/joy/Box'
 import Typography from '@mui/joy/Typography'
 import Button from '@mui/joy/Button'
 import Chip from '@mui/joy/Chip'
+import Divider from '@mui/joy/Divider'
 import AddIcon from '@mui/icons-material/Add'
 import { reminderBodyText } from '@persistent/shared'
 import type { Reminder } from '@persistent/shared'
@@ -110,6 +113,15 @@ export function RemindersPage() {
                 onToggleItem={(itemId, checked) => checkItem.mutate({ id: occurrence.id, arg: { itemId, checked } })}
               />
             ))}
+            {/* Only between the two groups — a lone "Upcoming" label above an
+                empty attention section is a heading for nothing. */}
+            {attention.length > 0 && idle.length > 0 && (
+              <Divider sx={{ mt: 0.5 }}>
+                <Typography level="body-xs" sx={{ color: 'text.tertiary' }}>
+                  Upcoming
+                </Typography>
+              </Divider>
+            )}
             {idle.map(({ reminder, next }) => {
               const isRepeating = reminder.schedule.kind !== 'once'
               const when = next ? formatWhen(next, timeFormat) : 'Paused'
