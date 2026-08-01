@@ -65,9 +65,12 @@ export const timeOfDaySchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Ex
 
 /**
  * Structured recurrence. Times are interpreted in the owning user's time zone.
- * - none:     no date or time — "remind me about this". Fires once, immediately,
- *             when the reminder is created, then never again. `timesOfDay` is
- *             empty and `startDate` is only a record of when it was created.
+ * - none:     no date or time — "remind me about this". Gets exactly one firing,
+ *             immediately, when the user asks to be reminded (creating it
+ *             unscheduled, or taking an existing reminder's schedule away), then
+ *             never again. `timesOfDay` is empty and `startDate` is only a record
+ *             of when it was last saved this way — not a window, and nothing
+ *             reads it.
  * - once:     fires on `startDate` at each `timesOfDay`, never repeats.
  * - daily:    every day (optionally `skipWeekends`).
  * - weekly:   on the weekdays in `daysOfWeek`.

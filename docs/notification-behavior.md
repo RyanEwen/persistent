@@ -206,9 +206,16 @@ on from.
 Two other firings are labelled **Unconfirmed** rather than Due, for the same
 reason — "Due" claims a deadline that never existed:
 
-- an **unscheduled** reminder's firing (kind `none`), which happened on creation
-  because the user asked to be reminded, not because a time arrived;
+- an **unscheduled** reminder's firing (kind `none`), which happened because the
+  user asked to be reminded, not because a time arrived;
 - an **orphaned** firing, as described above.
+
+The two never overlap: an unscheduled reminder is excluded from the orphan test
+outright, because its `startDate` is a bare record of when it was last saved, not
+a window a firing can fall outside of. Comparing against it anyway is how a
+reminder that had *just* been made unscheduled described its brand-new firing as
+a leftover from before a reschedule, and offered Clear for something the user had
+only asked for a moment earlier.
 
 Urgency in the UI is graded to match: only an **escalated** firing gets a filled,
 loud card. An ordinary due reminder is outlined, and the two Unconfirmed cases are
@@ -224,3 +231,11 @@ belongs to is still covered.
 the root `CLAUDE.md`). Its single firing is an artifact of being unscheduled, not a
 commitment to a date, so giving it a real schedule retires that firing instead of
 leaving it behind.
+
+Going the other way — **taking a reminder's schedule away** — is not an exception:
+whatever its schedule left unconfirmed keeps nagging, because those firings were
+real. It follows that the reminder does *not* also get the "remind me about this"
+firing an unscheduled reminder normally gets; it is already in front of the user,
+and a second one would be indistinguishable from the first, since an unscheduled
+firing has no time of day to tell them apart. The immediate firing appears only
+when nothing is left nagging.

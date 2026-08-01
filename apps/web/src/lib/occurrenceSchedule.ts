@@ -31,8 +31,15 @@ function localDateKey(value: string): string {
  * 09:00 dose is still unconfirmed must keep that dose nagging, because the day it
  * belongs to is still covered. Only a window that has moved past the firing
  * entirely makes it orphaned.
+ *
+ * An unscheduled reminder is excluded outright: `startDate` is a bare record of
+ * when it was saved, not a window (see `isUnscheduledFiring`), so there is nothing
+ * for a firing to fall outside of. Comparing against it anyway is how a reminder
+ * that has *just* been made unscheduled ends up describing its brand-new firing as
+ * a leftover from before a reschedule.
  */
 export function isOutsideReminderWindow(reminder: Reminder, occurrence: Occurrence): boolean {
+  if (isUnscheduledFiring(reminder)) return false
   const day = localDateKey(occurrence.scheduledFor)
   if (day < reminder.startDate) return true
   if (reminder.endDate && day > reminder.endDate) return true

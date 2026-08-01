@@ -13,7 +13,8 @@ import { requireUser, requireUserId } from '../lib/auth-middleware.js'
 import { badRequest, notFound } from '../lib/http-error.js'
 import { toReminder } from '../lib/serializers.js'
 import { isStaleWrite } from '../lib/conflict.js'
-import { materializeReminder, fireDueForReminder } from '../lib/scheduler.js'
+import { scheduleTransition } from '../lib/schedule-transition.js'
+import { materializeReminder, fireDueForReminder, ensureUnscheduledFiring } from '../lib/scheduler.js'
 import { broadcast } from '../lib/realtime.js'
 import { dispatchToUser, nudgeNativeSync } from '../lib/delivery/index.js'
 import { logger } from '../lib/logger.js'
@@ -48,6 +49,10 @@ remindersRouter.post('/', async (request, response) => {
     data: { ...toReminderData(parsed.data), userId }
   })
 
+  // An unscheduled reminder's one firing is minted here rather than by
+  // materialization (see `ensureUnscheduledFiring`), anchored to the instant the
+  // user created it.
+  if (parsed.data.schedule.kind === 'none') await ensureUnscheduledFiring(reminder, reminder.createdAt)
   await materializeForUser(reminder.id, userId)
   // Fire right away if the first instant is already due (e.g. a one-shot left at
   // its "now" default), so the reminder nags immediately instead of after a tick.
@@ -80,14 +85,13 @@ remindersRouter.put('/:id', async (request, response) => {
 
   // Drop not-yet-fired occurrences so the new schedule re-materializes cleanly.
   await prisma.reminderOccurrence.deleteMany({ where: { reminderId: reminder.id, status: 'PENDING' } })
-  // Giving a schedule to a previously unscheduled reminder retires its immediate
-  // "remind me about this" firing. That firing was an artifact of having no
-  // schedule, not a commitment to a date, so carrying it forward would leave the
-  // reminder nagging about a moment its new schedule doesn't contain. Narrowly
-  // scoped to this transition: an edit between two real schedules never clears an
-  // unconfirmed firing (docs/notification-behavior.md §1).
-  const wasUnscheduled = (existing.schedule as unknown as { kind?: string }).kind === 'none'
-  if (wasUnscheduled && parsed.data.schedule.kind !== 'none') {
+  // Only crossing the scheduled/unscheduled boundary touches an existing firing;
+  // see `scheduleTransition` for why each direction does what it does.
+  const transition = scheduleTransition(
+    (existing.schedule as unknown as { kind?: string }).kind ?? '',
+    parsed.data.schedule.kind
+  )
+  if (transition === 'retire') {
     const retired = await prisma.reminderOccurrence.findMany({
       where: { reminderId: reminder.id, userId, status: { in: ['FIRED', 'ESCALATED', 'SNOOZED'] } },
       select: { id: true }
@@ -107,6 +111,10 @@ remindersRouter.put('/:id', async (request, response) => {
       }
     }
   }
+  // Anchored to the edit, not to `createdAt`: this firing exists because the user
+  // just took the schedule off, so dating it back to when the reminder was made
+  // would put it before the reminder's own start date.
+  if (transition === 'mint') await ensureUnscheduledFiring(reminder, reminder.updatedAt)
   await materializeForUser(reminder.id, userId)
   await fireDueForReminder(reminder.id)
   broadcast(userId, { type: 'reminder.changed', reminderId: reminder.id })

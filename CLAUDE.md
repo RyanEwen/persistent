@@ -62,17 +62,30 @@ occurrences is specified in `docs/notification-behavior.md`. See also
 
 **A reminder with no date/time is a real stored state**, schedule kind `none` —
 the editor's "Remind me now" (the default for a new reminder, versus "Schedule
-it"). It fires exactly once, anchored to the reminder's `createdAt`, and never
-again: `materializeReminder` short-circuits on `none` and the
-`@@unique([reminderId, scheduledFor])` makes repeat passes idempotent. `startDate`
-on such a reminder is only a record of when it was created.
+it"). It gets exactly one firing, ever. That firing is minted by
+`ensureUnscheduledFiring` at the moment the user asks for it (creating a reminder
+unscheduled, or taking an existing one's schedule away) and **never by
+materialization**: `materializeReminder` short-circuits on `none` precisely
+because it runs every 5 minutes, so anything it created there would come back
+after the user confirmed it. `startDate` on such a reminder is only a record of
+when it was last saved as unscheduled — it is not a window, and nothing reads it
+(see `isOutsideReminderWindow`).
 
-Giving an unscheduled reminder a real schedule **retires its immediate firing**
-(`PUT /api/reminders/:id`) — that firing was an artifact of having no schedule,
-not a commitment to a date. This is the one exception to "only Done clears a
-firing"; an edit between two *real* schedules never clears an unconfirmed one
-(see `docs/notification-behavior.md` §1, and §6 for how the UI labels a firing
-that a later reschedule left behind).
+Both directions across the scheduled/unscheduled boundary are special, and
+`scheduleTransition` names them (`PUT /api/reminders/:id`):
+
+- **Gaining a real schedule retires the immediate firing.** It was an artifact of
+  having no schedule, not a commitment to a date. This is the one exception to
+  "only Done clears a firing".
+- **Losing its schedule mints the immediate firing — unless one is already
+  nagging.** Whatever the old schedule left unconfirmed still stands, so adding a
+  second would show the same reminder twice with nothing on either card to tell
+  them apart (an unscheduled firing has no time to show).
+
+An edit between two *real* schedules never clears an unconfirmed firing, and
+neither does editing an unscheduled reminder in place (see
+`docs/notification-behavior.md` §1, and §6 for how the UI labels a firing that a
+later reschedule left behind).
 
 `none` was previously a UI-only mode faked as a `once` schedule at the creation
 instant, which meant it could not round-trip through the editor and left an

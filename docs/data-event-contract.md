@@ -57,10 +57,15 @@ reminder's other still-unconfirmed firings keep nagging on their own.
 Two server-side paths emit `dismiss` without the user acting on the occurrence
 itself: deleting a reminder (its active occurrences are cleared from every device
 after the cascade), and giving a real schedule to a previously **unscheduled**
-reminder (schedule kind `none`), which retires the single firing it got on
-creation. Both broadcast over WS and push `dismiss` per occurrence, exactly as an
-ack does. See `docs/notification-behavior.md` §6 for why rescheduling is otherwise
-never allowed to clear an unconfirmed firing.
+reminder (schedule kind `none`), which retires the single firing it got for being
+unscheduled. Both broadcast over WS and push `dismiss` per occurrence, exactly as
+an ack does. See `docs/notification-behavior.md` §6 for why rescheduling is
+otherwise never allowed to clear an unconfirmed firing.
+
+The reverse edit — taking a reminder's schedule away — emits nothing: its
+unconfirmed firings are real and stay put, and the unscheduled firing is minted
+only when none of them are (`ensureUnscheduledFiring`), so there is never a
+second, indistinguishable card for the same reminder.
 
 `POST /api/occurrences/:id/ack` only applies to a *nagging* occurrence. Allowed
 when the occurrence is `FIRED`/`SNOOZED`/`ESCALATED`, or `PENDING` but already

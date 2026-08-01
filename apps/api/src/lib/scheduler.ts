@@ -15,7 +15,7 @@
  * (The legacy `SUPERSEDED` status is no longer produced; old rows may still carry
  * it and live in History.)
  */
-import type { Reminder } from '@prisma/client'
+import type { OccurrenceStatus, Reminder } from '@prisma/client'
 import type { PushPayload, Schedule } from '@persistent/shared'
 import { prisma } from './prisma.js'
 import { logger } from './logger.js'
@@ -26,6 +26,9 @@ import { sendCloudflareEmail } from './cloudflare-email.js'
 import { escalateAtFor, shouldEscalateNow } from './escalation.js'
 import { toOccurrence } from './serializers.js'
 import { broadcast } from './realtime.js'
+
+/** Statuses that still have a firing in front of the user (i.e. not terminal). */
+const LIVE_STATUSES: OccurrenceStatus[] = ['PENDING', 'FIRED', 'ESCALATED', 'SNOOZED']
 
 const MATERIALIZE_WINDOW_MS = 48 * 60 * 60 * 1000
 const TICK_INTERVAL_MS = 30_000
@@ -63,22 +66,48 @@ async function runSafely(label: string, fn: () => Promise<void>): Promise<void> 
   }
 }
 
+/**
+ * The single firing of an unscheduled reminder ("remind me about this", no
+ * date/time). Minted only by the deliberate acts that call for one — creating a
+ * reminder unscheduled, or taking an existing reminder's schedule away — never by
+ * a materialization pass, so no timer can resurrect a nag the user has confirmed.
+ *
+ * It is skipped entirely when the reminder already has a live occurrence. Taking
+ * the schedule off a reminder whose last firing is still unconfirmed leaves that
+ * firing in place (only Done clears a firing — docs/notification-behavior.md §1);
+ * adding a second one would nag twice about one thing, with both cards reading
+ * identically because an unscheduled firing has no time to tell them apart.
+ */
+export async function ensureUnscheduledFiring(reminder: Reminder, at: Date): Promise<void> {
+  if (!reminder.active) return
+  const live = await prisma.reminderOccurrence.findFirst({
+    where: { reminderId: reminder.id, userId: reminder.userId, status: { in: LIVE_STATUSES } },
+    select: { id: true }
+  })
+  if (live) {
+    // Logged because it is the branch that explains an absence: the user took a
+    // schedule off and got no new nag, which is correct but looks like a miss.
+    logger.info('unscheduled firing not minted, one is already nagging', {
+      reminderId: reminder.id,
+      occurrenceId: live.id
+    })
+    return
+  }
+  await prisma.reminderOccurrence.createMany({
+    data: [{ reminderId: reminder.id, userId: reminder.userId, scheduledFor: at }],
+    skipDuplicates: true
+  })
+}
+
 /** Expand a single reminder's schedule into occurrence rows for the rolling window. */
 export async function materializeReminder(reminder: Reminder, timeZone: string, now = new Date()): Promise<void> {
   if (!reminder.active) return
   const schedule = reminder.schedule as unknown as Schedule
-  // An unscheduled reminder ("remind me about this", no date/time) fires exactly
-  // once: immediately, on creation. Anchoring that firing to `createdAt` rather
-  // than `now` makes this idempotent against the @@unique([reminderId,
-  // scheduledFor]) — every later materialization pass resolves to the same
-  // instant and is skipped, so it can never re-nag.
-  if (schedule.kind === 'none') {
-    await prisma.reminderOccurrence.createMany({
-      data: [{ reminderId: reminder.id, userId: reminder.userId, scheduledFor: reminder.createdAt }],
-      skipDuplicates: true
-    })
-    return
-  }
+  // An unscheduled reminder has nothing to expand — its one firing is minted by
+  // `ensureUnscheduledFiring` at the moment the user asks for it. Materialization
+  // deliberately does nothing here: it runs every 5 minutes, so anything it
+  // created would come back after the user confirmed it.
+  if (schedule.kind === 'none') return
   // A one-shot has a single firing instant. If it has already slipped into the
   // past — the user defaulted it to "now" but submitted a moment later, lingered
   // on the form, or picked an earlier time — still materialize it (within a recent

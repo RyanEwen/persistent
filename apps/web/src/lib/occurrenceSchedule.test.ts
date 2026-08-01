@@ -11,7 +11,12 @@ function occurrenceOn(day: string): Occurrence {
 }
 
 function reminderWindow(startDate: string, endDate: string | null = null): Reminder {
-  return { startDate, endDate } as Reminder
+  return { startDate, endDate, schedule: { kind: 'once', timesOfDay: ['09:00'] } } as Reminder
+}
+
+/** A reminder with no date/time: `startDate` is a bare record, not a window. */
+function unscheduledReminder(startDate: string): Reminder {
+  return { startDate, endDate: null, schedule: { kind: 'none', timesOfDay: [] as string[] } } as Reminder
 }
 
 test('a firing before the reminder\'s start date is orphaned', () => {
@@ -37,4 +42,11 @@ test('a firing on the end date itself is not orphaned', () => {
 
 test('an open-ended reminder never orphans a firing after its start', () => {
   assert.equal(isOutsideReminderWindow(reminderWindow('2026-01-01', null), occurrenceOn('2030-01-01')), false)
+})
+
+test('an unscheduled reminder never orphans its firing, however old', () => {
+  // Taking a reminder's schedule away restamps startDate to that day while its
+  // firing stays anchored to when the reminder was made. Read as a window, that
+  // says "fired before a reschedule" about the firing the edit just produced.
+  assert.equal(isOutsideReminderWindow(unscheduledReminder('2026-08-01'), occurrenceOn('2026-06-28')), false)
 })
