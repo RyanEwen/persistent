@@ -6,6 +6,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWinUI>true</UseWinUI>
     <WindowsPackageType>None</WindowsPackageType>
+    <!-- Load-bearing despite the name: this is what turns on the PRI tooling that
+         indexes the compiled XAML (.xbf) into the app's own resources.pri. Without
+         it an unpackaged build produces no resources.pri at all, so every
+         Application.LoadComponent call fails at runtime with a bare
+         XamlParseException -- the app dies constructing its first window, having
+         compiled perfectly. It is needed for the unpackaged build too, not just
+         MSIX. -->
+    <EnableMsixTooling>true</EnableMsixTooling>
     <RootNamespace>Persistent.Desktop</RootNamespace>
     <AssemblyName>Persistent.Desktop</AssemblyName>
     <Platforms>x64;ARM64</Platforms>

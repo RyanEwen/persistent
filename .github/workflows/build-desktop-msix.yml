@@ -66,15 +66,18 @@ jobs:
       # Published on EVERY run, not just tags: a portable zip is the only way to
       # try a build without first trusting a self-signed certificate, so it needs
       # to be downloadable from the Actions page of any commit.
+      # -NoZip: upload-artifact zips whatever it is given, so handing it a .zip
+      # produces a zip containing a zip. Point it at the published folder and the
+      # download is a single archive that unzips straight to the exe.
       - name: Publish portable
         shell: pwsh
-        run: .\publish-portable.ps1 -Platform ${{ matrix.platform }}
+        run: .\publish-portable.ps1 -Platform ${{ matrix.platform }} -NoZip
 
       - name: Upload portable
         uses: actions/upload-artifact@v4
         with:
           name: Persistent.Desktop-${{ steps.version.outputs.VERSION }}-${{ matrix.platform }}-portable
-          path: apps/desktop/artifacts/*.zip
+          path: apps/desktop/artifacts/Persistent.Desktop-*-portable/
           if-no-files-found: error
 
       - name: Package MSIX
@@ -82,12 +85,25 @@ jobs:
         shell: pwsh
         run: .\Persistent.DesktopMSIX\build-msix.ps1 -Platform ${{ matrix.platform }}
 
-      - name: Upload MSIX
+      # Release assets are attached as-is, so the portable build needs a real zip
+      # here — unlike the artifact above, which GitHub archives on download.
+      - name: Zip portable for the release
+        if: startsWith(github.ref, 'refs/tags/desktop-v')
+        shell: pwsh
+        run: |
+          $folder = Get-ChildItem artifacts -Directory | Where-Object { $_.Name -like '*portable' } | Select-Object -First 1
+          if (-not $folder) { throw 'No portable folder to zip' }
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          Compress-Archive -Path "$($folder.FullName)\*" -DestinationPath "release\$($folder.Name).zip"
+
+      - name: Upload release assets
         if: startsWith(github.ref, 'refs/tags/desktop-v')
         uses: actions/upload-artifact@v4
         with:
-          name: Persistent.Desktop-${{ steps.version.outputs.VERSION }}-${{ matrix.platform }}-msix
-          path: apps/desktop/Persistent.DesktopMSIX/*.msix
+          name: release-assets-${{ matrix.platform }}
+          path: |
+            apps/desktop/release/*.zip
+            apps/desktop/Persistent.DesktopMSIX/*.msix
           if-no-files-found: error
 
   release:
@@ -97,9 +113,10 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Download artifacts
+      - name: Download release assets
         uses: actions/download-artifact@v4
         with:
+          pattern: release-assets-*
           path: artifacts
           merge-multiple: true
 

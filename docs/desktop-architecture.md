@@ -170,6 +170,28 @@ automatic check that exists — treat a red run there the way you would a failed
 MSIX refuses to reinstall the same version with different content, so bump
 `<Version>` for every packaged build.
 
+## `EnableMsixTooling` is required for the unpackaged build too
+
+`Persistent.Desktop.csproj` sets `<EnableMsixTooling>true</EnableMsixTooling>`
+even though the app runs unpackaged (`WindowsPackageType=None`). The name is
+misleading: it is what enables the PRI tooling that indexes the compiled XAML
+(`.xbf`) into the app's own `resources.pri`.
+
+Without it the build and publish both succeed — CI was green — and then the app
+dies at runtime constructing its first window:
+
+```
+Microsoft.UI.Xaml.Markup.XamlParseException: XAML parsing failed.
+   at Microsoft.UI.Xaml.Application.LoadComponent(...)
+   at Persistent.Desktop.MainWindow.InitializeComponent()
+```
+
+The exception names no file and no line, and `MainWindow.xaml` is an empty
+`<Grid/>`, so it reads like a XAML bug. It isn't: the published folder simply
+contains no `resources.pri` at all (only the framework's `Microsoft.UI.*.pri`),
+so `LoadComponent` cannot resolve *any* compiled XAML. If this ever recurs, check
+for `resources.pri` beside the exe before looking at the markup.
+
 ## Residual risks
 
 - **WebView2 runtime.** Evergreen ships with Windows 11, so this is a non-issue on
