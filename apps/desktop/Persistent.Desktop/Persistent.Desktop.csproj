@@ -10,9 +10,9 @@
          indexes the compiled XAML (.xbf) into the app's own resources.pri. Without
          it an unpackaged build produces no resources.pri at all, so every
          Application.LoadComponent call fails at runtime with a bare
-         XamlParseException -- the app dies constructing its first window, having
-         compiled perfectly. It is needed for the unpackaged build too, not just
-         MSIX. -->
+         XamlParseException and the app dies constructing its first window, having
+         compiled perfectly. Needed for the unpackaged build too, not just MSIX.
+         See docs/desktop-architecture.md. -->
     <EnableMsixTooling>true</EnableMsixTooling>
     <RootNamespace>Persistent.Desktop</RootNamespace>
     <AssemblyName>Persistent.Desktop</AssemblyName>
