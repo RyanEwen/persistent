@@ -313,6 +313,18 @@ copy you last opened is the one that starts at sign-in.
   warns about an unknown publisher (the bundled `READ ME FIRST.txt` says so in
   plain language). Every CI run uploads this zip as an artifact for both
   architectures, so any commit can be tried without tagging a release.
+- **MSIX packaging is the least-proven path here, and CI no longer lets it block a
+  release.** It only runs on a `desktop-v*` tag, so nothing exercises it until the
+  moment it matters — and the first tag ever cut (`desktop-v0.2.0`) failed on it
+  while the portable build was fine. The cause: `build-msix.ps1` passed
+  `-p:WindowsPackageType=MSIX`, which the SDK rejects unless the *project* declares
+  an `<AppxManifest>` item
+  (`Microsoft.Windows.SDK.BuildTools.MSIX.Packaging.targets`, whose error message
+  reads backwards). This script packages **externally** — publish a plain layout,
+  write the manifest into it, then `makeappx` — so the project must stay unpackaged
+  during publish and that flag never belonged. The step is now
+  `continue-on-error`: a packaging failure costs the `.msix` asset, not the whole
+  release, and the portable zip always ships.
 - Package: `.\Persistent.DesktopMSIX\build-msix.ps1` (`-NoSign` for a Store
   upload). MSIX is for shipping, not testing — sideloading it means trusting a
   self-signed certificate first. It buys a real install, a Start menu entry and

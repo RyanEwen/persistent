@@ -81,12 +81,20 @@ $signtool = if ($NoSign) { $null } else { Resolve-SdkTool 'signtool.exe' }
 if (Test-Path $layout) { Remove-Item $layout -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $layout | Out-Null
 
+# NOT -p:WindowsPackageType=MSIX. That belongs to the single-project MSIX model,
+# where the csproj itself owns Package.appxmanifest as an <AppxManifest> item; the
+# SDK enforces it with
+#   Error Condition="'$(WindowsPackageType)' != 'None' and '@(AppxManifest)'==''"
+# (Microsoft.Windows.SDK.BuildTools.MSIX.Packaging.targets), whose message reads
+# backwards but means "you asked for a packaged build and gave me no manifest".
+# This script packages EXTERNALLY instead - publish a plain layout, drop the
+# manifest in below, then makeappx - so the project stays unpackaged here and the
+# flag only broke the publish.
 Write-Host "Publishing $rid..."
 & dotnet publish $project `
     -c Release `
     -r $rid `
     -p:Platform=$Platform `
-    -p:WindowsPackageType=MSIX `
     -p:SelfContained=true `
     -o $layout
 if ($LASTEXITCODE -ne 0) { throw 'dotnet publish failed' }
