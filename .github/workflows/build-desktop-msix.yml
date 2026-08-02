@@ -134,9 +134,18 @@ jobs:
         with:
           # Both forms: the MSIX for a real install, the portable zip for anyone
           # who doesn't want to trust the sideload certificate.
+          #
+          # `**` is load-bearing. upload-artifact roots each artifact at the least
+          # common ancestor of its paths - here `apps/desktop` - so the files come
+          # back down a level, as `release/*.zip` and `Persistent.DesktopMSIX/*.msix`.
+          # A flat `artifacts/*.zip` matches nothing.
           files: |
-            artifacts/*.msix
-            artifacts/*.zip
+            artifacts/**/*.msix
+            artifacts/**/*.zip
+          # Without this the action only *warns* on an unmatched pattern and still
+          # publishes - which is exactly how desktop-v0.2.0 first went out with zero
+          # assets while the job reported success.
+          fail_on_unmatched_files: true
           generate_release_notes: true
           # Both architectures land on one release; the tag already names the app,
           # which matters because Android releases share this repo's release list.

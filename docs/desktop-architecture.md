@@ -325,6 +325,15 @@ copy you last opened is the one that starts at sign-in.
   during publish and that flag never belonged. The step is now
   `continue-on-error`: a packaging failure costs the `.msix` asset, not the whole
   release, and the portable zip always ships.
+- **The release job's `files:` globs must be recursive.** `upload-artifact` roots
+  each artifact at the least common ancestor of its paths — `apps/desktop` here —
+  so the assets come back one level down (`release/*.zip`,
+  `Persistent.DesktopMSIX/*.msix`) and a flat `artifacts/*.zip` matches nothing.
+  That is not hypothetical: `desktop-v0.2.0` first published with **zero assets**
+  while the job reported success, because `action-gh-release` only warns on an
+  unmatched pattern. `fail_on_unmatched_files: true` now makes that fatal — an
+  empty release is worse than a failed run, since the in-app update check would
+  offer it.
 - Package: `.\Persistent.DesktopMSIX\build-msix.ps1` (`-NoSign` for a Store
   upload). MSIX is for shipping, not testing — sideloading it means trusting a
   self-signed certificate first. It buys a real install, a Start menu entry and
