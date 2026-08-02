@@ -10,6 +10,11 @@
  * as attention cards with their own Done/Snooze. One reminder therefore appears in
  * exactly one of the two tabs at a time, which is what stops a busy morning
  * listing the same thing twice with different affordances.
+ *
+ * **Notes** (schedule kind `never`) are absent for the same reason — they have
+ * their own section on Current (`components/NotesSection.tsx`). Nothing about them
+ * is upcoming or ever will be, so listing them here would put them in a queue they
+ * can never reach the front of.
  */
 import { Link as RouterLink } from 'react-router-dom'
 import Stack from '@mui/joy/Stack'
@@ -43,7 +48,8 @@ export function UpcomingPage() {
 
   const pendingReminderIds = new Set((active.data ?? []).map((o) => o.reminderId))
   const idle = (reminders.data ?? [])
-    .filter((r) => !isFinished(r) && !pendingReminderIds.has(r.id))
+    // Notes are on Current, in their own section — nothing about one is upcoming.
+    .filter((r) => r.schedule.kind !== 'never' && !isFinished(r) && !pendingReminderIds.has(r.id))
     .map((reminder) => ({ reminder, next: reminderNextFire(reminder) }))
     .sort((a, b) => (a.next?.getTime() ?? Infinity) - (b.next?.getTime() ?? Infinity))
 
@@ -51,8 +57,9 @@ export function UpcomingPage() {
     <PullToRefresh onRefresh={() => Promise.all([reminders.refetch(), active.refetch()])}>
       <Stack spacing={3}>
         <Box>
-          <Typography level="title-md" sx={{ mb: 1 }}>
-            Upcoming
+          <Typography level="title-md">Upcoming</Typography>
+          <Typography level="body-sm" sx={{ mb: 1.5, color: 'text.tertiary' }}>
+            Everything you have set up, soonest first. Tap one to change it.
           </Typography>
 
           {reminders.isLoading && <Typography level="body-sm">Loading…</Typography>}

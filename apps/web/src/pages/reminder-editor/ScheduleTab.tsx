@@ -1,7 +1,7 @@
 /**
- * Schedule tab: the When toggle (no date/time vs a real schedule), the repeat
- * kind, and whichever fields that kind needs — times of day, weekdays, days of
- * the month, the N-day interval, and the date range.
+ * Schedule tab: the When toggle (fire now / never / on a real schedule), the
+ * repeat kind, and whichever fields that kind needs — times of day, weekdays,
+ * days of the month, the N-day interval, and the date range.
  */
 import Stack from '@mui/joy/Stack'
 import FormControl from '@mui/joy/FormControl'
@@ -11,19 +11,22 @@ import Input from '@mui/joy/Input'
 import Button from '@mui/joy/Button'
 import Checkbox from '@mui/joy/Checkbox'
 import IconButton from '@mui/joy/IconButton'
-import { scheduleKinds, type ScheduleKind } from '@persistent/shared'
+import { isTimeless, scheduleKinds, type ScheduleKind } from '@persistent/shared'
 import { MonthlyDaysField } from './MonthlyDaysField.js'
 import type { FormState } from './formState.js'
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-/** Repeat options offered once the user has chosen to schedule — 'none' is the
- *  absence of a schedule, so it belongs to the When toggle above, not here. */
-const REPEAT_KINDS = scheduleKinds.filter((k) => k !== 'none')
+/** Repeat options offered once the user has chosen to schedule — the timeless
+ *  kinds are answers to *whether* it fires, so they belong to the When toggle
+ *  above, not to a row of repeat intervals. */
+const REPEAT_KINDS = scheduleKinds.filter((k) => !isTimeless(k))
 
 const SCHEDULE_KIND_LABELS: Record<ScheduleKind, string> = {
-  // 'none' is chosen via the When toggle, not the Repeat row (see REPEAT_KINDS).
+  // The timeless kinds are chosen via the When toggle, not the Repeat row (see
+  // REPEAT_KINDS); their labels are here only to keep the record exhaustive.
   none: 'No date or time',
+  never: 'Never',
   once: 'No repeat',
   daily: 'Daily',
   weekly: 'Weekly',
@@ -51,28 +54,47 @@ export function ScheduleTab({
 
   return (
     <Stack spacing={2}>
-      {/* Shown when editing too: "no date/time" is a saved state, so an
-          unscheduled reminder has to be able to show it and to gain a schedule. */}
+      {/* Shown when editing too: each of the three is a saved state, so a reminder
+          has to be able to show the one it is in and to move between them. */}
       <FormControl>
         <FormLabel>When</FormLabel>
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-          <Button size="sm" variant={form.scheduled ? 'outlined' : 'solid'} onClick={() => set('scheduled', false)}>
+          <Button
+            size="sm"
+            variant={form.when === 'now' ? 'solid' : 'outlined'}
+            onClick={() => set('when', 'now')}
+          >
             {isEditing ? 'No date or time' : 'Remind me now'}
           </Button>
-          <Button size="sm" variant={form.scheduled ? 'solid' : 'outlined'} onClick={() => set('scheduled', true)}>
+          <Button
+            size="sm"
+            variant={form.when === 'scheduled' ? 'solid' : 'outlined'}
+            onClick={() => set('when', 'scheduled')}
+          >
             Schedule it
+          </Button>
+          {/* The whole point of the mode is that it doesn't remind, so it is named
+              for that rather than for a time it will never have. */}
+          <Button
+            size="sm"
+            variant={form.when === 'never' ? 'solid' : 'outlined'}
+            onClick={() => set('when', 'never')}
+          >
+            Never — just a note
           </Button>
         </Stack>
         <FormHelperText>
-          {form.scheduled
-            ? 'Pick when it fires and whether it repeats.'
-            : isEditing
-              ? 'Has no date or time. It fired once, when you created it.'
-              : 'Fires as soon as you create it — nothing to pick.'}
+          {form.when === 'scheduled'
+            ? 'Pick when it notifies you and whether it repeats.'
+            : form.when === 'never'
+              ? 'Never notifies you and never nags — kept as a note you can read and edit. Nothing to confirm.'
+              : isEditing
+                ? 'Has no date or time. It notified you once, when you created it.'
+                : 'Notifies you as soon as you create it — nothing to pick.'}
         </FormHelperText>
       </FormControl>
 
-      {form.scheduled && (
+      {form.when === 'scheduled' && (
         <>
           <FormControl>
             <FormLabel>Repeat</FormLabel>

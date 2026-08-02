@@ -142,12 +142,16 @@ export function ReminderDetailPage() {
           <Typography level="body-xs" sx={{ color: 'text.tertiary' }}>
             {/* "No upcoming fire" is the normal resting state of a one-shot that has
                 already fired (every "remind me now" reminder lands here immediately),
-                so it must not be reported as paused — only an inactive reminder is. */}
-            {!reminder.active
-              ? 'Paused — no upcoming fire'
-              : next
-                ? `Next: ${formatWhen(next, timeFormat)}`
-                : 'No upcoming fire'}
+                so it must not be reported as paused — only an inactive reminder is.
+                A note is neither: it has no fire to be missing and pausing it would
+                change nothing, so it says what that means instead. */}
+            {reminder.schedule.kind === 'never'
+              ? 'Nothing to confirm — kept under Notes on Current.'
+              : !reminder.active
+                ? 'Paused — no upcoming notification'
+                : next
+                  ? `Next: ${formatWhen(next, timeFormat)}`
+                  : 'No upcoming notification'}
           </Typography>
         </Card>
 
@@ -164,7 +168,11 @@ export function ReminderDetailPage() {
               ))}
             </Stack>
             <Typography level="body-xs" sx={{ color: 'text.tertiary' }}>
-              Ticked off each time this reminder fires.
+              {/* A checklist that never fires is a kept list, not a routine waiting
+                  to come round — there is no firing for its ticks to belong to. */}
+              {reminder.schedule.kind === 'never'
+                ? 'A kept list — it never notifies you, so there is nothing to tick off.'
+                : 'Ticked off each time this reminder notifies you.'}
             </Typography>
           </Card>
         )}
@@ -192,7 +200,7 @@ export function ReminderDetailPage() {
                       )}
                       {orphaned && (
                         <Typography level="body-xs" sx={{ mt: 0.5, color: 'text.tertiary' }}>
-                          Fired before this reminder was rescheduled. Clearing it won't affect the new schedule.
+                          Notified you before this reminder was rescheduled. Clearing it won't affect the new schedule.
                         </Typography>
                       )}
                     </Box>

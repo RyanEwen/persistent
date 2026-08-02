@@ -4,7 +4,9 @@
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
   xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap uap5 rescap">
+  xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  IgnorableNamespaces="uap uap5 rescap com desktop">
 
   <!-- Name/Publisher are replaced by build-msix.ps1 for signed sideload builds so
        they form a stable local package family that updates in place; -NoSign
@@ -45,20 +47,40 @@
       </uap:VisualElements>
 
       <Extensions>
-        <!-- Start with Windows, enabled by default: the tray badge and the live
-             connection only exist while the process runs, so an app the user has
-             to launch by hand is an app showing nothing. StartupManager keeps this
-             in step with the in-app toggle. -->
+        <!-- Start with Windows, enabled by default: the tray icon and (when the
+             user turns them on) the Windows notifications only exist while the
+             process runs, so an app the user has to launch by hand is an app that
+             tells them nothing. StartupManager keeps this in step with the in-app
+             toggle. -->
         <uap5:Extension Category="windows.startupTask">
           <uap5:StartupTask TaskId="PersistentDesktopAutoStart" Enabled="true" DisplayName="Persistent" />
         </uap5:Extension>
+
+        <!-- Toast activation for the optional Windows notifications
+             (Notifications/NotificationService.cs). Unpackaged, AppNotificationManager
+             .Register() does all of this itself; PACKAGED it does not, and without
+             these two entries the toasts still appear and then do nothing when
+             clicked. The CLSID is arbitrary but must never change: it is how Windows
+             routes a click on a toast that is already sitting in the Action Center
+             back to this app. -->
+        <desktop:Extension Category="windows.toastNotificationActivation">
+          <desktop:ToastNotificationActivation ToastActivatorCLSID="17864FEB-13E6-4192-8FCF-215D50A0D632" />
+        </desktop:Extension>
+        <com:Extension Category="windows.comServer">
+          <com:ComServer>
+            <com:ExeServer Executable="Persistent.Desktop.exe" DisplayName="Persistent" Arguments="----AppNotificationActivated:">
+              <com:Class Id="17864FEB-13E6-4192-8FCF-215D50A0D632" />
+            </com:ExeServer>
+          </com:ComServer>
+        </com:Extension>
       </Extensions>
     </Application>
   </Applications>
 
   <Capabilities>
     <!-- Reaching the Persistent server is the app's entire job. Nothing else is
-         needed: there is no local alarm, no file access and no background task. -->
+         needed: there is no local alarm, no file access and no background task.
+         Windows toasts need no capability of their own. -->
     <Capability Name="internetClient" />
     <rescap:Capability Name="runFullTrust" />
   </Capabilities>

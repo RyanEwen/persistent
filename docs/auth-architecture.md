@@ -74,6 +74,14 @@ cookie — but its process has no WebView, so it can't read the HttpOnly cookie 
 worker. Its ~15-min syncs then keep the session alive as long as the app is
 installed and periodically online.
 
+The **Windows tray app** is the other non-browser caller, when its optional
+notifications are on: its `/ws` client and the ack/snooze behind a toast button
+read the cookie straight out of the WebView2 profile per call
+(`AppFlyout.GetSessionCookieAsync`). Unlike the Android worker it caches nothing
+and mirrors nothing — it has a WebView right there — so a refreshed session is
+picked up automatically and signing out simply makes its calls fail. Nothing about
+the session is written to `settings.json`.
+
 `attachUser` middleware resolves the cookie into `request.userId` for every
 request; `requireUser` rejects anonymous callers; `requireUserId(request)`
 returns the id inside handlers.

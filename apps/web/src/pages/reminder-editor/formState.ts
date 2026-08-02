@@ -18,7 +18,7 @@ import type {
   ScheduleKind,
   ShadeProminence
 } from '@persistent/shared'
-import { todoItems } from '@persistent/shared'
+import { isTimeless, todoItems } from '@persistent/shared'
 import { immediateSchedule, localCalendarDate, localTimeOfDay } from '../../lib/immediate-schedule.js'
 import type { SchedulePreviewInput } from '../../lib/schedule-preview.js'
 
@@ -63,11 +63,17 @@ export interface FormState {
   medications: MedicationRow[]
   todos: TodoRow[]
   /**
-   * False = no date/time at all — schedule kind `none`, which fires once on
-   * creation and never again. A real saved state, not just a UI mode, so it
-   * round-trips through the editor (see `fromReminder`).
+   * The Schedule tab's When setting — the three answers to "when does this fire?":
+   * - `now`       — schedule kind `none`: one firing, on creation, then never again.
+   * - `never`     — schedule kind `never`: a note. It never fires at all.
+   * - `scheduled` — a real schedule; `kind` and the fields below say which.
+   *
+   * All three are real saved states rather than UI modes, so each round-trips
+   * through the editor as itself (see `fromReminder`). Held separately from `kind`
+   * so that leaving and re-entering `scheduled` restores the repeat the user had
+   * picked instead of resetting it.
    */
-  scheduled: boolean
+  when: 'now' | 'never' | 'scheduled'
   kind: ScheduleKind
   timesOfDay: string[]
   daysOfWeek: number[]
@@ -105,7 +111,7 @@ export function emptyForm(): FormState {
     todos: [emptyTodo()],
     // New reminders start unscheduled — the common case is "remind me about this",
     // not "remind me at a time". Picking Schedule reveals the date/time controls.
-    scheduled: false,
+    when: 'now',
     kind: defaultKindForType('NONE'),
     timesOfDay: [localTimeOfDay()],
     daysOfWeek: [1, 2, 3, 4, 5],
@@ -207,9 +213,13 @@ export function toInput(form: FormState): ReminderInput {
   // moment. Resolved here (at submit) rather than at form init so it reflects when
   // the user actually created it, and once for both fields so the date and time
   // can't straddle midnight.
-  const immediate = form.scheduled ? null : immediateSchedule()
+  const immediate = form.when === 'now' ? immediateSchedule() : null
+  const isNote = form.when === 'never'
 
-  const canEscalate = form.persistence !== 'ALARM'
+  // A note never fires, so nothing can ignore it and there is nothing to escalate
+  // — the shared schema rejects the combination outright. The values stay in form
+  // state, so a note that later gains a schedule gets its escalation back.
+  const canEscalate = form.persistence !== 'ALARM' && !isNote
   const escalating = form.escalate && canEscalate
   const emailing = canEscalate && form.escalateEmailEnabled && Boolean(form.escalateEmail.trim())
 
@@ -222,7 +232,7 @@ export function toInput(form: FormState): ReminderInput {
     details: form.type === 'TODO' ? null : form.details || null,
     type: form.type,
     typeData,
-    schedule: immediate ? immediate.schedule : buildSchedule(form),
+    schedule: isNote ? { kind: 'never', timesOfDay: [] } : immediate ? immediate.schedule : buildSchedule(form),
     persistence: form.persistence,
     // Alarm rings continuously (no interval). Notification re-sounds every N
     // minutes; 0 = sound once.
@@ -237,7 +247,9 @@ export function toInput(form: FormState): ReminderInput {
     escalateEmailAfterMinutes: emailing ? Number(form.escalateEmailAfterMinutes) || 60 : null,
     active: form.active,
     startDate: immediate ? immediate.startDate : form.startDate,
-    endDate: immediate ? null : form.endDate || null
+    // Only a real schedule has a window to close: for a note `startDate` is a bare
+    // record of when it was saved, with no run of firings for an end date to stop.
+    endDate: form.when === 'scheduled' ? form.endDate || null : null
   }
 }
 
@@ -272,11 +284,12 @@ export function fromReminder(reminder: Reminder): FormState {
     type: reminder.type,
     medications,
     todos,
-    // `none` round-trips as unscheduled; anything else has a concrete schedule to
-    // edit. Its kind/times fall back to sensible defaults so that switching an
-    // unscheduled reminder to Schedule lands on a usable form rather than blanks.
-    scheduled: schedule.kind !== 'none',
-    kind: schedule.kind === 'none' ? defaultKindForType(reminder.type) : schedule.kind,
+    // `none` round-trips as unscheduled and `never` as a note; anything else has a
+    // concrete schedule to edit. A timeless kind's own `kind`/times fall back to
+    // sensible defaults, so switching it to Schedule lands on a usable form rather
+    // than blanks.
+    when: schedule.kind === 'none' ? 'now' : schedule.kind === 'never' ? 'never' : 'scheduled',
+    kind: isTimeless(schedule.kind) ? defaultKindForType(reminder.type) : schedule.kind,
     timesOfDay: schedule.timesOfDay.length ? schedule.timesOfDay : [localTimeOfDay()],
     daysOfWeek: schedule.daysOfWeek ?? [1, 2, 3, 4, 5],
     daysOfMonth: schedule.daysOfMonth?.length ? schedule.daysOfMonth : [1],

@@ -1,9 +1,10 @@
 # Notification & alarm behavior contract
 
 This is the source-of-truth specification for how a reminder behaves once it
-fires — across the in-app UI, the web/PWA notification, and the native Android
-notification/alarm. It is intentionally device-agnostic: every surface (in-app,
-service worker, native plugin) must converge on the same outcome.
+fires — across the in-app UI, the web/PWA notification, the native Android
+notification/alarm, and the Windows tray app's optional toast. It is intentionally
+device-agnostic: every surface (in-app, service worker, native plugin, desktop
+host) must converge on the same outcome.
 
 Background model lives in [`alarm-architecture.md`](alarm-architecture.md)
 (device-scheduled + server backup) and the state machine in
@@ -33,6 +34,16 @@ guarantee* those mechanisms exist to deliver.
   at a wall-clock time) from notification to alarm.
 - **Confirm / Done / acknowledge** — the user explicitly marks the occurrence
   complete. This is the *only* thing that ends a nag for good.
+
+**"Fire" is the model's word, not the user's.** It is the right word here, in the
+schema (`firedAt`) and in the code (`fireOccurrence`, `firingOrder`), because it
+names the event the whole state machine turns on. But the user never sees it: the
+UI says the reminder **notifies you** — "Notifies you today at 2:50 PM", "Never
+notifies you — a note", "won't notify you until you turn it on". A reminder
+notifying you is the thing they actually experience; "fires" is jargon for a
+concept they don't have to hold. Keep the split when adding copy — reach for
+"fires" in a comment or an identifier, and "notifies you" in anything rendered.
+The Nag distinction above still holds on both sides of it.
 
 Two things hold on every surface regardless of which action the user takes:
 
@@ -198,6 +209,39 @@ an Auto capability, so in-car an alarm is an urgent messaging heads-up (Auto's c
 + read-aloud) while the real looping alarm keeps ringing on the phone. See
 [`alarm-architecture.md`](alarm-architecture.md) (Android Auto) for the mechanism.
 
+## 5a. Windows tray app — the same actions, on a toast
+
+The Windows tray app (`apps/desktop`) can optionally raise a Windows toast when an
+occurrence fires. Like Android Auto it is a **projection of the same outcome, not a
+new one** — but unlike Auto it is explicitly *not* a guarantee: it appears only
+while that PC is awake with the app running, it never rings an alarm and it never
+wakes the machine. It is off by default and says all of this in its own settings
+copy. The Android client remains the only surface that guarantees anything.
+
+Within that limit it holds the contract:
+
+- **One toast per occurrence**, never per reminder (§4). Toasts are tagged by
+  occurrence id, so an unconfirmed 09:00 dose is not replaced by the 13:00 one.
+- **Done is still a two-tap confirm** (§1). A toast button cannot ask a question,
+  so the first Done replaces the toast with a "Mark this done?" variant carrying
+  Confirm / Not yet; only Confirm acknowledges, and Not yet restores the original
+  and changes nothing. This is the *mechanism* differing, not the rule.
+- **Snooze** snoozes for the duration chosen in the app's settings, and the server
+  treats it exactly as a snooze from anywhere else.
+- **Body tap opens the reminder**, as on every other soft-nag surface.
+- **A `dismiss` from any device clears it**, so confirming on the phone removes the
+  desktop toast.
+- **Silence does not appear.** It drops an escalated alarm back to a notification,
+  and there is no alarm on this surface.
+- **A rejected action leaves the toast up.** The server decides whether an ack or
+  snooze is allowed (a 409 on a terminal occurrence); a refusal is reported rather
+  than papered over, because clearing the toast would claim something was done.
+
+The toast shows the reminder's title and its `details`, but **not** a medication's
+doses or a checklist's items: rendering those is `reminderBodyText` in
+`@persistent/shared`, and the host deliberately holds no copy of it. See
+[`desktop-architecture.md`](desktop-architecture.md).
+
 > Consequence to keep in mind: a reminder a user ignores across several scheduled
 > times will accumulate one pending occurrence per missed time (each must be
 > cleared). That is intended — the app's job is to not let any single firing be
@@ -253,10 +297,20 @@ The comparison is deliberately by **date, not time of day**: retiming a reminder
 whose dose is still unconfirmed must keep that dose nagging, because the day it
 belongs to is still covered.
 
-**The one exception** is a reminder that had no schedule at all (kind `none` — see
-the root `CLAUDE.md`). Its single firing is an artifact of being unscheduled, not a
-commitment to a date, so giving it a real schedule retires that firing instead of
-leaving it behind.
+**The first exception** is a reminder that had no schedule at all (kind `none` —
+see the root `CLAUDE.md`). Its single firing is an artifact of being unscheduled,
+not a commitment to a date, so giving it a real schedule retires that firing
+instead of leaving it behind.
+
+**The second is turning a reminder into a note** (kind `never` — a reminder that
+never fires; see §7). Here the firings *were* real, and they are still retired —
+dropped and dismissed on every device, exactly as deleting the reminder does. The
+user has said this thing does not remind, and a nag left behind would contradict
+the mode they just chose, on a card whose own reminder now reads "Never fires".
+Every other reschedule can point at a later firing to carry the obligation
+forward to; this one cannot, because there is no later firing. Done is still
+available right up until the edit, and what was already confirmed stays in
+History.
 
 Going the other way — **taking a reminder's schedule away** — is not an exception:
 whatever its schedule left unconfirmed keeps nagging, because those firings were
@@ -265,3 +319,36 @@ firing an unscheduled reminder normally gets; it is already in front of the user
 and a second one would be indistinguishable from the first, since an unscheduled
 firing has no time of day to tell them apart. The immediate firing appears only
 when nothing is left nagging.
+
+## 7. A note opts out of all of it
+
+A reminder whose schedule kind is **`never`** is a **note**: something kept in the
+app to read, not to be reminded of. It is the one reminder this entire contract
+does not apply to, because it never produces an occurrence — and every guarantee
+above is a guarantee about an occurrence.
+
+- It **never fires**, so it never nags, never escalates, never emails a contact,
+  and never needs confirming. There is nothing to Done, Silence or Snooze.
+- It therefore **never appears as a firing** — no attention card, no notification,
+  nothing in any shade on any device. Notes are listed on Current all the same, in
+  their own section below the cards: that is the screen the app opens on, so it is
+  where something kept to be read has to be. The heading is what separates them
+  from the cards above, which all need confirming.
+- Materialization deliberately expands nothing for it, exactly as for `none`
+  (`isTimeless`) — so no timer can start it firing later.
+- Escalation is rejected at the boundary rather than stored and ignored: a note
+  cannot be escalated to an alarm or emailed to a nominated contact, because
+  nothing about it can ever go unanswered.
+- It is a note, not a *type* — a `TODO` note is a kept checklist, a `MEDICATION`
+  note is a dose reference. There is no firing for a tick to belong to, so its
+  items show as a plain list.
+
+Pausing (`active: false`) is not the same thing and does not overlap: a paused
+reminder is one that *would* fire, held; a note is one that would not. That is why
+the editor tells a note "Never fires — kept as a note" rather than offering
+"won't fire until you turn it on", which a note would never honour.
+
+Notes are reachable in both directions. Giving a note a real schedule (or "Remind
+me now") makes it an ordinary reminder from that moment, and the settings it kept
+while it was a note — the repeat, the escalation — come back with it. Turning a
+firing reminder into a note retires whatever it left nagging (§6).

@@ -21,9 +21,10 @@ medications, appointments, and important tasks.
   your 1:00 dose never silently clears a 9:00 dose you missed.
 - **Works offline.** The Android app schedules exact on-device alarms, so
   reminders fire even with no signal, and sync across your devices.
-- **Flexible.** Remind me now with no date to pick, or a one-time or repeating
+- **Flexible.** Remind me now with no date to pick, a one-time or repeating
   schedule — daily, weekdays, every N days, or monthly on the days you choose
-  (including the last day of every month). Multi-line notes that stay multi-line
+  (including the last day of every month) — or never at all, for something you
+  want to keep but never be reminded about. Multi-line notes that stay multi-line
   wherever you read them; medication lists, custom snooze and re-nag intervals,
   separate tones for a reminder firing and for its follow-up nags, per-reminder
   notification-shade prominence (Android), and a history of what you've done.
@@ -48,8 +49,9 @@ medications, appointments, and important tasks.
   area. Grab the portable zip from a
   [`desktop-v*` release](https://github.com/RyanEwen/persistent/releases) — unzip
   and run, nothing to install — or the MSIX if you'd rather have a proper install.
-  It's for seeing and confirming reminders at your desk: it doesn't ring, and it
-  can't reach you when it's closed.
+  It's for seeing and confirming reminders at your desk, and it can show optional
+  Windows notifications with Done and Snooze on them — but it never rings an alarm
+  and can't reach you when it's closed or the PC is asleep.
 
 ## Why the app over the web?
 

@@ -23,3 +23,27 @@ test('an edit between two real schedules touches no firing', () => {
 test('editing an unscheduled reminder does not re-ask to be reminded', () => {
   assert.equal(scheduleTransition('none', 'none'), null)
 })
+
+// --- Notes (schedule kind `never`) -------------------------------------------
+
+test('turning a reminder into a note retires whatever it left nagging', () => {
+  // The user has said this thing does not remind. Leaving a nag behind would
+  // contradict the mode they just chose, and there is no later firing for the
+  // obligation to carry forward to.
+  assert.equal(scheduleTransition('daily', 'never'), 'retire')
+  assert.equal(scheduleTransition('once', 'never'), 'retire')
+  assert.equal(scheduleTransition('none', 'never'), 'retire')
+})
+
+test('editing a note does not run the retire pass over firings it cannot have', () => {
+  assert.equal(scheduleTransition('never', 'never'), null)
+})
+
+test('giving a note a real schedule touches no firing', () => {
+  // Becoming a note already cleared them, so there is nothing left to retire.
+  assert.equal(scheduleTransition('never', 'daily'), null)
+})
+
+test('a note that stops being one asks for the unscheduled firing', () => {
+  assert.equal(scheduleTransition('never', 'none'), 'mint')
+})

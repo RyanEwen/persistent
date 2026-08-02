@@ -90,6 +90,20 @@ public partial class App : Application
             _host = new MainWindow();
             _host.Activate();
             _host.HideHost(); // Activate() shows the window; immediately re-hide the invisible host.
+
+            // Opt-in Windows toasts. A no-op unless the user turned them on, and
+            // deliberately after the tray host exists, since a toast click opens the
+            // flyout. Failures here must never take startup down — the app's actual
+            // job is the flyout.
+            try
+            {
+                Notifications.NotificationService.Sync();
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Notification service failed to start");
+            }
+
             StartupDiagnostics.Mark("Startup complete");
         }
         catch (Exception ex)

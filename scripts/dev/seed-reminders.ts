@@ -66,6 +66,13 @@ const groceries = [
   { id: 'gr-3', text: 'Coffee' },
   { id: 'gr-4', text: 'Eggs' }
 ]
+// A checklist on a note: kept for reference, never fired, so never ticked.
+const camping = [
+  { id: 'cp-1', text: 'Tent + poles' },
+  { id: 'cp-2', text: 'Sleeping bags' },
+  { id: 'cp-3', text: 'Stove and gas' },
+  { id: 'cp-4', text: 'Head torches' }
+]
 
 const seeds: Seed[] = [
   {
@@ -228,6 +235,26 @@ const seeds: Seed[] = [
       schedule: { kind: 'weekly', timesOfDay: ['10:00'], daysOfWeek: [6] },
       startDate: isoDay(-60),
       active: false
+    }
+  },
+  {
+    note: 'a note — never fires, so it sits in Notes on Current, never as a card',
+    reminder: {
+      title: 'Wifi password',
+      details: 'Guest network: hunter2\nRouter admin is on the sticker underneath.',
+      type: 'NONE',
+      schedule: { kind: 'never', timesOfDay: [] },
+      startDate: isoDay()
+    }
+  },
+  {
+    note: 'a note holding a checklist — a kept list, with nothing to tick off',
+    reminder: {
+      title: 'Camping kit',
+      type: 'TODO',
+      typeData: { items: camping },
+      schedule: { kind: 'never', timesOfDay: [] },
+      startDate: isoDay(-2)
     }
   },
   {

@@ -1,0 +1,66 @@
+<!--
+  Compile-check the desktop app's non-XAML C# on Linux.
+
+  WinUI 3 cannot be *built* here: the Windows App SDK's XAML compiler
+  (XamlCompiler.exe) and MakePri.exe are Windows-only binaries, so
+  `dotnet build Persistent.Desktop.csproj` dies before it reaches the C#. That is
+  why CI on windows-2025 is still the only complete check.
+
+  But the C# that has no XAML behind it CAN be type-checked here, against the real
+  Windows App SDK reference assemblies — which is what catches a misremembered
+  WinRT API, the failure mode that costs a full CI round-trip to find. This project
+  compiles those files (see the list below) and nothing else.
+
+  It is deliberately NOT in Persistent.Desktop.slnx and CI does not build it: it
+  compiles the same sources a second time, with the stubs below standing in for the
+  XAML-backed types, so it must never be mistaken for the shipping build.
+
+  Run it with `apps/desktop/verify-csharp.sh` (or `npm run verify:desktop`), which
+  knows that the build fails at MakePri *after* a successful compile and checks
+  the compiler's own output rather than the exit code.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Matches Persistent.Desktop.csproj: the point is to compile against the
+         same framework and the same language rules, or this proves nothing. -->
+    <TargetFramework>net10.0-windows10.0.22000.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>preview</LangVersion>
+    <Platforms>AnyCPU</Platforms>
+    <!-- Lets a Windows TFM restore and compile on Linux. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <OutputType>Library</OutputType>
+    <!-- Only the files named below, never whatever happens to sit beside this. -->
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AssemblyName>CSharpCheck</AssemblyName>
+    <RootNamespace>Persistent.Desktop</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Same versions as the app. A drift here would check the wrong API surface. -->
+    <PackageReference Include="Microsoft.WindowsAppSDK.Foundation" Version="1.8.260222000" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="NLog" Version="6.1.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The notification feature: all of it, by glob. That folder is non-XAML by
+         design, so a new file there is covered automatically — which is the point,
+         since it is the part with the most WinRT surface and the least test cover. -->
+    <Compile Include="../../Persistent.Desktop/Notifications/**/*.cs" />
+
+    <!-- Named individually rather than globbed: everything else in the app is
+         either XAML-backed or reaches something that is, and a glob would drag it
+         in. Adding a file here is a deliberate act. -->
+    <Compile Include="../../Persistent.Desktop/ViewModels/UserSettings.cs" />
+    <Compile Include="../../Persistent.Desktop/Classes/Settings/SettingsManager.cs" />
+    <Compile Include="../../Persistent.Desktop/Classes/StartupManager.cs" />
+    <Compile Include="../../Persistent.Desktop/Classes/StartupDiagnostics.cs" />
+    <Compile Include="../../Persistent.Desktop/Classes/NativeMethods.cs" />
+
+    <Compile Include="HostStubs.cs" />
+  </ItemGroup>
+
+</Project>

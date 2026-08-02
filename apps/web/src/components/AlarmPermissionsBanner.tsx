@@ -52,7 +52,7 @@ const GAPS: Gap[] = [
   {
     key: 'exactAlarms',
     title: 'Allow exact alarms',
-    consequence: 'Reminders may fire late, batched by the system instead of at the time you set.'
+    consequence: 'Reminders may notify you late, batched by the system instead of at the time you set.'
   ,
     fix: () => AlarmPlugin.canScheduleExactAlarms()
   }

@@ -7,21 +7,25 @@ split the way they are.
 
 ## What it is, and what it deliberately is not
 
-**It is a viewing and acting surface. It is not a nag surface.**
+**It is a viewing and acting surface. It is not the persistence guarantee.**
 
 The flyout hosts the real web app, so everything the web client can do works here
 — sign in (including passkeys, see below), Done / Snooze / De-escalate, the
-editor, checklists, history. What it does **not** do is provide the persistence
-guarantee: no toast notifications, no alarm audio, no on-device scheduled alarms,
-nothing while the app is closed. That still lives only in the Android client.
+editor, checklists, history. What it does **not** do is guarantee you are told:
+no alarm audio, no on-device scheduled alarms, nothing while the app is closed or
+the machine is asleep. That still lives only in the Android client.
 
 This is the honest description and the docs, the Connection page and the About
 page all say it. A Windows app that *looked* like it would nag you, and then
 didn't because the machine was asleep, would be worse than no Windows app.
 
-It provides no ambient signal at all — the tray icon is a plain mark. An earlier
-version badged it with a due count; that was dropped, and with it the only reason
-the page had to keep running while hidden (see the suspend note below).
+**Optional Windows toasts are the one signal it offers** — off by default, per
+machine, and described in the settings copy as exactly what they are. See
+[Notifications](#notifications) below. Beyond them it is silent: the tray icon is
+a plain mark. An earlier version badged it with a due count; that was dropped, and
+with it the only reason the *page* had to keep running while hidden (see the
+suspend note below) — which is why the toasts are raised by the host process from
+its own connection rather than by the page.
 
 ## Why a WebView, not a native client
 
@@ -91,16 +95,28 @@ detection — the same rule that already governs `hasNativeUpdater()`.
   `isNative()`**: Capacitor is absent here, so `isNative()` is false in the
   desktop host, and code that conflates the two silently misbehaves on one of
   them.
-- `onHostMessage()` receives host→page messages; currently just `back`, from the
-  flyout's title-bar button. The host does **not** call `CoreWebView2.GoBack()` —
+- `onHostMessage()` receives host→page messages: `back`, from the flyout's
+  title-bar button, and `navigate` (below). The host does **not** call
+  `CoreWebView2.GoBack()` —
   browser history is the trail of every hop the user made, which is the model the
   app deliberately rejected on Android. `performBack` (`useNativeBack.ts`) walks
   the screen hierarchy instead, shared with the Android gesture so the two cannot
   answer Back differently. Only the "ran out" case differs: Android leaves the
   app, the flyout closes via `requestClose()`.
-- `hostSupportsPush()` is false on desktop. WebView2 may still *report* the Push
-  API as present, so a plain capability check would offer a notification toggle
-  that silently does nothing.
+- `hostSupportsPush()` is false on desktop, and **`SettingsPage` must actually
+  call it** — it was written for this and left unimported, so the web
+  "Browser notifications" card showed here and its button simply failed. Two
+  independent things make the web path impossible on this host: WebView2 refuses
+  `Notification.requestPermission()` unless the host handles `PermissionRequested`,
+  and the page is suspended whenever the flyout is hidden, so even a granted
+  subscription could only deliver while the flyout was already open. The Push API
+  may still *report* as present, which is why a capability check alone is not
+  enough.
+- `navigate` (host -> page) carries an in-app path from a toast click. The host
+  does not navigate the WebView itself, for the same reason it doesn't call
+  `GoBack()`: reloading would throw away the user's place. The page validates the
+  path is root-relative before acting on it — a host message is not a privileged
+  caller either.
 - The Android promo **banner** shows here (its message — the Android app is the
   one that actually nags — matters more on this host, not less); the title-bar
   **button** is hidden, because the flyout is a ~420px column and a permanent
@@ -181,6 +197,70 @@ worth keeping straight because fixing one did not fix the other:
 
 The DWM border colour is also pinned (`DWMWA_BORDER_COLOR`), since the default
 outlines a dark window in the system's light border.
+
+## Notifications
+
+**Off by default, per machine, and not the persistence guarantee.** The setting
+lives in the tray app's own settings (App settings → Windows notifications), and
+its copy says plainly that it only works while the PC is awake with Persistent
+running, never rings an alarm and never wakes the machine.
+
+`Persistent.Desktop/Notifications/` is the whole feature:
+
+| File | Role |
+|---|---|
+| `RealtimeClient.cs` | The host's own `/ws` connection; flattens events to ids + text |
+| `ToastNotifier.cs` | Builds, replaces and removes `AppNotification` toasts |
+| `OccurrenceApi.cs` | The only two domain calls: `ack` and `snooze` |
+| `NotificationService.cs` | Wires those together and owns the lifecycle |
+
+**Why the host connects to `/ws` instead of letting the page do it.** The page has
+its own socket, but the WebView is suspended whenever the flyout is hidden, which
+freezes its JavaScript and drops that socket. A notification that could only
+arrive while the flyout was already open is useless. A host-owned connection means
+the suspend optimization above survives untouched — do not undo it to make the
+page's notifications work, because the page's notifications cannot work here
+anyway (see `hostSupportsPush()`).
+
+**Auth is borrowed, never stored.** `AppFlyout.GetSessionCookieAsync()` reads the
+session cookie out of the WebView2 profile per call. Nothing is cached and nothing
+is written to `settings.json`, so a refreshed session is picked up automatically
+and signing out simply makes every call fail. `/ws` authenticates from that cookie
+on the HTTP upgrade, exactly as a browser would.
+
+**What it is allowed to know.** Five fields off an occurrence event: id, reminder
+id, status, title, `details`. Deliberately *not* the medication doses or the
+checklist — rendering those is `reminderBodyText` in `@persistent/shared`, and a
+C# copy of it is precisely the drift this app's design rejects. A medication toast
+therefore shows the title alone, and the doses are one click away in the flyout.
+If that ever needs to change, the fix is for the **server** to render the body
+into the event, not for the host to learn the rules.
+
+**The contract obligations it does carry**, from
+[`notification-behavior.md`](notification-behavior.md):
+
+- **One toast per occurrence** (§4), tagged by occurrence id. Tagging by reminder
+  would let a 13:00 dose replace an unconfirmed 09:00 one in the Action Center —
+  the self-collapse the app exists to reject.
+- **Done is a two-tap confirm** (§1). A toast button cannot ask a question, so the
+  first Done re-shows the *same tag* as a "Mark this done?" variant with Confirm /
+  Not yet; only Confirm acks. Windows replaces a toast sharing a tag and group, so
+  it reads as the buttons changing in place.
+- **A server `dismiss` clears the toast**, so confirming on the phone clears it
+  here (`data-event-contract.md`).
+- **Silence is deliberately absent.** It drops an escalation back to an ordinary
+  notification; there is no alarm on this surface to drop.
+- **A failed action leaves the toast up.** The occurrence is still unconfirmed, and
+  clearing it would claim something was done that wasn't.
+
+**Registration has a visible side effect.** `AppNotificationManager.Register()`
+creates a Start-menu shortcut when unpackaged — that is how Windows attributes a
+toast to an app — so it runs only once the user has turned notifications on, not
+at every startup. Packaged builds need the `windows.toastNotificationActivation`
+and `windows.comServer` entries in `Package.appxmanifest` instead; without them
+the toasts appear and then do nothing when clicked. **The activator CLSID in that
+manifest must never change** — it is how Windows routes a click on a toast already
+sitting in the Action Center back to this app.
 
 ## Storage
 

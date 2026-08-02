@@ -46,6 +46,17 @@ public partial class UserSettings : ObservableObject
 
     [ObservableProperty] public partial string LastKnownVersion { get; set; } = "";
 
+    // ── Notifications ────────────────────────────────────────────────
+    /// <summary>Show Windows toasts for firings. <b>Off by default</b>, and per
+    /// machine: this app is not the persistence guarantee (a sleeping PC shows
+    /// nothing), so it must never be the thing a user assumes is watching for them.
+    /// See <see cref="Notifications.NotificationService"/>.</summary>
+    [ObservableProperty] public partial bool DesktopNotifications { get; set; }
+
+    /// <summary>Minutes the toast's Snooze button asks for. One value rather than a
+    /// picker — a toast is a glance, and the full snooze options are in the flyout.</summary>
+    [ObservableProperty] public partial int NotificationSnoozeMinutes { get; set; } = 10;
+
     /// <summary>
     /// False until the app has started once. Windows 11 files every new tray icon
     /// into the hidden overflow, so a first launch with no window looks exactly
@@ -78,6 +89,14 @@ public partial class UserSettings : ObservableObject
         Classes.StartupManager.SetRunAtStartup(value);
     }
 
+    partial void OnDesktopNotificationsChanged(bool value)
+    {
+        if (_initializing) return;
+        // Connects or tears down the host's `/ws` connection and the toast
+        // registration; turning it off also clears any toast already showing.
+        Notifications.NotificationService.Sync();
+    }
+
     /// <summary>Repairs nulls from older/partial files and ends the initializing window.</summary>
     public void CompleteInitialization()
     {
@@ -85,6 +104,9 @@ public partial class UserSettings : ObservableObject
         LastKnownVersion ??= "";
         if (FlyoutWidth < 320) FlyoutWidth = 420;
         if (FlyoutHeight < 400) FlyoutHeight = 680;
+        // A settings file written before this setting existed deserializes it as 0,
+        // which would ask the server to snooze for zero minutes.
+        if (NotificationSnoozeMinutes is < 1 or > 1440) NotificationSnoozeMinutes = 10;
         _initializing = false;
     }
 }

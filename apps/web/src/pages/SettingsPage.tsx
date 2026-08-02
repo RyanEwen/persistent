@@ -22,6 +22,7 @@ import { useSettings, type SoundChoice } from '../settings/useSettings.js'
 import { APP_THEMES } from '../settings/themes.js'
 import { formatDateTime } from '../lib/datetime.js'
 import { AlarmPlugin, isNative } from '../native/alarmBridge.js'
+import { hostSupportsPush } from '../native/desktopBridge.js'
 import { UpdateSettings } from '../native/UpdateSettings.js'
 import { PasskeysCard } from '../components/PasskeysCard.js'
 import { DeleteAccountCard } from '../components/DeleteAccountCard.js'
@@ -99,6 +100,9 @@ export function SettingsPage() {
   return (
     <Stack spacing={2}>
       <Typography level="title-lg">Settings</Typography>
+      <Typography level="body-sm" sx={{ mt: -1, color: 'text.tertiary' }}>
+        Appearance, sounds and notifications on this device — plus your account.
+      </Typography>
 
       <Card variant="outlined">
         <Typography level="title-sm">Appearance</Typography>
@@ -148,7 +152,7 @@ export function SettingsPage() {
               </Button>
             </FormControl>
             <Typography level="body-xs">
-              The notification sound plays when a reminder first fires; the nag sound plays on each repeat after
+              The notification sound plays the first time a reminder notifies you; the nag sound plays on each repeat after
               that, for reminders with a nag interval set. Alarms ring one continuous tone, so this doesn't apply
               to them.
             </Typography>
@@ -185,9 +189,12 @@ export function SettingsPage() {
         </Card>
       )}
 
-      {/* Web Push is best-effort and only relevant on the web; the native app
-          uses on-device alarms, so this section is hidden there. */}
-      {!isNative() && (
+      {/* Web Push is best-effort and only relevant on the web; the native app uses
+          on-device alarms, so this section is hidden there. It is hidden in the
+          Windows tray app too — `hostSupportsPush()` says why the subscription can
+          never work in a WebView2, and that host has its own notification setting.
+          Without this the card showed and its button just failed. */}
+      {!isNative() && hostSupportsPush() && (
         <Card variant="outlined">
           <Typography level="title-sm">Browser notifications</Typography>
           <Typography level="body-sm">

@@ -398,6 +398,10 @@ the Desktop Head Unit (DHU) or a real car** — it can't be exercised in the dev
 
 - **Web Push (VAPID)** for browsers — `apps/api/src/lib/delivery/web-push.ts`.
 - **FCM (HTTP v1)** for native Android — `apps/api/src/lib/delivery/fcm-push.ts`.
+- The Windows tray app uses **neither**: it has no push subscription at all and
+  raises its optional toasts from its own `/ws` connection while the process runs
+  (`docs/desktop-architecture.md`). That is why it is not a persistence guarantee —
+  nothing reaches it while it is closed.
   The dispatcher (`delivery/index.ts`) targets each device by
   `PushSubscription.kind`; `dispatchToUser` fans `fire`/`escalate`/`dismiss`/
   `silence` to all channels, and `nudgeNativeSync` sends an FCM-only `sync` on

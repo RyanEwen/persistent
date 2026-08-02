@@ -40,6 +40,9 @@ coverage/
 # scripts on a Windows machine, so they are build output too, not sources.
 apps/desktop/**/bin/
 apps/desktop/**/obj/
+# Mono/MSBuild scratch left by the Linux compile-check (verify-csharp.sh): the
+# Windows-only MakePri step drops a fake registry here on its way to failing.
+apps/desktop/**/.mono/
 apps/desktop/**/AppPackages/
 apps/desktop/**/BundleArtifacts/
 apps/desktop/artifacts/

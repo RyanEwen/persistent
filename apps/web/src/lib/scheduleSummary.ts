@@ -23,6 +23,8 @@ export function scheduleSummary(schedule: Schedule, timeFormat: TimeFormat): str
   switch (schedule.kind) {
     case 'none':
       return 'No date or time'
+    case 'never':
+      return 'Never notifies you — a note'
     case 'once':
       return `Once at ${times}`
     case 'daily':

@@ -230,6 +230,10 @@ public sealed partial class MainWindow : Window
     {
         RemoveTrayIcon();
         if (_subclass != null) RemoveWindowSubclass(_hwnd, _subclass, IntPtr.Zero);
+        // Drop the `/ws` connection and the toast activation registration before the
+        // windows go, so a toast left in the Action Center can't try to activate a
+        // process that is on its way out.
+        Notifications.NotificationService.Shutdown();
         AppFlyout.CloseForExit();
         Application.Current.Exit();
     }

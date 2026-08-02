@@ -54,8 +54,10 @@ function dayMatches(kind: ScheduleKind, cur: Date, start: Date, input: ScheduleP
   const weekday = cur.getDay()
   const weekend = weekday === 0 || weekday === 6
   switch (kind) {
-    // An unscheduled reminder has no firing day — it fired once on creation.
+    // Neither timeless kind has a firing day: an unscheduled reminder fired once
+    // on creation, and a note never fires at all.
     case 'none':
+    case 'never':
       return false
     case 'once':
       return sameDate(cur, start)
@@ -154,13 +156,18 @@ function hhmm(d: Date): string {
 }
 
 /**
- * A short sentence like "Fires today at 2:50 PM — in 3 minutes", or null when
- * the schedule has no upcoming fire (e.g. a one-time date/time already passed).
+ * A short sentence like "Notifies you today at 2:50 PM — in 3 minutes", or null
+ * when the schedule has no upcoming fire (e.g. a one-time date/time already
+ * passed).
+ *
+ * The user-facing wording is deliberately "notifies you" rather than the model's
+ * word, "fires" — see the vocabulary note in docs/notification-behavior.md. The
+ * identifiers here keep the model's word; only what the user reads changes.
  */
 export function fireSummary(input: SchedulePreviewInput, timeFormat: TimeFormat, now: Date = new Date()): string | null {
   const fire = nextFire(input, now)
   // No future fire, but a just-passed one-shot the server back-fills fires now.
-  if (!fire) return firesRightAway(input, now) ? 'Fires right away' : null
+  if (!fire) return firesRightAway(input, now) ? 'Notifies you right away' : null
 
   const time = formatTimeOfDay(hhmm(fire), timeFormat)
   const today = new Date(now)
@@ -183,7 +190,7 @@ export function fireSummary(input: SchedulePreviewInput, timeFormat: TimeFormat,
     soon = ` — in ${hours} hour${hours === 1 ? '' : 's'}`
   }
 
-  return `Fires ${dayPart} at ${time}${soon}`
+  return `Notifies you ${dayPart} at ${time}${soon}`
 }
 
 // Re-exported for callers building the input from a full Schedule, if needed.

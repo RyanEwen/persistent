@@ -18,8 +18,11 @@ import Tabs from '@mui/joy/Tabs'
 import TabList from '@mui/joy/TabList'
 import Tab, { tabClasses } from '@mui/joy/Tab'
 import TabPanel from '@mui/joy/TabPanel'
-import { extractErrorMessage, type ReminderType, type ScheduleKind } from '@persistent/shared'
+import { extractErrorMessage, isTimeless, type ReminderType, type ScheduleKind } from '@persistent/shared'
 import { useReminders, useCreateReminder, useUpdateReminder, useDeleteReminder } from '../../data/reminders.js'
+import { useActiveOccurrences } from '../../data/occurrences.js'
+import { compareFirings } from '../../lib/firingOrder.js'
+import { formatWhen } from '../../lib/datetime.js'
 import { fireSummary } from '../../lib/schedule-preview.js'
 import { useSettings } from '../../settings/useSettings.js'
 import { useToast } from '../../components/ToastProvider.js'
@@ -55,6 +58,7 @@ export function ReminderEditorPage() {
   const toast = useToast()
   const { timeFormat } = useSettings()
 
+  const active = useActiveOccurrences()
   const existing = useMemo(() => reminders.data?.find((r) => r.id === id), [reminders.data, id])
   const [form, setForm] = useState<FormState>(() => (existing ? fromReminder(existing) : emptyForm()))
   // The state the editor was opened in, to tell edits from the untouched form.
@@ -133,12 +137,18 @@ export function ReminderEditorPage() {
   // For a new reminder, the repeat default tracks the type until the user edits
   // Repeat themselves. Existing reminders keep their saved schedule. Medication
   // implies a real schedule, so it also flips the reminder to scheduled — but only
-  // ever on, so an explicit Schedule choice is never undone.
+  // from the untouched default, so neither explicit When choice (Schedule it, or
+  // Never) is ever undone by picking a type.
   function setType(type: ReminderType) {
     setForm((prev) => ({
       ...prev,
       type,
-      ...(id ? {} : { kind: defaultKindForType(type), scheduled: prev.scheduled || type === 'MEDICATION' })
+      ...(id
+        ? {}
+        : {
+            kind: defaultKindForType(type),
+            when: prev.when === 'now' && type === 'MEDICATION' ? 'scheduled' : prev.when
+          })
     }))
   }
 
@@ -158,7 +168,8 @@ export function ReminderEditorPage() {
    * Current and Upcoming are separate tabs, so returning to Current unconditionally
    * would drop the user on a page that doesn't contain what they just saved. An
    * unscheduled reminder ("remind me now") gets its single firing immediately and
-   * so *is* on Current; anything with a real schedule is on Upcoming.
+   * so *is* on Current; anything with a real schedule is on Upcoming. A note is on
+   * Current too — not as a firing, but in the Notes section below the cards.
    *
    * Judged by schedule kind rather than by the next fire time: a `once` reminder
    * left at an instant that has already passed fires straight away and lands on
@@ -167,7 +178,7 @@ export function ReminderEditorPage() {
    * the client — the sort of duplicated rule that drifts.
    */
   function landingTab(kind: ScheduleKind): string {
-    return kind === 'none' ? '/' : '/upcoming'
+    return isTimeless(kind) ? '/' : '/upcoming'
   }
 
   async function onSubmit(event: FormEvent) {
@@ -220,11 +231,38 @@ export function ReminderEditorPage() {
     }
   }
 
+  /**
+   * What this reminder's current firing has ticked off, for the checklist rows to
+   * report. Read-only, and absent unless there is a firing to read it from.
+   *
+   * Ticks belong to the *occurrence*, never to the reminder
+   * (docs/notification-behavior.md §1a), so there is nothing to show while
+   * creating a reminder or editing one that is merely scheduled. Occurrences are
+   * also independent (§4): a checklist can have several unconfirmed at once, each
+   * with its own ticks, and merging them would invent a state no firing is in. So
+   * this takes the one the user is most likely acting on — the same ordering the
+   * lists use — and `ambiguous` tells the field to name it as the most recent
+   * rather than the only one.
+   */
+  const todoChecked = useMemo(() => {
+    if (!id || form.type !== 'TODO') return undefined
+    const firings = (active.data ?? []).filter((o) => o.reminderId === id).sort(compareFirings)
+    const newest = firings[0]
+    if (!newest) return undefined
+    return {
+      itemIds: newest.checkedItemIds,
+      when: formatWhen(newest.scheduledFor, timeFormat),
+      ambiguous: firings.length > 1
+    }
+  }, [active.data, id, form.type, timeFormat])
+
   const busy = create.isPending || update.isPending
-  // Driven purely by the toggle now that `none` is a real saved state: editing an
-  // unscheduled reminder must keep showing it as unscheduled (and offer to give it
-  // a schedule) instead of forcing the date/time controls open.
-  const showSchedule = form.scheduled
+  // Driven purely by the toggle now that `none` and `never` are real saved states:
+  // editing an unscheduled reminder (or a note) must keep showing it as what it is
+  // — and offer to give it a schedule — instead of forcing the date/time controls
+  // open.
+  const showSchedule = form.when === 'scheduled'
+  const isNote = form.when === 'never'
   const fireSummaryText = fireSummary(previewInput(form), timeFormat)
   // Caught here rather than left to the server: saving offline queues the mutation
   // and navigates away, so a rejection would surface much later as a stray toast.
@@ -296,6 +334,7 @@ export function ReminderEditorPage() {
               <DetailsTab
                 form={form}
                 set={set}
+                todoChecked={todoChecked}
                 onTypeChange={setType}
                 onMedicationChange={setMedication}
                 onAddMedication={() => setForm((prev) => ({ ...prev, medications: [...prev.medications, emptyMedication()] }))}
@@ -334,15 +373,21 @@ export function ReminderEditorPage() {
             <Alert color="warning" variant="soft" size="sm">
               Add at least one checklist item on the Details tab.
             </Alert>
+          ) : isNote ? (
+            // Ahead of the paused case on purpose: "won't fire until you turn it
+            // on" is a promise a note can't keep — turning it on changes nothing.
+            <Alert color="neutral" variant="soft" size="sm">
+              Never notifies you — kept as a note.
+            </Alert>
           ) : !form.active ? (
             <Alert color="neutral" variant="soft" size="sm">
-              Inactive — won't fire until you turn it on.
+              Inactive — won't notify you until you turn it on.
             </Alert>
           ) : !showSchedule ? (
             // An unscheduled reminder fires once, on creation — so this is a promise
             // when creating one and a statement of history when editing one.
             <Alert color={id ? 'neutral' : 'primary'} variant="soft" size="sm">
-              {id ? 'Already fired when you created it — nothing more scheduled.' : 'Fires right away'}
+              {id ? 'Already notified you when you created it — nothing more scheduled.' : 'Notifies you right away'}
             </Alert>
           ) : fireSummaryText ? (
             <Alert color="primary" variant="soft" size="sm">
@@ -350,7 +395,7 @@ export function ReminderEditorPage() {
             </Alert>
           ) : (
             <Alert color="warning" variant="soft" size="sm">
-              No upcoming fire — check the date and time.
+              No upcoming notification — check the date and time.
             </Alert>
           )}
 

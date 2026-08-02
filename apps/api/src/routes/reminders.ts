@@ -85,12 +85,11 @@ remindersRouter.put('/:id', async (request, response) => {
 
   // Drop not-yet-fired occurrences so the new schedule re-materializes cleanly.
   await prisma.reminderOccurrence.deleteMany({ where: { reminderId: reminder.id, status: 'PENDING' } })
-  // Only crossing the scheduled/unscheduled boundary touches an existing firing;
-  // see `scheduleTransition` for why each direction does what it does.
-  const transition = scheduleTransition(
-    (existing.schedule as unknown as { kind?: string }).kind ?? '',
-    parsed.data.schedule.kind
-  )
+  // Only moving between a real schedule, no schedule and a note touches an
+  // existing firing; see `scheduleTransition` for why each direction does what
+  // it does.
+  const beforeKind = (existing.schedule as unknown as { kind?: string }).kind ?? ''
+  const transition = scheduleTransition(beforeKind, parsed.data.schedule.kind)
   if (transition === 'retire') {
     const retired = await prisma.reminderOccurrence.findMany({
       where: { reminderId: reminder.id, userId, status: { in: ['FIRED', 'ESCALATED', 'SNOOZED'] } },
@@ -98,9 +97,13 @@ remindersRouter.put('/:id', async (request, response) => {
     })
     if (retired.length > 0) {
       await prisma.reminderOccurrence.deleteMany({ where: { userId, id: { in: retired.map((o) => o.id) } } })
-      logger.info('retired unscheduled firings on schedule assignment', {
+      logger.info('retired live firings on schedule change', {
         reminderId: reminder.id,
-        count: retired.length
+        count: retired.length,
+        // Which of the two retiring edits this was: gaining a real schedule, or
+        // becoming a note. Both drop firings, for different reasons.
+        from: beforeKind,
+        to: parsed.data.schedule.kind
       })
       // Clear the live notification/alarm on every device, same as a delete does.
       for (const occurrence of retired) {

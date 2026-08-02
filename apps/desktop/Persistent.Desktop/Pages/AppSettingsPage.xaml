@@ -49,6 +49,44 @@
                 </Grid>
             </Border>
 
+            <!-- Notifications. Off by default and stated plainly: this app is not the
+                 persistence guarantee, and a toggle that let someone assume it was
+                 would be worse than no toggle. -->
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                    CornerRadius="8" Padding="16,12">
+                <StackPanel Spacing="8">
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="Windows notifications" FontWeight="SemiBold" />
+                            <TextBlock Opacity="0.7" TextWrapping="Wrap"
+                                       Text="Show a Windows notification when a reminder is due, with Done and Snooze on it. Only while this PC is awake and Persistent is running - it never rings an alarm and never wakes the machine, so don't rely on it alone. The Android app is the one that guarantees you'll be told." />
+                        </StackPanel>
+                        <ToggleSwitch Grid.Column="1" x:Name="NotificationsToggle" VerticalAlignment="Center" MinWidth="0"
+                                      Toggled="NotificationsToggle_Toggled" />
+                    </Grid>
+                    <Grid ColumnSpacing="16" x:Name="SnoozeRow">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" VerticalAlignment="Center" Opacity="0.7" TextWrapping="Wrap"
+                                   Text="How long the notification's Snooze button snoozes for." />
+                        <ComboBox Grid.Column="1" x:Name="SnoozeCombo" VerticalAlignment="Center" MinWidth="160"
+                                  SelectionChanged="SnoozeCombo_SelectionChanged">
+                            <ComboBoxItem Content="5 minutes" />
+                            <ComboBoxItem Content="10 minutes" />
+                            <ComboBoxItem Content="30 minutes" />
+                            <ComboBoxItem Content="1 hour" />
+                        </ComboBox>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
             <!-- Pin -->
             <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"

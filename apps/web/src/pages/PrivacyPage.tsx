@@ -45,7 +45,7 @@ export function PrivacyPage() {
           <Typography level="body-sm">
             <strong>Account.</strong> Your email address, which identifies your account and receives sign-in
             codes. If you sign in with Google, the name on your Google profile. Your time zone, so reminders
-            fire at the local time you meant. There is no password — sign-in uses a one-time email code,
+            notify you at the local time you meant. There is no password — sign-in uses a one-time email code,
             Google, or a passkey.
           </Typography>
           <Typography level="body-sm">
@@ -54,7 +54,7 @@ export function PrivacyPage() {
             medication names, doses, and units you enter — health information you have chosen to record.
           </Typography>
           <Typography level="body-sm">
-            <strong>Reminder history.</strong> When each reminder fired, which checklist items you ticked off,
+            <strong>Reminder history.</strong> When each reminder notified you, which checklist items you ticked off,
             and whether and when you confirmed, snoozed, or ignored it.
           </Typography>
           <Typography level="body-sm">

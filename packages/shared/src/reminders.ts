@@ -56,9 +56,19 @@ export type OccurrenceStatus = (typeof occurrenceStatuses)[number]
 
 // --- Schedule ---
 
-export const scheduleKinds = ['none', 'once', 'daily', 'weekly', 'monthly', 'interval', 'custom'] as const
+export const scheduleKinds = ['none', 'never', 'once', 'daily', 'weekly', 'monthly', 'interval', 'custom'] as const
 export const scheduleKindSchema = z.enum(scheduleKinds)
 export type ScheduleKind = (typeof scheduleKinds)[number]
+
+/**
+ * The two kinds that carry no wall-clock time and that the calendar expansion
+ * therefore never produces instants for: `none` (its single firing is minted
+ * directly by the server the moment the user asks for it) and `never` (a note —
+ * it has no firing at all). Everything else fires at a `timesOfDay`.
+ */
+export function isTimeless(kind: ScheduleKind): boolean {
+  return kind === 'none' || kind === 'never'
+}
 
 /** "HH:mm" local time-of-day, 24-hour. */
 export const timeOfDaySchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Expected HH:mm')
@@ -71,6 +81,11 @@ export const timeOfDaySchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Ex
  *             never again. `timesOfDay` is empty and `startDate` is only a record
  *             of when it was last saved this way — not a window, and nothing
  *             reads it.
+ * - never:    a note. Never fires — not now, not ever. `none` and `never` are the
+ *             two kinds with no wall-clock time, and the difference between them
+ *             is the whole point: `none` is "remind me about this, now", `never`
+ *             is "keep this, don't remind me". A note has no occurrences at all,
+ *             so nothing about it can nag, escalate or need confirming.
  * - once:     fires on `startDate` at each `timesOfDay`, never repeats.
  * - daily:    every day (optionally `skipWeekends`).
  * - weekly:   on the weekdays in `daysOfWeek`.
@@ -78,9 +93,10 @@ export const timeOfDaySchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Ex
  * - interval: every `everyNDays` days from `startDate` (optionally `skipWeekends`).
  * - custom:   same as weekly (explicit `daysOfWeek`) — distinct label for UI intent.
  *
- * `none` is a real stored state, not a UI mode: an unscheduled reminder must
- * round-trip through the editor as unscheduled rather than reappearing as a
- * one-shot at whatever instant it happened to be created.
+ * `none` and `never` are real stored states, not UI modes: an unscheduled
+ * reminder must round-trip through the editor as unscheduled rather than
+ * reappearing as a one-shot at whatever instant it happened to be created, and a
+ * note must round-trip as a note rather than starting to fire.
  */
 export const scheduleSchema = z
   .object({
@@ -100,15 +116,18 @@ export const scheduleSchema = z
     skipWeekends: z.boolean().optional()
   })
   .superRefine((value, ctx) => {
-    // Every kind but `none` fires at a wall-clock time, so it needs at least one.
-    if (value.kind !== 'none' && value.timesOfDay.length === 0) {
+    // Every kind but the timeless two fires at a wall-clock time, so it needs one.
+    if (!isTimeless(value.kind) && value.timesOfDay.length === 0) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['timesOfDay'], message: 'Pick at least one time of day.' })
     }
-    if (value.kind === 'none' && value.timesOfDay.length > 0) {
+    if (isTimeless(value.kind) && value.timesOfDay.length > 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['timesOfDay'],
-        message: 'An unscheduled reminder has no time of day.'
+        message:
+          value.kind === 'never'
+            ? 'A note never fires, so it has no time of day.'
+            : 'An unscheduled reminder has no time of day.'
       })
     }
     if ((value.kind === 'weekly' || value.kind === 'custom') && (!value.daysOfWeek || value.daysOfWeek.length === 0)) {
@@ -335,15 +354,23 @@ export const reminderInputSchema = z
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['typeData'], message: 'Checklist items need distinct ids.' })
       }
     }
+    const escalates =
+      value.escalateAfterMinutes != null || value.escalateAtTime != null || value.escalateEmailAfterMinutes != null
     // An ALARM already rings continuously until done, so escalation is redundant.
-    if (
-      value.persistence === 'ALARM' &&
-      (value.escalateAfterMinutes != null || value.escalateAtTime != null || value.escalateEmailAfterMinutes != null)
-    ) {
+    if (value.persistence === 'ALARM' && escalates) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['persistence'],
         message: 'Alarm reminders already ring continuously — escalation does not apply.'
+      })
+    }
+    // Escalation chases an *ignored firing*. A note has none, ever, so storing one
+    // would be a promise nothing can keep — including an email to a third party.
+    if (value.schedule.kind === 'never' && escalates) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['schedule'],
+        message: 'A note never fires — escalation does not apply.'
       })
     }
   })

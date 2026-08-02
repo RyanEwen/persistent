@@ -101,6 +101,32 @@ RUN set -eux; \
       "build-tools;${ANDROID_BUILD_TOOLS}" > /dev/null; \
     chown -R node:node "${ANDROID_HOME}"
 
+# .NET SDK, for the Windows desktop app's C# compile-check.
+#
+# WinUI 3 cannot be BUILT here - the Windows App SDK's XamlCompiler.exe and
+# MakePri.exe are Windows-only binaries, so `dotnet build` on the real csproj dies
+# before it reaches any C#, and CI on windows-2025 remains the only complete check.
+# What this buys is `apps/desktop/verify-csharp.sh`: the non-XAML sources compile
+# here against the real Windows App SDK reference assemblies, which catches a
+# misremembered WinRT API without a CI round-trip. Restore needs
+# EnableWindowsTargeting=true, which the script passes.
+ARG DOTNET_CHANNEL=10.0
+ENV DOTNET_ROOT=/opt/dotnet
+ENV PATH="${PATH}:/opt/dotnet"
+ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
+ENV DOTNET_NOLOGO=1
+RUN set -eux; \
+    curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh; \
+    chmod +x /tmp/dotnet-install.sh; \
+    /tmp/dotnet-install.sh --channel "${DOTNET_CHANNEL}" --install-dir "${DOTNET_ROOT}"; \
+    rm /tmp/dotnet-install.sh; \
+    chown -R node:node "${DOTNET_ROOT}"
+
+# Same reason as the Android drop-in above: a login shell re-sources /etc/profile
+# and resets PATH, so without this `dotnet` is missing from the terminal.
+RUN printf 'export PATH="$PATH:%s"\nexport DOTNET_ROOT="%s"\n' /opt/dotnet /opt/dotnet \
+      > /etc/profile.d/dotnet.sh
+
 # Pre-create /home/node/.vscode-server owned by node. This MUST live in the
 # image, not in fix-volume-perms.sh (postCreateCommand): the persist overlay
 # mounts a named volume at the SUB-path .vscode-server/extensions, so Docker

@@ -6,6 +6,13 @@
  * checklist keeps its ticks against the right items. Removing a row drops its id,
  * and any tick against it falls away with it (`todoProgress` filters).
  *
+ * When the reminder has a firing in front of the user, each row also shows whether
+ * that firing has ticked it. It is an **indicator, not a checkbox**: ticks belong
+ * to the occurrence and not to the list being edited
+ * (docs/notification-behavior.md §1a), so this screen can report them but must not
+ * be a second place to set them — a control here would be editing a different
+ * object from everything else on the form.
+ *
  * Typing a list should never require the mouse: Enter inserts a row *below the
  * current one* (not just at the end) and moves focus into it, so a list can be
  * typed straight through. Rows are reordered by dragging the handle (see
@@ -24,17 +31,35 @@ import IconButton from '@mui/joy/IconButton'
 import AddIcon from '@mui/icons-material/Add'
 import CloseIcon from '@mui/icons-material/Close'
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator'
+import CheckCircleIcon from '@mui/icons-material/CheckCircle'
+import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked'
 import { emptyTodo, type TodoRow } from './formState.js'
 import { REORDER_ROW_ATTR, useDragReorder } from './useDragReorder.js'
 
+/**
+ * What one live firing has ticked, for display only. Absent when the reminder has
+ * no firing waiting — a new reminder, or one that is merely scheduled, has no
+ * ticks to show, because there is no occurrence for them to belong to.
+ */
+export interface TodoCheckState {
+  itemIds: readonly string[]
+  /** When that firing arrived, so the ticks can say which one they came from. */
+  when: string
+  /** True when more than one firing is unconfirmed — see `checkedNote` below. */
+  ambiguous: boolean
+}
+
 export function TodoItemsField({
   todos,
+  checked,
   onChange,
   onInsert,
   onMove,
   onRemove
 }: {
   todos: TodoRow[]
+  /** Ticks from the firing the user is most likely acting on, if there is one. */
+  checked?: TodoCheckState
   onChange: (index: number, text: string) => void
   /** Insert `row` at `index`, shifting the rest down. */
   onInsert: (index: number, row: TodoRow) => void
@@ -64,6 +89,7 @@ export function TodoItemsField({
   }
 
   const multiple = todos.length > 1
+  const checkedIds = checked ? new Set(checked.itemIds) : null
 
   return (
     <FormControl>
@@ -102,6 +128,24 @@ export function TodoItemsField({
                 }}
               >
                 <DragIndicatorIcon fontSize="small" />
+              </Box>
+            )}
+            {checkedIds && (
+              // An icon, not a checkbox: this reports the state of a firing, and a
+              // control here would look like a second way to tick items off — one
+              // that edits a different object from the rest of the form. Both states
+              // render so the rows stay aligned and "not ticked" is explicit rather
+              // than an empty gap.
+              <Box
+                role="img"
+                aria-label={checkedIds.has(item.id) ? 'Ticked off on this notification' : 'Not ticked off yet'}
+                sx={{ display: 'flex', alignItems: 'center', flexShrink: 0, pl: multiple ? 0 : 0.5 }}
+              >
+                {checkedIds.has(item.id) ? (
+                  <CheckCircleIcon fontSize="small" color="success" />
+                ) : (
+                  <RadioButtonUncheckedIcon fontSize="small" sx={{ color: 'text.tertiary', opacity: 0.4 }} />
+                )}
               </Box>
             )}
             <Input
@@ -148,9 +192,19 @@ export function TodoItemsField({
           Add item
         </Button>
       </Stack>
-      <FormHelperText>
+      <FormHelperText sx={{ display: 'block' }}>
         Tick these off as you go. The reminder keeps nagging until you tap Done — ticking everything doesn't confirm
         it for you.
+        {checked && (
+          // Named rather than merged: several firings can be unconfirmed at once
+          // and each has its own ticks, so saying which one these came from is the
+          // difference between a fact and a guess.
+          <>
+            {' '}
+            Ticks shown are from {checked.ambiguous ? 'the most recent notification' : 'the notification'} sent{' '}
+            {checked.when} — they belong to that one, so editing the list here won't change them.
+          </>
+        )}
       </FormHelperText>
     </FormControl>
   )

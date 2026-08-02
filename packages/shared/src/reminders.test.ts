@@ -130,3 +130,39 @@ test('a body with a checklist keeps one item per line', () => {
   })
   assert.equal(body, '• Milk\n• Bread\nFrom the corner shop')
 })
+
+// --- Notes (schedule kind `never`) -------------------------------------------
+
+test('a note parses with no times of day', () => {
+  const parsed = reminderInputSchema.parse({ ...base, schedule: { kind: 'never', timesOfDay: [] } })
+  assert.equal(parsed.schedule.kind, 'never')
+  assert.deepEqual(parsed.schedule.timesOfDay, [])
+})
+
+test('a note rejects a time of day', () => {
+  // `never` means no firing at all; a time would claim one.
+  const result = reminderInputSchema.safeParse({ ...base, schedule: { kind: 'never', timesOfDay: ['08:00'] } })
+  assert.equal(result.success, false)
+})
+
+test('a note rejects escalation — there is no firing for anyone to ignore', () => {
+  const note = { kind: 'never' as const, timesOfDay: [] }
+  for (const escalation of [
+    { escalateAfterMinutes: 15 },
+    { escalateAtTime: '09:00' },
+    { escalateEmail: 'someone@example.com', escalateEmailAfterMinutes: 60 }
+  ]) {
+    const result = reminderInputSchema.safeParse({ ...base, schedule: note, ...escalation })
+    assert.equal(result.success, false, `${JSON.stringify(escalation)} should be rejected on a note`)
+  }
+})
+
+test('a note still accepts the reminder fields it does use', () => {
+  const parsed = reminderInputSchema.parse({
+    ...base,
+    title: 'Wifi password',
+    details: 'hunter2',
+    schedule: { kind: 'never', timesOfDay: [] }
+  })
+  assert.equal(parsed.details, 'hunter2')
+})

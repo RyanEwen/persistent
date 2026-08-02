@@ -121,7 +121,7 @@ export function AttentionReminderCard({
           line or two, not the narrow column left over beside the buttons. */}
       {orphaned && (
         <Typography level="body-xs" sx={{ mt: 0.5, color: 'text.tertiary' }}>
-          Fired before this reminder was rescheduled. Clearing it won't affect the new schedule.
+          Notified you before this reminder was rescheduled. Clearing it won't affect the new schedule.
         </Typography>
       )}
     </Card>

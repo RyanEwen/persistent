@@ -1,6 +1,6 @@
 /**
  * The interactive checklist on one firing of a TODO reminder: a checkbox per item
- * plus an "n of m done" progress line.
+ * plus an "n of m done" progress line, and a control to hide the ticked ones.
  *
  * The ticked set belongs to the *occurrence*, not the reminder, so a repeating
  * checklist starts each firing blank. Ticking every item deliberately does NOT
@@ -8,8 +8,10 @@
  * so a fully-ticked list says so and points at Done rather than quietly
  * acknowledging on the user's behalf.
  */
+import { useState } from 'react'
 import Stack from '@mui/joy/Stack'
 import Box from '@mui/joy/Box'
+import Button from '@mui/joy/Button'
 import Checkbox from '@mui/joy/Checkbox'
 import Typography from '@mui/joy/Typography'
 import LinearProgress from '@mui/joy/LinearProgress'
@@ -35,15 +37,23 @@ export function TodoChecklist({
   onToggle: (itemId: string, checked: boolean) => void
   disabled?: boolean
 }) {
+  // Per firing and not persisted: hiding is a working aid for getting through a
+  // long list, and defaulting a *fresh* card to a partial view would hide what the
+  // reminder covers from someone who has just been notified.
+  const [hideChecked, setHideChecked] = useState(false)
+
   if (items.length === 0) return null
   const checked = new Set(checkedItemIds)
   const { done, total } = todoProgress(items, checkedItemIds)
   const allDone = done === total
+  // Ticking is the only way to hide an item, and unticking is the only way back —
+  // so the control stays visible while anything is hidden, however few are left.
+  const visible = hideChecked ? items.filter((item) => !checked.has(item.id)) : items
 
   return (
     <Box>
-      <Stack spacing={0.25} sx={{ mb: 1 }}>
-        {items.map((item) => {
+      <Stack spacing={0.25} sx={{ mb: visible.length > 0 ? 1 : 0 }}>
+        {visible.map((item) => {
           const isChecked = checked.has(item.id)
           return (
             <Checkbox
@@ -87,9 +97,34 @@ export function TodoChecklist({
         color={allDone ? 'success' : 'warning'}
         sx={{ '--LinearProgress-thickness': '4px' }}
       />
-      <Typography level="body-xs" sx={{ mt: 0.5 }} color={allDone ? 'success' : undefined}>
-        {allDone ? `All ${total} checked — tap Done to confirm` : `${done} of ${total} done`}
-      </Typography>
+      <Stack
+        direction="row"
+        alignItems="center"
+        justifyContent="space-between"
+        spacing={1}
+        sx={{ mt: 0.5, minHeight: 32 }}
+      >
+        <Typography level="body-xs" color={allDone ? 'success' : undefined} sx={{ minWidth: 0 }}>
+          {allDone ? `All ${total} checked — tap Done to confirm` : `${done} of ${total} done`}
+        </Typography>
+        {/* Only once something is ticked: before that it would toggle nothing.
+            Right-anchored, opposite the count, so it reads as a control on that
+            line rather than another item at the end of the list. */}
+        {done > 0 && (
+          <Button
+            variant="plain"
+            color="neutral"
+            size="sm"
+            disabled={disabled}
+            onClick={() => setHideChecked((hidden) => !hidden)}
+            // A text button rather than a link: this sits under a thumb on a phone,
+            // sometimes against a ringing alarm, so it keeps a real tap target.
+            sx={{ flexShrink: 0, minHeight: 32, px: 1, fontSize: 'xs', fontWeight: 'md' }}
+          >
+            {hideChecked ? 'Show checked' : 'Hide checked'}
+          </Button>
+        )}
+      </Stack>
     </Box>
   )
 }

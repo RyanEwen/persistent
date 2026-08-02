@@ -22,9 +22,14 @@ namespace Persistent.Desktop.Windows;
 /// user gets sign-in (including passkeys via Windows Hello, which the Android
 /// WebView cannot do), Done/Snooze/De-escalate and the editor with no native
 /// reimplementation — and no way for this surface to drift from
-/// docs/notification-behavior.md. What it deliberately does NOT provide is the
-/// persistence guarantee: no toasts, no alarm audio. See
-/// docs/desktop-architecture.md.
+/// docs/notification-behavior.md.
+///
+/// It still does NOT provide the persistence guarantee: no alarm audio, no
+/// on-device scheduling, nothing while the machine sleeps. Optional Windows toasts
+/// (<see cref="Notifications.NotificationService"/>, off by default) are raised by
+/// the host from its own `/ws` connection, not by this page — the WebView is
+/// suspended while the flyout is hidden, so nothing in here can be relied on to
+/// deliver anything. See docs/desktop-architecture.md.
 /// </summary>
 public sealed partial class AppFlyout : Window
 {
@@ -143,6 +148,74 @@ public sealed partial class AppFlyout : Window
         var instance = _instance;
         _instance = null;
         instance?.Close();
+    }
+
+    /// <summary>
+    /// The session cookie for the app origin, formatted as a `Cookie:` header, or
+    /// null when the WebView isn't up or the user is signed out.
+    ///
+    /// <para>This is how the optional toast feature authenticates without holding a
+    /// credential of its own: the session lives in the WebView2 profile — the
+    /// browser's own store — and is borrowed per call, so a refreshed session is
+    /// picked up automatically and a sign-out simply makes this return null. Never
+    /// cache the result; that would outlive the session it came from.</para>
+    ///
+    /// <para>CookieManager is apartment-bound, so this hops to the flyout's UI
+    /// thread and back regardless of which thread asks.</para>
+    /// </summary>
+    public static Task<string?> GetSessionCookieAsync()
+    {
+        var instance = _instance;
+        if (instance is not { _webViewReady: true }) return Task.FromResult<string?>(null);
+
+        var completion = new TaskCompletionSource<string?>();
+        bool queued = instance.DispatcherQueue.TryEnqueue(async () =>
+        {
+            try
+            {
+                var cookies = await instance.WebView.CoreWebView2.CookieManager
+                    .GetCookiesAsync(SettingsManager.Current.EffectiveServerUrl);
+                var header = string.Join("; ", cookies.Select(c => $"{c.Name}={c.Value}"));
+                completion.TrySetResult(header.Length == 0 ? null : header);
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn(ex, "Could not read the session cookie from the WebView2 profile");
+                completion.TrySetResult(null);
+            }
+        });
+        if (!queued) completion.TrySetResult(null);
+        return completion.Task;
+    }
+
+    /// <summary>
+    /// Open the flyout on one reminder's detail view — where a toast body click
+    /// lands.
+    ///
+    /// <para>Sent as a page message rather than a navigation: the host does not own
+    /// the app's routes, and re-navigating the WebView would throw away the page
+    /// state and the user's place in it. The page decides what the path means
+    /// (`apps/web/src/native/desktopBridge.ts`), the same way it already owns Back.</para>
+    /// </summary>
+    public static void NavigateToReminder(string reminderId)
+    {
+        var instance = _instance;
+        if (instance is not { _webViewReady: true }) return;
+        // Ids are server-minted cuids, but this string ends up inside JSON that the
+        // page will act on, so it is escaped rather than trusted.
+        string path = "/reminders/" + Uri.EscapeDataString(reminderId);
+        instance.DispatcherQueue.TryEnqueue(() =>
+        {
+            try
+            {
+                instance.WebView.CoreWebView2.PostWebMessageAsJson(
+                    JsonSerializer.Serialize(new { type = "navigate", path }));
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn(ex, "Could not ask the page to open reminder {0}", reminderId);
+            }
+        });
     }
 
     private AppFlyout()

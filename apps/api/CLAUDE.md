@@ -33,12 +33,15 @@
 - **Scheduler:** `lib/scheduler.ts` owns materialization, the tick loop, and the
   snooze/escalation/miss sweeps. On reminder create/update, materialize the
   changed reminder immediately (don't wait for the 5-min cycle); on update, drop
-  `PENDING` occurrences first so the new schedule re-materializes cleanly. An
-  **unscheduled** reminder (kind `none`) is the exception: materialization
-  deliberately expands nothing for it, and its single firing comes from
-  `ensureUnscheduledFiring`, called only on the two edits that ask for one (see
-  `lib/schedule-transition.ts`). Never move that back into a materialization
-  pass — a loop that re-creates a firing resurrects nags the user has confirmed.
+  `PENDING` occurrences first so the new schedule re-materializes cleanly. The two
+  **timeless** kinds are the exception (`isTimeless`): materialization deliberately
+  expands nothing for an **unscheduled** reminder (kind `none`) — its single firing
+  comes from `ensureUnscheduledFiring`, called only on the edits that ask for one
+  (see `lib/schedule-transition.ts`) — and nothing at all for a **note** (kind
+  `never`), which has no occurrences by definition. Never move either back into a
+  materialization pass — a loop that re-creates a firing resurrects nags the user
+  has confirmed. Turning a reminder into a note **retires** its live firings, one
+  of only two edits allowed to clear an unconfirmed firing.
   Each
   occurrence is independent: a fresh fire (or revived snooze) never supersedes the
   reminder's other still-unconfirmed firings, so a reminder with several times of

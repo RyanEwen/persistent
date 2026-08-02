@@ -134,13 +134,18 @@ export function useNativeBack(): void {
     }
   }, [])
 
-  // Windows: the flyout's title-bar back button, which posts a `back` message
-  // rather than navigating itself. Exhausting the hierarchy closes the flyout —
-  // the same "leave" that exitApp is on Android.
+  // Windows host messages. `back` is the flyout's title-bar button, which posts a
+  // message rather than navigating itself; exhausting the hierarchy closes the
+  // flyout — the same "leave" that exitApp is on Android. `navigate` is a click on
+  // a Windows toast, which lands on that reminder's detail view exactly as a
+  // notification tap does on every other surface (notification-behavior.md).
   useEffect(() => {
     return onHostMessage((message) => {
-      if (message.type !== 'back') return
       const { pathname: here, navigate: go } = current.current
+      if (message.type === 'navigate') {
+        if (message.path !== here) go(message.path)
+        return
+      }
       if (performBack(here, go) === 'exhausted') requestClose()
     })
   }, [])

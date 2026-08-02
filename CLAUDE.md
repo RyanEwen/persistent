@@ -26,9 +26,12 @@ Architecture and conventions are borrowed, thinned, from the sibling
   custom native alarm plugin. The web/PWA is best-effort; the native app is the
   real persistence guarantee. See `docs/alarm-architecture.md`.
 - **`apps/desktop`** — WinUI 3 (C#) Windows tray app that shows the **hosted PWA**
-  in a WebView2 flyout. Deliberately a viewing/acting surface, not a nag surface:
-  no toasts, no alarm audio, no badge, nothing while closed. Hosting the real
-  bundle is what stops it drifting from the done/silence/snooze contract. See
+  in a WebView2 flyout. A viewing/acting surface, and deliberately not the
+  persistence guarantee: no alarm audio, no badge, nothing while the app is closed
+  or the machine asleep. Hosting the real bundle is what stops it drifting from the
+  done/silence/snooze contract. **Optional** Windows toasts (off by default) are the
+  one signal it offers, raised by the host from its own `/ws` connection — the page
+  is suspended while the flyout is hidden, so it can't deliver anything. See
   `docs/desktop-architecture.md`.
 - **`packages/shared`** — Zod schemas + inferred types used by API and web. Do
   not duplicate request/response shapes elsewhere.
@@ -67,6 +70,25 @@ guaranteed user-facing behavior of done / silence / snooze / independent
 occurrences is specified in `docs/notification-behavior.md`. See also
 `packages/shared/src/reminders.ts`.
 
+The Schedule tab's **When** setting is the three answers to "when does this
+fire?", and each is a real stored schedule kind: `none` ("Remind me now" — the
+default for a new reminder), a real schedule ("Schedule it"), and `never`
+("Never — just a note").
+
+**A reminder that never fires is a real stored state too**, schedule kind
+`never` — a **note**. It has no occurrences at all, so nothing about it can nag,
+escalate or need confirming; the shared schema rejects escalation on one outright,
+and the editor's Notifications and Escalation tabs explain themselves instead of
+offering settings. Notes are still reminders in every other way (type, checklist,
+medications, details), so a `TODO` note is a kept list rather than a routine. They
+are listed under their own heading on **Current**, below the attention cards — the
+screen the app opens on, so where reference material is to hand — and never on
+Upcoming, since nothing about a note is upcoming. **Turning a reminder into a note retires whatever
+it left nagging**: the user has said this thing does not remind, and unlike an
+ordinary reschedule there is no later firing to carry the obligation forward to.
+`none` and `never` are the two kinds carrying no time of day (`isTimeless`), and
+materialization expands neither.
+
 **A reminder with no date/time is a real stored state**, schedule kind `none` —
 the editor's "Remind me now" (the default for a new reminder, versus "Schedule
 it"). It gets exactly one firing, ever. That firing is minted by
@@ -78,12 +100,14 @@ after the user confirmed it. `startDate` on such a reminder is only a record of
 when it was last saved as unscheduled — it is not a window, and nothing reads it
 (see `isOutsideReminderWindow`).
 
-Both directions across the scheduled/unscheduled boundary are special, and
-`scheduleTransition` names them (`PUT /api/reminders/:id`):
+Moving between a real schedule, no schedule and a note is special, and
+`scheduleTransition` names each move (`PUT /api/reminders/:id`):
 
 - **Gaining a real schedule retires the immediate firing.** It was an artifact of
-  having no schedule, not a commitment to a date. This is the one exception to
-  "only Done clears a firing".
+  having no schedule, not a commitment to a date. This is one of the two
+  exceptions to "only Done clears a firing".
+- **Becoming a note retires every live firing.** The other exception, and for a
+  different reason: those firings were real, but the reminder no longer reminds.
 - **Losing its schedule mints the immediate firing — unless one is already
   nagging.** Whatever the old schedule left unconfirmed still stands, so adding a
   second would show the same reminder twice with nothing on either card to tell
@@ -155,12 +179,15 @@ directory guide `apps/api/CLAUDE.md`.
   plugin is Kotlin but `MainActivity.java` is Java, and the Kotlin task alone
   compiles right past a broken `MainActivity`. Run `npm run prepare:android` once
   first if the generated `apps/mobile/android` project doesn't exist yet.
-- **Windows (C#/WinUI 3) changes** aren't covered by `npm run validate` either,
-  and unlike Android they can't be compiled in the devcontainer at all — there is
-  no .NET or Windows SDK here. The only automatic check is
-  `.github/workflows/build-desktop-msix.yml`, which compiles both platforms on
-  `windows-2025` for every push/PR touching `apps/desktop`; treat a red run there
-  as a failed validate. Local builds are Windows-side:
+- **Windows (C#/WinUI 3) changes** aren't covered by `npm run validate`. The app
+  cannot be *built* here — the Windows App SDK's XAML compiler and `MakePri.exe`
+  are Windows-only binaries — so `.github/workflows/build-desktop-msix.yml`
+  (`windows-2025`, every push/PR touching `apps/desktop`) is the only complete
+  check; treat a red run there as a failed validate. The devcontainer does ship
+  the .NET SDK, though, so `npm run verify:desktop` compiles the app's **non-XAML**
+  C# against the real Windows App SDK reference assemblies. That catches a
+  misremembered WinRT API without a CI round-trip; it checks no XAML, no
+  code-behind and no packaging. Local builds are Windows-side:
   `dotnet build Persistent.Desktop/Persistent.Desktop.csproj -c Debug`, packaged
   with `Persistent.DesktopMSIX/build-msix.ps1`. Desktop releases are tagged
   `desktop-vX.Y.Z` so they don't collide with the Android `vX.Y.Z` tags.

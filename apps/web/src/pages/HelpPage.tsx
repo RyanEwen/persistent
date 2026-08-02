@@ -29,8 +29,8 @@ export function HelpPage() {
 
       <Section title="What Persistent does">
         <Typography level="body-sm">
-          Persistent is a reminder that doesn&apos;t give up. When a reminder is due it <b>fires</b>. If you don&apos;t
-          confirm it, it keeps <b>nagging</b> — the notification comes back (and can re-sound, or ring as a full
+          Persistent is a reminder that doesn&apos;t give up. When a reminder is due it <b>sends you a notification</b>. If
+          you don&apos;t confirm it, it keeps <b>nagging</b> — the notification comes back (and can re-sound, or ring as a full
           alarm) — until you <b>explicitly mark it done</b>. Swiping it away isn&apos;t enough; that&apos;s the whole
           point.
         </Typography>
@@ -45,10 +45,21 @@ export function HelpPage() {
         </Typography>
       </Section>
 
+      <Section title="Notes — things that don't remind you">
+        <Typography level="body-sm">
+          On the <b>Schedule</b> tab, <b>Never — just a note</b> keeps something in the app without ever reminding you
+          about it: a door code, a packing list, what the vet said. A note never notifies you, never nags and never needs
+          confirming — it just sits under <b>Notes</b> at the bottom of the <b>Current</b> screen, where you can read
+          it whenever you need it. Everything else still works: a note can be a checklist or list medications, and you can
+          give it a real schedule later if it turns out you do want reminding. Doing that the other way round — turning
+          a reminder into a note — clears anything it had left waiting for you.
+        </Typography>
+      </Section>
+
       <Section title="Checklists">
         <Typography level="body-sm">
           A <b>Checklist</b> reminder covers several things at once — a morning routine, a packing list, everything to
-          lock up at night. Add the items when you create it, then tick them off as you go. Each firing has its own
+          lock up at night. Add the items when you create it, then tick them off as you go. Each notification has its own
           ticks, so a repeating checklist starts fresh every time. Ticking everything does <b>not</b> confirm the
           reminder: it keeps nagging until you tap <b>Done</b>, exactly like any other reminder.
         </Typography>
@@ -56,7 +67,7 @@ export function HelpPage() {
 
       <Section title="Monthly reminders">
         <Typography level="body-sm">
-          Pick <b>Monthly</b> and choose the days it should fire on — the 1st, the 1st and the 15th, whatever you
+          Pick <b>Monthly</b> and choose the days it should notify you on — the 1st, the 1st and the 15th, whatever you
           need. A month that doesn&apos;t have the day you picked is skipped rather than moved, so a reminder set for
           the 31st stays silent in February. For the end of every month regardless of length, tick <b>Last day of the
           month</b> instead.
@@ -99,7 +110,7 @@ export function HelpPage() {
             </Chip>
             <Typography level="body-sm">
               Appears on an escalated alarm. It <b>stops the alarm but keeps the reminder nagging</b> as the
-              ordinary notification it was before escalating — it won&apos;t ring again for this firing, but it still
+              ordinary notification it was before escalating — it won&apos;t ring again for this notification, but it still
               isn&apos;t done. &ldquo;Stop yelling, but keep reminding me.&rdquo;
             </Typography>
           </Stack>
@@ -117,7 +128,7 @@ export function HelpPage() {
 
       <Section title="Reminders with several times repeat independently">
         <Typography level="body-sm">
-          Each time a reminder fires is its own item. If you take a medication at 9:00 and 1:00 and you haven&apos;t
+          Each notification a reminder sends is its own item. If you take a medication at 9:00 and 1:00 and you haven&apos;t
           confirmed the 9:00 dose when 1:00 comes around, you&apos;ll see <b>both</b> — each with its own Done — and
           you confirm them <b>separately</b>. Marking the 1:00 dose done never silently clears the 9:00 one, so a
           missed dose is never lost.
@@ -126,7 +137,7 @@ export function HelpPage() {
 
       <Section title="History">
         <Typography level="body-sm">
-          The <b>History</b> tab lists past firings — what you confirmed and when — so you can check whether
+          The <b>History</b> tab lists past notifications — what you confirmed and when — so you can check whether
           something was actually done.
         </Typography>
       </Section>
@@ -146,7 +157,7 @@ export function HelpPage() {
           <Typography level="body-sm">
             On the web, notifications are <b>best-effort</b> — the browser can&apos;t guarantee an undismissable
             alarm or repeating sound while the tab is closed. For the real persistence guarantee (hard alarms that
-            fire even offline), install the <b>Android app</b>. Enable browser notifications in{' '}
+            reach you even offline), install the <b>Android app</b>. Enable browser notifications in{' '}
             <Link component={RouterLink} to="/settings">
               Settings
             </Link>

@@ -17,6 +17,7 @@
  */
 import type { OccurrenceStatus, Reminder } from '@prisma/client'
 import type { PushPayload, Schedule } from '@persistent/shared'
+import { isTimeless } from '@persistent/shared'
 import { prisma } from './prisma.js'
 import { logger } from './logger.js'
 import { expandSchedule } from './schedule-expand.js'
@@ -103,11 +104,12 @@ export async function ensureUnscheduledFiring(reminder: Reminder, at: Date): Pro
 export async function materializeReminder(reminder: Reminder, timeZone: string, now = new Date()): Promise<void> {
   if (!reminder.active) return
   const schedule = reminder.schedule as unknown as Schedule
-  // An unscheduled reminder has nothing to expand — its one firing is minted by
+  // Neither timeless kind has anything to expand. A note (`never`) has no firing
+  // at all, and an unscheduled reminder's (`none`) one firing is minted by
   // `ensureUnscheduledFiring` at the moment the user asks for it. Materialization
-  // deliberately does nothing here: it runs every 5 minutes, so anything it
+  // deliberately does nothing for either: it runs every 5 minutes, so anything it
   // created would come back after the user confirmed it.
-  if (schedule.kind === 'none') return
+  if (isTimeless(schedule.kind)) return
   // A one-shot has a single firing instant. If it has already slipped into the
   // past — the user defaulted it to "now" but submitted a moment later, lingered
   // on the form, or picked an earlier time — still materialize it (within a recent

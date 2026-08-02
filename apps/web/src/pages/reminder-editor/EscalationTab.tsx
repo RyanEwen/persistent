@@ -2,7 +2,7 @@
  * Escalation tab: escalate an ignored reminder to an alarm on the user's own
  * devices, and/or email a nominated contact. Both are unavailable when the
  * reminder is already an ALARM — it rings continuously, so there is nothing to
- * escalate to.
+ * escalate to — and when it is a note, which has no firing to ignore.
  */
 import Stack from '@mui/joy/Stack'
 import Typography from '@mui/joy/Typography'
@@ -24,6 +24,15 @@ export function EscalationTab({
   form: FormState
   set: <K extends keyof FormState>(key: K, value: FormState[K]) => void
 }) {
+  if (form.when === 'never') {
+    return (
+      <Alert color="neutral" variant="soft">
+        This is a note — it never notifies you, so there is nothing to ignore and nothing to escalate. Give it a time
+        on the Schedule tab to use escalation.
+      </Alert>
+    )
+  }
+
   if (form.persistence === 'ALARM') {
     return (
       <Alert color="neutral" variant="soft">

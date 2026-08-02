@@ -28,8 +28,15 @@ declare global {
   }
 }
 
-/** Messages the host sends us. Anything unrecognised is ignored. */
-type HostMessage = { type: 'back' }
+/**
+ * Messages the host sends us. Anything unrecognised is ignored.
+ *
+ * `navigate` carries an in-app path, not a URL: it comes from clicking a Windows
+ * toast, and the host deliberately does not navigate the WebView itself. Doing so
+ * would reload the app and throw away where the user was — the same reason `back`
+ * is a message rather than `CoreWebView2.GoBack()`.
+ */
+type HostMessage = { type: 'back' } | { type: 'navigate'; path: string }
 
 /** True when running inside the Windows tray app's WebView2. */
 export function isDesktopHost(): boolean {
@@ -37,12 +44,22 @@ export function isDesktopHost(): boolean {
 }
 
 /**
- * Whether this host can show OS notifications that survive the app being closed.
+ * Whether *this page* can subscribe to Web Push on this host.
  *
- * The desktop host shows none at all: it is a viewing and acting surface, not a
- * nag surface (see `docs/desktop-architecture.md`). WebView2 may still *report*
- * the Push API as present, so a capability check alone would offer the user a
- * notification toggle that silently does nothing.
+ * False in the desktop host, for two independent reasons — either alone is fatal:
+ *
+ * - WebView2 refuses `Notification.requestPermission()` unless the native host
+ *   handles `PermissionRequested`, so the subscription can never be granted. The
+ *   Push API may still *report* as present, which is why a capability check alone
+ *   (`pushSupported()`) is not enough and this exists.
+ * - The WebView is suspended whenever the flyout is hidden, freezing the page and
+ *   its service worker. Even a granted subscription could only ever deliver while
+ *   the flyout was already open, which is precisely when a notification is
+ *   pointless.
+ *
+ * The tray app's Windows notifications are the answer on that host, and they are
+ * raised by the host process from its own connection, not from here — turned on in
+ * the tray app's own settings (`docs/desktop-architecture.md`).
  */
 export function hostSupportsPush(): boolean {
   return !isDesktopHost()
@@ -52,10 +69,15 @@ export function hostSupportsPush(): boolean {
  * Subscribe to messages from the host. Returns an unsubscribe function; a no-op
  * on every other host.
  *
- * Currently one message: `back`, from the flyout's title-bar back button. The
- * host deliberately does not try to navigate the page itself — the hierarchy that
- * Back walks is a web concern (`useNativeBack.ts`), and the Android client
- * already implements it. The button just says "the user pressed back".
+ * Two messages: `back`, from the flyout's title-bar back button, and `navigate`,
+ * from a click on a Windows toast. In both cases the host says what happened and
+ * the page decides what it means — the hierarchy that Back walks is a web concern
+ * (`useNativeBack.ts`), and so is what a route does.
+ *
+ * `path` is validated here rather than trusted: it must be a root-relative,
+ * single-slash path. A host message is not a privileged caller either, and letting
+ * `//evil.example` or a full URL through would turn this into an open redirect
+ * driven by whatever was in a notification.
  */
 export function onHostMessage(handler: (message: HostMessage) => void): () => void {
   if (!isDesktopHost()) return () => {}
@@ -65,6 +87,10 @@ export function onHostMessage(handler: (message: HostMessage) => void): () => vo
     if (typeof data !== 'object' || data === null) return
     const type = (data as { type?: unknown }).type
     if (type === 'back') handler({ type: 'back' })
+    if (type === 'navigate') {
+      const path = (data as { path?: unknown }).path
+      if (typeof path === 'string' && /^\/[^/]/.test(path)) handler({ type: 'navigate', path })
+    }
   }
   bridge.addEventListener('message', listener)
   return () => bridge.removeEventListener('message', listener)

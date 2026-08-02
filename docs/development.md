@@ -61,11 +61,18 @@ npm run validate   # lint + test + typecheck + prisma validate
 compile-check it with `npm run verify:android` (from `apps/mobile`) — see
 `apps/mobile/README.md`.
 
-It doesn't cover `apps/desktop` (C#) either, and that one can't be built in the
-devcontainer at all — there is no .NET or Windows SDK here. Its only automatic
-check is `.github/workflows/build-desktop-msix.yml`, which compiles both platforms
-on `windows-2025` for every push/PR touching that directory; treat a red run there
-as a failed validate. See `docs/desktop-architecture.md`.
+It doesn't cover `apps/desktop` (C#) either, and the app can't be *built* here:
+the Windows App SDK's XAML compiler and `MakePri.exe` are Windows-only binaries,
+so the build dies before it reaches any C#. Its only complete check is
+`.github/workflows/build-desktop-msix.yml`, which compiles both platforms on
+`windows-2025` for every push/PR touching that directory; treat a red run there as
+a failed validate.
+
+The image does ship the .NET SDK, so `npm run verify:desktop` compiles the
+**non-XAML** C# against the real Windows App SDK reference assemblies. Run it
+before pushing desktop changes: it catches a misremembered WinRT API in seconds
+instead of a CI round-trip. It checks no XAML, no `.xaml.cs` and no packaging, so
+green there is necessary and never sufficient. See `docs/desktop-architecture.md`.
 
 Local auth works without mail infra: `DEMO_MODE=true` returns the sign-in code in
 the API response instead of emailing it. Config lives in `.env` (see

@@ -27,13 +27,13 @@ function input(overrides: Partial<SchedulePreviewInput>): SchedulePreviewInput {
 
 test('a just-passed one-shot (default time, saved a moment later) fires right away', () => {
   assert.equal(firesRightAway(input({}), NOW), true)
-  assert.equal(fireSummary(input({}), '24h', NOW), 'Fires right away')
+  assert.equal(fireSummary(input({}), '24h', NOW), 'Notifies you right away')
 })
 
 test('a future one-shot shows its upcoming time, not "right away"', () => {
   const future = input({ timesOfDay: ['13:00'] })
   assert.equal(firesRightAway(future, NOW), false)
-  assert.match(fireSummary(future, '24h', NOW) ?? '', /^Fires today/)
+  assert.match(fireSummary(future, '24h', NOW) ?? '', /^Notifies you today/)
 })
 
 test('a one-shot older than the 48h back-fill window has no upcoming fire', () => {
@@ -46,7 +46,7 @@ test('a repeating schedule is never "right away" for a passed time (server does 
   const daily = input({ kind: 'daily', timesOfDay: ['06:00'] })
   assert.equal(firesRightAway(daily, NOW), false)
   // It rolls to the next day rather than firing now.
-  assert.match(fireSummary(daily, '24h', NOW) ?? '', /^Fires tomorrow/)
+  assert.match(fireSummary(daily, '24h', NOW) ?? '', /^Notifies you tomorrow/)
 })
 
 test('no time set is genuinely no upcoming fire', () => {
@@ -60,12 +60,12 @@ test('no time set is genuinely no upcoming fire', () => {
 test("monthly on the 1st rolls to next month once this month's day has passed", () => {
   // NOW is Jul 1 12:00:30, so today's 09:00 firing is already behind us.
   const monthly = input({ kind: 'monthly', timesOfDay: ['09:00'], daysOfMonth: [1] })
-  assert.match(fireSummary(monthly, '24h', NOW) ?? '', /^Fires on Aug 1/)
+  assert.match(fireSummary(monthly, '24h', NOW) ?? '', /^Notifies you on Aug 1/)
 })
 
 test('monthly picks the soonest of several days of the month', () => {
   const monthly = input({ kind: 'monthly', timesOfDay: ['09:00'], daysOfMonth: [1, 15] })
-  assert.match(fireSummary(monthly, '24h', NOW) ?? '', /^Fires on Jul 15/)
+  assert.match(fireSummary(monthly, '24h', NOW) ?? '', /^Notifies you on Jul 15/)
 })
 
 test('a day the month lacks is skipped, matching the server (never clamped)', () => {
@@ -77,10 +77,10 @@ test('a day the month lacks is skipped, matching the server (never clamped)', ()
     startDate: '2026-09-01',
     endDate: ''
   })
-  assert.match(fireSummary(monthly, '24h', new Date(2026, 8, 1, 12, 0)) ?? '', /^Fires on Oct 31/)
+  assert.match(fireSummary(monthly, '24h', new Date(2026, 8, 1, 12, 0)) ?? '', /^Notifies you on Oct 31/)
 })
 
 test("lastDayOfMonth resolves to the month's real final day", () => {
   const monthly = input({ kind: 'monthly', timesOfDay: ['09:00'], lastDayOfMonth: true })
-  assert.match(fireSummary(monthly, '24h', NOW) ?? '', /^Fires on Jul 31/)
+  assert.match(fireSummary(monthly, '24h', NOW) ?? '', /^Notifies you on Jul 31/)
 })

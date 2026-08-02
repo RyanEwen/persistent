@@ -63,6 +63,13 @@ Event types (`packages/shared/src/ws-events.ts`):
 | `silence` | stop an escalation alarm but keep nagging | SW re-shows as a soft nag; native downgrades the alarm |
 | `ping` | heartbeat | ignored |
 
+The web client is not the only consumer. The Windows tray app opens its **own**
+`/ws` connection when its optional notifications are turned on, because the page
+it hosts is suspended while the flyout is hidden — see
+[`desktop-architecture.md`](desktop-architecture.md). It reads a deliberately tiny
+slice (an occurrence's id, reminder id, status, title and `details`) and ignores
+every other field and event type, so events stay free to grow.
+
 ## Cross-device dismiss
 
 When an occurrence is acknowledged or snoozed (from any device or the SW action),
@@ -72,13 +79,15 @@ devices only — there is no cross-user delivery. Each occurrence is independent
 a `dismiss` only ever clears the one occurrence that was acked/snoozed — a
 reminder's other still-unconfirmed firings keep nagging on their own.
 
-Two server-side paths emit `dismiss` without the user acting on the occurrence
+Three server-side paths emit `dismiss` without the user acting on the occurrence
 itself: deleting a reminder (its active occurrences are cleared from every device
-after the cascade), and giving a real schedule to a previously **unscheduled**
+after the cascade), giving a real schedule to a previously **unscheduled**
 reminder (schedule kind `none`), which retires the single firing it got for being
-unscheduled. Both broadcast over WS and push `dismiss` per occurrence, exactly as
-an ack does. See `docs/notification-behavior.md` §6 for why rescheduling is
-otherwise never allowed to clear an unconfirmed firing.
+unscheduled, and turning a reminder into a **note** (schedule kind `never`), which
+retires every live firing because the reminder no longer reminds. All three
+broadcast over WS and push `dismiss` per occurrence, exactly as an ack does. See
+`docs/notification-behavior.md` §6 for why rescheduling is otherwise never allowed
+to clear an unconfirmed firing, and §7 for what a note is.
 
 The reverse edit — taking a reminder's schedule away — emits nothing: its
 unconfirmed firings are real and stay put, and the unscheduled firing is minted

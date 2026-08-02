@@ -48,6 +48,9 @@ export function HistoryPage() {
     <PullToRefresh onRefresh={() => past.refetch()}>
     <Stack spacing={2}>
       <Typography level="title-lg">History</Typography>
+      <Typography level="body-sm" sx={{ mt: -1, color: 'text.tertiary' }}>
+        Notifications you have already dealt with, most recent first.
+      </Typography>
 
       {past.isLoading && <Typography level="body-sm">Loading…</Typography>}
       {past.data && occurrences.length === 0 && (

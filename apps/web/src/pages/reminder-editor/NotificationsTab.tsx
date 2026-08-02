@@ -1,12 +1,14 @@
 /**
  * Notifications tab: how hard the reminder nags (notification vs alarm), the
- * re-sound interval, and where it sits in the Android shade.
+ * re-sound interval, and where it sits in the Android shade. All of it describes a
+ * firing, so a note — which never has one — gets an explanation instead.
  */
 import Stack from '@mui/joy/Stack'
 import Typography from '@mui/joy/Typography'
 import FormControl from '@mui/joy/FormControl'
 import FormLabel from '@mui/joy/FormLabel'
 import Button from '@mui/joy/Button'
+import Alert from '@mui/joy/Alert'
 import { persistenceLevels, shadeProminenceLevels, type PersistenceLevel, type ShadeProminence } from '@persistent/shared'
 import { DurationField } from '../../components/DurationField.js'
 import type { FormState } from './formState.js'
@@ -29,6 +31,15 @@ export function NotificationsTab({
   form: FormState
   set: <K extends keyof FormState>(key: K, value: FormState[K]) => void
 }) {
+  if (form.when === 'never') {
+    return (
+      <Alert color="neutral" variant="soft">
+        This is a note — it never notifies you, so there is nothing here to set. Give it a time on the Schedule tab
+        to use these settings.
+      </Alert>
+    )
+  }
+
   return (
     <Stack spacing={2}>
       <FormControl>
