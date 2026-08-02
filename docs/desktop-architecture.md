@@ -218,6 +218,14 @@ else's machine. `%AppData%\Persistent\logs.*.txt` now names the culprit:
 `light dismiss`, `tray click while open`, `page requested close`, or a deliberate
 button. Keep it that way; add a reason with any new caller.
 
+**The host ignores a `close` that arrives within `SettleMs` of opening.** This is
+not paranoia: the stale-bundle case above wedged the app. The page asked to close
+on every open, so it was never up long enough to fetch the fixed bundle — the
+update mechanism (`checkForUpdate` on resume) was itself the trigger. A host that
+refuses an instant close breaks that loop no matter what the page is running, which
+matters because the page updates independently of the host and can always be older
+than it.
+
 Known closes the **pin does not guard**, because it only short-circuits light
 dismiss:
 

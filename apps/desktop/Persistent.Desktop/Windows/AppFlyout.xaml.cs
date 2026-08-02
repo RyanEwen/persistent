@@ -396,7 +396,28 @@ public sealed partial class AppFlyout : Window
 
             // Back ran out of hierarchy to walk — the flyout's equivalent of Back
             // leaving the app on Android.
-            if (type.GetString() == "close") DispatcherQueue.TryEnqueue(() => HideFlyout("page requested close"));
+            // A close arriving in the first moments of opening is not the user
+            // pressing Back to leave — it is the page reacting to the open itself.
+            // That happened for real: a bundle whose host-message handler fell
+            // through treated the host's `checkForUpdate` (posted on every resume)
+            // as a Back press, and Back from the root screen asks the host to close.
+            // The flyout then shut instantly on every open, which also stopped the
+            // page ever staying up long enough to fetch the fixed bundle — the app
+            // wedged itself. The host refusing an instant close breaks that loop,
+            // whatever the page happens to be running.
+            if (type.GetString() == "close")
+            {
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    if (Environment.TickCount64 - _shownAtTicks < SettleMs)
+                    {
+                        Logger.Warn("Ignoring a close request {0}ms after opening - the page may be a stale build",
+                            Environment.TickCount64 - _shownAtTicks);
+                        return;
+                    }
+                    HideFlyout("page requested close");
+                });
+            }
         }
         catch (Exception ex)
         {
