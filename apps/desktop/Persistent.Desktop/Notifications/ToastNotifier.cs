@@ -38,6 +38,30 @@ internal sealed class ToastNotifier
     public const string ActionNotYet = "not-yet";
     public const string ActionSnooze = "snooze";
 
+    /// <summary>Which duration the toast's picker is on, read back on activation.</summary>
+    public const string SnoozeChoiceKey = "snoozeMinutes";
+
+    /// <summary>
+    /// The snooze durations, mirroring `SNOOZE_PRESETS` in
+    /// `apps/web/src/lib/durations.ts` so this surface offers what every other one
+    /// does. Snoozing is a *choice* about when to be asked again — a single
+    /// duration buried in app settings is not the same feature.
+    ///
+    /// Kept as a literal rather than fetched: it is a list of durations, not a
+    /// rule, so it cannot disagree with the server about anything. If the web list
+    /// changes, change it here too — that is the whole maintenance burden.
+    /// </summary>
+    private static readonly (int Minutes, string Label)[] SnoozeChoices =
+    [
+        (5, "5 min"),
+        (10, "10 min"),
+        (15, "15 min"),
+        (30, "30 min"),
+        (60, "1 hr"),
+        (180, "3 hr"),
+        (1440, "1 day")
+    ];
+
     private bool _registered;
 
     /// <summary>
@@ -88,7 +112,7 @@ internal sealed class ToastNotifier
     /// still not the persistence guarantee, because a machine that is asleep or an
     /// app that is not running shows nothing at all.</para>
     /// </summary>
-    public void ShowOccurrence(RealtimeEvent occurrence, int snoozeMinutes)
+    public void ShowOccurrence(RealtimeEvent occurrence, int defaultSnoozeMinutes)
     {
         if (!_registered) return;
         try
@@ -114,9 +138,17 @@ internal sealed class ToastNotifier
                 builder.AddText("Escalated - still not confirmed.");
             }
 
+            // A picker, not a fixed duration: snoozing is a choice about when to be
+            // asked again, and every other surface offers the same list (see
+            // SnoozeChoices). The app setting only chooses which one starts selected.
+            var picker = new AppNotificationComboBox(SnoozeChoiceKey)
+                .SetSelectedItem(NearestChoice(defaultSnoozeMinutes).ToString());
+            foreach (var (minutes, label) in SnoozeChoices) picker.AddItem(minutes.ToString(), label);
+
             builder
+                .AddComboBox(picker)
                 .AddButton(Button(ActionDone, occurrence, "Done"))
-                .AddButton(Button(ActionSnooze, occurrence, $"Snooze {snoozeMinutes} min"));
+                .AddButton(Button(ActionSnooze, occurrence, "Snooze"));
 
             AppNotificationManager.Default.Show(builder.BuildNotification());
         }
@@ -186,6 +218,32 @@ internal sealed class ToastNotifier
         {
             Logger.Warn(ex, "Clearing toasts failed");
         }
+    }
+
+    /// <summary>
+    /// The offered duration closest to <paramref name="minutes"/>. The stored
+    /// default comes from a settings combo that may be edited by hand or predate a
+    /// change to the list, and a picker whose selection matches no item renders
+    /// blank — so this always resolves to something real.
+    /// </summary>
+    private static int NearestChoice(int minutes)
+    {
+        int best = SnoozeChoices[0].Minutes;
+        foreach (var (candidate, _) in SnoozeChoices)
+        {
+            if (Math.Abs(candidate - minutes) < Math.Abs(best - minutes)) best = candidate;
+        }
+        return best;
+    }
+
+    /// <summary>The duration a toast activation chose, or null when it carried none.</summary>
+    public static int? ChosenSnoozeMinutes(IDictionary<string, string> input)
+    {
+        if (!input.TryGetValue(SnoozeChoiceKey, out var raw)) return null;
+        if (!int.TryParse(raw, out var minutes)) return null;
+        // Bounded against the shared MAX_SNOOZE_MINUTES the server enforces, so a
+        // malformed value fails here rather than as a 400 the user never sees.
+        return minutes is >= 1 and <= 525_600 ? minutes : null;
     }
 
     private static AppNotificationButton Button(string action, RealtimeEvent occurrence, string label) =>

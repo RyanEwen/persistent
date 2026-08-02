@@ -134,19 +134,36 @@ export function useNativeBack(): void {
     }
   }, [])
 
-  // Windows host messages. `back` is the flyout's title-bar button, which posts a
-  // message rather than navigating itself; exhausting the hierarchy closes the
-  // flyout — the same "leave" that exitApp is on Android. `navigate` is a click on
-  // a Windows toast, which lands on that reminder's detail view exactly as a
-  // notification tap does on every other surface (notification-behavior.md).
+  // Windows host messages.
+  //
+  // Handled by an EXPLICIT switch, never a fall-through. This used to end with a
+  // bare `if (performBack(...) === 'exhausted') requestClose()`, so every message
+  // that wasn't `navigate` was treated as a Back press — and when `checkForUpdate`
+  // was added, the host began posting it on every resume. Back from the root
+  // screen is "exhausted", so opening the flyout immediately asked the host to
+  // close it: a flyout that vanished the instant it appeared, and that the pin
+  // could not save because this is an explicit close, not light dismiss.
+  //
+  // `back` is the flyout's title-bar button, which posts a message rather than
+  // navigating itself; exhausting the hierarchy closes the flyout — the same
+  // "leave" that exitApp is on Android. `navigate` is a click on a Windows toast,
+  // landing on that reminder's detail view exactly as a notification tap does on
+  // every other surface (notification-behavior.md).
   useEffect(() => {
     return onHostMessage((message) => {
       const { pathname: here, navigate: go } = current.current
-      if (message.type === 'navigate') {
-        if (message.path !== here) go(message.path)
-        return
+      switch (message.type) {
+        case 'navigate':
+          if (message.path !== here) go(message.path)
+          return
+        case 'back':
+          if (performBack(here, go) === 'exhausted') requestClose()
+          return
+        default:
+          // Anything else (checkForUpdate, and whatever comes next) is not this
+          // hook's business. Doing nothing is the only safe default here.
+          return
       }
-      if (performBack(here, go) === 'exhausted') requestClose()
     })
   }, [])
 }

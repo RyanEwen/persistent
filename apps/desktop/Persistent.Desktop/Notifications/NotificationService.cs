@@ -125,6 +125,11 @@ internal static class NotificationService
         }
     }
 
+    /// <summary>
+    /// Which duration the toast's snooze picker starts on. Only a starting point —
+    /// the user picks from the full list on the toast itself, the same list every
+    /// other surface offers.
+    /// </summary>
     private static int SnoozeMinutes
     {
         get
@@ -165,7 +170,9 @@ internal static class NotificationService
                     break;
 
                 case ToastNotifier.ActionSnooze:
-                    _ = ActAsync(occurrenceId, ack: false);
+                    // Whatever the toast's picker was left on; the app setting only
+                    // decided which item started selected.
+                    _ = ActAsync(occurrenceId, ack: false, ToastNotifier.ChosenSnoozeMinutes(args.UserInput) ?? SnoozeMinutes);
                     break;
 
                 default:
@@ -186,12 +193,12 @@ internal static class NotificationService
     /// left showing on purpose: the occurrence is still unconfirmed, and clearing it
     /// would tell the user something was done that wasn't.
     /// </summary>
-    private static async Task ActAsync(string occurrenceId, bool ack)
+    private static async Task ActAsync(string occurrenceId, bool ack, int snoozeMinutes = 0)
     {
         if (_api == null) return;
         bool ok = ack
             ? await _api.AckAsync(occurrenceId)
-            : await _api.SnoozeAsync(occurrenceId, SnoozeMinutes);
+            : await _api.SnoozeAsync(occurrenceId, snoozeMinutes > 0 ? snoozeMinutes : SnoozeMinutes);
 
         if (ok)
         {

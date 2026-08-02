@@ -75,13 +75,16 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" VerticalAlignment="Center" Opacity="0.7" TextWrapping="Wrap"
-                                   Text="How long the notification's Snooze button snoozes for." />
+                                   Text="Which snooze duration the notification starts on. The notification itself offers the full list, the same one the app and the phone do." />
                         <ComboBox Grid.Column="1" x:Name="SnoozeCombo" VerticalAlignment="Center" MinWidth="160"
                                   SelectionChanged="SnoozeCombo_SelectionChanged">
                             <ComboBoxItem Content="5 minutes" />
                             <ComboBoxItem Content="10 minutes" />
+                            <ComboBoxItem Content="15 minutes" />
                             <ComboBoxItem Content="30 minutes" />
                             <ComboBoxItem Content="1 hour" />
+                            <ComboBoxItem Content="3 hours" />
+                            <ComboBoxItem Content="1 day" />
                         </ComboBox>
                     </Grid>
                 </StackPanel>

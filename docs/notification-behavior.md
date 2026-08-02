@@ -236,8 +236,10 @@ Within that limit it holds the contract:
   so the first Done replaces the toast with a "Mark this done?" variant carrying
   Confirm / Not yet; only Confirm acknowledges, and Not yet restores the original
   and changes nothing. This is the *mechanism* differing, not the rule.
-- **Snooze** snoozes for the duration chosen in the app's settings, and the server
-  treats it exactly as a snooze from anywhere else.
+- **Snooze** offers the same durations as every other surface (5 min → 1 day,
+  mirroring `SNOOZE_PRESETS`) in a picker on the toast itself; the app setting only
+  chooses which one starts selected. A single fixed duration hidden in settings is
+  not the same feature — snoozing is a choice about when to be asked again.
 - **Body tap opens the reminder**, as on every other soft-nag surface.
 - **A `dismiss` from any device clears it**, so confirming on the phone removes the
   desktop toast.

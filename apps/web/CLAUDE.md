@@ -62,6 +62,11 @@
   `isNative()`; it's a no-op on the web. Started from `useAuth` after sign-in. The
   same folder holds the GitHub update check (`useUpdate`/`UpdateCheck`/
   `UpdateSettings`), which installs newer APKs via the native `Update` plugin.
+- **Host messages (desktop) get an explicit switch**, never a fall-through
+  (`native/useNativeBack.ts`). The handler once ended in "anything else means
+  Back", and Back from the root screen closes the flyout — so the first new message
+  type added made the tray app close itself the instant it opened. Unknown messages
+  must do nothing.
 - **No native dialogs:** don't use `alert`/`confirm`/`prompt` (eslint enforces).
 - **Dialogs are back-aware:** build modals with `components/BackAwareModal.tsx`
   (not raw Joy `Modal`) so Android/browser Back closes the top dialog and dialogs

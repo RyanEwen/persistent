@@ -4,7 +4,7 @@
        the `desktop-v*` tag, and MSIX refuses to reinstall the same version with
        different content, so it is bumped per packaged build. -->
   <PropertyGroup>
-    <Version>0.2.1</Version>
+    <Version>0.2.2</Version>
   </PropertyGroup>
 
   <!--

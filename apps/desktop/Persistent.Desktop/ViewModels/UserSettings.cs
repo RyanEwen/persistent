@@ -53,8 +53,9 @@ public partial class UserSettings : ObservableObject
     /// See <see cref="Notifications.NotificationService"/>.</summary>
     [ObservableProperty] public partial bool DesktopNotifications { get; set; }
 
-    /// <summary>Minutes the toast's Snooze button asks for. One value rather than a
-    /// picker — a toast is a glance, and the full snooze options are in the flyout.</summary>
+    /// <summary>Which duration the toast's snooze picker starts on. The toast offers
+    /// the full list (`ToastNotifier.SnoozeChoices`, mirroring the web's
+    /// SNOOZE_PRESETS); this only decides the initial selection.</summary>
     [ObservableProperty] public partial int NotificationSnoozeMinutes { get; set; } = 10;
 
     /// <summary>
@@ -105,7 +106,8 @@ public partial class UserSettings : ObservableObject
         if (FlyoutWidth < 320) FlyoutWidth = 420;
         if (FlyoutHeight < 400) FlyoutHeight = 680;
         // A settings file written before this setting existed deserializes it as 0,
-        // which would ask the server to snooze for zero minutes.
+        // which would start the toast's picker on nothing. 1440 (a day) is the
+        // longest duration offered, matching ToastNotifier.SnoozeChoices.
         if (NotificationSnoozeMinutes is < 1 or > 1440) NotificationSnoozeMinutes = 10;
         _initializing = false;
     }

@@ -21,8 +21,12 @@ public sealed partial class AppSettingsPage : Page
 
     private const int DefaultPreset = 1;
 
-    /// <summary>Snooze durations the toast button can offer, in minutes.</summary>
-    private static readonly int[] SnoozePresets = [5, 10, 30, 60];
+    /// <summary>
+    /// Must stay in the same order as the SnoozeCombo items above, and match
+    /// `ToastNotifier.SnoozeChoices` — this picks which of the toast's own choices
+    /// starts selected, so offering fewer here would strand the rest.
+    /// </summary>
+    private static readonly int[] SnoozePresets = [5, 10, 15, 30, 60, 180, 1440];
 
     private bool _loading = true;
 

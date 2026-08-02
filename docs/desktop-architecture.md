@@ -127,6 +127,11 @@ detection — the same rule that already governs `hasNativeUpdater()`.
   `GoBack()`: reloading would throw away the user's place. The page validates the
   path is root-relative before acting on it — a host message is not a privileged
   caller either.
+- `checkForUpdate` (host -> page) says the flyout was just resumed, so the page
+  should look for a new build (`lib/swUpdate.ts`).
+- **Handle host messages with an explicit switch and a `default: return`.** Adding
+  `checkForUpdate` to a handler that fell through to "treat it as Back" is what
+  made the flyout close itself on every open — see the light-dismiss section.
 - The Android promo **banner** shows here (its message — the Android app is the
   one that actually nags — matters more on this host, not less); the title-bar
   **button** is hidden, because the flyout is a ~420px column and a permanent
@@ -161,26 +166,47 @@ flyout the instant the user clicked into the page. So the handler re-checks on t
 next dispatcher turn (by which point the foreground window has settled) and stays
 open when `GetAncestor(GetForegroundWindow(), GA_ROOT)` is still the flyout.
 
-**That check assumes the flyout ever got the foreground, and from a tray app it
-often does not.** Windows' foreground lock only lets the foreground process (or
-whoever owns the latest input) call `SetForegroundWindow`; a tray click leaves the
-*shell* foreground, so the call returns false — a `bool` this code used to ignore —
-and the window opens unfocused. The dismiss check then correctly observes that
-focus is elsewhere and closes it, so the flyout vanishes the instant it appears,
-every time, and there is no way to keep it open. This was reported from a real
-machine and is the failure the "untested at runtime" note below was about.
+Two defensive measures sit alongside it, neither of which was the cause of the
+flyout-vanishing bug below — read that first if you are debugging this again.
 
-Two things fix it, and both are needed. `TakeForeground()` retries
-`SetForegroundWindow` while briefly attached to the foreground thread's input queue
-(`AttachThreadInput`), which is the standard way out of the foreground lock. And
-`SettleMs` makes the flyout refuse to light-dismiss for the first half-second after
-opening: showing, activating and taking the foreground is not atomic, so a
-`Deactivated` can arrive mid-sequence whatever the focus plumbing does. The grace
-window is the part that does not depend on guessing why focus moved.
+- `TakeForeground()` retries `SetForegroundWindow` while briefly attached to the
+  foreground thread's input queue (`AttachThreadInput`). Windows' foreground lock
+  only lets the foreground process call it, and a tray click leaves the *shell*
+  foreground, so the plain call can return false — a `bool` the code used to
+  ignore — and the window would open unfocused.
+- `SettleMs` makes the flyout refuse to light-dismiss for the first half-second
+  after opening, since showing, activating and taking the foreground is not atomic
+  and a `Deactivated` can land mid-sequence.
 
-The dismissal itself now logs the foreground window and its root at `Debug`. A
-flyout that closes when it shouldn't leaves no other trace, and that line is what
-separates "the user clicked away" from "we never had focus at all".
+The dismissal logs the foreground window and its root at `Debug`. A flyout that
+closes when it shouldn't leaves no other trace, and that line separates "the user
+clicked away" from "we never had focus at all".
+
+### The flyout that closed itself (and why the pin didn't help)
+
+Reported from a real machine: the flyout vanished the instant it opened, on every
+click, and **turning the pin on changed nothing**. That last detail is the whole
+diagnosis — the pin returns early from `OnActivated`, so if it doesn't help, the
+close is not light dismiss at all.
+
+It was `requestClose()`, from the page. `useNativeBack`'s host-message handler
+ended in a bare fall-through:
+
+```ts
+if (message.type === 'navigate') { … return }
+if (performBack(here, go) === 'exhausted') requestClose()
+```
+
+so *every* message that wasn't `navigate` was treated as a Back press. Adding
+`checkForUpdate` — which the host posts on every resume — meant opening the flyout
+ran Back, Back from the root screen is "exhausted", and the page asked the host to
+close the window it had just opened.
+
+The lesson is the shape, not the missing case: **host messages are handled by an
+explicit switch with a `default: return`.** A channel whose unknown-message
+behaviour is "close the window" will break again the next time one is added. Note
+also that the fix shipped in the *web* bundle, so it reached every installed
+desktop version without a new build.
 
 A **pin** toggle (flyout header, mirrored in Settings) suppresses dismissal
 entirely, because a flyout you are typing a reminder into should not vanish on a
@@ -252,6 +278,12 @@ arrive while the flyout was already open is useless. A host-owned connection mea
 the suspend optimization above survives untouched — do not undo it to make the
 page's notifications work, because the page's notifications cannot work here
 anyway (see `hostSupportsPush()`).
+
+**The snooze durations are duplicated on purpose.** `ToastNotifier.SnoozeChoices`
+mirrors `SNOOZE_PRESETS` in `apps/web/src/lib/durations.ts`. That is a list of
+durations, not a rule — it cannot disagree with the server about anything — so it
+does not fall under the no-duplicated-contract rule the way a status rule or
+`reminderBodyText` would. Change one, change the other.
 
 **Auth is borrowed, never stored.** `AppFlyout.GetSessionCookieAsync()` reads the
 session cookie out of the WebView2 profile per call. Nothing is cached and nothing
