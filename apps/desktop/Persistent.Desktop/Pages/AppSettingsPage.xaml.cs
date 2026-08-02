@@ -6,7 +6,20 @@ namespace Persistent.Desktop.Pages;
 
 public sealed partial class AppSettingsPage : Page
 {
-    private const int DefaultWidth = 420, DefaultHeight = 680;
+    /// <summary>
+    /// Fixed sizes rather than a drag-to-resize window. The flyout cannot be
+    /// resizable: a resizable window keeps a Win32 sizing frame even when the
+    /// presenter is asked for no border, and that frame is non-client area the app
+    /// cannot paint (it showed as a pale strip along the top edge).
+    /// </summary>
+    private static readonly (string Label, int Width, int Height)[] Presets =
+    [
+        ("Compact", 380, 560),
+        ("Standard", 420, 680),
+        ("Tall", 460, 820)
+    ];
+
+    private const int DefaultPreset = 1;
 
     private bool _loading = true;
 
@@ -19,6 +32,7 @@ public sealed partial class AppSettingsPage : Page
         // stays truthful even if the user changed it in Task Manager.
         StartupToggle.IsOn = StartupManager.IsEnabled();
         PinToggle.IsOn = settings.PinFlyout;
+        SizeCombo.SelectedIndex = CurrentPresetIndex();
         UpdateSizeSummary();
         _loading = false;
     }
@@ -45,19 +59,31 @@ public sealed partial class AppSettingsPage : Page
         Windows.AppFlyout.SyncPinState();
     }
 
-    private void ResetSizeButton_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
+    private void SizeCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (_loading) return;
+        int index = Math.Clamp(SizeCombo.SelectedIndex, 0, Presets.Length - 1);
         var settings = SettingsManager.Current;
-        settings.FlyoutWidth = DefaultWidth;
-        settings.FlyoutHeight = DefaultHeight;
+        settings.FlyoutWidth = Presets[index].Width;
+        settings.FlyoutHeight = Presets[index].Height;
         SettingsManager.SaveSettings();
         UpdateSizeSummary();
+    }
+
+    /// <summary>The preset matching the stored size, or Standard if it matches none.</summary>
+    private static int CurrentPresetIndex()
+    {
+        var settings = SettingsManager.Current;
+        for (int i = 0; i < Presets.Length; i++)
+        {
+            if (Presets[i].Width == settings.FlyoutWidth && Presets[i].Height == settings.FlyoutHeight) return i;
+        }
+        return DefaultPreset;
     }
 
     private void UpdateSizeSummary()
     {
         var settings = SettingsManager.Current;
-        SizeSummary.Text =
-            $"Currently {settings.FlyoutWidth} x {settings.FlyoutHeight}. Drag the flyout's edges to resize it; it reopens at the size you left it.";
+        SizeSummary.Text = $"How large the reminders flyout opens. Currently {settings.FlyoutWidth} x {settings.FlyoutHeight}.";
     }
 }

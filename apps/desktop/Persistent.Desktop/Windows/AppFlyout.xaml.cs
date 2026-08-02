@@ -136,7 +136,12 @@ public sealed partial class AppFlyout : Window
         presenter.IsAlwaysOnTop = true;
         presenter.IsMaximizable = false;
         presenter.IsMinimizable = false;
-        presenter.IsResizable = true;
+        // NOT resizable. A resizable window keeps a Win32 sizing frame
+        // (WS_THICKFRAME) even when the presenter is asked for no border, and that
+        // frame is non-client area the app cannot paint — the other half of the
+        // white strip along the top edge. The size is chosen from presets in
+        // Settings instead (see AppSettingsPage).
+        presenter.IsResizable = false;
         _appWindow.SetPresenter(presenter);
 
         // NO ExtendsContentIntoTitleBar / SetTitleBar here, deliberately.
@@ -177,8 +182,12 @@ public sealed partial class AppFlyout : Window
         DwmSetWindowAttribute(_hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref round, sizeof(int));
         // Match the 1px DWM border to the window instead of letting it default to
         // the system's (light) border colour, which outlines a dark window in white.
-        int border = 0x00190F0B; // COLORREF is 0x00BBGGRR, so #0B0F19 reverses
-        DwmSetWindowAttribute(_hwnd, DWMWA_BORDER_COLOR, ref border, sizeof(int));
+        int chrome = 0x00190F0B; // COLORREF is 0x00BBGGRR, so #0B0F19 reverses
+        DwmSetWindowAttribute(_hwnd, DWMWA_BORDER_COLOR, ref chrome, sizeof(int));
+        // Caption is a separate attribute from border. Tinting only the border left
+        // any DWM-drawn caption at its default system colour, which is white in
+        // light mode — the exact band this window kept showing.
+        DwmSetWindowAttribute(_hwnd, DWMWA_CAPTION_COLOR, ref chrome, sizeof(int));
 
         if (File.Exists(App.IconImagePath))
         {
@@ -410,32 +419,47 @@ public sealed partial class AppFlyout : Window
         Activate();
         SetForegroundWindow(_hwnd);
         WebView.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        LogChromeMetrics();
+    }
+
+    /// <summary>
+    /// Record how much non-client area the window actually has.
+    ///
+    /// This window is meant to be entirely client area — every pixel painted by the
+    /// app. A white strip along the top edge that survived removing the acrylic
+    /// backdrop and then the extended title bar means something is still drawing
+    /// chrome we do not control, and guessing at which attribute owns it has cost
+    /// two rounds. The gap between the outer window rect and the client origin says
+    /// it outright: a non-zero `top` is chrome, and its height identifies what.
+    /// Logged once per open, to startup.log.
+    /// </summary>
+    private void LogChromeMetrics()
+    {
+        try
+        {
+            if (!GetWindowRect(_hwnd, out var outer)) return;
+            if (!GetClientRect(_hwnd, out var client)) return;
+            var origin = new POINT { X = 0, Y = 0 };
+            if (!ClientToScreen(_hwnd, ref origin)) return;
+
+            int top = origin.Y - outer.Top;
+            int left = origin.X - outer.Left;
+            int bottom = (outer.Bottom - outer.Top) - (client.Bottom - client.Top) - top;
+            Classes.StartupDiagnostics.Mark(
+                $"flyout chrome: window {outer.Right - outer.Left}x{outer.Bottom - outer.Top}, " +
+                $"client {client.Right - client.Left}x{client.Bottom - client.Top}, " +
+                $"non-client top={top} left={left} bottom={bottom}");
+        }
+        catch (Exception ex)
+        {
+            Logger.Debug(ex, "Could not measure window chrome");
+        }
     }
 
     private void HideFlyout()
     {
-        PersistSize();
         _visible = false;
         _appWindow.Hide();
-    }
-
-    /// <summary>Remember a resize so the next open is the size the user left it.</summary>
-    private void PersistSize()
-    {
-        if (!_visible) return;
-        uint dpi = GetDpiForWindow(_hwnd);
-        double scale = dpi / 96.0;
-        if (scale <= 0) return;
-
-        int width = (int)Math.Round(_appWindow.Size.Width / scale);
-        int height = (int)Math.Round(_appWindow.Size.Height / scale);
-        var settings = SettingsManager.Current;
-        if (width == settings.FlyoutWidth && height == settings.FlyoutHeight) return;
-        if (width < 320 || height < 400) return;
-
-        settings.FlyoutWidth = width;
-        settings.FlyoutHeight = height;
-        SettingsManager.SaveSettings();
     }
 
     /// <summary>
@@ -464,7 +488,6 @@ public sealed partial class AppFlyout : Window
 
     private void OnClosed(object sender, WindowEventArgs args)
     {
-        PersistSize();
         if (_instance == this) _instance = null;
     }
 

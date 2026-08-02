@@ -67,6 +67,17 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     public static extern bool GetCursorPos(out POINT lpPoint);
 
+    // Used to measure the non-client area: the gap between the outer window rect
+    // and where the client area actually starts is chrome we did not ask for.
+    [DllImport("user32.dll")]
+    public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+    [DllImport("user32.dll")]
+    public static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
+
+    [DllImport("user32.dll")]
+    public static extern bool ClientToScreen(IntPtr hWnd, ref POINT lpPoint);
+
     [DllImport("user32.dll")]
     public static extern IntPtr MonitorFromPoint(POINT pt, uint dwFlags);
 
@@ -176,6 +187,9 @@ internal static class NativeMethods
     public const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
     /// <summary>Takes a COLORREF (0x00BBGGRR), not ARGB.</summary>
     public const int DWMWA_BORDER_COLOR = 34;
+    /// <summary>The caption (title bar) fill. Distinct from the border — tinting
+    /// the border alone leaves a DWM-drawn caption its default system colour.</summary>
+    public const int DWMWA_CAPTION_COLOR = 35;
     public const int DWMWCP_ROUND = 2;
 
     [DllImport("dwmapi.dll")]

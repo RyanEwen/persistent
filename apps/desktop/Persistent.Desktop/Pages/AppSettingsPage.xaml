@@ -81,8 +81,12 @@
                         <TextBlock Text="Flyout size" FontWeight="SemiBold" />
                         <TextBlock x:Name="SizeSummary" Opacity="0.7" TextWrapping="Wrap" />
                     </StackPanel>
-                    <Button Grid.Column="1" x:Name="ResetSizeButton" Click="ResetSizeButton_Click"
-                            VerticalAlignment="Center" Content="Reset size" />
+                    <ComboBox Grid.Column="1" x:Name="SizeCombo" VerticalAlignment="Center" MinWidth="160"
+                              SelectionChanged="SizeCombo_SelectionChanged">
+                        <ComboBoxItem Content="Compact" />
+                        <ComboBoxItem Content="Standard" />
+                        <ComboBoxItem Content="Tall" />
+                    </ComboBox>
                 </Grid>
             </Border>
         </StackPanel>
