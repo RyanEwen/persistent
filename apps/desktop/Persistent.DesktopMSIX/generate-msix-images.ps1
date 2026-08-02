@@ -79,8 +79,12 @@ function New-Master([int]$size) {
     $g.FillEllipse($accentBrush, 27.5*$u, 45.5*$u, 9*$u, 9*$u)
 
     # Motion lines, at the favicon's 55% opacity.
-    $pen = New-Object System.Drawing.Pen(
-        [System.Drawing.Color]::FromArgb(140, $accent.R, $accent.G, $accent.B), 3.2*$u)
+    # ::new() rather than New-Object: `New-Object Type(` followed by a line break
+    # loses the constructor-argument special case, and PowerShell re-reads the
+    # argument list as positional parameters ("no overload for 32 arguments").
+    $penColor = [System.Drawing.Color]::FromArgb(140, $accent.R, $accent.G, $accent.B)
+    $penWidth = [float](3.2 * $u)
+    $pen = [System.Drawing.Pen]::new($penColor, $penWidth)
     $pen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
     $pen.EndCap   = [System.Drawing.Drawing2D.LineCap]::Round
     $g.DrawLine($pen, 46*$u, 22*$u, 54*$u, 18*$u)
