@@ -85,7 +85,7 @@ public sealed partial class AppFlyout : Window
 
     public static void Hide()
     {
-        if (_instance is { _visible: true }) _instance.HideFlyout();
+        if (_instance is { _visible: true }) _instance.HideFlyout("Hide() called");
     }
 
     /// <summary>
@@ -107,7 +107,13 @@ public sealed partial class AppFlyout : Window
 
         if (_instance._visible)
         {
-            _instance.HideFlyout();
+            // A DOUBLE-click on the tray icon delivers LBUTTONUP, LBUTTONDBLCLK,
+            // LBUTTONUP — so the second "up" toggles closed the window the first one
+            // just opened, and the flyout appears and vanishes. `ReopenSuppressionMs`
+            // below guards the mirror case (hide, then click) but not this one.
+            // Nobody deliberately closes a flyout within half a second of opening it.
+            if (Environment.TickCount64 - _instance._shownAtTicks < SettleMs) return;
+            _instance.HideFlyout("tray click while open");
             return;
         }
 
@@ -390,7 +396,7 @@ public sealed partial class AppFlyout : Window
 
             // Back ran out of hierarchy to walk — the flyout's equivalent of Back
             // leaving the app on Android.
-            if (type.GetString() == "close") DispatcherQueue.TryEnqueue(HideFlyout);
+            if (type.GetString() == "close") DispatcherQueue.TryEnqueue(() => HideFlyout("page requested close"));
         }
         catch (Exception ex)
         {
@@ -521,6 +527,7 @@ public sealed partial class AppFlyout : Window
         Activate();
         TakeForeground();
         WebView.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        Logger.Info("Flyout shown");
         LogChromeMetrics();
     }
 
@@ -558,7 +565,17 @@ public sealed partial class AppFlyout : Window
         }
     }
 
-    private void HideFlyout()
+    /// <summary>
+    /// Hide the flyout, recording WHY.
+    ///
+    /// Logged at Info, not Debug, because `NLog.config` floors the file target at
+    /// Info — a Debug line here exists only for an attached debugger, which is no
+    /// use on a user's machine. Every caller passes a distinct reason: "it closes
+    /// immediately" has several possible causes that look identical from outside
+    /// (light dismiss, a second tray click, the page asking), and guessing between
+    /// them has already cost two wrong fixes. The log should just say.
+    /// </summary>
+    private void HideFlyout(string reason)
     {
         _visible = false;
         _hiddenAtTicks = Environment.TickCount64;
@@ -691,11 +708,11 @@ public sealed partial class AppFlyout : Window
             // every other way: this names the window that took the foreground, which
             // is the only thing that distinguishes "the user clicked away" from
             // "we never had focus in the first place".
-            Logger.Debug("Light dismiss: foreground={0:X} root={1:X} self={2:X}",
+            Logger.Info("Light dismiss: foreground={0:X} root={1:X} self={2:X}",
                 foreground.ToInt64(),
                 foreground == IntPtr.Zero ? 0 : GetAncestor(foreground, GA_ROOT).ToInt64(),
                 _hwnd.ToInt64());
-            HideFlyout();
+            HideFlyout("light dismiss");
         });
     }
 
@@ -761,13 +778,13 @@ public sealed partial class AppFlyout : Window
     private void BrowserButton_Click(object sender, RoutedEventArgs e)
     {
         MainWindow.OpenInBrowser();
-        HideFlyout();
+        HideFlyout("opened in browser");
     }
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
         MainWindow.ShowSettings();
-        HideFlyout();
+        HideFlyout("opened settings");
     }
 
     private void RetryButton_Click(object sender, RoutedEventArgs e) => NavigateToApp();

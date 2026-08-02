@@ -208,6 +208,33 @@ behaviour is "close the window" will break again the next time one is added. Not
 also that the fix shipped in the *web* bundle, so it reached every installed
 desktop version without a new build.
 
+### Every close is logged, because they look identical from outside
+
+"It closes immediately" has several causes that are indistinguishable to the user,
+and guessing between them cost two wrong fixes. `HideFlyout` now takes a reason and
+logs it — at **Info**, since `NLog.config` floors the file target there and a
+`Debug` line only ever reaches an attached debugger, which is no use on someone
+else's machine. `%AppData%\Persistent\logs.*.txt` now names the culprit:
+`light dismiss`, `tray click while open`, `page requested close`, or a deliberate
+button. Keep it that way; add a reason with any new caller.
+
+Known closes the **pin does not guard**, because it only short-circuits light
+dismiss:
+
+- **A double-click on the tray icon.** Windows delivers LBUTTONUP, LBUTTONDBLCLK,
+  LBUTTONUP, so the second "up" toggles closed the window the first one opened.
+  `Toggle` now ignores a close within `SettleMs` of opening — the mirror of the
+  `ReopenSuppressionMs` guard, which only covered hide-then-click.
+- **`page requested close`**, above.
+
+### Running the version you think you are
+
+The portable build is a folder you unzip, so several copies can exist. A second
+launch takes the single-instance mutex, posts "show the flyout" to the **already
+running** instance and exits — so starting a newly downloaded copy while an old one
+is running silently keeps you on the old binary. The About page reports the version
+actually running; check it before concluding a desktop fix did nothing.
+
 A **pin** toggle (flyout header, mirrored in Settings) suppresses dismissal
 entirely, because a flyout you are typing a reminder into should not vanish on a
 stray click.
