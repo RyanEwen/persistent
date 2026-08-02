@@ -122,6 +122,28 @@ A **pin** toggle (flyout header, mirrored in Settings) suppresses dismissal
 entirely, because a flyout you are typing a reminder into should not vanish on a
 stray click.
 
+## The flyout is dark, opaque, and has no title bar at all
+
+Two separate things produced a white band across the top of the flyout, and they
+are worth keeping straight because fixing one did not fix the other:
+
+- **`DesktopAcrylicBackdrop` follows the *system* theme.** On a light-mode
+  desktop it renders light acrylic wherever content does not paint over it. The
+  window frames a web app that is dark in every theme the PWA offers, so there is
+  no backdrop at all now: the root grid paints an opaque `#0B0F19` and pins
+  `RequestedTheme="Dark"` so the header glyphs stay light. `ThemeManager`
+  deliberately skips this window — applying the user's light/system choice here
+  would put light chrome back around dark content.
+- **`ExtendsContentIntoTitleBar` + `SetTitleBar` on a window with no title bar.**
+  Those are for a window that *has* a caption and wants to draw into it. Setting
+  them while the presenter is `SetBorderAndTitleBar(false, false)` left WinUI
+  reserving a caption strip and painting it the system caption colour. Don't set
+  them here. The consequence is that the header is not a drag handle, which costs
+  nothing for a flyout that is repositioned to the tray corner on every open.
+
+The DWM border colour is also pinned (`DWMWA_BORDER_COLOR`), since the default
+outlines a dark window in the system's light border.
+
 ## Storage
 
 - `%AppData%\Persistent\settings.json` — host settings only (server URL, theme,

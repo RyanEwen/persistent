@@ -38,6 +38,11 @@ public sealed partial class AppFlyout : Window
 
     private static AppFlyout? _instance;
 
+    /// <summary>#0B0F19 — the web shell's background, so the native chrome around it
+    /// reads as one surface rather than a frame.</summary>
+    private static readonly global::Windows.UI.Color ChromeColor =
+        global::Windows.UI.Color.FromArgb(0xFF, 0x0B, 0x0F, 0x19);
+
     private readonly IntPtr _hwnd;
     private readonly AppWindow _appWindow;
     private bool _webViewReady;
@@ -134,12 +139,39 @@ public sealed partial class AppFlyout : Window
         presenter.IsResizable = true;
         _appWindow.SetPresenter(presenter);
 
-        ExtendsContentIntoTitleBar = true;
-        SetTitleBar(TitleBar);
+        // NO ExtendsContentIntoTitleBar / SetTitleBar here, deliberately.
+        //
+        // Those are for a window that HAS a title bar and wants to draw its own
+        // content into it. This window asked the presenter for none at all, and
+        // setting both anyway left WinUI reserving a caption strip it then painted
+        // with the system caption colour: a full-width white band across the top on
+        // a light-mode desktop. Removing the acrylic backdrop did not touch it,
+        // because the strip was never the backdrop.
+        //
+        // The cost is that the header is no longer a drag handle. That is no loss
+        // for this window: it is a tray flyout, anchored to the work area corner and
+        // repositioned on every open, so a dragged position would not survive
+        // anyway.
+        //
+        // Belt and braces for any caption the framework still decides to draw: force
+        // its colours to the window's own dark rather than leaving them system.
+        try
+        {
+            var titleBar = _appWindow.TitleBar;
+            titleBar.BackgroundColor = ChromeColor;
+            titleBar.InactiveBackgroundColor = ChromeColor;
+            titleBar.ButtonBackgroundColor = ChromeColor;
+            titleBar.ButtonInactiveBackgroundColor = ChromeColor;
+        }
+        catch (Exception ex)
+        {
+            // Purely cosmetic, and unavailable on some presenter configurations.
+            Logger.Debug(ex, "Could not tint the title bar");
+        }
+
         // No SystemBackdrop: the Root grid paints its own opaque dark background
-        // (see AppFlyout.xaml). An acrylic backdrop follows the system theme, which
-        // is light on a light-mode desktop and showed through as a white band above
-        // the header — wrong for a window whose entire content is a dark web app.
+        // (see AppFlyout.xaml). An acrylic backdrop follows the system theme, so on
+        // a light-mode desktop it renders light wherever content does not cover it.
 
         int round = DWMWCP_ROUND;
         DwmSetWindowAttribute(_hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref round, sizeof(int));
