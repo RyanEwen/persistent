@@ -46,6 +46,13 @@ public partial class UserSettings : ObservableObject
 
     [ObservableProperty] public partial string LastKnownVersion { get; set; } = "";
 
+    /// <summary>
+    /// False until the app has started once. Windows 11 files every new tray icon
+    /// into the hidden overflow, so a first launch with no window looks exactly
+    /// like a failed launch; the first run opens the flyout to prove otherwise.
+    /// </summary>
+    [ObservableProperty] public partial bool HasLaunchedBefore { get; set; }
+
     // ── Settings window geometry ─────────────────────────────────────
     [ObservableProperty] public partial int SettingsWindowX { get; set; }
     [ObservableProperty] public partial int SettingsWindowY { get; set; }

@@ -1,5 +1,6 @@
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using Persistent.Desktop.Classes;
 using Persistent.Desktop.Classes.Settings;
 using System.IO;
 using static Persistent.Desktop.Classes.NativeMethods;
@@ -33,35 +34,66 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        StartupDiagnostics.Mark("OnLaunched");
         MainDispatcherQueue = DispatcherQueue.GetForCurrentThread();
 
         if (!Singleton.WaitOne(TimeSpan.Zero, true))
         {
-            // Already running — ask the existing instance to show the flyout, then exit.
+            // Already running: hand the request to that instance and step aside.
             IntPtr existing = FindWindow(null, MainWindow.HostWindowTitle);
             if (existing != IntPtr.Zero)
+            {
+                StartupDiagnostics.Mark("Second instance - handed off to the running one");
                 PostMessage(existing, MainWindow.WmShowFlyout, IntPtr.Zero, IntPtr.Zero);
+            }
+            else
+            {
+                // The mutex is held but the host window is gone: an earlier instance
+                // is running without its window, so nothing would happen and this
+                // launch would look like a no-op. Say so rather than exiting quietly.
+                StartupDiagnostics.Warn(
+                    "Persistent is already running, but its window could not be found.\n\n" +
+                    "End the Persistent.Desktop.exe task in Task Manager, then start it again.");
+            }
             Environment.Exit(0);
             return;
         }
 
         AppDomain.CurrentDomain.UnhandledException += (s, a) =>
         {
-            Logger.Error(a.ExceptionObject as Exception, "Unhandled exception");
+            var ex = a.ExceptionObject as Exception;
+            Logger.Error(ex, "Unhandled exception");
             NLog.LogManager.Flush();
+            if (ex != null) StartupDiagnostics.Fatal("Unhandled exception", ex);
         };
         UnhandledException += (s, e) =>
         {
             Logger.Error(e.Exception, "Unhandled UI exception");
             NLog.LogManager.Flush();
+            StartupDiagnostics.Mark($"Unhandled UI exception: {e.Exception}");
             e.Handled = true;
         };
 
-        SettingsManager.RestoreSettings();
+        // Each stage is recorded so a silent death is still diagnosable: whichever
+        // milestone is missing from startup.log is where it stopped.
+        try
+        {
+            StartupDiagnostics.Mark("Restoring settings");
+            SettingsManager.RestoreSettings();
 
-        _host = new MainWindow();
-        _host.Activate();
-        _host.HideHost(); // Activate() shows the window; immediately re-hide the invisible host.
+            StartupDiagnostics.Mark("Creating tray host");
+            _host = new MainWindow();
+            _host.Activate();
+            _host.HideHost(); // Activate() shows the window; immediately re-hide the invisible host.
+            StartupDiagnostics.Mark("Startup complete");
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(ex, "Startup failed");
+            NLog.LogManager.Flush();
+            StartupDiagnostics.Fatal("Startup", ex);
+            Environment.Exit(1);
+        }
     }
 
     private MainWindow? _host;

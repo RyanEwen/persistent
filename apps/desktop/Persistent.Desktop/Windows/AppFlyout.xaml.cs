@@ -152,6 +152,7 @@ public sealed partial class AppFlyout : Window
         _appWindow.Hide();
         Activated += OnActivated;
         Closed += OnClosed;
+        Classes.StartupDiagnostics.Mark("Flyout window constructed");
 
         _ = InitializeWebViewAsync();
     }
@@ -180,6 +181,7 @@ public sealed partial class AppFlyout : Window
             // Overwhelmingly "the Evergreen runtime isn't installed" — which is a
             // fixable user-facing condition, not a crash.
             Logger.Error(ex, "WebView2 could not be initialized");
+            Classes.StartupDiagnostics.Mark($"WebView2 init failed: {ex.Message}");
             ShowError("WebView2 is unavailable", "Persistent needs the Microsoft Edge WebView2 runtime, which is missing or failed to start.");
             return;
         }

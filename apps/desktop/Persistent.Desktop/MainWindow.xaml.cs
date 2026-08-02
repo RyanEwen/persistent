@@ -54,6 +54,7 @@ public sealed partial class MainWindow : Window
 
         _subclass = WndProc;
         SetWindowSubclass(_hwnd, _subclass, IntPtr.Zero, IntPtr.Zero);
+        Classes.StartupDiagnostics.Mark("Host window ready");
 
         AddTrayIcon();
         TrayState.Changed += OnTrayStateChanged;
@@ -62,6 +63,19 @@ public sealed partial class MainWindow : Window
         // page's own WebSocket is what feeds the badge, so it has to be running
         // before the user ever opens anything.
         AppFlyout.EnsureCreated();
+        Classes.StartupDiagnostics.Mark("Flyout created");
+
+        // Windows 11 puts every new tray icon in the hidden overflow, so a
+        // first launch otherwise looks like nothing happened at all. Show the
+        // flyout once so the app proves it started and the user finds out where it
+        // lives; after that it stays quiet and tray-only.
+        if (!SettingsManager.Current.HasLaunchedBefore)
+        {
+            SettingsManager.Current.HasLaunchedBefore = true;
+            SettingsManager.SaveSettings();
+            Classes.StartupDiagnostics.Mark("First run - showing the flyout");
+            App.MainDispatcherQueue.TryEnqueue(AppFlyout.Show);
+        }
     }
 
     /// <summary>
@@ -84,7 +98,23 @@ public sealed partial class MainWindow : Window
         data.hIcon = SwapIcon();
         data.szTip = Truncate(TrayState.Tooltip());
         _trayAdded = Shell_NotifyIcon(NIM_ADD, ref data);
-        if (!_trayAdded) Logger.Warn("Shell_NotifyIcon(NIM_ADD) failed - no tray icon this session");
+
+        if (_trayAdded)
+        {
+            Classes.StartupDiagnostics.Mark("Tray icon added");
+            return;
+        }
+
+        // The tray icon is this app's ONLY entry point. Without it the process
+        // keeps running with no window, no icon and no way to reach it — which
+        // looks exactly like "nothing happened when I launched it". Never let that
+        // stand silently: say so, and open the flyout so the app is still usable.
+        int err = Marshal.GetLastWin32Error();
+        Logger.Warn("Shell_NotifyIcon(NIM_ADD) failed (Win32 {Error}) - falling back to the flyout", err);
+        Classes.StartupDiagnostics.Warn(
+            $"Persistent could not add its notification-area icon (Windows error {err}).\n\n" +
+            "The app is running and its window will open now, but you won't have a tray icon this session.");
+        App.MainDispatcherQueue.TryEnqueue(AppFlyout.Show);
     }
 
     /// <summary>Renders the current badge state and replaces the held HICON.</summary>

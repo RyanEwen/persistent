@@ -44,6 +44,17 @@ internal static class NativeMethods
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     public static extern uint RegisterWindowMessage(string lpString);
 
+    // The app has no window at startup — only a tray icon — so a failure before
+    // that icon exists is completely invisible. These are the last-resort way to
+    // say something rather than exiting silently.
+    public const uint MB_OK = 0x00000000;
+    public const uint MB_ICONERROR = 0x00000010;
+    public const uint MB_ICONWARNING = 0x00000030;
+    public const uint MB_SETFOREGROUND = 0x00010000;
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "MessageBoxW")]
+    public static extern int MessageBox(IntPtr hWnd, string text, string caption, uint type);
+
     [DllImport("user32.dll")]
     public static extern uint GetDpiForWindow(IntPtr hwnd);
 
@@ -119,7 +130,9 @@ internal static class NativeMethods
         public IntPtr hBalloonIcon;
     }
 
-    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    // SetLastError so a failed NIM_ADD can report *why* — without it the tray icon
+    // just doesn't appear and there is nothing to go on.
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     public static extern bool Shell_NotifyIcon(int dwMessage, ref NOTIFYICONDATA lpData);
 
     // ── Context menu ────────────────────────────────────────────────
