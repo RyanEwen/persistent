@@ -48,6 +48,21 @@ public sealed partial class AppFlyout : Window
     /// <summary>When the flyout was last hidden, for the tray-click toggle below.</summary>
     private long _hiddenAtTicks;
 
+    /// <summary>When it was last shown; see <see cref="SettleMs"/>.</summary>
+    private long _shownAtTicks;
+
+    /// <summary>
+    /// How long after opening the flyout refuses to light-dismiss.
+    ///
+    /// Activation does not settle instantly — the window is shown, activated and
+    /// then asked for the foreground, and Windows can deliver a Deactivated in the
+    /// middle of that. Without this grace the flyout answers that transient by
+    /// closing itself, which is a flyout that vanishes the instant it appears and
+    /// cannot be used at all. Nobody clicks away inside this window, so the only
+    /// dismissal it can swallow is one the user did not mean.
+    /// </summary>
+    private const long SettleMs = 500;
+
     /// <summary>How long after a dismiss a tray click still counts as part of it.
     /// Long enough to cover the gap between losing focus and the click arriving,
     /// short enough that a deliberate second click still opens the flyout.</summary>
@@ -501,9 +516,10 @@ public sealed partial class AppFlyout : Window
 
         _appWindow.MoveAndResize(new global::Windows.Graphics.RectInt32(x, y, w, h));
         _visible = true;
+        _shownAtTicks = Environment.TickCount64;
         SetWebViewIdle(false);
         Activate();
-        SetForegroundWindow(_hwnd);
+        TakeForeground();
         WebView.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
         LogChromeMetrics();
     }
@@ -647,19 +663,87 @@ public sealed partial class AppFlyout : Window
     /// the next dispatcher turn (by which time the foreground window has actually
     /// settled) and stay open if the foreground window is still ours.
     /// </summary>
+    /// <summary>
+    /// Light dismiss: close when focus genuinely leaves the flyout.
+    ///
+    /// Two things stop this from closing a flyout the user is still opening. The
+    /// re-check on the next dispatcher turn is for focus moving *into* the hosted
+    /// WebView2, which can surface as a top-level deactivation — by then the
+    /// foreground window has settled and is still us. <see cref="SettleMs"/> is for
+    /// the opening itself: showing, activating and taking the foreground is not
+    /// atomic, and a Deactivated arriving mid-sequence used to close the window
+    /// immediately, every time.
+    /// </summary>
     private void OnActivated(object sender, WindowActivatedEventArgs args)
     {
         if (args.WindowActivationState != WindowActivationState.Deactivated) return;
         if (SettingsManager.Current.PinFlyout) return;
         if (!_visible) return;
+        if (Environment.TickCount64 - _shownAtTicks < SettleMs) return;
 
         DispatcherQueue.TryEnqueue(() =>
         {
             if (!_visible || SettingsManager.Current.PinFlyout) return;
+            if (Environment.TickCount64 - _shownAtTicks < SettleMs) return;
             IntPtr foreground = GetForegroundWindow();
             if (foreground != IntPtr.Zero && GetAncestor(foreground, GA_ROOT) == _hwnd) return;
+            // Logged because a flyout that closes when it shouldn't is invisible in
+            // every other way: this names the window that took the foreground, which
+            // is the only thing that distinguishes "the user clicked away" from
+            // "we never had focus in the first place".
+            Logger.Debug("Light dismiss: foreground={0:X} root={1:X} self={2:X}",
+                foreground.ToInt64(),
+                foreground == IntPtr.Zero ? 0 : GetAncestor(foreground, GA_ROOT).ToInt64(),
+                _hwnd.ToInt64());
             HideFlyout();
         });
+    }
+
+    /// <summary>
+    /// Actually get the foreground, which a plain <c>SetForegroundWindow</c> often
+    /// cannot from a tray app.
+    ///
+    /// Windows only lets the foreground process (or the one that owns the latest
+    /// input) set it; a tray click leaves the shell foreground, so the call returns
+    /// false and the flyout comes up unfocused — which the light-dismiss check then
+    /// reads as "focus is elsewhere" and closes. Attaching to the foreground
+    /// thread's input queue for the duration lifts the restriction.
+    /// </summary>
+    private void TakeForeground()
+    {
+        try
+        {
+            if (SetForegroundWindow(_hwnd)) return;
+
+            IntPtr foreground = GetForegroundWindow();
+            uint foregroundThread = foreground == IntPtr.Zero ? 0 : GetWindowThreadProcessId(foreground, out _);
+            uint self = GetCurrentThreadId();
+            if (foregroundThread == 0 || foregroundThread == self)
+            {
+                Logger.Debug("Could not take the foreground and have no thread to attach to");
+                return;
+            }
+
+            if (!AttachThreadInput(foregroundThread, self, true))
+            {
+                Logger.Debug("AttachThreadInput refused; the flyout may open without focus");
+                return;
+            }
+            try
+            {
+                BringWindowToTop(_hwnd);
+                if (!SetForegroundWindow(_hwnd)) Logger.Debug("SetForegroundWindow still refused after attaching");
+            }
+            finally
+            {
+                AttachThreadInput(foregroundThread, self, false);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Never let focus plumbing stop the window appearing.
+            Logger.Warn(ex, "Taking the foreground failed");
+        }
     }
 
     private void OnClosed(object sender, WindowEventArgs args)

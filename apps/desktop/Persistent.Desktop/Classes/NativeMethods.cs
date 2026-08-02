@@ -35,6 +35,27 @@ internal static class NativeMethods
     /// <summary>GA_ROOT — walk up to the top-level owner of a child HWND.</summary>
     public const uint GA_ROOT = 2;
 
+    // Foreground activation from a tray app.
+    //
+    // `SetForegroundWindow` is refused by Windows' foreground lock unless the
+    // calling process is already foreground or owns the most recent input. A tray
+    // app answering a tray click is neither — the shell is — so the call silently
+    // returns false and the window comes up without focus. Briefly sharing the
+    // foreground thread's input queue lifts the restriction, which is the standard
+    // dance for exactly this case.
+    [DllImport("user32.dll")]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    [DllImport("kernel32.dll")]
+    public static extern uint GetCurrentThreadId();
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, [MarshalAs(UnmanagedType.Bool)] bool fAttach);
+
+    [DllImport("user32.dll")]
+    public static extern bool BringWindowToTop(IntPtr hWnd);
+
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
 

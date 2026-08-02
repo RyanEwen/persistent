@@ -161,6 +161,27 @@ flyout the instant the user clicked into the page. So the handler re-checks on t
 next dispatcher turn (by which point the foreground window has settled) and stays
 open when `GetAncestor(GetForegroundWindow(), GA_ROOT)` is still the flyout.
 
+**That check assumes the flyout ever got the foreground, and from a tray app it
+often does not.** Windows' foreground lock only lets the foreground process (or
+whoever owns the latest input) call `SetForegroundWindow`; a tray click leaves the
+*shell* foreground, so the call returns false — a `bool` this code used to ignore —
+and the window opens unfocused. The dismiss check then correctly observes that
+focus is elsewhere and closes it, so the flyout vanishes the instant it appears,
+every time, and there is no way to keep it open. This was reported from a real
+machine and is the failure the "untested at runtime" note below was about.
+
+Two things fix it, and both are needed. `TakeForeground()` retries
+`SetForegroundWindow` while briefly attached to the foreground thread's input queue
+(`AttachThreadInput`), which is the standard way out of the foreground lock. And
+`SettleMs` makes the flyout refuse to light-dismiss for the first half-second after
+opening: showing, activating and taking the foreground is not atomic, so a
+`Deactivated` can arrive mid-sequence whatever the focus plumbing does. The grace
+window is the part that does not depend on guessing why focus moved.
+
+The dismissal itself now logs the foreground window and its root at `Debug`. A
+flyout that closes when it shouldn't leaves no other trace, and that line is what
+separates "the user clicked away" from "we never had focus at all".
+
 A **pin** toggle (flyout header, mirrored in Settings) suppresses dismissal
 entirely, because a flyout you are typing a reminder into should not vanish on a
 stray click.
