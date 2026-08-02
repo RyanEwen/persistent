@@ -14,8 +14,11 @@ test('a tab root has nothing above it', () => {
   }
 })
 
-test('the editor goes up to the reminder it edits, not to the list', () => {
-  assert.equal(parentRoute('/reminders/abc123/edit'), '/reminders/abc123')
+test('the editor goes up to the list, not to the detail view', () => {
+  // In-app list taps open the editor directly, so the detail view is not on the
+  // way in. Going "up" to it stranded the user on a screen they never saw and
+  // took two Back presses to leave.
+  assert.equal(parentRoute('/reminders/abc123/edit'), '/')
 })
 
 test('a reminder goes up to the list', () => {

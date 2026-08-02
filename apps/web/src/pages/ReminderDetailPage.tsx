@@ -1,9 +1,15 @@
 /**
  * Single-reminder detail: a focused, mostly read-only view of one reminder with
  * its active occurrences' Done / Snooze / De-escalate actions. This is where a
- * notification tap and a list-row tap land — editing is one step away, behind the
- * Edit button, so the common case (confirm / snooze a nag) is front and center and
- * the large tabbed form isn't in the way.
+ * **notification tap** lands, and where History links — editing is one step away,
+ * behind the Edit button, so the common case (confirm / snooze a nag) is front and
+ * center and the large tabbed form isn't in the way.
+ *
+ * In-app list taps deliberately skip it and open the editor directly: there the
+ * user already has the reminder in front of them, so this view is a stop on the
+ * way to the only thing they came to do. That is also why the editor's parent is
+ * the list rather than this page (`native/useNativeBack.ts`) — Back must not
+ * strand them on a screen they never passed through.
  *
  * Every active occurrence of the reminder is confirmed independently (a reminder
  * with several times of day can have more than one pending at once), mirroring the
