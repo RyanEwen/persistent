@@ -1,6 +1,5 @@
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.Web.WebView2.Core;
 using Persistent.Desktop.Classes.Settings;
 using Persistent.Desktop.Services;
@@ -211,11 +210,6 @@ public sealed partial class AppFlyout : Window
         // produced (and then thickened) the hairline they were meant to remove.
         int round = DWMWCP_ROUND;
         DwmSetWindowAttribute(_hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref round, sizeof(int));
-
-        if (File.Exists(App.IconImagePath))
-        {
-            try { Icon.Source = new BitmapImage(new Uri(App.IconImagePath)); } catch { /* cosmetic */ }
-        }
 
         PinButton.IsChecked = SettingsManager.Current.PinFlyout;
         // Deliberately NOT ThemeManager.ApplySavedTheme: the flyout is pinned dark

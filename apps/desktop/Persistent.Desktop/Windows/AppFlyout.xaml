@@ -26,6 +26,10 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
+            <!-- No icon or title here: the page renders its own "Persistent" header
+                 immediately below, and repeating it in the chrome just spends the
+                 flyout's limited height saying the same thing twice. This strip
+                 carries only what the page cannot offer. -->
             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                 <!-- Drives the web app's own Back hierarchy (the same one Android's
                      gesture walks), by posting a message rather than navigating
@@ -36,9 +40,6 @@
                         ToolTipService.ToolTip="Back">
                     <FontIcon Glyph="&#xE72B;" FontSize="14" />
                 </Button>
-                <Image x:Name="Icon" Width="16" Height="16" VerticalAlignment="Center" />
-                <TextBlock Text="Persistent" VerticalAlignment="Center"
-                           Style="{StaticResource CaptionTextBlockStyle}" />
             </StackPanel>
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
