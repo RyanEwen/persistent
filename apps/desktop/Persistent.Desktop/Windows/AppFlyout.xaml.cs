@@ -166,7 +166,13 @@ public sealed partial class AppFlyout : Window
             // store) and lets the PWA's service worker cache render offline. Never
             // point this at a temp folder.
             Directory.CreateDirectory(SettingsManager.WebViewDataDirectory);
-            var environment = await CoreWebView2Environment.CreateAsync(null, SettingsManager.WebViewDataDirectory, null);
+            // CreateWithOptionsAsync, not CreateAsync: in the WinRT projection the
+            // latter is parameterless, so the folder would silently fall back to
+            // the default profile beside the exe.
+            var environment = await CoreWebView2Environment.CreateWithOptionsAsync(
+                string.Empty, // empty = use the installed Evergreen runtime
+                SettingsManager.WebViewDataDirectory,
+                new CoreWebView2EnvironmentOptions());
             await WebView.EnsureCoreWebView2Async(environment);
         }
         catch (Exception ex)
