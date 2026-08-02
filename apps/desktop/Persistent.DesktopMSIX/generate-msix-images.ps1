@@ -10,7 +10,11 @@
 
 [CmdletBinding()]
 param(
-    [int]$Master = 1024
+    # NOT $Master: PowerShell variable names are case-insensitive, so a $Master
+    # parameter and the $master bitmap below are one variable, and the [int]
+    # constraint from the param declaration stays attached to it, so assigning the
+    # rendered Bitmap to it dies with "Cannot convert ... to type System.Int32".
+    [int]$MasterSize = 1024
 )
 
 $ErrorActionPreference = 'Stop'
@@ -96,7 +100,7 @@ function New-Master([int]$size) {
     return $bmp
 }
 
-function Save-Scaled($master, [int]$w, [int]$h, [string]$path) {
+function Save-Scaled($source, [int]$w, [int]$h, [string]$path) {
     $bmp = New-Object System.Drawing.Bitmap($w, $h)
     $g   = [System.Drawing.Graphics]::FromImage($bmp)
     $g.SmoothingMode     = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
@@ -106,18 +110,18 @@ function Save-Scaled($master, [int]$w, [int]$h, [string]$path) {
 
     # Letterbox rather than stretch: the wide Store tiles are not square, and a
     # squashed bell looks like a different app.
-    $scale = [Math]::Min($w / [double]$master.Width, $h / [double]$master.Height)
-    $dw = [int]([Math]::Round($master.Width * $scale))
-    $dh = [int]([Math]::Round($master.Height * $scale))
-    $g.DrawImage($master, [int](($w - $dw) / 2), [int](($h - $dh) / 2), $dw, $dh)
+    $scale = [Math]::Min($w / [double]$source.Width, $h / [double]$source.Height)
+    $dw = [int]([Math]::Round($source.Width * $scale))
+    $dh = [int]([Math]::Round($source.Height * $scale))
+    $g.DrawImage($source, [int](($w - $dw) / 2), [int](($h - $dh) / 2), $dw, $dh)
 
     $g.Dispose()
     $bmp.Save($path, [System.Drawing.Imaging.ImageFormat]::Png)
     $bmp.Dispose()
 }
 
-Write-Host "Rendering master at ${Master}px..."
-$master = New-Master $Master
+Write-Host "Rendering master at ${MasterSize}px..."
+$master = New-Master $MasterSize
 
 # --- MSIX visual assets -------------------------------------------------
 $tiles = @(
