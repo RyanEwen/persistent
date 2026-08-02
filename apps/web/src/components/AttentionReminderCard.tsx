@@ -51,7 +51,8 @@ export function AttentionReminderCard({
   const body = items.length > 0 ? (reminder.details ?? '') : reminderBodyText(reminder)
   // How loudly this firing presents itself, and whether "Due" is honest for it —
   // an escalation shouts, an ordinary due reminder is outlined, and a firing with
-  // no deadline behind it reads as Unconfirmed. See FiringStatusChip.
+  // no deadline behind it is quieter still (and either reads as Unconfirmed or
+  // drops its chip entirely). See FiringStatusChip.
   const { orphaned, color, variant, doneLabel } = firingTone(reminder, occurrence)
   return (
     <Card color={color} variant={variant}>

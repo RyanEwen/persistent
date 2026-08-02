@@ -6,6 +6,14 @@
  * "Upcoming" divider as plain list items in soonest-fire order — the two groups
  * answer different questions ("what do I have to deal with" vs "what is coming"),
  * and the cards alone didn't make the boundary obvious once there were several.
+ *
+ * The two groups also open different things, for the same reason. An **upcoming
+ * row** is a reminder *definition*, and the only thing you go there to do is
+ * change it, so it opens the editor directly. An **attention card** is a
+ * *firing*: its actions are already on the card, so tapping it opens the detail
+ * view — the same place a notification tap lands (`native/nativeSync.ts`,
+ * `public/push-handler.js`), which is the context where reading before acting is
+ * the point. Keep those two targets distinct.
  */
 import { useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
@@ -122,16 +130,24 @@ export function RemindersPage() {
                 </Typography>
               </Divider>
             )}
+            {/* No status chip on these rows. `idle` is by definition "nothing
+                pending", so `lastOccurrence` is always a *past* firing — in
+                practice always ACKNOWLEDGED, since the scheduler never assigns
+                MISSED and SUPERSEDED is legacy-only. That made every reminder the
+                user had ever completed wear a green "Done" next to a subtitle
+                giving its *next* fire time, which reads as "this upcoming
+                reminder is already done". A chip whose value never varies is not
+                status, and the row is about the next firing; the last one is what
+                History is for. */}
             {idle.map(({ reminder, next }) => {
               const isRepeating = reminder.schedule.kind !== 'once'
               const when = next ? formatWhen(next, timeFormat) : 'Paused'
               return (
                 <ReminderListItem
                   key={reminder.id}
-                  to={`/reminders/${reminder.id}`}
+                  to={`/reminders/${reminder.id}/edit`}
                   type={reminder.type}
                   title={reminder.title}
-                  status={reminder.lastOccurrence?.status}
                   description={reminderBodyText(reminder)}
                   subtitle={when}
                   secondary={isRepeating ? scheduleSummary(reminder.schedule, timeFormat) : undefined}

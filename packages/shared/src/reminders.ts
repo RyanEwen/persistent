@@ -394,6 +394,27 @@ export const occurrenceSchema = z.object({
 export type Occurrence = z.infer<typeof occurrenceSchema>
 
 /**
+ * Response shape for `GET /api/occurrences`, whatever the scope.
+ *
+ * `nextCursor` is only ever populated for `scope=history`, which is the one feed
+ * that grows without bound — a year of a three-dose medication is ~1,100 rows,
+ * and every row carries a denormalized copy of its reminder. Active and upcoming
+ * are naturally small (what is nagging now, what is scheduled next) and are
+ * returned whole, so they leave it null.
+ *
+ * The cursor is an occurrence id, passed back as `?cursor=`. Ids rather than
+ * timestamps because several firings can share a `scheduledFor` (a reminder with
+ * one time of day and several doses, or a bulk ack), and a timestamp cursor would
+ * either skip or repeat the rows on that boundary.
+ */
+export const occurrenceListSchema = z.object({
+  occurrences: z.array(occurrenceSchema),
+  /** Pass as `?cursor=` for the next page. Null means this was the last one. */
+  nextCursor: z.string().nullable().default(null)
+})
+export type OccurrenceList = z.infer<typeof occurrenceListSchema>
+
+/**
  * Upper bound for a single snooze, in minutes (1 year). Generous so the picker
  * can snooze "until" a future date and the custom number + unit (which goes up
  * to years) stays valid; snoozedUntil just sets a future fire time.

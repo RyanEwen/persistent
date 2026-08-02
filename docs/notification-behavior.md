@@ -225,14 +225,18 @@ two-tap confirm and the same acknowledge — only the wording changes, because
 calling it "Done" would claim the user completed something the reminder has moved
 on from.
 
-Two other firings are labelled **Unconfirmed** rather than Due, for the same
-reason — "Due" claims a deadline that never existed:
+An **unscheduled** reminder's firing (kind `none`) has the same problem — it
+happened because the user asked to be reminded, not because a time arrived, so
+"Due" claims a deadline that never existed. It is handled the opposite way,
+though: it gets **no status chip at all** (`FiringStatusChip` returns nothing).
+An unscheduled firing has no second state to be in — it is either nagging, which
+the card's own Done/Snooze already say, or confirmed and gone — so a chip there
+is a constant, and labelling it "Unconfirmed" reads as a warning about a reminder
+doing exactly what was asked. It keeps **Done** (not Clear): the user did ask for
+it, so there is something to have done. A snoozed or escalated unscheduled firing
+still shows its real status chip; only the `FIRED` case is the constant.
 
-- an **unscheduled** reminder's firing (kind `none`), which happened because the
-  user asked to be reminded, not because a time arrived;
-- an **orphaned** firing, as described above.
-
-The two never overlap: an unscheduled reminder is excluded from the orphan test
+Unscheduled and orphaned never overlap: an unscheduled reminder is excluded from the orphan test
 outright, because its `startDate` is a bare record of when it was last saved, not
 a window a firing can fall outside of. Comparing against it anyway is how a
 reminder that had *just* been made unscheduled described its brand-new firing as
@@ -240,10 +244,10 @@ a leftover from before a reschedule, and offered Clear for something the user ha
 only asked for a moment earlier.
 
 Urgency in the UI is graded to match: only an **escalated** firing gets a filled,
-loud card. An ordinary due reminder is outlined, and the two Unconfirmed cases are
-quieter still (`apps/web/src/lib/firingTone.ts`, shared by the list and the detail
-view). None of this changes what the firing *is* — every one of them still nags
-until confirmed; only how hard it shouts.
+loud card. An ordinary due reminder is outlined, and the orphaned and unscheduled
+cases are quieter still (`apps/web/src/lib/firingTone.ts`, shared by the list and
+the detail view). None of this changes what the firing *is* — every one of them
+still nags until confirmed; only how hard it shouts.
 
 The comparison is deliberately by **date, not time of day**: retiming a reminder
 whose dose is still unconfirmed must keep that dose nagging, because the day it

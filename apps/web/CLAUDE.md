@@ -15,7 +15,10 @@
 - **Data:** load through `apiFetch` (`lib/apiClient.ts`) wrapped in TanStack
   Query hooks under `src/data/`. Never call bare `fetch` for JSON and never poll
   — live updates arrive over `/ws` (`lib/wsClient.ts`) and invalidate query keys
-  defined in `lib/queryClient.ts`.
+  defined in `lib/queryClient.ts`. **History is the one paged feed**
+  (`usePastOccurrences` is a `useInfiniteQuery` — read it as `data.pages.flatMap`,
+  not `data.map`); it only ever grows, so it loads a page at a time behind "Show
+  more". Active and upcoming are small by construction and load whole.
 - **Auth:** use the `useAuth()` hook (`auth/useAuth.tsx`). The WebSocket starts/
   stops with the session automatically. `App.tsx` renders `SignInPage` for anyone
   signed out, so a route that must work **without** a session (currently only

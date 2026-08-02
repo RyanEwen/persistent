@@ -3,8 +3,8 @@
  * Ack/snooze trigger a server-side cross-device dismiss and use the offline-aware
  * mutation defaults (queued + replayed on reconnect); WS events refresh here.
  */
-import { useMutation, useQuery } from '@tanstack/react-query'
-import type { CheckItemInput, Occurrence } from '@persistent/shared'
+import { useInfiniteQuery, useMutation, useQuery } from '@tanstack/react-query'
+import type { CheckItemInput, Occurrence, OccurrenceList } from '@persistent/shared'
 import { apiFetch } from '../lib/apiClient.js'
 import { mutationKeys, queryKeys } from '../lib/queryClient.js'
 
@@ -24,11 +24,24 @@ export function useUpcomingOccurrences() {
   })
 }
 
+/**
+ * History, a page at a time. Unlike active/upcoming this feed only grows — every
+ * confirmed firing stays forever — so it is the one list that pages rather than
+ * loading whole. The cursor is the last occurrence id of the previous page.
+ *
+ * Pages accumulate in the cache (and so in the persisted offline copy), which is
+ * the point: the user keeps what they scrolled, and a fresh visit costs one page
+ * instead of the entire history.
+ */
 export function usePastOccurrences() {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: queryKeys.occurrencesHistory,
-    queryFn: async () =>
-      (await apiFetch<{ occurrences: Occurrence[] }>('/api/occurrences?scope=history')).occurrences
+    queryFn: async ({ pageParam }) =>
+      apiFetch<OccurrenceList>(
+        pageParam ? `/api/occurrences?scope=history&cursor=${encodeURIComponent(pageParam)}` : '/api/occurrences?scope=history'
+      ),
+    initialPageParam: '',
+    getNextPageParam: (last) => last.nextCursor ?? undefined
   })
 }
 

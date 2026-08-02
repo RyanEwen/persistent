@@ -34,17 +34,55 @@ const ACTIVE_STATUSES: OccurrenceStatus[] = ['FIRED', 'ESCALATED', 'SNOOZED']
 /** Past entries: handled, expired, or auto-resolved by a newer firing. */
 const HISTORY_STATUSES: OccurrenceStatus[] = ['ACKNOWLEDGED', 'MISSED', 'SUPERSEDED']
 
-// GET /api/occurrences?scope=active|upcoming|history
+/**
+ * History is the only feed that grows without bound — nothing prunes acknowledged
+ * occurrences, so a daily reminder adds 365 rows a year and a three-dose
+ * medication ~1,100, each carrying a denormalized copy of its reminder. Active and
+ * upcoming answer "what is nagging" and "what is next", which are small by
+ * construction, so they still return whole.
+ */
+const HISTORY_PAGE_SIZE = 50
+
+// GET /api/occurrences?scope=active|upcoming|history[&cursor=<occurrenceId>]
 occurrencesRouter.get('/', async (request, response) => {
   const userId = requireUserId(request)
   const scope =
     request.query.scope === 'upcoming' ? 'upcoming' : request.query.scope === 'history' ? 'history' : 'active'
+
+  if (scope === 'history') {
+    const cursor =
+      typeof request.query.cursor === 'string' && request.query.cursor.length > 0 ? request.query.cursor : undefined
+
+    const rows = await prisma.reminderOccurrence.findMany({
+      where: { userId, status: { in: HISTORY_STATUSES } },
+      include: { reminder: true },
+      // A *total* ordering, deliberately. One reminder can't have two firings at
+      // the same instant (@@unique([reminderId, scheduledFor])), but *different*
+      // reminders routinely share one — every reminder set to 09:00 fires
+      // together — and history spans all of them. A cursor into a partially
+      // ordered set silently skips or repeats the rows sharing the boundary
+      // value, so the id tiebreak is what makes each page exact.
+      orderBy: [{ scheduledFor: 'desc' }, { id: 'desc' }],
+      // One extra row answers "is there another page?" without a second count
+      // query; it is sliced off before serializing.
+      take: HISTORY_PAGE_SIZE + 1,
+      // `skip: 1` steps past the cursor row itself — the client already has it.
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {})
+    })
+
+    const hasMore = rows.length > HISTORY_PAGE_SIZE
+    const page = hasMore ? rows.slice(0, HISTORY_PAGE_SIZE) : rows
+    response.json({
+      occurrences: page.map(toOccurrence),
+      nextCursor: hasMore ? (page[page.length - 1]?.id ?? null) : null
+    })
+    return
+  }
+
   const where =
     scope === 'upcoming'
       ? { userId, status: 'PENDING' as OccurrenceStatus }
-      : scope === 'history'
-        ? { userId, status: { in: HISTORY_STATUSES } }
-        : { userId, status: { in: ACTIVE_STATUSES } }
+      : { userId, status: { in: ACTIVE_STATUSES } }
 
   const occurrences = await prisma.reminderOccurrence.findMany({
     where,
@@ -52,7 +90,7 @@ occurrencesRouter.get('/', async (request, response) => {
     orderBy: { scheduledFor: scope === 'upcoming' ? 'asc' : 'desc' },
     take: scope === 'upcoming' ? 100 : 200
   })
-  response.json({ occurrences: occurrences.map(toOccurrence) })
+  response.json({ occurrences: occurrences.map(toOccurrence), nextCursor: null })
 })
 
 occurrencesRouter.post('/:id/ack', async (request, response) => {

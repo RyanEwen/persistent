@@ -15,6 +15,24 @@ queue while offline, replaying on reconnect via mutation defaults registered in
 `lib/queryClient.ts` (`resumePausedMutations`). Auth/push queries are excluded
 from persistence.
 
+**History pages; the other feeds don't.** `GET /api/occurrences?scope=history`
+returns `{ occurrences, nextCursor }` (`occurrenceListSchema`) and takes a
+`?cursor=<occurrenceId>`; the client walks it with `useInfiniteQuery` behind a
+"Show more" button. It is the only feed that grows without bound — nothing prunes
+acknowledged occurrences, so a daily reminder adds ~365 rows a year and each
+carries a denormalized copy of its reminder — whereas active ("what is nagging")
+and upcoming ("what is next") are small by construction and still return whole
+with `nextCursor: null`.
+
+The page query orders by `[scheduledFor desc, id desc]`, a **total** order. One
+reminder cannot have two firings at the same instant
+(`@@unique([reminderId, scheduledFor])`), but different reminders routinely share
+one — everything set to 09:00 fires together — and history spans all of them, so
+without the id tiebreak a cursor landing inside a tie would skip or repeat those
+rows. A cursor whose occurrence no longer exists (its reminder was deleted
+mid-paging) returns an empty page rather than erroring, which the client reads as
+"no more".
+
 Conflict resolution is **last-edit-wins**: an update sends `clientEditedAt` (the
 wall time the edit was made, captured at submit so it survives offline queueing).
 The PUT route ignores a write whose `clientEditedAt` predates the stored row's
@@ -38,7 +56,7 @@ Event types (`packages/shared/src/ws-events.ts`):
 
 | Event | Meaning | Client reaction |
 |---|---|---|
-| `occurrence.fired` | an occurrence became due | invalidate active/upcoming/history occurrences + reminders (the list shows each reminder's latest-occurrence status) |
+| `occurrence.fired` | an occurrence became due | invalidate active/upcoming/history occurrences + reminders (a one-time reminder drops off the list once its latest occurrence is acknowledged) |
 | `occurrence.changed` | status changed (ack/snooze/escalate) | invalidate active/upcoming/history occurrences + reminders |
 | `reminder.changed` | a reminder was created/updated/deleted | invalidate reminders + occurrences (active/upcoming/history) |
 | `dismiss` | clear a shown notification everywhere | service worker / native closes it |
