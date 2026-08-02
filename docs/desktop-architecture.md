@@ -67,6 +67,20 @@ and load-bearing:
 `TrayIconRenderer` composes the badge onto the app mark with `System.Drawing` and
 hands back an HICON (the caller owns it; it is destroyed on the next update).
 
+**Hidden, the WebView is idled but never suspended.** `SetWebViewIdle` collapses
+the control (so the WebView2 controller stops compositing and doing GPU work) and
+drops `MemoryUsageTargetLevel` to `Low`. It deliberately does *not* call
+`TrySuspendAsync`: suspending freezes the page's `/ws` socket, which is the only
+thing feeding the tray badge, so it would trade the app's sole ambient signal for
+the memory. JavaScript and the socket keep running; only the drawing stops.
+
+**Clicking the tray icon while the flyout is open closes it.** That needs a guard:
+the click itself deactivates the flyout, so light dismiss has already hidden it by
+the time the click message arrives, and a naive toggle would reopen the window the
+user was dismissing. `Toggle` ignores a click landing within
+`ReopenSuppressionMs` of a dismiss; `Show` (tray menu, second launch) is explicit
+and never suppressed.
+
 ## The bridge (`apps/web/src/native/desktopBridge.ts`)
 
 Three hosts now load **one** hosted bundle: browser, Capacitor/Android, and this
@@ -81,6 +95,13 @@ detection — the same rule that already governs `hasNativeUpdater()`.
   host. `DesktopBadge` (mounted in the signed-in shell, like `UpdateCheck`) drives
   it from the active-occurrence query, and clears it on unmount so signing out
   doesn't leave a stale count in the tray.
+- `onHostMessage()` receives host→page messages; currently just `back`, from the
+  flyout's title-bar button. The host does **not** call `CoreWebView2.GoBack()` —
+  browser history is the trail of every hop the user made, which is the model the
+  app deliberately rejected on Android. `performBack` (`useNativeBack.ts`) walks
+  the screen hierarchy instead, shared with the Android gesture so the two cannot
+  answer Back differently. Only the "ran out" case differs: Android leaves the
+  app, the flyout closes via `requestClose()`.
 - `hostSupportsPush()` is false on desktop. WebView2 may still *report* the Push
   API as present, so a plain capability check would offer a notification toggle
   that silently does nothing.

@@ -18,6 +18,8 @@
 
 interface WebView2Bridge {
   postMessage(message: unknown): void
+  addEventListener(type: 'message', listener: (event: { data: unknown }) => void): void
+  removeEventListener(type: 'message', listener: (event: { data: unknown }) => void): void
 }
 
 declare global {
@@ -25,6 +27,9 @@ declare global {
     chrome?: { webview?: WebView2Bridge }
   }
 }
+
+/** Messages the host sends us. Anything unrecognised is ignored. */
+type HostMessage = { type: 'back' }
 
 /** True when running inside the Windows tray app's WebView2. */
 export function isDesktopHost(): boolean {
@@ -41,6 +46,41 @@ export function isDesktopHost(): boolean {
  */
 export function hostSupportsPush(): boolean {
   return !isDesktopHost()
+}
+
+/**
+ * Subscribe to messages from the host. Returns an unsubscribe function; a no-op
+ * on every other host.
+ *
+ * Currently one message: `back`, from the flyout's title-bar back button. The
+ * host deliberately does not try to navigate the page itself — the hierarchy that
+ * Back walks is a web concern (`useNativeBack.ts`), and the Android client
+ * already implements it. The button just says "the user pressed back".
+ */
+export function onHostMessage(handler: (message: HostMessage) => void): () => void {
+  if (!isDesktopHost()) return () => {}
+  const bridge = window.chrome!.webview!
+  const listener = (event: { data: unknown }) => {
+    const data = event.data
+    if (typeof data !== 'object' || data === null) return
+    const type = (data as { type?: unknown }).type
+    if (type === 'back') handler({ type: 'back' })
+  }
+  bridge.addEventListener('message', listener)
+  return () => bridge.removeEventListener('message', listener)
+}
+
+/**
+ * Ask the host to close the flyout — the desktop equivalent of Android's Back
+ * leaving the app, used when a Back press has nowhere left to go.
+ */
+export function requestClose(): void {
+  if (!isDesktopHost()) return
+  try {
+    window.chrome!.webview!.postMessage({ type: 'close' })
+  } catch {
+    // Worst case the flyout stays open; the user can click away from it.
+  }
 }
 
 let lastSent = ''

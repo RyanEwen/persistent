@@ -19,12 +19,19 @@
  * - On the first tab? Leave the app.
  *
  * Registering a `backButton` listener suppresses Capacitor's own history-walking,
- * so this fully replaces it. Native only — the browser keeps ordinary history.
+ * so this fully replaces it. The browser keeps ordinary history.
+ *
+ * The Windows tray app drives the same hierarchy from its title-bar back button:
+ * it posts a `back` message rather than navigating itself, because which screen
+ * is "up" is a web concern and two implementations would drift. `performBack` is
+ * the shared answer; only what happens when Back runs out differs (Android leaves
+ * the app, the flyout closes).
  */
 import { useEffect, useRef } from 'react'
 import { useLocation, useNavigate, type NavigateFunction } from 'react-router-dom'
 import { App } from '@capacitor/app'
 import { isNative } from './alarmBridge.js'
+import { onHostMessage, requestClose } from './desktopBridge.js'
 import { hasOpenBackAwareDialog } from '../components/backAwareDialogStack.js'
 import { runBackInterceptor } from './backInterceptor.js'
 
@@ -57,6 +64,44 @@ export function parentRoute(pathname: string): string | null {
   return HOME_ROUTE
 }
 
+/**
+ * Whether a Back press found somewhere to go. `exhausted` means the user is at
+ * the root with nothing above it — what each host does about that differs
+ * (Android leaves the app, the Windows flyout closes), which is why this reports
+ * rather than decides.
+ */
+export type BackResult = 'handled' | 'exhausted'
+
+/**
+ * One Back press, walking the screen hierarchy. Shared by every host that has a
+ * Back affordance — Android's gesture/button and the Windows flyout's title-bar
+ * button — so the two can never drift into answering Back differently.
+ */
+export function performBack(pathname: string, navigate: NavigateFunction): BackResult {
+  // A dialog owns Back first. It tracks itself as a history entry, so popping
+  // history is what closes it (see BackAwareModal).
+  if (hasOpenBackAwareDialog()) {
+    window.history.back()
+    return 'handled'
+  }
+  // A screen may claim Back — the editor does, to ask before dropping edits.
+  // Checked after dialogs so its own confirm dialog closes with Back normally.
+  if (runBackInterceptor()) return 'handled'
+
+  const parent = parentRoute(pathname)
+  // `replace`, not push: going up must shrink the trail, never extend it —
+  // otherwise Back would eventually walk forwards through screens you left.
+  if (parent !== null) {
+    navigate(parent, { replace: true })
+    return 'handled'
+  }
+  if (pathname !== HOME_ROUTE) {
+    navigate(HOME_ROUTE, { replace: true })
+    return 'handled'
+  }
+  return 'exhausted'
+}
+
 export function useNativeBack(): void {
   const navigate = useNavigate()
   const { pathname } = useLocation()
@@ -65,28 +110,15 @@ export function useNativeBack(): void {
   const current = useRef<{ pathname: string; navigate: NavigateFunction }>({ pathname, navigate })
   current.current = { pathname, navigate }
 
+  // Android: Capacitor's hardware/gesture Back.
   useEffect(() => {
     if (!isNative()) return
     let handle: { remove: () => Promise<void> } | undefined
     let cancelled = false
 
     void App.addListener('backButton', () => {
-      // A dialog owns Back first. It tracks itself as a history entry, so popping
-      // history is what closes it (see BackAwareModal).
-      if (hasOpenBackAwareDialog()) {
-        window.history.back()
-        return
-      }
-      // A screen may claim Back — the editor does, to ask before dropping edits.
-      // Checked after dialogs so its own confirm dialog closes with Back normally.
-      if (runBackInterceptor()) return
       const { pathname: here, navigate: go } = current.current
-      const parent = parentRoute(here)
-      // `replace`, not push: going up must shrink the trail, never extend it —
-      // otherwise Back would eventually walk forwards through screens you left.
-      if (parent !== null) go(parent, { replace: true })
-      else if (here !== HOME_ROUTE) go(HOME_ROUTE, { replace: true })
-      else void App.exitApp()
+      if (performBack(here, go) === 'exhausted') void App.exitApp()
     })
       .then((registered) => {
         if (cancelled) void registered.remove()
@@ -100,5 +132,16 @@ export function useNativeBack(): void {
       cancelled = true
       void handle?.remove()
     }
+  }, [])
+
+  // Windows: the flyout's title-bar back button, which posts a `back` message
+  // rather than navigating itself. Exhausting the hierarchy closes the flyout —
+  // the same "leave" that exitApp is on Android.
+  useEffect(() => {
+    return onHostMessage((message) => {
+      if (message.type !== 'back') return
+      const { pathname: here, navigate: go } = current.current
+      if (performBack(here, go) === 'exhausted') requestClose()
+    })
   }, [])
 }

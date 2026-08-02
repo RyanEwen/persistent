@@ -44,6 +44,14 @@ public sealed partial class AppFlyout : Window
     private bool _webViewReady;
     private bool _visible;
 
+    /// <summary>When the flyout was last hidden, for the tray-click toggle below.</summary>
+    private long _hiddenAtTicks;
+
+    /// <summary>How long after a dismiss a tray click still counts as part of it.
+    /// Long enough to cover the gap between losing focus and the click arriving,
+    /// short enough that a deliberate second click still opens the flyout.</summary>
+    private const long ReopenSuppressionMs = 500;
+
     public static AppFlyout? GetCurrent() => _instance;
 
     /// <summary>Build the flyout and start loading the page, without showing it.</summary>
@@ -64,12 +72,38 @@ public sealed partial class AppFlyout : Window
         if (_instance is { _visible: true }) _instance.HideFlyout();
     }
 
+    /// <summary>
+    /// Tray left-click: open if closed, close if open.
+    ///
+    /// The subtlety is that clicking the tray icon *while the flyout is open*
+    /// deactivates it, so light dismiss has already hidden it by the time the click
+    /// message arrives — `_visible` reads false and a naive toggle would reopen the
+    /// window the user was trying to dismiss. So a click landing immediately after a
+    /// dismiss is treated as the closing half of that same gesture and does nothing.
+    ///
+    /// Only <see cref="Toggle"/> suppresses. <see cref="Show"/> — the tray menu, a
+    /// second launch — is an explicit request and always opens.
+    /// </summary>
     public static void Toggle()
     {
         EnsureCreated();
         if (_instance == null) return;
-        if (_instance._visible) _instance.HideFlyout();
-        else _instance.ShowNearTray();
+
+        if (_instance._visible)
+        {
+            _instance.HideFlyout();
+            return;
+        }
+
+        if (Environment.TickCount64 - _instance._hiddenAtTicks < ReopenSuppressionMs)
+        {
+            // Light dismiss already closed it as part of this same click. Clear the
+            // stamp so the next click opens normally rather than being swallowed too.
+            _instance._hiddenAtTicks = 0;
+            return;
+        }
+
+        _instance.ShowNearTray();
     }
 
     public static void Reload() => _instance?.NavigateToApp();
@@ -273,11 +307,22 @@ public sealed partial class AppFlyout : Window
         {
             using var document = JsonDocument.Parse(args.WebMessageAsJson);
             var root = document.RootElement;
-            if (!root.TryGetProperty("type", out var type) || type.GetString() != "badge") return;
+            if (!root.TryGetProperty("type", out var type)) return;
 
-            int count = root.TryGetProperty("count", out var c) && c.TryGetInt32(out int parsed) ? parsed : 0;
-            bool escalated = root.TryGetProperty("escalated", out var e) && e.ValueKind == JsonValueKind.True;
-            TrayState.Report(count, escalated);
+            switch (type.GetString())
+            {
+                case "badge":
+                    int count = root.TryGetProperty("count", out var c) && c.TryGetInt32(out int parsed) ? parsed : 0;
+                    bool escalated = root.TryGetProperty("escalated", out var e) && e.ValueKind == JsonValueKind.True;
+                    TrayState.Report(count, escalated);
+                    break;
+
+                // Back ran out of hierarchy to walk — the flyout's equivalent of
+                // Back leaving the app on Android.
+                case "close":
+                    DispatcherQueue.TryEnqueue(HideFlyout);
+                    break;
+            }
         }
         catch (Exception ex)
         {
@@ -405,6 +450,7 @@ public sealed partial class AppFlyout : Window
 
         _appWindow.MoveAndResize(new global::Windows.Graphics.RectInt32(x, y, w, h));
         _visible = true;
+        SetWebViewIdle(false);
         Activate();
         SetForegroundWindow(_hwnd);
         WebView.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
@@ -448,7 +494,40 @@ public sealed partial class AppFlyout : Window
     private void HideFlyout()
     {
         _visible = false;
+        _hiddenAtTicks = Environment.TickCount64;
         _appWindow.Hide();
+        SetWebViewIdle(true);
+    }
+
+    /// <summary>
+    /// Wind the WebView down while the flyout is off-screen — without pausing it.
+    ///
+    /// The page is kept alive on purpose: its `/ws` socket is what feeds the tray
+    /// badge, so suspending it (`TrySuspendAsync`) would trade the app's only
+    /// ambient signal for the memory saving, which is the wrong way round. What can
+    /// go is the part that is pure waste when nothing is visible: rendering.
+    ///
+    /// Collapsing the control drops the WebView2 controller's visibility, so it
+    /// stops compositing and doing GPU work entirely; `MemoryUsageTargetLevel.Low`
+    /// then lets it trim caches it is not drawing from. JavaScript, timers and the
+    /// socket keep running, so the badge stays current and the flyout opens with
+    /// the page already where the user left it.
+    /// </summary>
+    private void SetWebViewIdle(bool idle)
+    {
+        try
+        {
+            WebView.Visibility = idle ? Visibility.Collapsed : Visibility.Visible;
+            if (!_webViewReady) return;
+            WebView.CoreWebView2.MemoryUsageTargetLevel = idle
+                ? CoreWebView2MemoryUsageTargetLevel.Low
+                : CoreWebView2MemoryUsageTargetLevel.Normal;
+        }
+        catch (Exception ex)
+        {
+            // Purely an optimisation — never let it stop the flyout showing.
+            Logger.Debug(ex, "Could not change the WebView idle state");
+        }
     }
 
     /// <summary>
@@ -500,4 +579,26 @@ public sealed partial class AppFlyout : Window
     }
 
     private void RetryButton_Click(object sender, RoutedEventArgs e) => NavigateToApp();
+
+    /// <summary>
+    /// Ask the page to go back one level in its own hierarchy.
+    ///
+    /// Deliberately a message rather than `CoreWebView2.GoBack()`: browser history
+    /// is the trail of every hop the user made, which is exactly the model the app
+    /// rejected on Android (see `native/useNativeBack.ts`). The page walks its
+    /// screen hierarchy instead and tells us if it ran out, at which point it asks
+    /// for the flyout to close.
+    /// </summary>
+    private void BackButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_webViewReady) return;
+        try
+        {
+            WebView.CoreWebView2.PostWebMessageAsJson("{\"type\":\"back\"}");
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn(ex, "Could not post the back message");
+        }
+    }
 }
