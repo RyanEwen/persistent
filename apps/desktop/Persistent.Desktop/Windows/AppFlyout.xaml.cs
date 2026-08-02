@@ -178,15 +178,25 @@ public sealed partial class AppFlyout : Window
         // (see AppFlyout.xaml). An acrylic backdrop follows the system theme, so on
         // a light-mode desktop it renders light wherever content does not cover it.
 
+        // Mark the window dark FIRST. On a light-mode desktop DWM draws a light
+        // frame whatever colour is requested, which is why setting BORDER_COLOR
+        // alone still left a pale hairline down both edges. This is the switch that
+        // makes the frame itself dark. Pinned on regardless of the user's theme
+        // choice, matching the web content this window holds.
+        int dark = 1;
+        DwmSetWindowAttribute(_hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, sizeof(int));
+
         int round = DWMWCP_ROUND;
         DwmSetWindowAttribute(_hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref round, sizeof(int));
-        // Match the 1px DWM border to the window instead of letting it default to
-        // the system's (light) border colour, which outlines a dark window in white.
+
+        // No border at all, rather than one matched to the background: at 1px even
+        // "almost the same dark" reads as an outline, and this window should look
+        // like one surface with the page inside it.
+        int none = DWMWA_COLOR_NONE;
+        DwmSetWindowAttribute(_hwnd, DWMWA_BORDER_COLOR, ref none, sizeof(int));
+
+        // Caption is a separate attribute again — this was the band along the top.
         int chrome = 0x00190F0B; // COLORREF is 0x00BBGGRR, so #0B0F19 reverses
-        DwmSetWindowAttribute(_hwnd, DWMWA_BORDER_COLOR, ref chrome, sizeof(int));
-        // Caption is a separate attribute from border. Tinting only the border left
-        // any DWM-drawn caption at its default system colour, which is white in
-        // light mode — the exact band this window kept showing.
         DwmSetWindowAttribute(_hwnd, DWMWA_CAPTION_COLOR, ref chrome, sizeof(int));
 
         if (File.Exists(App.IconImagePath))
