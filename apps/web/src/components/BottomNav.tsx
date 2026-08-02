@@ -78,7 +78,12 @@ export function BottomNav() {
         zIndex: 10,
         bgcolor: 'background.surface',
         borderTop: '1px solid',
-        borderColor: 'divider'
+        borderColor: 'divider',
+        // Extend the bar's background down behind the gesture bar while keeping the
+        // buttons above it — otherwise the tabs sit under the system navigation.
+        pb: 'env(safe-area-inset-bottom, 0px)',
+        pl: 'env(safe-area-inset-left, 0px)',
+        pr: 'env(safe-area-inset-right, 0px)'
       }}
     >
       <Stack direction="row" sx={{ maxWidth: 640, mx: 'auto' }}>

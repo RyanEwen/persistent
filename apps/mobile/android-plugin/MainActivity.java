@@ -7,12 +7,14 @@
 package ca.persistent.app;
 
 import android.content.Intent;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
+import android.os.Build;
 import android.os.Bundle;
 import android.text.TextUtils;
-import android.view.View;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
+import android.view.Window;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
 import ca.persistent.app.alarm.AlarmPlugin;
 import ca.persistent.app.alarm.AlarmReceiver;
@@ -31,33 +33,57 @@ public class MainActivity extends BridgeActivity {
         // be named here because it is not compiled into the play flavor.
         FlavorPlugins.register(this);
         super.onCreate(savedInstanceState);
-        applySystemBarInsets();
+        drawEdgeToEdge();
         // Cold start from a notification tap: the WebView drains the store on startup.
         storePendingNav(getIntent());
     }
 
     /**
-     * Inset the WebView by the system bars.
+     * Let the WebView fill the display, under transparent system bars.
      *
-     * Android 15 (API 35) enforces edge-to-edge for apps targeting 35, so the
-     * system no longer insets the window. The hosted web UI sets
-     * `viewport-fit=cover` but uses no `env(safe-area-inset-*)` rules, so without
-     * this its header would slide under the status bar and the bottom nav under the
-     * gesture bar. Padding the content root here restores the pre-35 layout without
-     * touching the web bundle, which is shared with the browser PWA.
+     * This used to pad the content root by the system-bar insets instead, which
+     * kept the layout correct but left a band above and below the WebView showing
+     * the *window* background — a flat grey the app has no control over, framing
+     * every screen. The web UI paints its own themed background (several themes,
+     * all dark but different), so the fix is to stop insetting and let it reach the
+     * edges.
+     *
+     * The web side now carries `env(safe-area-inset-*)` padding on the top bar and
+     * bottom nav (`components/AppLayout.tsx`, `components/BottomNav.tsx`) to keep
+     * the controls clear of the bars; `viewport-fit=cover` in index.html is what
+     * makes those values non-zero. Ship the web change FIRST: while the old bundle
+     * is still being served, insets read as 0 and the header would ride under the
+     * status bar.
+     *
+     * `setDecorFitsSystemWindows(false)` is the edge-to-edge switch. Disabling
+     * contrast enforcement matters just as much on API 29+, since the system
+     * otherwise draws its own translucent scrim behind the bars — which is grey,
+     * and would put back most of what this removes.
      */
-    private void applySystemBarInsets() {
-        final View content = findViewById(android.R.id.content);
-        if (content == null) return;
-        ViewCompat.setOnApplyWindowInsetsListener(content, (v, windowInsets) -> {
-            Insets bars = windowInsets.getInsets(
-                WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout()
-            );
-            v.setPadding(bars.left, bars.top, bars.right, bars.bottom);
-            return windowInsets;
-        });
-        ViewCompat.requestApplyInsets(content);
+    private void drawEdgeToEdge() {
+        Window window = getWindow();
+        WindowCompat.setDecorFitsSystemWindows(window, false);
+        // Deprecated in API 35 (javac says so on every build) and deliberately kept:
+        // on 35 the bars are already transparent so these are no-ops, but the app
+        // floor is far below that and they are what makes the bars transparent there.
+        window.setStatusBarColor(Color.TRANSPARENT);
+        window.setNavigationBarColor(Color.TRANSPARENT);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.setStatusBarContrastEnforced(false);
+            window.setNavigationBarContrastEnforced(false);
+        }
+        // Every app theme is dark, so the bar icons stay light.
+        WindowInsetsControllerCompat controller =
+            WindowCompat.getInsetsController(window, window.getDecorView());
+        controller.setAppearanceLightStatusBars(false);
+        controller.setAppearanceLightNavigationBars(false);
+        // Behind the WebView before first paint, so launch shows the app's own dark
+        // background rather than a white or grey flash.
+        window.setBackgroundDrawable(new ColorDrawable(APP_BACKGROUND));
     }
+
+    /** Matches the web shell's darkest theme background (see settings/themes.ts). */
+    private static final int APP_BACKGROUND = 0xFF0B0F19;
 
     @Override
     public void onNewIntent(Intent intent) {

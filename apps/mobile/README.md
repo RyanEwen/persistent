@@ -140,6 +140,24 @@ npm run sync          # copy web + plugins into android/
 npm run open:android  # build/run in Android Studio
 ```
 
+## Edge-to-edge, and why the web ships first
+
+`MainActivity.drawEdgeToEdge()` lets the WebView fill the display under
+transparent system bars, rather than padding it by the insets. Padding left a grey
+band above and below every screen: that band showed the *window* background, which
+the web UI's own themed background never reaches.
+
+That makes the layout depend on the **hosted** web bundle, which the APK loads
+live (`server.url` in `capacitor.config.ts`) — the top bar and bottom nav carry
+`env(safe-area-inset-*)` padding to stay clear of the bars
+(`apps/web/src/components/AppLayout.tsx`, `BottomNav.tsx`).
+
+**Deploy the web change before shipping an APK that contains this.** The two
+update independently, and while an old bundle is still being served a new APK
+would render its header under the status bar. The reverse order is safe: with an
+old APK still insetting the WebView the insets read as 0, so the new web bundle
+looks exactly as before.
+
 ## Releases & in-app updates
 
 Tagging `v*` (e.g. `git tag v0.2.0 && git push origin v0.2.0`) triggers
