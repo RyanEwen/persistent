@@ -7,13 +7,14 @@
  * answer different questions ("what do I have to deal with" vs "what is coming"),
  * and the cards alone didn't make the boundary obvious once there were several.
  *
- * The two groups also open different things, for the same reason. An **upcoming
- * row** is a reminder *definition*, and the only thing you go there to do is
- * change it, so it opens the editor directly. An **attention card** is a
- * *firing*: its actions are already on the card, so tapping it opens the detail
- * view — the same place a notification tap lands (`native/nativeSync.ts`,
- * `public/push-handler.js`), which is the context where reading before acting is
- * the point. Keep those two targets distinct.
+ * Tapping anything here — an attention card or an upcoming row — opens the
+ * **editor**. In the app the user already has the reminder in front of them, so
+ * the detail view is a stop on the way to the only thing they came to do; the
+ * card's Done/Snooze/De-escalate are on the card itself and don't need it either.
+ * The detail view is reached from a **notification** tap instead
+ * (`native/nativeSync.ts`, `public/push-handler.js` both navigate to
+ * `/reminders/:id`), where the user is arriving cold and reading before acting is
+ * the point — and from History. Don't collapse those two targets together.
  */
 import { useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'

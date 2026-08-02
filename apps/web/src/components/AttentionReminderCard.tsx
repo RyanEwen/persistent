@@ -77,7 +77,7 @@ export function AttentionReminderCard({
       >
         <Box
           component={RouterLink}
-          to={`/reminders/${reminder.id}`}
+          to={`/reminders/${reminder.id}/edit`}
           sx={{ color: 'inherit', display: 'block', textDecoration: 'none', flex: '1 1 8.5rem', minWidth: '8.5rem' }}
         >
           <Stack direction="row" spacing={1} alignItems="center">
