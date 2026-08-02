@@ -189,6 +189,14 @@ automatic check that exists — treat a red run there the way you would a failed
 - Dev: `dotnet build Persistent.Desktop/Persistent.Desktop.csproj -c Debug`
 - Icons: `.\Persistent.DesktopMSIX\generate-msix-images.ps1` (renders the same
   bell mark as `apps/web/public/favicon.svg`; keep the two in step)
+**Start at sign-in works in the portable build**, via the unpackaged fallback in
+`StartupManager`: no MSIX `windows.startupTask` exists, so it writes
+`HKCU\…\Run` with this executable's absolute path. That path is the catch —
+a portable build lives wherever it was unzipped, so a newer download in a new
+folder would leave the entry aimed at the old copy. `RefreshRunKeyPath()` runs at
+launch and re-points an *existing* entry at the running executable, so whichever
+copy you last opened is the one that starts at sign-in.
+
 - **Testing: `.\publish-portable.ps1`.** A self-contained unpackaged build —
   unzip and run `Persistent.Desktop.exe` on a clean Windows 11 machine with
   nothing installed first. `SelfContained` bundles .NET and

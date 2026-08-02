@@ -36,6 +36,42 @@ internal static class StartupManager
         });
     }
 
+    /// <summary>
+    /// Re-point an existing Run-key entry at wherever this executable now lives.
+    ///
+    /// The unpackaged fallback records an absolute path, captured when the user
+    /// turned the setting on. That is fine for an installed app and wrong for the
+    /// portable build, which is run from wherever it was unzipped: download a newer
+    /// one and it lands in a *new* folder, leaving the entry aimed at the old copy —
+    /// which then starts a stale version at boot, or nothing at all once that folder
+    /// is deleted. Either way the user's setting silently stops meaning what it says.
+    ///
+    /// Only rewrites an entry that already exists: relocating is not consent to
+    /// enable startup for someone who never asked for it. Inert when packaged, where
+    /// the startup task is used and no Run-key entry exists to find.
+    /// </summary>
+    public static void RefreshRunKeyPath()
+    {
+        try
+        {
+            string? exe = Environment.ProcessPath;
+            if (exe == null) return;
+
+            using var key = Registry.CurrentUser.OpenSubKey(RunKey, writable: true);
+            if (key?.GetValue(ValueName) is not string existing) return;
+
+            string wanted = $"\"{exe}\"";
+            if (string.Equals(existing, wanted, StringComparison.OrdinalIgnoreCase)) return;
+
+            key.SetValue(ValueName, wanted);
+            StartupDiagnostics.Mark($"start-at-sign-in re-pointed to {exe}");
+        }
+        catch
+        {
+            // Best effort: a stale startup entry is a nuisance, not worth a crash.
+        }
+    }
+
     public static bool IsEnabled()
     {
         try

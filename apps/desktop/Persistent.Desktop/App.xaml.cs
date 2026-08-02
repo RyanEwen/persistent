@@ -81,6 +81,11 @@ public partial class App : Application
             StartupDiagnostics.Mark("Restoring settings");
             SettingsManager.RestoreSettings();
 
+            // Portable builds move: each download unzips to its own folder, so a
+            // start-at-sign-in entry recorded against an older copy would launch a
+            // stale version or nothing. Running this one re-points it here.
+            StartupManager.RefreshRunKeyPath();
+
             StartupDiagnostics.Mark("Creating tray host");
             _host = new MainWindow();
             _host.Activate();
