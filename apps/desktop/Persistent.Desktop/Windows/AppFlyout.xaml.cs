@@ -38,10 +38,6 @@ public sealed partial class AppFlyout : Window
 
     private static AppFlyout? _instance;
 
-    /// <summary>#0B0F19 — the web shell's background, so the native chrome around it
-    /// reads as one surface rather than a frame.</summary>
-    private static readonly global::Windows.UI.Color ChromeColor =
-        global::Windows.UI.Color.FromArgb(0xFF, 0x0B, 0x0F, 0x19);
 
     private readonly IntPtr _hwnd;
     private readonly AppWindow _appWindow;
@@ -127,21 +123,26 @@ public sealed partial class AppFlyout : Window
         _appWindow = AppWindow.GetFromWindowId(Microsoft.UI.Win32Interop.GetWindowIdFromWindow(_hwnd));
         _appWindow.IsShownInSwitchers = false;
 
-        // A plain overlapped presenter with the chrome stripped, rather than
-        // OverlappedPresenter.CreateForContextMenu(): this window hosts a full web
-        // app with text entry, so it needs ordinary activation and keyboard focus.
-        // Light dismiss is implemented below instead of inherited.
-        var presenter = OverlappedPresenter.Create();
+        // A CONTEXT-MENU presenter, not OverlappedPresenter.Create().
+        //
+        // This matters and cost several rounds to pin down. An overlapped window
+        // always keeps a frame: stripping the border and title bar and disabling
+        // resize shrinks it but never reaches zero. Measured on a 150%-scaled
+        // display it left 3 physical pixels of non-client area on *every* edge —
+        // area the app cannot paint, so it showed as a pale hairline whatever
+        // colour the content was. No DWM colour attribute fixes that, because the
+        // region is not ours to colour; setting DWMWA_BORDER_COLOR to COLOR_NONE
+        // actively made it worse by removing the fill and letting the desktop show
+        // through.
+        //
+        // A context-menu presenter is popup-based and has no frame at all, which is
+        // what the sibling tray app (ImmichDrive) uses for the same job. Light
+        // dismiss is still implemented by hand below rather than inherited, because
+        // this window hosts a web app with text entry and must keep ordinary
+        // activation and keyboard focus.
+        var presenter = OverlappedPresenter.CreateForContextMenu();
         presenter.SetBorderAndTitleBar(false, false);
         presenter.IsAlwaysOnTop = true;
-        presenter.IsMaximizable = false;
-        presenter.IsMinimizable = false;
-        // NOT resizable. A resizable window keeps a Win32 sizing frame
-        // (WS_THICKFRAME) even when the presenter is asked for no border, and that
-        // frame is non-client area the app cannot paint — the other half of the
-        // white strip along the top edge. The size is chosen from presets in
-        // Settings instead (see AppSettingsPage).
-        presenter.IsResizable = false;
         _appWindow.SetPresenter(presenter);
 
         // NO ExtendsContentIntoTitleBar / SetTitleBar here, deliberately.
@@ -160,44 +161,22 @@ public sealed partial class AppFlyout : Window
         //
         // Belt and braces for any caption the framework still decides to draw: force
         // its colours to the window's own dark rather than leaving them system.
-        try
-        {
-            var titleBar = _appWindow.TitleBar;
-            titleBar.BackgroundColor = ChromeColor;
-            titleBar.InactiveBackgroundColor = ChromeColor;
-            titleBar.ButtonBackgroundColor = ChromeColor;
-            titleBar.ButtonInactiveBackgroundColor = ChromeColor;
-        }
-        catch (Exception ex)
-        {
-            // Purely cosmetic, and unavailable on some presenter configurations.
-            Logger.Debug(ex, "Could not tint the title bar");
-        }
-
         // No SystemBackdrop: the Root grid paints its own opaque dark background
         // (see AppFlyout.xaml). An acrylic backdrop follows the system theme, so on
         // a light-mode desktop it renders light wherever content does not cover it.
 
-        // Mark the window dark FIRST. On a light-mode desktop DWM draws a light
-        // frame whatever colour is requested, which is why setting BORDER_COLOR
-        // alone still left a pale hairline down both edges. This is the switch that
-        // makes the frame itself dark. Pinned on regardless of the user's theme
-        // choice, matching the web content this window holds.
+        // Mark the window dark so nothing DWM still draws for it (drop shadow,
+        // corner antialiasing) is derived from a light system theme. Pinned on
+        // regardless of the user's theme choice, matching the web content inside.
         int dark = 1;
         DwmSetWindowAttribute(_hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, sizeof(int));
 
+        // Rounded corners ONLY. No manual DWMWA_BORDER_COLOR or DWMWA_CAPTION_COLOR
+        // — the same convention the sibling tray app documents. Those attributes
+        // colour a frame this window no longer has, and setting them was what
+        // produced (and then thickened) the hairline they were meant to remove.
         int round = DWMWCP_ROUND;
         DwmSetWindowAttribute(_hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref round, sizeof(int));
-
-        // No border at all, rather than one matched to the background: at 1px even
-        // "almost the same dark" reads as an outline, and this window should look
-        // like one surface with the page inside it.
-        int none = DWMWA_COLOR_NONE;
-        DwmSetWindowAttribute(_hwnd, DWMWA_BORDER_COLOR, ref none, sizeof(int));
-
-        // Caption is a separate attribute again — this was the band along the top.
-        int chrome = 0x00190F0B; // COLORREF is 0x00BBGGRR, so #0B0F19 reverses
-        DwmSetWindowAttribute(_hwnd, DWMWA_CAPTION_COLOR, ref chrome, sizeof(int));
 
         if (File.Exists(App.IconImagePath))
         {

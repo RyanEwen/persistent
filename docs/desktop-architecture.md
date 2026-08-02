@@ -122,10 +122,31 @@ A **pin** toggle (flyout header, mirrored in Settings) suppresses dismissal
 entirely, because a flyout you are typing a reminder into should not vanish on a
 stray click.
 
-## The flyout is dark, opaque, and has no title bar at all
+## The flyout is dark, opaque, and frameless
 
-Two separate things produced a white band across the top of the flyout, and they
-are worth keeping straight because fixing one did not fix the other:
+**Use `OverlappedPresenter.CreateForContextMenu()`, not `Create()`.** An
+overlapped window always keeps a frame — stripping the border and title bar and
+disabling resize shrinks it but never reaches zero. Measured on a 150%-scaled
+display it left **3 physical pixels of non-client area on every edge**, which the
+app cannot paint, so it read as a pale hairline around a dark window no matter
+what the content did. A context-menu presenter is popup-based and has no frame,
+which is what the sibling tray app uses for the same job.
+
+That is also why **no `DWMWA_BORDER_COLOR` or `DWMWA_CAPTION_COLOR`** is set here
+(only `DWMWA_WINDOW_CORNER_PREFERENCE`, plus `DWMWA_USE_IMMERSIVE_DARK_MODE` so
+DWM's own shadow/antialiasing isn't derived from a light system theme). Those
+attributes colour a frame; on a window that shouldn't have one they are at best
+inert, and setting `DWMWA_BORDER_COLOR` to `COLOR_NONE` was actively worse — it
+removed the fill and let the desktop show through the frame instead.
+
+If a stray edge ever reappears, read the `flyout chrome:` line in
+`%AppData%\Persistent\startup.log` before touching colours. It reports the
+window rect against the client rect, and a non-zero `top`/`left`/`bottom` says
+the pixels are non-client — i.e. not a colour problem at all. Four rounds went
+into colour attributes before that measurement existed.
+
+Two further things had produced a *band across the top* specifically, and are
+worth keeping straight because fixing one did not fix the other:
 
 - **`DesktopAcrylicBackdrop` follows the *system* theme.** On a light-mode
   desktop it renders light acrylic wherever content does not paint over it. The

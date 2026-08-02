@@ -189,14 +189,13 @@ internal static class NativeMethods
     /// which is what leaves a pale hairline down the edges of a dark window.</summary>
     public const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
     public const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
-    /// <summary>Sentinel for DWMWA_BORDER_COLOR: remove the border entirely.</summary>
-    public const int DWMWA_COLOR_NONE = unchecked((int)0xFFFFFFFE);
-    /// <summary>Takes a COLORREF (0x00BBGGRR), not ARGB.</summary>
-    public const int DWMWA_BORDER_COLOR = 34;
-    /// <summary>The caption (title bar) fill. Distinct from the border — tinting
-    /// the border alone leaves a DWM-drawn caption its default system colour.</summary>
-    public const int DWMWA_CAPTION_COLOR = 35;
     public const int DWMWCP_ROUND = 2;
+
+    // DWMWA_BORDER_COLOR (34) and DWMWA_CAPTION_COLOR (35) are deliberately absent.
+    // They colour a window frame, and the surfaces here are frameless by design;
+    // setting them on the flyout produced the very hairline they were meant to
+    // remove. Rounded corners are the only DWM styling applied. See
+    // docs/desktop-architecture.md.
 
     [DllImport("dwmapi.dll")]
     public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
