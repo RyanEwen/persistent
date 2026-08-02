@@ -36,7 +36,13 @@ export function HistoryPage() {
   const past = usePastOccurrences()
   const { timeFormat } = useSettings()
 
-  const occurrences = past.data?.pages.flatMap((page) => page.occurrences) ?? []
+  // `?? []` on `pages`, not just on `data`: this key used to hold a plain
+  // Occurrence[] before history was paginated, and the persisted cache is only
+  // discarded on an app-version change. A restored old value has no `pages` at
+  // all, and reading straight through it takes the whole view down rather than
+  // one row (see the note in lib/persistQuery.ts). The version bump is the real
+  // fix; this is what stops it being fatal if one ever slips through again.
+  const occurrences = (past.data?.pages ?? []).flatMap((page) => page.occurrences ?? [])
 
   return (
     <PullToRefresh onRefresh={() => past.refetch()}>
