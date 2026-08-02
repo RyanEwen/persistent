@@ -1,6 +1,11 @@
 /**
- * Fixed bottom tab bar: switch between the current view, history (past/done),
- * and settings. Mobile-first primary navigation.
+ * Fixed bottom tab bar: switch between what's due now (Current), what's scheduled
+ * (Upcoming), history (past/done), and settings. Mobile-first primary navigation.
+ *
+ * Order is chronological on purpose — now, next, past — so Upcoming sits between
+ * Current and History. Keep `TAB_ROUTES` in `native/useNativeBack.ts` in step:
+ * Android Back treats a tab root as a place it falls back *to*, and a route
+ * missing from that list is treated as a child screen instead.
  */
 import { useEffect, useState } from 'react'
 import { Link as RouterLink, useLocation } from 'react-router-dom'
@@ -10,6 +15,7 @@ import Stack from '@mui/joy/Stack'
 import Button from '@mui/joy/Button'
 import Typography from '@mui/joy/Typography'
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive'
+import ScheduleIcon from '@mui/icons-material/Schedule'
 import HistoryIcon from '@mui/icons-material/History'
 import SettingsIcon from '@mui/icons-material/Settings'
 
@@ -21,6 +27,7 @@ interface NavItem {
 
 const ITEMS: NavItem[] = [
   { to: '/', label: 'Current', icon: NotificationsActiveIcon },
+  { to: '/upcoming', label: 'Upcoming', icon: ScheduleIcon },
   { to: '/history', label: 'History', icon: HistoryIcon },
   { to: '/settings', label: 'Settings', icon: SettingsIcon }
 ]

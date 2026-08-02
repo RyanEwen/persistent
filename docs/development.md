@@ -12,6 +12,9 @@ facing overview is in the root `README.md`.)
   the native plugins: a custom alarm plugin (foreground service + exact alarms +
   full-screen + looping sound), an in-app updater, a passkey/Credential Manager
   bridge, and Google sign-in. See `apps/mobile/README.md`.
+- **`apps/desktop`** — WinUI 3 (C#) Windows tray app. Hosts the *hosted* web UI in
+  a WebView2 flyout with a due-count badge on the tray icon; it shows and confirms
+  reminders but deliberately never rings. See `docs/desktop-architecture.md`.
 - **`packages/shared`** — Zod schemas + inferred types shared by API and web.
 
 ## The persistence reality
@@ -57,6 +60,12 @@ npm run validate   # lint + test + typecheck + prisma validate
 `validate` does not cover the native Kotlin. After editing `apps/mobile/android-plugin/`,
 compile-check it with `npm run verify:android` (from `apps/mobile`) — see
 `apps/mobile/README.md`.
+
+It doesn't cover `apps/desktop` (C#) either, and that one can't be built in the
+devcontainer at all — there is no .NET or Windows SDK here. Its only automatic
+check is `.github/workflows/build-desktop-msix.yml`, which compiles both platforms
+on `windows-2025` for every push/PR touching that directory; treat a red run there
+as a failed validate. See `docs/desktop-architecture.md`.
 
 Local auth works without mail infra: `DEMO_MODE=true` returns the sign-in code in
 the API response instead of emailing it. Config lives in `.env` (see

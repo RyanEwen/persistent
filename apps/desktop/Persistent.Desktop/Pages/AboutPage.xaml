@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="Persistent.Desktop.Pages.AboutPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer Padding="32,16,32,32">
+        <StackPanel Spacing="8" MaxWidth="760" HorizontalAlignment="Left">
+            <TextBlock Text="About" Style="{StaticResource TitleTextBlockStyle}" Margin="0,0,0,8" />
+
+            <!-- Identity -->
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                    CornerRadius="8" Padding="16,12">
+                <StackPanel Orientation="Horizontal" Spacing="14">
+                    <Image x:Name="AppIcon" Width="48" Height="48" VerticalAlignment="Top" />
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="Persistent for Windows" Style="{StaticResource SubtitleTextBlockStyle}" />
+                        <TextBlock x:Name="VersionText" Opacity="0.75" />
+                        <TextBlock Opacity="0.75" TextWrapping="Wrap"
+                                   Text="A notification-area window onto Persistent. Reminders that won't let you forget." />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Updates -->
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                    CornerRadius="8" Padding="16,12">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="Updates" FontWeight="SemiBold" />
+                        <TextBlock x:Name="UpdateStatus" Opacity="0.7" TextWrapping="Wrap"
+                                   Text="Checks GitHub releases when you ask it to. Nothing runs in the background." />
+                    </StackPanel>
+                    <Button Grid.Column="1" x:Name="UpdateButton" Click="UpdateButton_Click"
+                            VerticalAlignment="Center" Content="Check for updates" />
+                </Grid>
+            </Border>
+
+            <!-- Links -->
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                    CornerRadius="8" Padding="16,12">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Links" FontWeight="SemiBold" />
+                    <HyperlinkButton x:Name="SourceLink" Content="Source code on GitHub" Padding="0" />
+                    <HyperlinkButton x:Name="PrivacyLink" Content="Privacy policy" Padding="0" />
+                    <HyperlinkButton x:Name="LogsLink" Click="LogsLink_Click" Content="Open the log folder" Padding="0" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

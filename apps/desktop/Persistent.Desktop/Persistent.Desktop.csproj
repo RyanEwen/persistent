@@ -1,0 +1,61 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.22000.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWinUI>true</UseWinUI>
+    <WindowsPackageType>None</WindowsPackageType>
+    <RootNamespace>Persistent.Desktop</RootNamespace>
+    <AssemblyName>Persistent.Desktop</AssemblyName>
+    <Platforms>x64;ARM64</Platforms>
+    <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
+    <LangVersion>preview</LangVersion>
+    <Configurations>Debug;Release</Configurations>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <!-- The icons are build output (rendered by generate-msix-images.ps1) and are
+       gitignored, so a fresh clone has none. Setting ApplicationIcon
+       unconditionally would fail the build outright on a missing file, which
+       would make a plain `dotnet build` impossible before packaging. Everything
+       that consumes the icon at runtime already degrades gracefully without it. -->
+  <PropertyGroup Condition="Exists('Resources\Persistent.ico')">
+    <ApplicationIcon>Resources\Persistent.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <!-- NuGet packages ────────────────────────────────────────────── -->
+  <ItemGroup>
+    <!-- System.Drawing: composes the tray icon's due-count badge at runtime. -->
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App" />
+
+    <!-- WinUI 3 (Windows App SDK) — also supplies the WebView2 control that
+         hosts the PWA (Microsoft.UI.Xaml.Controls.WebView2). -->
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260209005" />
+
+    <!-- MVVM source generators (ObservableProperty) for UserSettings. -->
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+
+    <!-- Structured logging -->
+    <PackageReference Include="NLog" Version="6.1.1" />
+  </ItemGroup>
+
+  <!-- Content files to copy to output ────────────────────────────── -->
+  <ItemGroup>
+    <None Remove="NLog.config" />
+    <None Remove="Resources\Persistent.ico" />
+    <None Remove="Resources\Persistent.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="NLog.config">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Resources\Persistent.ico" Condition="Exists('Resources\Persistent.ico')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Resources\Persistent.png" Condition="Exists('Resources\Persistent.png')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+</Project>

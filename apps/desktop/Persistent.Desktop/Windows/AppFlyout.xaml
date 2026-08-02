@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="Persistent.Desktop.Windows.AppFlyout"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Microsoft.UI.Xaml.Controls"
+    Title="Persistent">
+    <Grid x:Name="Root" Background="Transparent">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Slim native chrome. The PWA draws its own header inside the WebView, so
+             this stays minimal: a drag handle plus the two controls that only the
+             host can offer (pin the flyout open, pop out to a real browser). -->
+        <Grid x:Name="TitleBar" Grid.Row="0" Height="36" Padding="10,0,6,0" ColumnSpacing="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <Image x:Name="Icon" Width="16" Height="16" VerticalAlignment="Center" />
+                <TextBlock Text="Persistent" VerticalAlignment="Center"
+                           Style="{StaticResource CaptionTextBlockStyle}" />
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                <ToggleButton x:Name="PinButton" Click="PinButton_Click"
+                              Padding="6" MinWidth="0" Background="Transparent" BorderBrush="Transparent"
+                              ToolTipService.ToolTip="Keep open when it loses focus">
+                    <FontIcon Glyph="&#xE718;" FontSize="14" />
+                </ToggleButton>
+                <Button x:Name="BrowserButton" Click="BrowserButton_Click"
+                        Padding="6" MinWidth="0" Background="Transparent" BorderBrush="Transparent"
+                        ToolTipService.ToolTip="Open in browser">
+                    <FontIcon Glyph="&#xE8A7;" FontSize="14" />
+                </Button>
+                <Button x:Name="SettingsButton" Click="SettingsButton_Click"
+                        Padding="6" MinWidth="0" Background="Transparent" BorderBrush="Transparent"
+                        ToolTipService.ToolTip="Settings">
+                    <FontIcon Glyph="&#xE713;" FontSize="14" />
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <controls:WebView2 x:Name="WebView" Grid.Row="1" />
+
+        <!-- Shown instead of the WebView when the runtime is missing or the page
+             cannot be reached, so a failure never presents as an empty box. -->
+        <StackPanel x:Name="ErrorPanel" Grid.Row="1" Visibility="Collapsed"
+                    VerticalAlignment="Center" HorizontalAlignment="Center"
+                    Spacing="10" Padding="24" MaxWidth="320">
+            <FontIcon Glyph="&#xE783;" FontSize="28" HorizontalAlignment="Center" />
+            <TextBlock x:Name="ErrorTitle" Text="Can't reach Persistent"
+                       Style="{StaticResource BodyStrongTextBlockStyle}"
+                       HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+            <TextBlock x:Name="ErrorDetail" Opacity="0.75" HorizontalAlignment="Center"
+                       TextAlignment="Center" TextWrapping="Wrap" />
+            <Button x:Name="RetryButton" Click="RetryButton_Click" Content="Try again"
+                    HorizontalAlignment="Center" Style="{StaticResource AccentButtonStyle}" />
+        </StackPanel>
+    </Grid>
+</Window>

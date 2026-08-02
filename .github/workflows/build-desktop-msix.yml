@@ -1,0 +1,99 @@
+name: Build desktop MSIX
+
+# Desktop releases are tagged `desktop-v*` so they never collide with the Android
+# `v*` tags in this same repository (see .github/workflows for those).
+on:
+  workflow_dispatch:
+  # A `desktop-v*` tag publishes a release; a push/PR touching apps/desktop only
+  # compiles. That compile-only run is the point: WinUI 3 is outside
+  # `npm run validate` and cannot be built in the Linux devcontainer at all, so
+  # without it a broken csproj or a XAML/code-behind mismatch would not surface
+  # until release day.
+  push:
+    tags:
+      - 'desktop-v*'
+    branches: [main]
+    paths:
+      - 'apps/desktop/**'
+      - '.github/workflows/build-desktop-msix.yml'
+  pull_request:
+    paths:
+      - 'apps/desktop/**'
+      - '.github/workflows/build-desktop-msix.yml'
+
+jobs:
+  build:
+    runs-on: windows-2025
+
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [x64, ARM64]
+
+    defaults:
+      run:
+        working-directory: apps/desktop
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Read version
+        id: version
+        shell: pwsh
+        run: |
+          [xml]$props = Get-Content Directory.Build.props
+          $ver = ($props.Project.PropertyGroup | Where-Object { $_.Version } | Select-Object -First 1).Version
+          echo "VERSION=$ver" >> $env:GITHUB_OUTPUT
+          Write-Host "Detected version: $ver"
+
+      # Before the build: the icons are gitignored build output, and the csproj
+      # only picks up ApplicationIcon when the .ico already exists. Generating
+      # after would produce a binary with no icon.
+      - name: Generate images
+        shell: pwsh
+        run: .\Persistent.DesktopMSIX\generate-msix-images.ps1
+
+      - name: Build
+        shell: pwsh
+        run: dotnet build Persistent.Desktop/Persistent.Desktop.csproj -c Release -p:Platform=${{ matrix.platform }}
+
+      - name: Package MSIX
+        if: startsWith(github.ref, 'refs/tags/desktop-v')
+        shell: pwsh
+        run: .\Persistent.DesktopMSIX\build-msix.ps1 -Platform ${{ matrix.platform }}
+
+      - name: Upload artifact
+        if: startsWith(github.ref, 'refs/tags/desktop-v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: Persistent.Desktop-${{ steps.version.outputs.VERSION }}-${{ matrix.platform }}
+          path: apps/desktop/Persistent.DesktopMSIX/*.msix
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*.msix
+          generate_release_notes: true
+          # Both architectures land on one release; the tag already names the app,
+          # which matters because Android releases share this repo's release list.
+          name: Persistent for Windows ${{ github.ref_name }}

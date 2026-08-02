@@ -10,6 +10,7 @@ import { useAuth } from './auth/useAuth.js'
 import { AppLayout } from './components/AppLayout.js'
 import { SignInPage } from './pages/SignInPage.js'
 import { RemindersPage } from './pages/RemindersPage.js'
+import { UpcomingPage } from './pages/UpcomingPage.js'
 import { ReminderDetailPage } from './pages/ReminderDetailPage.js'
 import { ReminderEditorPage } from './pages/reminder-editor/ReminderEditorPage.js'
 import { HistoryPage } from './pages/HistoryPage.js'
@@ -18,6 +19,7 @@ import { HelpPage } from './pages/HelpPage.js'
 import { PrivacyPage } from './pages/PrivacyPage.js'
 import { DeleteAccountPage } from './pages/DeleteAccountPage.js'
 import { UpdateCheck } from './native/UpdateCheck.js'
+import { DesktopBadge } from './native/DesktopBadge.js'
 import { registerNavHandler } from './native/navTo.js'
 import { useNativeBack } from './native/useNativeBack.js'
 
@@ -54,8 +56,10 @@ export function App() {
   return (
     <AppLayout>
       <UpdateCheck />
+      <DesktopBadge />
       <Routes>
         <Route path="/" element={<RemindersPage />} />
+        <Route path="/upcoming" element={<UpcomingPage />} />
         <Route path="/reminders/new" element={<ReminderEditorPage />} />
         <Route path="/reminders/:id" element={<ReminderDetailPage />} />
         <Route path="/reminders/:id/edit" element={<ReminderEditorPage />} />

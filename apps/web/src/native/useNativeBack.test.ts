@@ -6,7 +6,10 @@ import { parentRoute } from './useNativeBack.js'
 // browser history: these answers must hold no matter which route you came from.
 
 test('a tab root has nothing above it', () => {
-  for (const tab of ['/', '/history', '/settings']) {
+  // Every bottom-nav destination, including Upcoming: a tab missing from
+  // TAB_ROUTES is silently treated as a child screen, so Back would go to the
+  // list from it instead of leaving the app.
+  for (const tab of ['/', '/upcoming', '/history', '/settings']) {
     assert.equal(parentRoute(tab), null, `${tab} should be a root`)
   }
 })

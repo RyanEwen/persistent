@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap5 rescap">
+
+  <!-- Name/Publisher are replaced by build-msix.ps1 for signed sideload builds so
+       they form a stable local package family that updates in place; -NoSign
+       (Store) builds keep whatever is declared here. Set the real Partner Center
+       values before the first Store submission. -->
+  <Identity
+    Name="Persistent.Desktop"
+    Publisher="CN=Persistent"
+    Version="VERSION_PLACEHOLDER"
+    ProcessorArchitecture="ARCH_PLACEHOLDER" />
+
+  <Properties>
+    <DisplayName>Persistent</DisplayName>
+    <PublisherDisplayName>Persistent</PublisherDisplayName>
+    <Logo>Images\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.22000.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Applications>
+    <Application Id="App" Executable="Persistent.Desktop.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="Persistent"
+        Description="Reminders that won't let you forget - in your notification area."
+        BackgroundColor="transparent"
+        Square150x150Logo="Images\Square150x150Logo.png"
+        Square44x44Logo="Images\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Images\Wide310x150Logo.png"
+                         Square71x71Logo="Images\Square71x71Logo.png"
+                         Square310x310Logo="Images\Square310x310Logo.png" />
+        <uap:SplashScreen Image="Images\SplashScreen.png" />
+      </uap:VisualElements>
+
+      <Extensions>
+        <!-- Start with Windows, enabled by default: the tray badge and the live
+             connection only exist while the process runs, so an app the user has
+             to launch by hand is an app showing nothing. StartupManager keeps this
+             in step with the in-app toggle. -->
+        <uap5:Extension Category="windows.startupTask">
+          <uap5:StartupTask TaskId="PersistentDesktopAutoStart" Enabled="true" DisplayName="Persistent" />
+        </uap5:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <!-- Reaching the Persistent server is the app's entire job. Nothing else is
+         needed: there is no local alarm, no file access and no background task. -->
+    <Capability Name="internetClient" />
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

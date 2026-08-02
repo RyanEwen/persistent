@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="Persistent.Desktop.Pages.ConnectionPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer Padding="32,16,32,32">
+        <StackPanel Spacing="8" MaxWidth="760" HorizontalAlignment="Left">
+            <TextBlock Text="Connection" Style="{StaticResource TitleTextBlockStyle}" Margin="0,0,0,8" />
+
+            <!-- Server -->
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                    CornerRadius="8" Padding="16,12">
+                <StackPanel Spacing="10">
+                    <StackPanel>
+                        <TextBlock Text="Server address" FontWeight="SemiBold" />
+                        <TextBlock Opacity="0.7" TextWrapping="Wrap"
+                                   Text="The Persistent instance the flyout loads. Change this only if you host your own." />
+                    </StackPanel>
+                    <TextBox x:Name="ServerUrlBox" PlaceholderText="https://persistent.example.com" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button x:Name="SaveButton" Click="SaveButton_Click" Content="Save and reload"
+                                Style="{StaticResource AccentButtonStyle}" />
+                        <Button x:Name="ResetButton" Click="ResetButton_Click" Content="Reset to default" />
+                    </StackPanel>
+                    <TextBlock x:Name="SaveStatus" Opacity="0.75" Visibility="Collapsed" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+
+            <!-- Sign-in note -->
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                    CornerRadius="8" Padding="16,12">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Signing in" FontWeight="SemiBold" />
+                    <TextBlock Opacity="0.7" TextWrapping="Wrap"
+                               Text="You sign in inside the flyout itself, with the same email code, passkey or Google account you use everywhere else. This app stores no password and keeps no copy of your reminders." />
+                    <Button x:Name="SignOutButton" Click="SignOutButton_Click" Content="Clear saved sign-in" />
+                    <TextBlock Opacity="0.7" TextWrapping="Wrap"
+                               Text="Clearing removes this PC's saved session and offline copy, then reloads. Your account and reminders are untouched." />
+                </StackPanel>
+            </Border>
+
+            <!-- What this app does not do -->
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                    CornerRadius="8" Padding="16,12">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Alarms stay on your phone" FontWeight="SemiBold" />
+                    <TextBlock Opacity="0.7" TextWrapping="Wrap"
+                               Text="This is a window onto Persistent, not an alarm: it shows what is due and lets you confirm it, but it does not ring, and it cannot nag you if it is closed. The Android app is what guarantees a reminder reaches you." />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

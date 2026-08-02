@@ -14,8 +14,10 @@ Architecture and conventions are borrowed, thinned, from the sibling
 
 ## Architecture
 
-- Node.js + TypeScript monorepo, npm workspaces: `apps/api`, `apps/web`,
-  `apps/mobile`, `packages/shared`.
+- Node.js + TypeScript monorepo. The npm **workspaces** are `apps/api`,
+  `apps/web` and `packages/shared`; `apps/mobile` and `apps/desktop` sit in the
+  tree outside that graph (the first has its own `package.json` but is not listed
+  in the root `workspaces`, the second is C# and has none).
 - **`apps/api`** — Express + Prisma + PostgreSQL. Owns auth, reminder CRUD, the
   scheduling/escalation engine, push delivery, and a per-user WebSocket at `/ws`.
 - **`apps/web`** — Vite + React + Joy UI PWA. Loads data over HTTP, subscribes to
@@ -23,6 +25,11 @@ Architecture and conventions are borrowed, thinned, from the sibling
 - **`apps/mobile`** — Capacitor (Android) wrapper of the built web app plus a
   custom native alarm plugin. The web/PWA is best-effort; the native app is the
   real persistence guarantee. See `docs/alarm-architecture.md`.
+- **`apps/desktop`** — WinUI 3 (C#) Windows tray app that shows the **hosted PWA**
+  in a WebView2 flyout, with a due-count badge on the tray icon. Deliberately a
+  viewing/acting surface, not a nag surface: no toasts, no alarm audio, nothing
+  while closed. Hosting the real bundle is what stops it drifting from the
+  done/silence/snooze contract. See `docs/desktop-architecture.md`.
 - **`packages/shared`** — Zod schemas + inferred types used by API and web. Do
   not duplicate request/response shapes elsewhere.
 - PostgreSQL via Prisma; migrations under `apps/api/prisma/migrations/`.
@@ -148,6 +155,15 @@ directory guide `apps/api/CLAUDE.md`.
   plugin is Kotlin but `MainActivity.java` is Java, and the Kotlin task alone
   compiles right past a broken `MainActivity`. Run `npm run prepare:android` once
   first if the generated `apps/mobile/android` project doesn't exist yet.
+- **Windows (C#/WinUI 3) changes** aren't covered by `npm run validate` either,
+  and unlike Android they can't be compiled in the devcontainer at all — there is
+  no .NET or Windows SDK here. The only automatic check is
+  `.github/workflows/build-desktop-msix.yml`, which compiles both platforms on
+  `windows-2025` for every push/PR touching `apps/desktop`; treat a red run there
+  as a failed validate. Local builds are Windows-side:
+  `dotnet build Persistent.Desktop/Persistent.Desktop.csproj -c Debug`, packaged
+  with `Persistent.DesktopMSIX/build-msix.ps1`. Desktop releases are tagged
+  `desktop-vX.Y.Z` so they don't collide with the Android `vX.Y.Z` tags.
 - **Two Android flavors** (`apps/mobile/android-plugin/flavor/`): `play` for the
   Play Store, `direct` for sideloaded GitHub releases. They differ only in the
   in-app updater — `direct` registers `UpdatePlugin` and declares
@@ -162,11 +178,12 @@ directory guide `apps/api/CLAUDE.md`.
 
 - This root `CLAUDE.md` is always loaded.
 - Directory-scoped conventions load when you read/edit files there:
-  `apps/api/CLAUDE.md`, `apps/web/CLAUDE.md`, `packages/shared/CLAUDE.md`.
+  `apps/api/CLAUDE.md`, `apps/web/CLAUDE.md`, `apps/desktop/CLAUDE.md`,
+  `packages/shared/CLAUDE.md`.
 - Cross-cutting contracts live in `docs/`: `auth-architecture.md`,
   `data-event-contract.md`, `alarm-architecture.md`, `notification-behavior.md`
-  (the done/silence/snooze + independent-occurrence guarantee). Read the relevant
-  one before related work.
+  (the done/silence/snooze + independent-occurrence guarantee),
+  `desktop-architecture.md`. Read the relevant one before related work.
 - Repeatable workflows are `.claude/commands/` slash commands: `/commit`
   (review + validate + commit), `/deploy` (commit + push + SSH-Docker deploy),
   `/release` (version-bump + tag; CI builds both Android flavors — signed APK to

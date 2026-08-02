@@ -152,10 +152,29 @@ export function ReminderEditorPage() {
     }))
   }
 
+  /**
+   * Which tab to land on after saving.
+   *
+   * Current and Upcoming are separate tabs, so returning to Current unconditionally
+   * would drop the user on a page that doesn't contain what they just saved. An
+   * unscheduled reminder ("remind me now") gets its single firing immediately and
+   * so *is* on Current; anything with a real schedule is on Upcoming.
+   *
+   * Judged by schedule kind rather than by the next fire time: a `once` reminder
+   * left at an instant that has already passed fires straight away and lands on
+   * Current, which this sends to Upcoming. That is a one-tap correction, whereas
+   * resolving it properly would mean predicting the server's firing decision on
+   * the client — the sort of duplicated rule that drifts.
+   */
+  function landingTab(kind: ScheduleKind): string {
+    return kind === 'none' ? '/' : '/upcoming'
+  }
+
   async function onSubmit(event: FormEvent) {
     event.preventDefault()
     setError(null)
     const input = toInput(form)
+    const destination = landingTab(input.schedule.kind)
     const savedMessage = id ? 'Saved' : 'Created'
     setLeaving(true)
     // Capture the edit time now (survives offline queueing) so the server can
@@ -167,14 +186,14 @@ export function ReminderEditorPage() {
       if (id) update.mutate({ id, input, editedAt })
       else create.mutate(input)
       toast(savedMessage)
-      navigate('/')
+      navigate(destination)
       return
     }
     try {
       if (id) await update.mutateAsync({ id, input, editedAt })
       else await create.mutateAsync(input)
       toast(savedMessage)
-      navigate('/')
+      navigate(destination)
     } catch (err) {
       // Still here, edits intact — re-arm the guard that the departure disabled.
       setLeaving(false)

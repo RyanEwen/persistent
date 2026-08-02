@@ -35,6 +35,22 @@ apps/mobile/dist/
 # Test output
 coverage/
 
+# .NET / WinUI 3 build output (apps/desktop). The generated icons/PNGs under
+# Resources/ and the MSIX Images/ folder are produced by the generate-*.ps1
+# scripts on a Windows machine, so they are build output too, not sources.
+apps/desktop/**/bin/
+apps/desktop/**/obj/
+apps/desktop/**/AppPackages/
+apps/desktop/**/BundleArtifacts/
+apps/desktop/**/Generated Files/
+apps/desktop/**/*.user
+apps/desktop/Persistent.Desktop/Resources/*.ico
+apps/desktop/Persistent.Desktop/Resources/*.png
+apps/desktop/Persistent.DesktopMSIX/Images/
+apps/desktop/**/*.msix
+apps/desktop/**/*.msixbundle
+apps/desktop/**/*.pfx
+
 # Android release keystore (kept out of git; CI uses the base64 secret)
 apps/mobile/release.keystore
 *.keystore

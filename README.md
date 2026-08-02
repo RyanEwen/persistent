@@ -44,13 +44,18 @@ medications, appointments, and important tasks.
   app is where the unmissable alarm guarantees live, and it updates itself.
 - **Web:** open [persistent.dynamic-solutions.ca](https://persistent.dynamic-solutions.ca)
   in any browser — it installs as a web app, with best-effort reminders.
+- **Windows:** a tray app that keeps Persistent one click from the notification
+  area, with a badge showing how many reminders are waiting on you. Download the
+  MSIX from a [`desktop-v*` release](https://github.com/RyanEwen/persistent/releases).
+  It's for seeing and confirming reminders at your desk — it doesn't ring, and it
+  can't reach you when it's closed.
 
 ## Why the app over the web?
 
 Truly undismissable notifications and a looping alarm while your phone is locked
-are things only a native app can guarantee. The web version is great for managing
-your reminders, but for the hard "you will not miss this" behavior, use the
-Android app.
+are things only a native app can guarantee. The web and Windows versions are great
+for managing your reminders and confirming them as you go, but for the hard "you
+will not miss this" behavior, use the Android app.
 
 ## Developers
 

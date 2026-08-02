@@ -1,0 +1,107 @@
+/**
+ * Upcoming: every reminder that isn't nagging right now, in soonest-fire order,
+ * with paused and finished ones sinking to the bottom.
+ *
+ * This is also the app's *management* list — the place you come to look over what
+ * you have set up and change it — so rows open the editor directly, and the New
+ * reminder button lives here as well as on Current.
+ *
+ * Reminders with an active firing are deliberately absent: they are on Current,
+ * as attention cards with their own Done/Snooze. One reminder therefore appears in
+ * exactly one of the two tabs at a time, which is what stops a busy morning
+ * listing the same thing twice with different affordances.
+ */
+import { Link as RouterLink } from 'react-router-dom'
+import Stack from '@mui/joy/Stack'
+import Box from '@mui/joy/Box'
+import Typography from '@mui/joy/Typography'
+import Button from '@mui/joy/Button'
+import Chip from '@mui/joy/Chip'
+import AddIcon from '@mui/icons-material/Add'
+import { reminderBodyText } from '@persistent/shared'
+import type { Reminder } from '@persistent/shared'
+import { useReminders } from '../data/reminders.js'
+import { useActiveOccurrences } from '../data/occurrences.js'
+import { scheduleSummary } from '../lib/scheduleSummary.js'
+import { formatWhen } from '../lib/datetime.js'
+import { reminderNextFire } from '../lib/schedule-preview.js'
+import { useSettings } from '../settings/useSettings.js'
+import { ReminderListItem } from '../components/ReminderListItem.js'
+import { PullToRefresh } from '../components/PullToRefresh.js'
+
+// A one-time reminder that's been done (acknowledged) is finished — it lives in
+// History, not here. Missed/snoozed are still actionable, so they stay, and
+// repeating reminders always do (they keep recurring).
+function isFinished(reminder: Reminder): boolean {
+  return reminder.schedule.kind === 'once' && reminder.lastOccurrence?.status === 'ACKNOWLEDGED'
+}
+
+export function UpcomingPage() {
+  const reminders = useReminders()
+  const active = useActiveOccurrences()
+  const { timeFormat } = useSettings()
+
+  const pendingReminderIds = new Set((active.data ?? []).map((o) => o.reminderId))
+  const idle = (reminders.data ?? [])
+    .filter((r) => !isFinished(r) && !pendingReminderIds.has(r.id))
+    .map((reminder) => ({ reminder, next: reminderNextFire(reminder) }))
+    .sort((a, b) => (a.next?.getTime() ?? Infinity) - (b.next?.getTime() ?? Infinity))
+
+  return (
+    <PullToRefresh onRefresh={() => Promise.all([reminders.refetch(), active.refetch()])}>
+      <Stack spacing={3}>
+        <Box>
+          <Typography level="title-md" sx={{ mb: 1 }}>
+            Upcoming
+          </Typography>
+
+          {reminders.isLoading && <Typography level="body-sm">Loading…</Typography>}
+          {reminders.data && idle.length === 0 && (
+            <Typography level="body-sm" sx={{ mb: 1.5 }}>
+              Nothing scheduled. Anything due right now is on Current.
+            </Typography>
+          )}
+
+          <Stack spacing={1.5}>
+            <Button
+              component={RouterLink}
+              to="/reminders/new"
+              size="lg"
+              startDecorator={<AddIcon />}
+              sx={{ width: '100%' }}
+            >
+              New reminder
+            </Button>
+            {/* No status chip on these rows: `lastOccurrence` is always a *past*
+                firing here, in practice always ACKNOWLEDGED, so the chip was a
+                constant reading "Done" beside a subtitle giving the *next* fire
+                time. The row is about what is coming; the last firing is what
+                History is for. */}
+            {idle.map(({ reminder, next }) => {
+              const isRepeating = reminder.schedule.kind !== 'once'
+              const when = next ? formatWhen(next, timeFormat) : 'Paused'
+              return (
+                <ReminderListItem
+                  key={reminder.id}
+                  to={`/reminders/${reminder.id}/edit`}
+                  type={reminder.type}
+                  title={reminder.title}
+                  description={reminderBodyText(reminder)}
+                  subtitle={when}
+                  secondary={isRepeating ? scheduleSummary(reminder.schedule, timeFormat) : undefined}
+                  trailing={
+                    !reminder.active ? (
+                      <Chip size="sm" color="neutral" variant="outlined">
+                        paused
+                      </Chip>
+                    ) : undefined
+                  }
+                />
+              )
+            })}
+          </Stack>
+        </Box>
+      </Stack>
+    </PullToRefresh>
+  )
+}

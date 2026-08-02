@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="Persistent.Desktop.Pages.AppSettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer Padding="32,16,32,32">
+        <StackPanel Spacing="8" MaxWidth="760" HorizontalAlignment="Left">
+            <TextBlock Text="Settings" Style="{StaticResource TitleTextBlockStyle}" Margin="0,0,0,8" />
+
+            <!-- Theme -->
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                    CornerRadius="8" Padding="16,12">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="App theme" FontWeight="SemiBold" />
+                        <TextBlock Opacity="0.7" TextWrapping="Wrap"
+                                   Text="Appearance of this app's own windows. Persistent itself has its own theme, set inside the app." />
+                    </StackPanel>
+                    <ComboBox Grid.Column="1" x:Name="ThemeCombo" VerticalAlignment="Center" MinWidth="160"
+                              SelectionChanged="ThemeCombo_SelectionChanged">
+                        <ComboBoxItem Content="System default" />
+                        <ComboBoxItem Content="Light" />
+                        <ComboBoxItem Content="Dark" />
+                    </ComboBox>
+                </Grid>
+            </Border>
+
+            <!-- Startup -->
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                    CornerRadius="8" Padding="16,12">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="Start at sign-in" FontWeight="SemiBold" />
+                        <TextBlock Opacity="0.7" TextWrapping="Wrap"
+                                   Text="Keep Persistent in the notification area so the due count stays current. Off means no tray icon until you launch it." />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1" x:Name="StartupToggle" VerticalAlignment="Center" MinWidth="0"
+                                  Toggled="StartupToggle_Toggled" />
+                </Grid>
+            </Border>
+
+            <!-- Pin -->
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                    CornerRadius="8" Padding="16,12">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="Keep the flyout open" FontWeight="SemiBold" />
+                        <TextBlock Opacity="0.7" TextWrapping="Wrap"
+                                   Text="Normally the flyout closes when you click elsewhere. Pin it while you're writing a reminder so a stray click doesn't lose your work." />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1" x:Name="PinToggle" VerticalAlignment="Center" MinWidth="0"
+                                  Toggled="PinToggle_Toggled" />
+                </Grid>
+            </Border>
+
+            <!-- Flyout size -->
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                    CornerRadius="8" Padding="16,12">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="Flyout size" FontWeight="SemiBold" />
+                        <TextBlock x:Name="SizeSummary" Opacity="0.7" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <Button Grid.Column="1" x:Name="ResetSizeButton" Click="ResetSizeButton_Click"
+                            VerticalAlignment="Center" Content="Reset size" />
+                </Grid>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</Page>
