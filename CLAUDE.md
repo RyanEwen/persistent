@@ -58,6 +58,11 @@ reminder covering several items; the items belong to the reminder, but **which o
 them are ticked belongs to the occurrence** (`ReminderOccurrence.checkedItems`), so
 a repeating checklist starts each firing blank. Ticking every item does *not*
 acknowledge the firing — only Done does (`docs/notification-behavior.md` §1a).
+**A note is the one exception**: it has no occurrences, so its ticks live on the
+reminder (`Reminder.checkedItems`, written by `POST /api/reminders/:id/check`) —
+legitimate precisely because there is no firing whose record they could contradict.
+The server rejects that endpoint for anything that is not a note, and clears the
+column the moment one gains a schedule.
 
 `Reminder` (the definition the user manages) → expanded by the scheduler into
 `ReminderOccurrence` rows (one per firing). The persistence guarantee = an

@@ -6,7 +6,7 @@
  * away rather than waiting for the tick.
  */
 import { Router } from 'express'
-import { reminderInputSchema } from '@persistent/shared'
+import { checkItemInputSchema, reminderInputSchema, todoItems, type TypeData } from '@persistent/shared'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '../lib/prisma.js'
 import { requireUser, requireUserId } from '../lib/auth-middleware.js'
@@ -125,6 +125,54 @@ remindersRouter.put('/:id', async (request, response) => {
   response.json({ reminder: toReminder(reminder) })
 })
 
+/**
+ * Tick or untick one item on a **note's** checklist.
+ *
+ * The mirror of `POST /api/occurrences/:id/check`, and deliberately a separate
+ * endpoint rather than a flag on that one: they write different rows because the
+ * ticks mean different things. A firing's ticks record what was done *that time*;
+ * a note has no firings, so its ticks are simply the state of the list.
+ *
+ * Restricted to notes for exactly that reason. A scheduled reminder's checklist is
+ * ticked per firing, and letting the definition carry ticks too would mean two
+ * places holding "what is checked" with nothing to say which one is right.
+ */
+remindersRouter.post('/:id/check', async (request, response) => {
+  const userId = requireUserId(request)
+  const parsed = checkItemInputSchema.safeParse(request.body)
+  if (!parsed.success) throw badRequest('Invalid checklist item.')
+
+  const existing = await prisma.reminder.findFirst({ where: { id: request.params.id, userId } })
+  if (!existing) throw notFound('Reminder not found.')
+  if (existing.type !== 'TODO') throw badRequest('This reminder has no checklist.')
+  const kind = (existing.schedule as unknown as { kind?: string }).kind
+  if (kind !== 'never') throw badRequest('Only a note is ticked off directly; a scheduled reminder is ticked per firing.')
+
+  const items = todoItems((existing.typeData ?? {}) as TypeData)
+  if (!items.some((item) => item.id === parsed.data.itemId)) throw notFound('Checklist item not found.')
+
+  // One atomic statement, for the same reason as the occurrence route: working
+  // down a list means several taps in quick succession, each its own request, and
+  // a read-modify-write loses every tick but the last. `-` then `||` also makes
+  // re-ticking idempotent, so an offline replay can't duplicate an id.
+  const { itemId, checked } = parsed.data
+  await prisma.$executeRaw`
+    UPDATE "Reminder"
+    SET "checkedItems" = CASE
+      WHEN ${checked}::boolean THEN ("checkedItems" - ${itemId}::text) || jsonb_build_array(${itemId}::text)
+      ELSE "checkedItems" - ${itemId}::text
+    END
+    WHERE "id" = ${existing.id} AND "userId" = ${userId}
+  `
+  const updated = await prisma.reminder.findFirstOrThrow({ where: { id: existing.id, userId } })
+
+  // WS only. A note notifies nobody, so there is no notification to re-render and
+  // nothing for a device to re-sync — this just lets the user's other open clients
+  // converge on the same list.
+  broadcast(userId, { type: 'reminder.changed', reminderId: updated.id })
+  response.json({ reminder: toReminder(updated) })
+})
+
 remindersRouter.delete('/:id', async (request, response) => {
   const userId = requireUserId(request)
   const existing = await prisma.reminder.findFirst({ where: { id: request.params.id, userId } })
@@ -173,7 +221,12 @@ function toReminderData(
     escalateEmailAfterMinutes: input.escalateEmailAfterMinutes,
     active: input.active,
     startDate: input.startDate,
-    endDate: input.endDate
+    endDate: input.endDate,
+    // Ticks against the definition only mean something for a note. The moment one
+    // gains a schedule its firings own the checked state again (each starting
+    // blank), so leaving these would strand ticks that nothing reads — and hand
+    // them back, weeks stale, if it ever became a note again.
+    ...(input.schedule.kind === 'never' ? {} : { checkedItems: [] })
   }
 }
 

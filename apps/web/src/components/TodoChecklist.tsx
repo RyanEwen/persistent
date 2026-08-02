@@ -30,12 +30,19 @@ export function TodoChecklist({
   items,
   checkedItemIds,
   onToggle,
-  disabled
+  disabled,
+  confirmable = true
 }: {
   items: TodoItem[]
-  checkedItemIds: string[]
+  checkedItemIds: readonly string[]
   onToggle: (itemId: string, checked: boolean) => void
   disabled?: boolean
+  /**
+   * Whether there is a Done to point at once everything is ticked. False on a
+   * note, which has no firing and so nothing to confirm — telling someone to tap
+   * a button that isn't there is worse than saying nothing.
+   */
+  confirmable?: boolean
 }) {
   // Per firing and not persisted: hiding is a working aid for getting through a
   // long list, and defaulting a *fresh* card to a partial view would hide what the
@@ -105,7 +112,11 @@ export function TodoChecklist({
         sx={{ mt: 0.5, minHeight: 32 }}
       >
         <Typography level="body-xs" color={allDone ? 'success' : undefined} sx={{ minWidth: 0 }}>
-          {allDone ? `All ${total} checked — tap Done to confirm` : `${done} of ${total} done`}
+          {allDone
+            ? confirmable
+              ? `All ${total} checked — tap Done to confirm`
+              : `All ${total} checked`
+            : `${done} of ${total} done`}
         </Typography>
         {/* Only once something is ticked: before that it would toggle nothing.
             Right-anchored, opposite the count, so it reads as a control on that

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { reminderBodyText, reminderInputSchema, todoItems, todoProgress } from './reminders.js'
+import { reminderBodyText, reminderInputSchema, reminderSchema, todoItems, todoProgress } from './reminders.js'
 
 const base = {
   title: 'Test',
@@ -165,4 +165,32 @@ test('a note still accepts the reminder fields it does use', () => {
     schedule: { kind: 'never', timesOfDay: [] }
   })
   assert.equal(parsed.details, 'hunter2')
+})
+
+test('a note carries its own checked items; everything else defaults to none', () => {
+  // Ticks normally belong to an occurrence. A note has none, so the reminder
+  // itself holds them — see docs/notification-behavior.md §7.
+  const parsed = reminderSchema.parse({
+    id: 'r1',
+    title: 'Camping kit',
+    details: null,
+    type: 'TODO',
+    typeData: { items: [{ id: 'cp-1', text: 'Tent' }] },
+    schedule: { kind: 'never', timesOfDay: [] },
+    persistence: 'PERSISTENT',
+    soundIntervalSeconds: null,
+    shadeProminence: 'INHERIT',
+    escalateAfterMinutes: null,
+    escalateAtTime: null,
+    escalateEmail: null,
+    escalateEmailMessage: null,
+    escalateEmailAfterMinutes: null,
+    active: true,
+    startDate: '2026-08-02',
+    endDate: null,
+    checkedItemIds: ['cp-1'],
+    createdAt: '2026-08-02T09:00:00.000Z',
+    updatedAt: '2026-08-02T09:00:00.000Z'
+  })
+  assert.deepEqual(parsed.checkedItemIds, ['cp-1'])
 })

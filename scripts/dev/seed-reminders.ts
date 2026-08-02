@@ -66,7 +66,8 @@ const groceries = [
   { id: 'gr-3', text: 'Coffee' },
   { id: 'gr-4', text: 'Eggs' }
 ]
-// A checklist on a note: kept for reference, never fired, so never ticked.
+// A checklist on a note. Ticked directly on the reminder (a note has no firing
+// for ticks to belong to), which is the one place that state is legitimate.
 const camping = [
   { id: 'cp-1', text: 'Tent + poles' },
   { id: 'cp-2', text: 'Sleeping bags' },
@@ -248,13 +249,16 @@ const seeds: Seed[] = [
     }
   },
   {
-    note: 'a note holding a checklist — a kept list, with nothing to tick off',
+    note: 'a note holding a checklist — ticked on the reminder itself, not a firing',
     reminder: {
       title: 'Camping kit',
       type: 'TODO',
       typeData: { items: camping },
       schedule: { kind: 'never', timesOfDay: [] },
-      startDate: isoDay(-2)
+      startDate: isoDay(-2),
+      // A note has no occurrence, so its ticks live here. Nothing else in this
+      // file sets `checkedItems` on a Reminder, and nothing else should.
+      checkedItems: ['cp-1', 'cp-3']
     }
   },
   {

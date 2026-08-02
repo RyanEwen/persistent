@@ -5,7 +5,7 @@
  * polling.
  */
 import { useMutation, useQuery } from '@tanstack/react-query'
-import type { Reminder, ReminderInput } from '@persistent/shared'
+import type { CheckItemInput, Reminder, ReminderInput } from '@persistent/shared'
 import { apiFetch } from '../lib/apiClient.js'
 import { mutationKeys, queryKeys } from '../lib/queryClient.js'
 
@@ -28,4 +28,15 @@ export function useUpdateReminder() {
 
 export function useDeleteReminder() {
   return useMutation<unknown, Error, string>({ mutationKey: mutationKeys.deleteReminder })
+}
+
+/**
+ * Tick or untick one item on a **note's** checklist. Notes have no occurrence, so
+ * unlike every other checklist this writes the reminder itself — see
+ * `docs/notification-behavior.md` §7 and the route's own comment.
+ */
+export function useCheckReminderItem() {
+  return useMutation<unknown, Error, { id: string; arg: CheckItemInput }>({
+    mutationKey: mutationKeys.checkReminderItem
+  })
 }

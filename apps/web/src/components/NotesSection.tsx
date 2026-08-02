@@ -12,15 +12,30 @@
  * The one line under the heading says only that these never notify you. Anything
  * more presumes what the user keeps notes *for*, which is not the app's business.
  *
- * Renders nothing when the user has no notes. An empty "Notes" heading on the
- * app's landing screen would advertise a mode to someone who hasn't asked for one.
+ * **A note shows its whole body, like an attention card does** — checklist items
+ * one per line, medications, and details with their line breaks intact. It is not
+ * a compact single-line row: those exist to fit many *scheduled* reminders on a
+ * phone screen, where the content is a reminder of something you already know. A
+ * note IS its content, so truncating it to one line and making the user open it
+ * defeats the point of keeping it.
+ *
+ * A note's checklist is **tickable**, exactly like a firing's. The ticks go on the
+ * reminder itself rather than an occurrence (`Reminder.checkedItems`), which is
+ * only coherent because a note has no occurrences: there is no firing whose record
+ * of "what was done this time" it could contradict. See
+ * docs/notification-behavior.md §7. What it does *not* get is the "tap Done to
+ * confirm" line — there is no firing to confirm.
  */
 import Stack from '@mui/joy/Stack'
 import Box from '@mui/joy/Box'
-import Typography from '@mui/joy/Typography'
+import Card from '@mui/joy/Card'
 import Chip from '@mui/joy/Chip'
-import { reminderBodyText, type Reminder } from '@persistent/shared'
-import { ReminderListItem } from './ReminderListItem.js'
+import Typography from '@mui/joy/Typography'
+import { Link as RouterLink } from 'react-router-dom'
+import { reminderBodyText, todoItems, type Reminder } from '@persistent/shared'
+import { useCheckReminderItem } from '../data/reminders.js'
+import { TypeIcon } from './ReminderIcons.js'
+import { TodoChecklist } from './TodoChecklist.js'
 
 export function NotesSection({ reminders }: { reminders: readonly Reminder[] }) {
   const notes = reminders.filter((reminder) => reminder.schedule.kind === 'never')
@@ -36,24 +51,67 @@ export function NotesSection({ reminders }: { reminders: readonly Reminder[] }) 
       </Typography>
       <Stack spacing={1.5}>
         {notes.map((reminder) => (
-          // No "when" line: the text above has already said these never notify,
-          // and repeating it per row would be a column of identical text.
-          <ReminderListItem
-            key={reminder.id}
-            to={`/reminders/${reminder.id}/edit`}
-            type={reminder.type}
-            title={reminder.title}
-            description={reminderBodyText(reminder)}
-            trailing={
-              !reminder.active ? (
-                <Chip size="sm" color="neutral" variant="outlined">
-                  paused
-                </Chip>
-              ) : undefined
-            }
-          />
+          <NoteCard key={reminder.id} reminder={reminder} />
         ))}
       </Stack>
     </Box>
+  )
+}
+
+function NoteCard({ reminder }: { reminder: Reminder }) {
+  const checkItem = useCheckReminderItem()
+
+  // A checklist renders as its own lines below, so the body text drops the
+  // bulleted copy `reminderBodyText` builds for notifications — the same split the
+  // attention card makes. A TODO saves no separate details, so this is normally
+  // empty for one.
+  const items = reminder.type === 'TODO' ? todoItems(reminder.typeData) : []
+  const body = items.length > 0 ? (reminder.details ?? '') : reminderBodyText(reminder)
+
+  return (
+    <Card variant="outlined" size="sm">
+      {/* Only the title and body link to the editor. The checklist below sits
+          OUTSIDE it, the same split AttentionReminderCard makes: nested in the
+          link, a checkbox tap would navigate instead of ticking, and the obvious
+          fix (preventDefault) cancels the checkbox's own toggle along with the
+          anchor's. */}
+      <Box
+        component={RouterLink}
+        to={`/reminders/${reminder.id}/edit`}
+        sx={{ display: 'block', textDecoration: 'none', color: 'inherit' }}
+      >
+        <Stack direction="row" spacing={1} alignItems="center">
+          <TypeIcon type={reminder.type} size={20} />
+          <Typography level="title-sm" sx={{ minWidth: 0, flex: 1 }}>
+            {reminder.title}
+          </Typography>
+          {!reminder.active && (
+            <Chip size="sm" color="neutral" variant="outlined">
+              paused
+            </Chip>
+          )}
+        </Stack>
+
+        {/* pre-wrap: details are authored in a multi-line textarea, so the breaks
+            the user typed are content. This is the whole reason a note is not a
+            compact row — that row is single-line by design and would collapse them. */}
+        {body && (
+          <Typography level="body-sm" sx={{ whiteSpace: 'pre-wrap', color: 'text.secondary' }}>
+            {body}
+          </Typography>
+        )}
+      </Box>
+
+      {items.length > 0 && (
+        <Box sx={{ mt: 0.5 }}>
+          <TodoChecklist
+            items={items}
+            checkedItemIds={reminder.checkedItemIds}
+            confirmable={false}
+            onToggle={(itemId, checked) => checkItem.mutate({ id: reminder.id, arg: { itemId, checked } })}
+          />
+        </Box>
+      )}
+    </Card>
   )
 }

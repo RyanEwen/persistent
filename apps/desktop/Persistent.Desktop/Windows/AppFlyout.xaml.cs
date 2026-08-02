@@ -578,6 +578,7 @@ public sealed partial class AppFlyout : Window
                     WebView.CoreWebView2.Resume();
                     _suspended = false;
                 }
+                NudgeUpdateCheck();
                 return;
             }
 
@@ -589,6 +590,34 @@ public sealed partial class AppFlyout : Window
         {
             // Purely an optimisation — never let it stop the flyout showing.
             Logger.Debug(ex, "Could not change the WebView idle state");
+        }
+    }
+
+    /// <summary>
+    /// Tell the page it has just been resumed, so it can look for a new build.
+    ///
+    /// This host is the worst case for service-worker updates: the WebView
+    /// navigates once at startup and is never rebuilt, so the browser's
+    /// on-navigation check happens exactly once in the life of the process, and
+    /// suspending freezes the ~24h fallback timer too. Left alone, a tray app
+    /// running for a fortnight would still be serving the bundle it started with.
+    ///
+    /// The page also listens for `visibilitychange`, which collapsing the
+    /// controller is supposed to drive — this message exists because that link is
+    /// the one part of the chain that cannot be verified outside Windows, and the
+    /// page's check is idempotent, so saying it twice costs nothing.
+    /// </summary>
+    private void NudgeUpdateCheck()
+    {
+        if (!_webViewReady) return;
+        try
+        {
+            WebView.CoreWebView2.PostWebMessageAsJson("{\"type\":\"checkForUpdate\"}");
+        }
+        catch (Exception ex)
+        {
+            // Worst case the page updates on the next restart, as it did before.
+            Logger.Debug(ex, "Could not ask the page to check for an update");
         }
     }
 

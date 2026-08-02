@@ -108,6 +108,16 @@ Ticks are in-app only. A notification's body lists the items unticked, because i
 is pre-armed on the device (or already sent, for the escalation email) and cannot
 track a checked state that moves afterwards.
 
+**A note's checklist is the exception, and only because it cannot be a firing's.**
+A note (§7) has no occurrences, so `ReminderOccurrence.checkedItems` has nothing to
+hang off; its ticks live on the reminder itself (`Reminder.checkedItems`, via
+`POST /api/reminders/:id/check`). That is safe here and nowhere else: the rule
+above exists so a *repeating* checklist cannot inherit yesterday's ticks, and a
+note never repeats because it never fires. The endpoint is restricted to notes for
+that reason — two places holding "what is checked", with a firing to disagree with,
+is exactly what §1a forbids. A note's list also has no "tap Done to confirm": there
+is nothing to confirm.
+
 ## 2. Silence — drops the alarm back to the notification it escalated from
 
 Silence applies only to an **escalated** alarm (a `PERSISTENT` reminder that

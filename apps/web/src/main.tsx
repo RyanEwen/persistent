@@ -1,6 +1,6 @@
 /**
- * App bootstrap: register the auto-updating service worker, then mount React
- * with the Joy theme, TanStack Query, auth, and the router.
+ * App bootstrap: start the auto-updating service worker, then mount React with
+ * the Joy theme, TanStack Query, auth, and the router.
  */
 import React from 'react'
 import { createRoot } from 'react-dom/client'
@@ -9,7 +9,7 @@ import CssBaseline from '@mui/joy/CssBaseline'
 import GlobalStyles from '@mui/joy/GlobalStyles'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { BrowserRouter } from 'react-router-dom'
-import { registerSW } from 'virtual:pwa-register'
+import { startServiceWorker } from './lib/swUpdate.js'
 import { theme } from './theme.js'
 import { queryClient, registerMutationDefaults } from './lib/queryClient.js'
 import { persistOptions } from './lib/persistQuery.js'
@@ -19,8 +19,10 @@ import { ToastProvider } from './components/ToastProvider.js'
 import { ErrorBoundary } from './components/ErrorBoundary.js'
 import { App } from './App.js'
 
-// Auto-apply SW updates so stale code never lingers in long-lived PWA installs.
-registerSW({ immediate: true })
+// Auto-apply SW updates, and keep *looking* for them: a page that is opened once
+// and left running for days never navigates, so it would otherwise never notice a
+// new build (see lib/swUpdate.ts).
+startServiceWorker()
 
 // Mutation defaults must exist before any persisted offline mutation resumes.
 registerMutationDefaults()

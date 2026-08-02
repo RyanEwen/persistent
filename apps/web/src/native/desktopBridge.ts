@@ -35,8 +35,12 @@ declare global {
  * toast, and the host deliberately does not navigate the WebView itself. Doing so
  * would reload the app and throw away where the user was — the same reason `back`
  * is a message rather than `CoreWebView2.GoBack()`.
+ *
+ * `checkForUpdate` says the flyout was just reopened, so this page may have been
+ * frozen for days (`lib/swUpdate.ts`). It is a nudge, not an instruction: the page
+ * decides whether to act, exactly as it does for `back`.
  */
-type HostMessage = { type: 'back' } | { type: 'navigate'; path: string }
+type HostMessage = { type: 'back' } | { type: 'navigate'; path: string } | { type: 'checkForUpdate' }
 
 /** True when running inside the Windows tray app's WebView2. */
 export function isDesktopHost(): boolean {
@@ -87,6 +91,7 @@ export function onHostMessage(handler: (message: HostMessage) => void): () => vo
     if (typeof data !== 'object' || data === null) return
     const type = (data as { type?: unknown }).type
     if (type === 'back') handler({ type: 'back' })
+    if (type === 'checkForUpdate') handler({ type: 'checkForUpdate' })
     if (type === 'navigate') {
       const path = (data as { path?: unknown }).path
       if (typeof path === 'string' && /^\/[^/]/.test(path)) handler({ type: 'navigate', path })

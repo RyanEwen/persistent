@@ -139,6 +139,14 @@ model Reminder {
   typeData Json         @default("{}")
   /// Structured recurrence. See shared scheduleSchema.
   schedule Json
+  /// NOTES ONLY: the `typeData.items` ids ticked on a `TODO` **note** (schedule
+  /// kind `never`). Ticks normally belong to a firing, not to the reminder
+  /// (ReminderOccurrence.checkedItems) — a repeating checklist must start each
+  /// firing blank. A note has no firings at all, so there is no firing for its
+  /// ticks to belong to and nothing for per-reminder state to be ambiguous with.
+  /// Cleared whenever the reminder stops being a note, since ticks against a
+  /// definition mean nothing once occurrences own them again.
+  checkedItems Json     @default("[]")
 
   persistence          PersistenceLevel @default(PERSISTENT)
   /// null = no repeating sound; otherwise seconds between sound repeats.

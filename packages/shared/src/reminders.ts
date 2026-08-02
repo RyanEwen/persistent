@@ -301,6 +301,15 @@ export const reminderSchema = z.object({
   active: z.boolean(),
   startDate: z.string(),
   endDate: z.string().nullable(),
+  // NOTES ONLY: which checklist items are ticked on a `TODO` note.
+  //
+  // Ticks live on the *occurrence* everywhere else (`Occurrence.checkedItemIds`),
+  // so a repeating checklist starts each firing blank. A note has no occurrences,
+  // so there is nothing for that state to hang off — and equally no ambiguity in
+  // hanging it off the reminder, because there is never a firing to disagree with.
+  // Always empty for anything that is not a `TODO` note; the server clears it the
+  // moment a note gains a schedule.
+  checkedItemIds: z.array(z.string()).default([]),
   // Status of the most recent occurrence at or before now (done/snoozed/etc.),
   // for the list view. Null when nothing has fired yet.
   lastOccurrence: z

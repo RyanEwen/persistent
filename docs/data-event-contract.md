@@ -122,6 +122,13 @@ stable client-minted id); the *ticked* ids live per firing, on the occurrence
 (`ReminderOccurrence.checkedItems`). A repeating checklist therefore starts every
 firing blank — yesterday's ticks say nothing about today's.
 
+A **note** (schedule kind `never`) has no occurrence, so its ticks go on the
+reminder — `Reminder.checkedItems`, via `POST /api/reminders/:id/check`, which
+takes the same `{ itemId, checked }` body and is rejected for anything that is not
+a `TODO` note. It broadcasts `reminder.changed` (WS only: a note notifies nobody,
+so there is no push to send and nothing on-device to re-sync). The column is
+cleared whenever the reminder stops being a note.
+
 `POST /api/occurrences/:id/check` takes `{ itemId, checked }` — one item at a
 time, deliberately, rather than "here is the whole checked set": these mutations
 queue offline and replay later, and a whole-set write would let a stale replay

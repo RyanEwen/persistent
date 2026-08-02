@@ -49,6 +49,9 @@ export function toReminder(
     active: row.active,
     startDate: row.startDate,
     endDate: row.endDate,
+    // Only ever populated for a `TODO` note; the write path clears it as soon as
+    // the reminder gains a schedule, since ticks belong to occurrences then.
+    checkedItemIds: toCheckedItemIds(row.checkedItems),
     lastOccurrence: lastOccurrence
       ? { status: lastOccurrence.status, scheduledFor: lastOccurrence.scheduledFor.toISOString() }
       : null,
@@ -58,10 +61,11 @@ export function toReminder(
 }
 
 /**
- * `checkedItems` is a loose JSON column, so narrow it to the string array the DTO
+ * `checkedItems` is a loose JSON column — on `ReminderOccurrence` (a firing's
+ * ticks) and on `Reminder` (a note's) — so narrow it to the string array the DTO
  * promises rather than trusting the shape. Anything else reads as "nothing ticked".
  */
-export function toCheckedItemIds(value: ReminderOccurrence['checkedItems']): string[] {
+export function toCheckedItemIds(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : []
 }
 

@@ -36,6 +36,13 @@
   anyway — look enum-ish values up defensively (`components/ReminderIcons.tsx`),
   because a React element type that resolves to `undefined` takes down the whole
   view rather than one row.
+- **Staying current:** the service worker is `registerType: 'autoUpdate'`, so a new
+  build takes over and reloads on its own — but the browser only *looks* for one on
+  a navigation and on its own ~24h timer. A page opened once and left running for
+  days never navigates, so `lib/swUpdate.ts` asks explicitly when the page becomes
+  visible and hourly while it stays visible. Don't move this back to a bare
+  `registerSW()`: the Windows tray app navigates exactly once per process and
+  suspends the page in between, so without it that host never updates at all.
 - **Push:** the web subscription flow lives in `lib/push.ts`; the service worker
   (`public/push-handler.js`) renders notifications and handles Done/Snooze/Silence
   actions + best-effort re-fire (Silence shows only on escalations). Remember the

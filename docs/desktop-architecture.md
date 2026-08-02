@@ -78,6 +78,16 @@ could be done was stop rendering; removing the badge is what made real suspensio
 possible. The socket drops while suspended and the web client reconnects on
 resume — the same path it already handles after a laptop sleeps.
 
+The one thing suspension breaks is **staying current**. The page's service worker
+is `autoUpdate`, but the browser only looks for a new one on a navigation and on a
+~24h timer — and this WebView navigates once, at startup, then spends its life
+frozen, so both triggers are gone. A tray app left running for a fortnight would
+still serve the bundle it started with. So `SetWebViewIdle(false)` posts
+`checkForUpdate` to the page on every resume (`lib/swUpdate.ts` acts on it, and
+also listens for `visibilitychange`, which collapsing the controller is supposed to
+drive — the message exists because that link cannot be verified outside Windows).
+Tray -> **Reload** remains the manual lever, since it is a real navigation.
+
 **Clicking the tray icon while the flyout is open closes it.** That needs a guard:
 the click itself deactivates the flyout, so light dismiss has already hidden it by
 the time the click message arrives, and a naive toggle would reopen the window the

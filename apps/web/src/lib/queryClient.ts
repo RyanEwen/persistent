@@ -58,7 +58,8 @@ export const mutationKeys = {
   ackOccurrence: ['occurrences', 'ack'] as const,
   snoozeOccurrence: ['occurrences', 'snooze'] as const,
   silenceOccurrence: ['occurrences', 'silence'] as const,
-  checkOccurrenceItem: ['occurrences', 'check'] as const
+  checkOccurrenceItem: ['occurrences', 'check'] as const,
+  checkReminderItem: ['reminders', 'check'] as const
 }
 
 let tempCounter = 0
@@ -88,6 +89,10 @@ function optimisticReminder(input: ReminderInput, id = tempId()): Reminder {
     active: input.active ?? true,
     startDate: input.startDate,
     endDate: input.endDate ?? null,
+    // A create/update never carries ticks: a new note starts unticked, and an
+    // edit's optimistic row is replaced by the server's on settle. (The server
+    // also clears these whenever the reminder is not a note.)
+    checkedItemIds: [],
     lastOccurrence: null,
     createdAt: now,
     updatedAt: now
@@ -146,7 +151,18 @@ export function registerMutationDefaults(): void {
       const previous = reminders()
       queryClient.setQueryData<Reminder[]>(
         queryKeys.reminders,
-        (previous ?? []).map((r) => (r.id === id ? optimisticReminder(input, id) : r))
+        // Ticks are carried over rather than rebuilt from the input, which has
+        // none: editing a note's title must not blink its checked items away and
+        // back when the server's row lands. This mirrors the server's own rule —
+        // ticks survive while it is still a note, and are cleared once it isn't.
+        (previous ?? []).map((r) =>
+          r.id === id
+            ? {
+                ...optimisticReminder(input, id),
+                checkedItemIds: input.schedule.kind === 'never' ? r.checkedItemIds : []
+              }
+            : r
+        )
       )
       return { previous }
     },
@@ -162,6 +178,28 @@ export function registerMutationDefaults(): void {
       queryClient.setQueryData<Reminder[]>(
         queryKeys.reminders,
         (previous ?? []).filter((r) => r.id !== id)
+      )
+      return { previous }
+    },
+    onError: rollback,
+    onSettled: invalidateReminders
+  })
+
+  // A note's checklist ticks the *reminder*, not an occurrence — a note has none
+  // (docs/notification-behavior.md §7). Same optimistic treatment as the
+  // occurrence toggle, and the same idempotent per-item replay offline.
+  queryClient.setMutationDefaults(mutationKeys.checkReminderItem, {
+    mutationFn: ({ id, arg }: { id: string; arg: CheckItemInput }) =>
+      apiFetch(`/api/reminders/${id}/check`, { method: 'POST', body: JSON.stringify(arg) }),
+    onMutate: async ({ id, arg }: { id: string; arg: CheckItemInput }): Promise<RemindersSnapshot> => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.reminders })
+      const previous = reminders()
+      queryClient.setQueryData<Reminder[]>(queryKeys.reminders, (list) =>
+        (list ?? []).map((reminder) => {
+          if (reminder.id !== id) return reminder
+          const checked = reminder.checkedItemIds.filter((itemId) => itemId !== arg.itemId)
+          return { ...reminder, checkedItemIds: arg.checked ? [...checked, arg.itemId] : checked }
+        })
       )
       return { previous }
     },
