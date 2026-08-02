@@ -45,10 +45,11 @@ medications, appointments, and important tasks.
 - **Web:** open [persistent.dynamic-solutions.ca](https://persistent.dynamic-solutions.ca)
   in any browser — it installs as a web app, with best-effort reminders.
 - **Windows:** a tray app that keeps Persistent one click from the notification
-  area, with a badge showing how many reminders are waiting on you. Download the
-  MSIX from a [`desktop-v*` release](https://github.com/RyanEwen/persistent/releases).
-  It's for seeing and confirming reminders at your desk — it doesn't ring, and it
-  can't reach you when it's closed.
+  area, with a badge showing how many reminders are waiting on you. Grab the
+  portable zip from a [`desktop-v*` release](https://github.com/RyanEwen/persistent/releases)
+  — unzip and run, nothing to install — or the MSIX if you'd rather have a proper
+  install. It's for seeing and confirming reminders at your desk: it doesn't ring,
+  and it can't reach you when it's closed.
 
 ## Why the app over the web?
 

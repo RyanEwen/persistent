@@ -146,8 +146,21 @@ automatic check that exists — treat a red run there the way you would a failed
 - Dev: `dotnet build Persistent.Desktop/Persistent.Desktop.csproj -c Debug`
 - Icons: `.\Persistent.DesktopMSIX\generate-msix-images.ps1` (renders the same
   bell mark as `apps/web/public/favicon.svg`; keep the two in step)
+- **Testing: `.\publish-portable.ps1`.** A self-contained unpackaged build —
+  unzip and run `Persistent.Desktop.exe` on a clean Windows 11 machine with
+  nothing installed first. `SelfContained` bundles .NET and
+  `WindowsAppSDKSelfContained` bundles the Windows App SDK runtime; **both** are
+  required, because without the second the app dies at startup with a
+  missing-runtime error that reads like a crash. It is unsigned, so SmartScreen
+  warns about an unknown publisher (the bundled `READ ME FIRST.txt` says so in
+  plain language). Every CI run uploads this zip as an artifact for both
+  architectures, so any commit can be tried without tagging a release.
 - Package: `.\Persistent.DesktopMSIX\build-msix.ps1` (`-NoSign` for a Store
-  upload)
+  upload). MSIX is for shipping, not testing — sideloading it means trusting a
+  self-signed certificate first. It buys a real install, a Start menu entry and
+  the `windows.startupTask` registration; unpackaged, "start at sign-in" falls
+  back to the per-user `Run` key (`Classes/StartupManager.cs`), so that feature
+  works either way.
 - Release: bump `<Version>` in `apps/desktop/Directory.Build.props`, tag
   `desktop-vX.Y.Z`. The tag prefix keeps desktop releases from colliding with the
   Android `vX.Y.Z` tags in this same repo — which is also why `UpdateService`

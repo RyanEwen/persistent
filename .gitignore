@@ -42,6 +42,7 @@ apps/desktop/**/bin/
 apps/desktop/**/obj/
 apps/desktop/**/AppPackages/
 apps/desktop/**/BundleArtifacts/
+apps/desktop/artifacts/
 apps/desktop/**/Generated Files/
 apps/desktop/**/*.user
 apps/desktop/Persistent.Desktop/Resources/*.ico

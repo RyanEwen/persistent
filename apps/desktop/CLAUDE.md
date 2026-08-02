@@ -37,7 +37,8 @@ notifications. The app deliberately shows no OS notifications at all.
 | `Persistent.Desktop/Classes/NativeMethods.cs` | **All** Win32 P/Invoke |
 | `Persistent.Desktop/Classes/TrayIconRenderer.cs` | Badge composition (`System.Drawing`) |
 | `Persistent.Desktop/Services/TrayState.cs` | Badge state, fed by the web bridge |
-| `Persistent.DesktopMSIX/` | Manifest + `build-msix.ps1` + `generate-msix-images.ps1` |
+| `publish-portable.ps1` | Self-contained unpackaged build (**the one to use for testing**) |
+| `Persistent.DesktopMSIX/` | Manifest + `build-msix.ps1` + `generate-msix-images.ps1` (for shipping) |
 
 ## Conventions
 
