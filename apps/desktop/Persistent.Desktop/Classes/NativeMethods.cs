@@ -174,6 +174,8 @@ internal static class NativeMethods
 
     // ── DWM window styling (rounded corners on the borderless flyout) ──
     public const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+    /// <summary>Takes a COLORREF (0x00BBGGRR), not ARGB.</summary>
+    public const int DWMWA_BORDER_COLOR = 34;
     public const int DWMWCP_ROUND = 2;
 
     [DllImport("dwmapi.dll")]

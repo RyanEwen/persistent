@@ -136,10 +136,17 @@ public sealed partial class AppFlyout : Window
 
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(TitleBar);
-        SystemBackdrop = new Microsoft.UI.Xaml.Media.DesktopAcrylicBackdrop();
+        // No SystemBackdrop: the Root grid paints its own opaque dark background
+        // (see AppFlyout.xaml). An acrylic backdrop follows the system theme, which
+        // is light on a light-mode desktop and showed through as a white band above
+        // the header — wrong for a window whose entire content is a dark web app.
 
         int round = DWMWCP_ROUND;
         DwmSetWindowAttribute(_hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref round, sizeof(int));
+        // Match the 1px DWM border to the window instead of letting it default to
+        // the system's (light) border colour, which outlines a dark window in white.
+        int border = 0x00190F0B; // COLORREF is 0x00BBGGRR, so #0B0F19 reverses
+        DwmSetWindowAttribute(_hwnd, DWMWA_BORDER_COLOR, ref border, sizeof(int));
 
         if (File.Exists(App.IconImagePath))
         {
@@ -147,7 +154,10 @@ public sealed partial class AppFlyout : Window
         }
 
         PinButton.IsChecked = SettingsManager.Current.PinFlyout;
-        Classes.ThemeManager.ApplySavedTheme(this);
+        // Deliberately NOT ThemeManager.ApplySavedTheme: the flyout is pinned dark
+        // in XAML to match the web content it frames, and applying the user's
+        // light/system choice here would overwrite that and reintroduce light
+        // chrome around a dark page. The theme setting governs the settings window.
 
         _appWindow.Hide();
         Activated += OnActivated;

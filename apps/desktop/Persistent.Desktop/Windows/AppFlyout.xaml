@@ -5,7 +5,13 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Microsoft.UI.Xaml.Controls"
     Title="Persistent">
-    <Grid x:Name="Root" Background="Transparent">
+    <!-- Explicitly dark and opaque, not a system backdrop. The hosted PWA is dark
+         in every theme it offers, whereas DesktopAcrylicBackdrop follows the
+         *system* theme — so on a light-mode desktop the chrome rendered as light
+         acrylic wherever content did not paint over it, which is where the white
+         strip above the header came from. RequestedTheme pins the header glyphs
+         light to match. -->
+    <Grid x:Name="Root" Background="#0B0F19" RequestedTheme="Dark">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />

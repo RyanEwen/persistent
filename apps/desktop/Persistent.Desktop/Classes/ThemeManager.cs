@@ -4,10 +4,13 @@ using Persistent.Desktop.Classes.Settings;
 namespace Persistent.Desktop.Classes;
 
 /// <summary>
-/// Applies the selected app theme (WinUI 3 ElementTheme) to this app's own windows.
-/// Scope is deliberately narrow — the flyout frame and the settings window. The
-/// PWA inside the WebView renders its own theme (`settings/themes.ts`), so this
-/// never tries to reach into web content.
+/// Applies the selected app theme (WinUI 3 ElementTheme) to the settings window.
+///
+/// Scope is deliberately just that one window. The **flyout is pinned dark** in
+/// its own XAML, because it is a thin frame around a web page that is dark in
+/// every theme the PWA offers — letting a light choice apply there put light
+/// chrome around dark content. And the page itself renders its own theme
+/// (`settings/themes.ts`), so this never reaches into web content either.
 /// </summary>
 internal static class ThemeManager
 {
@@ -19,8 +22,6 @@ internal static class ThemeManager
         SettingsManager.SaveSettings();
         var settings = SettingsWindow.GetCurrent();
         if (settings != null) Apply(theme, settings);
-        var flyout = Windows.AppFlyout.GetCurrent();
-        if (flyout != null) Apply(theme, flyout);
     }
 
     private static void Apply(int theme, Window window)

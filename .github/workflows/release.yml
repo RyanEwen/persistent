@@ -87,7 +87,15 @@ jobs:
           # resurface. A commit that mixes user-facing + internal work is dropped
           # if it matches any term, so prefer splitting such commits.
           EXCLUDE='^- (bump version|merge )|\b(docs?|documentation|readme|changelog|jsdoc|chore|ci|workflow|lint|eslint|prettier|typecheck|tsconfig|devcontainer|dockerfile|compose|gitignore|deps?|dependency|dependencies|refactor|rename|cleanup|clean up|tidy|reorganize|restructure|test|tests|spec|csp|coop|coep|cors|co-?authored?)\b'
-          CHANGES=$(git log --no-merges --pretty=format:'- %s' "$RANGE" | grep -viE "$EXCLUDE" || true)
+          # Scoped by PATH as well as by keyword. These notes ship to the Play
+          # listing and the in-app update prompt for *Android*, so a commit that
+          # touched none of the code Android runs has no business in them. The
+          # keyword list alone could not know that: apps/desktop (the Windows tray
+          # app) landed a dozen commits that matched no term, and v0.19.0 shipped
+          # "Fix an illegal '--' in the csproj comment" to Google Play as a
+          # user-facing change. A commit touching both still appears, correctly.
+          PATHS='apps/web apps/mobile apps/api packages/shared'
+          CHANGES=$(git log --no-merges --pretty=format:'- %s' "$RANGE" -- $PATHS | grep -viE "$EXCLUDE" || true)
           [ -z "$CHANGES" ] && CHANGES="- Maintenance and behind-the-scenes improvements"
           {
             echo "## What's changed"
