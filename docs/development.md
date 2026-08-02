@@ -13,8 +13,8 @@ facing overview is in the root `README.md`.)
   full-screen + looping sound), an in-app updater, a passkey/Credential Manager
   bridge, and Google sign-in. See `apps/mobile/README.md`.
 - **`apps/desktop`** — WinUI 3 (C#) Windows tray app. Hosts the *hosted* web UI in
-  a WebView2 flyout with a due-count badge on the tray icon; it shows and confirms
-  reminders but deliberately never rings. See `docs/desktop-architecture.md`.
+  a WebView2 flyout; it shows and confirms reminders but deliberately never rings.
+  See `docs/desktop-architecture.md`.
 - **`packages/shared`** — Zod schemas + inferred types shared by API and web.
 
 ## The persistence reality

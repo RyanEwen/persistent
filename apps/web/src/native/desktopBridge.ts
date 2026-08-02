@@ -9,11 +9,11 @@
  * the desktop host, and a check that conflates the two will silently do the wrong
  * thing on one of them.
  *
- * The channel carries exactly one message, web -> host: how many occurrences are
- * nagging, so the tray icon can badge a count. The host deliberately does not
- * fetch that itself — this page already holds the session, the caches and the live
- * `/ws` socket, so duplicating it natively would mean a second source of truth
- * that can disagree.
+ * The channel is small on purpose. Host -> page carries `back` (the flyout's
+ * title-bar button, which walks the app's screen hierarchy rather than browser
+ * history); page -> host carries `close` (Back ran out of hierarchy). Nothing
+ * streams state to the host: it has no surface that needs it, and a second copy of
+ * "what is due" would be a second source of truth that can disagree.
  */
 
 interface WebView2Bridge {
@@ -83,23 +83,3 @@ export function requestClose(): void {
   }
 }
 
-let lastSent = ''
-
-/**
- * Tell the host how many occurrences are nagging. Cheap and idempotent: repeated
- * identical counts are dropped, so this can be called from a render pass.
- */
-export function reportBadge(count: number, escalated: boolean): void {
-  if (!isDesktopHost()) return
-  const payload = { type: 'badge' as const, count, escalated }
-  const key = `${count}:${escalated}`
-  if (key === lastSent) return
-  lastSent = key
-  try {
-    window.chrome!.webview!.postMessage(payload)
-  } catch {
-    // A dead bridge costs the user a badge, not their reminders — the flyout
-    // itself keeps working, so this must never surface as an error.
-    lastSent = ''
-  }
-}

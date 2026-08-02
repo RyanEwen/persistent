@@ -35,17 +35,15 @@ notifications. The app deliberately shows no OS notifications at all.
 | `Persistent.Desktop/SettingsWindow.xaml.cs` | On-demand `NavigationView` + `Frame` |
 | `Persistent.Desktop/Pages/` | `ConnectionPage`, `AppSettingsPage` (the nav cog), `AboutPage` |
 | `Persistent.Desktop/Classes/NativeMethods.cs` | **All** Win32 P/Invoke |
-| `Persistent.Desktop/Classes/TrayIconRenderer.cs` | Badge composition (`System.Drawing`) |
-| `Persistent.Desktop/Services/TrayState.cs` | Badge state, fed by the web bridge |
 | `publish-portable.ps1` | Self-contained unpackaged build (**the one to use for testing**) |
 | `Persistent.DesktopMSIX/` | Manifest + `build-msix.ps1` + `generate-msix-images.ps1` (for shipping) |
 
 ## Conventions
 
 - **The WebView is created once, at startup, and shown/hidden — never rebuilt.**
-  The page's `/ws` socket is what feeds the tray badge, so a torn-down WebView
-  means a badge that is only correct while you are looking at it. Anything that
-  would dispose it needs to justify that first.
+  Opening is then instant and lands the user where they left off. While hidden it
+  is suspended (`TrySuspendAsync`), so it costs little to keep around — that is
+  affordable only because nothing outside the flyout consumes the page.
 - **Settings**: one `[ObservableProperty]` partial property per setting on
   `UserSettings`, PascalCase, with a sensible default; side-effects go in a
   partial `On<Name>Changed` guarded by `if (_initializing) return;`.
@@ -61,9 +59,9 @@ notifications. The app deliberately shows no OS notifications at all.
   BOM-less `.ps1` as ANSI, so a UTF-8 dash or curly quote inside a string breaks
   parsing in ways that are hard to spot.
 - **Failure paths get an NLog line, not a silent `catch`** — the same rule as the
-  API. A swallowed exception here costs the user their only ambient signal. Keep a
-  bare `catch` only for genuinely cosmetic things (a missing icon file), and say
-  so in a comment.
+  API. The app has no window at startup, so a swallowed exception is invisible;
+  `StartupDiagnostics` exists because of exactly that. Keep a bare `catch` only for
+  genuinely cosmetic things, and say so in a comment.
 - `global::` does not parse inside interpolated strings — assign to a local first.
   Fully-qualify `Microsoft.UI.Xaml.Visibility` / `FocusState` in page code-behind.
 - Bump `<Version>` in `Directory.Build.props` for every packaged build; MSIX

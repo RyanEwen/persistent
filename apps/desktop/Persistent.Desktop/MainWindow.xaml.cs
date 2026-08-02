@@ -1,7 +1,6 @@
 using Microsoft.UI.Xaml;
 using Persistent.Desktop.Classes;
 using Persistent.Desktop.Classes.Settings;
-using Persistent.Desktop.Services;
 using Persistent.Desktop.Windows;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -57,11 +56,10 @@ public sealed partial class MainWindow : Window
         Classes.StartupDiagnostics.Mark("Host window ready");
 
         AddTrayIcon();
-        TrayState.Changed += OnTrayStateChanged;
 
-        // Build the flyout (and start loading the PWA) now, not on first click: the
-        // page's own WebSocket is what feeds the badge, so it has to be running
-        // before the user ever opens anything.
+        // Build the flyout (and start loading the PWA) now, not on first click, so
+        // the first open is instant rather than waiting on a cold WebView2 plus a
+        // page load.
         AppFlyout.EnsureCreated();
         Classes.StartupDiagnostics.Mark("Flyout created");
 
@@ -95,8 +93,8 @@ public sealed partial class MainWindow : Window
         var data = NewIconData();
         data.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
         data.uCallbackMessage = WmTrayCallback;
-        data.hIcon = SwapIcon();
-        data.szTip = Truncate(TrayState.Tooltip());
+        data.hIcon = LoadTrayIcon();
+        data.szTip = "Persistent";
         _trayAdded = Shell_NotifyIcon(NIM_ADD, ref data);
 
         if (_trayAdded)
@@ -117,26 +115,19 @@ public sealed partial class MainWindow : Window
         App.MainDispatcherQueue.TryEnqueue(AppFlyout.Show);
     }
 
-    /// <summary>Renders the current badge state and replaces the held HICON.</summary>
-    private IntPtr SwapIcon()
+    /// <summary>
+    /// Loads the app mark as an HICON, replacing any previously held one.
+    ///
+    /// A 32px frame, not 16: the shell downscales to the DPI-scaled tray slot and
+    /// stays crisp, whereas loading 16 forces an upscale on high-DPI displays.
+    /// </summary>
+    private IntPtr LoadTrayIcon()
     {
-        IntPtr fresh = TrayIconRenderer.Create(App.IconPath, TrayState.ActiveCount, TrayState.HasEscalation);
+        IntPtr fresh = LoadImage(IntPtr.Zero, App.IconPath, IMAGE_ICON, 32, 32, LR_LOADFROMFILE);
         if (_hIcon != IntPtr.Zero) DestroyIcon(_hIcon);
         _hIcon = fresh;
         return _hIcon;
     }
-
-    private void UpdateTrayIcon()
-    {
-        if (!_trayAdded) return;
-        var data = NewIconData();
-        data.uFlags = NIF_ICON | NIF_TIP;
-        data.hIcon = SwapIcon();
-        data.szTip = Truncate(TrayState.Tooltip());
-        Shell_NotifyIcon(NIM_MODIFY, ref data);
-    }
-
-    private static string Truncate(string tip) => tip.Length > 127 ? tip[..127] : tip;
 
     private void RemoveTrayIcon()
     {
@@ -156,8 +147,6 @@ public sealed partial class MainWindow : Window
         szInfo = string.Empty,
         szInfoTitle = string.Empty
     };
-
-    private void OnTrayStateChanged() => App.MainDispatcherQueue.TryEnqueue(UpdateTrayIcon);
 
     // ── Window procedure ────────────────────────────────────────────
     private IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam, IntPtr id, IntPtr data)
@@ -193,11 +182,6 @@ public sealed partial class MainWindow : Window
     private void ShowTrayMenu()
     {
         IntPtr menu = CreatePopupMenu();
-
-        // Status line (non-clickable) — the same summary as the tooltip, for the
-        // case where the user went looking in the menu instead of hovering.
-        AppendMenu(menu, MF_STRING | MF_GRAYED, 0, TrayState.Tooltip());
-        AppendMenu(menu, MF_SEPARATOR, 0, null);
 
         AppendMenu(menu, MF_STRING, CmdOpen, "Open Persistent");
         AppendMenu(menu, MF_STRING, CmdBrowser, "Open in browser");
@@ -244,7 +228,6 @@ public sealed partial class MainWindow : Window
 
     private void ExitApp()
     {
-        TrayState.Changed -= OnTrayStateChanged;
         RemoveTrayIcon();
         if (_subclass != null) RemoveWindowSubclass(_hwnd, _subclass, IntPtr.Zero);
         AppFlyout.CloseForExit();

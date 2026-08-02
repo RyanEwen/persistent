@@ -1,7 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Persistent.Desktop.Classes.Settings;
-using Persistent.Desktop.Services;
 using Persistent.Desktop.ViewModels;
 using Persistent.Desktop.Windows;
 
@@ -36,9 +35,6 @@ public sealed partial class ConnectionPage : Page
         SettingsManager.SaveSettings();
         ServerUrlBox.Text = raw;
 
-        // The badge describes the old server until the new page reports; drop it
-        // rather than leaving a stale count in the tray.
-        TrayState.Reset();
         AppFlyout.Reload();
         Report($"Saved. The flyout is loading {raw}.");
     }
@@ -48,7 +44,6 @@ public sealed partial class ConnectionPage : Page
         SettingsManager.Current.ServerUrl = UserSettings.DefaultServerUrl;
         SettingsManager.SaveSettings();
         ServerUrlBox.Text = UserSettings.DefaultServerUrl;
-        TrayState.Reset();
         AppFlyout.Reload();
         Report("Reset to the default server.");
     }
@@ -67,7 +62,6 @@ public sealed partial class ConnectionPage : Page
         if (await confirm.ShowAsync() != ContentDialogResult.Primary) return;
 
         bool cleared = await AppFlyout.ClearBrowsingDataAsync();
-        TrayState.Reset();
         Report(cleared
             ? "Signed out on this PC."
             : "Couldn't clear the saved session - try again once the flyout has finished loading.");

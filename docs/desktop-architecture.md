@@ -19,8 +19,9 @@ This is the honest description and the docs, the Connection page and the About
 page all say it. A Windows app that *looked* like it would nag you, and then
 didn't because the machine was asleep, would be worse than no Windows app.
 
-The one ambient signal it does provide is the **tray icon badge**: a count of
-occurrences currently nagging, red when one has escalated.
+It provides no ambient signal at all — the tray icon is a plain mark. An earlier
+version badged it with a due count; that was dropped, and with it the only reason
+the page had to keep running while hidden (see the suspend note below).
 
 ## Why a WebView, not a native client
 
@@ -60,19 +61,18 @@ and load-bearing:
 
 - The flyout is shown and hidden thereafter, never rebuilt. A cold WebView2 plus a
   page load is a visible pause on every tray click.
-- More importantly, **the page's own `/ws` socket is what feeds the badge**. Tear
-  the WebView down between opens and the tray count would only be correct while
-  you were already looking at it.
+- Opening is instant and lands the user on the screen they left, rather than
+  re-loading the app on every tray click.
 
-`TrayIconRenderer` composes the badge onto the app mark with `System.Drawing` and
-hands back an HICON (the caller owns it; it is destroyed on the next update).
-
-**Hidden, the WebView is idled but never suspended.** `SetWebViewIdle` collapses
-the control (so the WebView2 controller stops compositing and doing GPU work) and
-drops `MemoryUsageTargetLevel` to `Low`. It deliberately does *not* call
-`TrySuspendAsync`: suspending freezes the page's `/ws` socket, which is the only
-thing feeding the tray badge, so it would trade the app's sole ambient signal for
-the memory. JavaScript and the socket keep running; only the drawing stops.
+**Hidden, the WebView is suspended.** `SetWebViewIdle` collapses the control and
+then calls `TrySuspendAsync` (order matters — it refuses while the controller is
+visible), freezing JavaScript and timers and letting the renderer's memory be
+reclaimed; `Resume` on show restores the page as it was. This is only affordable
+because nothing outside the flyout consumes the page. While the tray icon carried
+a due-count badge the `/ws` socket had to stay live to feed it, so the most that
+could be done was stop rendering; removing the badge is what made real suspension
+possible. The socket drops while suspended and the web client reconnects on
+resume — the same path it already handles after a laptop sleeps.
 
 **Clicking the tray icon while the flyout is open closes it.** That needs a guard:
 the click itself deactivates the flyout, so light dismiss has already hidden it by
@@ -91,10 +91,6 @@ detection — the same rule that already governs `hasNativeUpdater()`.
   `isNative()`**: Capacitor is absent here, so `isNative()` is false in the
   desktop host, and code that conflates the two silently misbehaves on one of
   them.
-- `reportBadge(count, escalated)` posts `{type:'badge', count, escalated}` to the
-  host. `DesktopBadge` (mounted in the signed-in shell, like `UpdateCheck`) drives
-  it from the active-occurrence query, and clears it on unmount so signing out
-  doesn't leave a stale count in the tray.
 - `onHostMessage()` receives host→page messages; currently just `back`, from the
   flyout's title-bar button. The host does **not** call `CoreWebView2.GoBack()` —
   browser history is the trail of every hop the user made, which is the model the

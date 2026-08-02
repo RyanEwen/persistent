@@ -26,10 +26,10 @@ Architecture and conventions are borrowed, thinned, from the sibling
   custom native alarm plugin. The web/PWA is best-effort; the native app is the
   real persistence guarantee. See `docs/alarm-architecture.md`.
 - **`apps/desktop`** — WinUI 3 (C#) Windows tray app that shows the **hosted PWA**
-  in a WebView2 flyout, with a due-count badge on the tray icon. Deliberately a
-  viewing/acting surface, not a nag surface: no toasts, no alarm audio, nothing
-  while closed. Hosting the real bundle is what stops it drifting from the
-  done/silence/snooze contract. See `docs/desktop-architecture.md`.
+  in a WebView2 flyout. Deliberately a viewing/acting surface, not a nag surface:
+  no toasts, no alarm audio, no badge, nothing while closed. Hosting the real
+  bundle is what stops it drifting from the done/silence/snooze contract. See
+  `docs/desktop-architecture.md`.
 - **`packages/shared`** — Zod schemas + inferred types used by API and web. Do
   not duplicate request/response shapes elsewhere.
 - PostgreSQL via Prisma; migrations under `apps/api/prisma/migrations/`.

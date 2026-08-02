@@ -2,7 +2,6 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.Web.WebView2.Core;
 using Persistent.Desktop.Classes.Settings;
-using Persistent.Desktop.Services;
 using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
@@ -16,12 +15,8 @@ namespace Persistent.Desktop.Windows;
 /// PWA in a WebView2.
 ///
 /// It is created ONCE at startup and shown/hidden thereafter — never rebuilt per
-/// open. Two reasons, both load-bearing:
-///
-/// 1. The page owns the live `/ws` socket that feeds the tray badge
-///    (<see cref="TrayState"/>). Tearing the WebView down between opens would mean
-///    the badge only worked while the flyout was on screen, which is backwards.
-/// 2. A cold WebView2 plus a page load is a visible pause on every tray click.
+/// open — so opening is instant and lands the user where they left off. A cold
+/// WebView2 plus a page load is a visible pause on every tray click.
 ///
 /// Because the hosted page is the same bundle the web and Android clients run, the
 /// user gets sign-in (including passkeys via Windows Hello, which the Android
@@ -37,11 +32,13 @@ public sealed partial class AppFlyout : Window
 
     private static AppFlyout? _instance;
 
-
     private readonly IntPtr _hwnd;
     private readonly AppWindow _appWindow;
     private bool _webViewReady;
     private bool _visible;
+
+    /// <summary>The page is suspended while hidden; see <see cref="SetWebViewIdle"/>.</summary>
+    private bool _suspended;
 
     /// <summary>When the flyout was last hidden, for the tray-click toggle below.</summary>
     private long _hiddenAtTicks;
@@ -288,7 +285,7 @@ public sealed partial class AppFlyout : Window
     }
 
     /// <summary>
-    /// The page reporting how many reminders are nagging. Shape is defined by
+    /// Messages from the page. Shape is defined by
     /// `apps/web/src/native/desktopBridge.ts`; anything else is ignored rather than
     /// trusted, since web content is not a privileged caller.
     /// </summary>
@@ -303,20 +300,9 @@ public sealed partial class AppFlyout : Window
             var root = document.RootElement;
             if (!root.TryGetProperty("type", out var type)) return;
 
-            switch (type.GetString())
-            {
-                case "badge":
-                    int count = root.TryGetProperty("count", out var c) && c.TryGetInt32(out int parsed) ? parsed : 0;
-                    bool escalated = root.TryGetProperty("escalated", out var e) && e.ValueKind == JsonValueKind.True;
-                    TrayState.Report(count, escalated);
-                    break;
-
-                // Back ran out of hierarchy to walk — the flyout's equivalent of
-                // Back leaving the app on Android.
-                case "close":
-                    DispatcherQueue.TryEnqueue(HideFlyout);
-                    break;
-            }
+            // Back ran out of hierarchy to walk — the flyout's equivalent of Back
+            // leaving the app on Android.
+            if (type.GetString() == "close") DispatcherQueue.TryEnqueue(HideFlyout);
         }
         catch (Exception ex)
         {
@@ -362,14 +348,12 @@ public sealed partial class AppFlyout : Window
         if (args.WebErrorStatus == CoreWebView2WebErrorStatus.OperationCanceled) return;
 
         Logger.Warn("Navigation failed: {Status}", args.WebErrorStatus);
-        TrayState.Reset();
         ShowError("Can't reach Persistent", $"{SettingsManager.Current.EffectiveServerUrl} ({args.WebErrorStatus})");
     }
 
     private void OnProcessFailed(CoreWebView2 sender, CoreWebView2ProcessFailedEventArgs args)
     {
         Logger.Error("WebView2 process failed: {Kind}", args.ProcessFailedKind);
-        TrayState.Reset();
         ShowError("Persistent stopped responding", "The embedded browser process ended. Reload to start it again.");
     }
 
@@ -494,33 +478,61 @@ public sealed partial class AppFlyout : Window
     }
 
     /// <summary>
-    /// Wind the WebView down while the flyout is off-screen — without pausing it.
+    /// Put the WebView to sleep while the flyout is off-screen, and wake it on show.
     ///
-    /// The page is kept alive on purpose: its `/ws` socket is what feeds the tray
-    /// badge, so suspending it (`TrySuspendAsync`) would trade the app's only
-    /// ambient signal for the memory saving, which is the wrong way round. What can
-    /// go is the part that is pure waste when nothing is visible: rendering.
+    /// This is only possible because nothing outside the flyout consumes the page.
+    /// While the tray icon carried a due-count badge the page's `/ws` socket had to
+    /// stay live to feed it, so the most that could be done was stop rendering;
+    /// with the badge gone there is no reason to run a browser engine for a window
+    /// nobody is looking at.
     ///
-    /// Collapsing the control drops the WebView2 controller's visibility, so it
-    /// stops compositing and doing GPU work entirely; `MemoryUsageTargetLevel.Low`
-    /// then lets it trim caches it is not drawing from. JavaScript, timers and the
-    /// socket keep running, so the badge stays current and the flyout opens with
-    /// the page already where the user left it.
+    /// Order matters: `TrySuspendAsync` refuses while the controller is visible, so
+    /// collapse first. Suspending freezes JavaScript and timers and lets the
+    /// renderer's memory be reclaimed; `Resume` restores the page as it was, so the
+    /// user still reopens on the screen they left. The socket drops while suspended
+    /// and the web client reconnects on resume, which it already handles — that is
+    /// the same path as a laptop waking from sleep.
     /// </summary>
     private void SetWebViewIdle(bool idle)
     {
         try
         {
-            WebView.Visibility = idle ? Visibility.Collapsed : Visibility.Visible;
-            if (!_webViewReady) return;
-            WebView.CoreWebView2.MemoryUsageTargetLevel = idle
-                ? CoreWebView2MemoryUsageTargetLevel.Low
-                : CoreWebView2MemoryUsageTargetLevel.Normal;
+            if (!idle)
+            {
+                WebView.Visibility = Visibility.Visible;
+                if (_webViewReady && _suspended)
+                {
+                    WebView.CoreWebView2.Resume();
+                    _suspended = false;
+                }
+                return;
+            }
+
+            WebView.Visibility = Visibility.Collapsed;
+            if (!_webViewReady || _suspended) return;
+            _ = SuspendWebViewAsync();
         }
         catch (Exception ex)
         {
             // Purely an optimisation — never let it stop the flyout showing.
             Logger.Debug(ex, "Could not change the WebView idle state");
+        }
+    }
+
+    /// <summary>
+    /// Suspend once the controller has actually gone invisible. Failure is fine:
+    /// the page simply keeps running, which is what it did before.
+    /// </summary>
+    private async Task SuspendWebViewAsync()
+    {
+        try
+        {
+            _suspended = await WebView.CoreWebView2.TrySuspendAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.Debug(ex, "Could not suspend the WebView");
+            _suspended = false;
         }
     }
 

@@ -19,7 +19,6 @@ import { HelpPage } from './pages/HelpPage.js'
 import { PrivacyPage } from './pages/PrivacyPage.js'
 import { DeleteAccountPage } from './pages/DeleteAccountPage.js'
 import { UpdateCheck } from './native/UpdateCheck.js'
-import { DesktopBadge } from './native/DesktopBadge.js'
 import { registerNavHandler } from './native/navTo.js'
 import { useNativeBack } from './native/useNativeBack.js'
 
@@ -56,7 +55,6 @@ export function App() {
   return (
     <AppLayout>
       <UpdateCheck />
-      <DesktopBadge />
       <Routes>
         <Route path="/" element={<RemindersPage />} />
         <Route path="/upcoming" element={<UpcomingPage />} />
