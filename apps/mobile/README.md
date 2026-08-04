@@ -189,6 +189,12 @@ from `server.url`, web-only changes reach devices via a prod deploy with no new
 APK — rebuild the APK only for native changes (alarm/update plugins, manifest,
 launcher icon).
 
+That check reads `/api/latest-release`, which proxies GitHub's `releases/latest`
+and pulls the `.apk` asset off it. The Windows tray app tags `desktop-vX.Y.Z` into
+this same repo, so the release workflow pins `make_latest: true` (and the desktop
+one `false`) to keep that endpoint pointing at an Android release — a desktop
+release has no APK, so whenever one was newest the updater saw "no update".
+
 > **This self-update path cannot ship on Google Play.** Play forbids an app
 > distributed through it from updating itself by any other mechanism, and
 > `REQUEST_INSTALL_PACKAGES` is the flag review looks for. Store listing copy,

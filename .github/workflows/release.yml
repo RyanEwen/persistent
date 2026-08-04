@@ -243,6 +243,11 @@ jobs:
           name: ${{ steps.ver.outputs.tag }}
           body_path: RELEASE_NOTES.md
           files: persistent-*.apk
+          # The app release is the one "Latest" should mean. Desktop releases pin
+          # make_latest: false for the same reason - they interleave with these by
+          # date, so whoever shipped most recently would otherwise own /releases/latest,
+          # and the README's Android download badge points straight at it.
+          make_latest: true
 
       # Uploads once and attaches that versionCode to every requested track in a
       # single Play edit. The "what's new" text is derived from RELEASE_NOTES.md

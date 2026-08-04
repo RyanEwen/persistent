@@ -150,3 +150,8 @@ jobs:
           # Both architectures land on one release; the tag already names the app,
           # which matters because Android releases share this repo's release list.
           name: Persistent for Windows ${{ github.ref_name }}
+          # Never claim "Latest" - that belongs to the Android app, which is what
+          # the README's download badge and /releases/latest are expected to mean.
+          # Left to GitHub's default, whichever of the two shipped most recently
+          # won, and desktop-v0.2.3 was in fact answering /releases/latest.
+          make_latest: false

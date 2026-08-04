@@ -222,6 +222,11 @@ you're declaring it rather than assuming this file settled it.
 All six live in `graphics/screenshots/`, taken against the seeded demo account and
 free of health data. Ordered as they should appear in Play.
 
+The root `README.md` embeds three of them — `00`, `01` and `04` — from this
+directory directly rather than keeping its own copies, so regenerating those
+updates the README too, and renaming one breaks it. That is deliberate: the same
+"no health framing" constraint applies in both places, and two copies would drift.
+
 | File | Shows | Size | Source |
 | --- | --- | --- | --- |
 | `00-ringing-alarm.png` | The full-screen alarm mid two-tap confirm — the thing no other reminder app does. Lead with this. | 960x2142 | device |

@@ -6,6 +6,14 @@
  *
  * Intentionally unauthenticated: this is public release metadata, not a domain
  * row, so the per-user scoping rule does not apply.
+ *
+ * Depends on `releases/latest` being the **Android** release. Desktop builds tag
+ * `desktop-vX.Y.Z` into this same repo, so the two series interleave by date and
+ * GitHub's default would hand "Latest" to whichever shipped last. Both workflows
+ * therefore pin it (`release.yml` sets `make_latest: true`,
+ * `build-desktop-msix.yml` sets `false`). Without that this endpoint silently
+ * answers `null` every time a desktop release is newest, because those releases
+ * carry only `.msix`/`.zip` assets and the APK lookup below finds nothing.
  */
 import { Router } from 'express'
 import { logger } from '../lib/logger.js'
@@ -53,6 +61,11 @@ appReleaseRouter.get('/latest-release', async (_request, response) => {
       apk?.browser_download_url && rel.tag_name
         ? { version: rel.tag_name.replace(/^v/, ''), notes: rel.body ?? '', apkUrl: apk.browser_download_url }
         : null
+
+    // "Latest" resolved to something with no APK — almost always the make_latest
+    // invariant above having slipped, which otherwise looks identical to "you are
+    // up to date" from the client and hides a broken updater for a whole release.
+    if (!data) logger.warn('latest-release has no APK asset', { tag: rel.tag_name ?? null })
 
     cache = { at: now, data }
     response.json(data)

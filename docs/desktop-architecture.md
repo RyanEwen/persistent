@@ -433,6 +433,13 @@ copy you last opened is the one that starts at sign-in.
   Android `vX.Y.Z` tags in this same repo — which is also why `UpdateService`
   reads the release *list* and filters by prefix instead of calling
   `releases/latest`.
+- **Desktop releases pin `make_latest: false`** (and the Android workflow pins
+  `true`). The two series interleave by date, so GitHub's default gave "Latest" to
+  whichever shipped most recently — which is how `desktop-v0.2.3` came to answer
+  `/releases/latest`. That endpoint is the Android updater's source
+  (`apps/api/src/routes/app-release.ts`) and a desktop release carries no `.apk`,
+  so it returned "no update" to every Android client until the next app release.
+  `UpdateService` is unaffected either way, but don't drop the pin to "simplify".
 
 MSIX refuses to reinstall the same version with different content, so bump
 `<Version>` for every packaged build.
