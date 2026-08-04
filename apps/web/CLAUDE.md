@@ -2,6 +2,11 @@
 
 - **Mobile-first.** Every UI change must work at phone widths first, then scale
   up. The shell is a single centered column (`components/AppLayout.tsx`).
+- **Only autofocus a field when filling it is the reason the screen opened.** On a
+  phone the focus raises the keyboard, which covers most of the form. Creating a
+  reminder qualifies — the empty title is the next thing to do; opening an existing
+  one does not, since the user is usually there to read it or change something
+  further down (`pages/reminder-editor/DetailsTab.tsx`, `autoFocusTitle`).
 - **Joy UI only** for components; theme in `src/theme.ts`. Don't pull in MUI
   Material or other component kits.
 - **The loudest control on a screen is the one that finishes work.** Done

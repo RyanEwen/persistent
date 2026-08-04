@@ -9,6 +9,11 @@
  * The picker offers `typeOptions`, not every type: medication is withheld from
  * new reminders for now (see `selectableReminderTypes`), but a reminder that is
  * already one still edits as one, dose rows and all.
+ *
+ * Only a *new* reminder focuses the title (`autoFocusTitle`): there the empty
+ * field is the next thing to do anyway. Opening an existing one is usually to
+ * read it or change something further down, and on a phone the keyboard would
+ * cover most of what the user came to see.
  */
 import Stack from '@mui/joy/Stack'
 import FormControl from '@mui/joy/FormControl'
@@ -27,6 +32,7 @@ import { typeOptions, type FormState, type MedicationRow, type TodoRow } from '.
 export function DetailsTab({
   form,
   set,
+  autoFocusTitle,
   todoChecked,
   onTypeChange,
   onMedicationChange,
@@ -39,6 +45,8 @@ export function DetailsTab({
 }: {
   form: FormState
   set: <K extends keyof FormState>(key: K, value: FormState[K]) => void
+  /** Only a new reminder opens with the title focused — see the header note. */
+  autoFocusTitle: boolean
   /** Read-only ticks from the reminder's current firing, if it has one. */
   todoChecked?: TodoCheckState
   onTypeChange: (type: ReminderType) => void
@@ -54,7 +62,7 @@ export function DetailsTab({
     <Stack spacing={2}>
       <FormControl required>
         <FormLabel>Title</FormLabel>
-        <Input value={form.title} onChange={(e) => set('title', e.target.value)} autoFocus />
+        <Input value={form.title} onChange={(e) => set('title', e.target.value)} autoFocus={autoFocusTitle} />
       </FormControl>
 
       <FormControl>

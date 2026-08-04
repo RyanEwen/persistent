@@ -336,6 +336,7 @@ export function ReminderEditorPage() {
               <DetailsTab
                 form={form}
                 set={set}
+                autoFocusTitle={!id}
                 todoChecked={todoChecked}
                 onTypeChange={setType}
                 onMedicationChange={setMedication}
