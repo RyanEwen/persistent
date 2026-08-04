@@ -1,6 +1,7 @@
 /**
  * Joy UI theme. Mobile-first; a calm dark default with a blue accent. Phone
- * widths are the primary target (see docs/ui-conventions.md).
+ * widths are the primary target (see `apps/web/CLAUDE.md` for the layout,
+ * heading and emphasis conventions this theme is applied under).
  */
 import { extendTheme } from '@mui/joy/styles'
 

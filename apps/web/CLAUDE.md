@@ -4,6 +4,15 @@
   up. The shell is a single centered column (`components/AppLayout.tsx`).
 - **Joy UI only** for components; theme in `src/theme.ts`. Don't pull in MUI
   Material or other component kits.
+- **The loudest control on a screen is the one that finishes work.** Done
+  (`components/OccurrenceActions.tsx`, solid `success`) is the app's entire
+  guarantee, so nothing that merely *creates* or navigates may outrank it —
+  no solid accent fill, no larger size, no position above it. "New reminder" was
+  exactly that mistake: a full-width solid `primary` bar sitting directly on top
+  of the Done it competed with. It is a soft floating button now
+  (`components/NewReminderFab.tsx`), and it sits bottom-**left** because Done and
+  Snooze are right-aligned in every card — the one corner a floating control must
+  never cover.
 - **One heading treatment.** Every screen and in-page section opens with
   `components/SectionHeading.tsx` (`title-md` + an optional `body-sm`
   `text.tertiary` line) — don't hand-roll a `Typography` pair. It carries **no

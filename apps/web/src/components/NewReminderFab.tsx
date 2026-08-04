@@ -7,7 +7,13 @@
  * loudest thing on the screen that exists to *finish* it. Soft + floating keeps it
  * always reachable without competing.
  *
- * Two positioning invariants, both easy to lose:
+ * Three positioning invariants, all easy to lose:
+ * - **Bottom-left, not the conventional bottom-right.** Done and Snooze are
+ *   right-aligned in every attention card, so the right corner is the one place a
+ *   floating control must not sit: at narrow widths (the Windows flyout goes down
+ *   to 320) a card's buttons wrap onto their own row and land exactly there, and
+ *   the button covered Done at rest. A floating control always overlaps
+ *   *something*; on the left it can only ever cover body text.
  * - It anchors to the same 640px centred column as `AppLayout`, not the viewport,
  *   or it drifts into the margin on a wide window.
  * - It clears `BottomNav` *and* `env(safe-area-inset-bottom)` — the nav extends its
@@ -51,7 +57,7 @@ export function NewReminderFab() {
             maxWidth: 640,
             px: 2,
             display: 'flex',
-            justifyContent: 'flex-end',
+            justifyContent: 'flex-start',
             pointerEvents: 'none'
           }}
         >
