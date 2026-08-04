@@ -10,9 +10,10 @@
   no solid accent fill, no larger size, no position above it. "New reminder" was
   exactly that mistake: a full-width solid `primary` bar sitting directly on top
   of the Done it competed with. It is a soft floating button now
-  (`components/NewReminderFab.tsx`), and it sits bottom-**left** because Done and
-  Snooze are right-aligned in every card — the one corner a floating control must
-  never cover.
+  (`components/NewReminderFab.tsx`) — the rule is about emphasis, not position:
+  that button sits in the conventional bottom-right corner and may overlap a
+  card's actions at narrow widths, which is a documented trade-off rather than a
+  licence to outrank Done visually.
 - **One heading treatment.** Every screen and in-page section opens with
   `components/SectionHeading.tsx` (`title-md` + an optional `body-sm`
   `text.tertiary` line) — don't hand-roll a `Typography` pair. It carries **no
