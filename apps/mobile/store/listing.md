@@ -247,6 +247,14 @@ that way.
 
 ### Regenerating
 
+> ⚠️ **The set predates the New reminder FAB and is due a regeneration with the
+> release that ships it.** `01` still shows the old full-width "New reminder" bar
+> above the cards, and `05` (History) has no create action at all — both now carry
+> a floating button instead (`apps/web/src/components/NewReminderFab.tsx`). Left
+> alone deliberately for now: these are store assets and should match the build a
+> user can actually download, which does not have it yet. Regenerate at release
+> time, not before. `00`, `02`, `03` and `04` are unaffected.
+
 Four of the six are scripted. Do the whole set in one go — the copy and the UI both
 move, and this set went stale twice over before anyone noticed (medication content,
 then a fourth nav tab):

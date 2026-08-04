@@ -2,6 +2,14 @@
  * Pull-to-refresh for the page lists. When the window is scrolled to the top and
  * the user drags down, it shows a spinner and runs onRefresh (refetch). Works on
  * touch (native app + mobile web); a no-op interaction on desktop.
+ *
+ * It moves the content with `transform: translateY(...)`, which has a consequence
+ * for anything rendered inside it: a transform other than `none` makes this the
+ * containing block for `position: fixed` descendants, so a floating child
+ * positions against this (page-tall) element rather than the viewport and lands
+ * off screen. It still *computes* as `position: fixed`, which makes it a confusing
+ * one to debug. Portal such children to `document.body` — see
+ * `components/NewReminderFab.tsx`.
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import Box from '@mui/joy/Box'

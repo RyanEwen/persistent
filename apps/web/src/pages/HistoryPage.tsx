@@ -20,6 +20,7 @@ import { formatWhen } from '../lib/datetime.js'
 import { useSettings } from '../settings/useSettings.js'
 import { ReminderListItem } from '../components/ReminderListItem.js'
 import { PullToRefresh } from '../components/PullToRefresh.js'
+import { NewReminderFab } from '../components/NewReminderFab.js'
 
 /**
  * "2 of 3 checked" for a past checklist firing — how much of it was actually
@@ -81,6 +82,8 @@ export function HistoryPage() {
           </Button>
         )}
       </Stack>
+
+      <NewReminderFab />
     </Stack>
     </PullToRefresh>
   )

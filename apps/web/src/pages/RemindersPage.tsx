@@ -25,12 +25,10 @@
  * collapse those two targets together.
  */
 import { useState } from 'react'
-import { Link as RouterLink } from 'react-router-dom'
 import Stack from '@mui/joy/Stack'
 import Box from '@mui/joy/Box'
 import Typography from '@mui/joy/Typography'
-import Button from '@mui/joy/Button'
-import AddIcon from '@mui/icons-material/Add'
+import { NewReminderFab } from '../components/NewReminderFab.js'
 import { useReminders } from '../data/reminders.js'
 import {
   useActiveOccurrences,
@@ -87,15 +85,6 @@ export function RemindersPage() {
           )}
 
           <Stack spacing={1.5}>
-            <Button
-              component={RouterLink}
-              to="/reminders/new"
-              size="lg"
-              startDecorator={<AddIcon />}
-              sx={{ width: '100%' }}
-            >
-              New reminder
-            </Button>
             {attention.map(({ reminder, occurrence }) => (
               <AttentionReminderCard
                 key={occurrence.id}
@@ -114,6 +103,8 @@ export function RemindersPage() {
         </Box>
 
         <NotesSection reminders={reminders.data ?? []} />
+
+        <NewReminderFab />
 
         <SnoozeDialog
           open={snoozeFor !== null}

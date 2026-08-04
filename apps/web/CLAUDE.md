@@ -67,6 +67,15 @@
   Back", and Back from the root screen closes the flyout — so the first new message
   type added made the tray app close itself the instant it opened. Unknown messages
   must do nothing.
+- **Anything `position: fixed` on a list screen must be portalled to `document.body`**
+  (`components/NewReminderFab.tsx`). `PullToRefresh` wraps those pages and sets
+  `transform: translateY(...)`, and *any* transform other than `none` makes that
+  element the containing block for fixed descendants — so a floating control
+  rendered in place resolves against the page-tall pull container and lands off
+  screen instead of above the nav. It still computes as `position: fixed`, which is
+  what makes it confusing to debug. Such a control also has to clear `BottomNav`
+  **and** `env(safe-area-inset-bottom)`, and anchor to the 640px centred column
+  rather than the viewport.
 - **No native dialogs:** don't use `alert`/`confirm`/`prompt` (eslint enforces).
 - **Dialogs are back-aware:** build modals with `components/BackAwareModal.tsx`
   (not raw Joy `Modal`) so Android/browser Back closes the top dialog and dialogs

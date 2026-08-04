@@ -4,7 +4,8 @@
  *
  * This is also the app's *management* list — the place you come to look over what
  * you have set up and change it — so rows open the editor directly, and the New
- * reminder button lives here as well as on Current.
+ * reminder action (`components/NewReminderFab.tsx`, a floating button shared with
+ * Current and History) is to hand here too.
  *
  * Reminders with an active firing are deliberately absent: they are on Current,
  * as attention cards with their own Done/Snooze. One reminder therefore appears in
@@ -16,13 +17,11 @@
  * is upcoming or ever will be, so listing them here would put them in a queue they
  * can never reach the front of.
  */
-import { Link as RouterLink } from 'react-router-dom'
 import Stack from '@mui/joy/Stack'
 import Box from '@mui/joy/Box'
 import Typography from '@mui/joy/Typography'
-import Button from '@mui/joy/Button'
 import Chip from '@mui/joy/Chip'
-import AddIcon from '@mui/icons-material/Add'
+import { NewReminderFab } from '../components/NewReminderFab.js'
 import { reminderBodyText } from '@persistent/shared'
 import type { Reminder } from '@persistent/shared'
 import { useReminders } from '../data/reminders.js'
@@ -70,15 +69,6 @@ export function UpcomingPage() {
           )}
 
           <Stack spacing={1.5}>
-            <Button
-              component={RouterLink}
-              to="/reminders/new"
-              size="lg"
-              startDecorator={<AddIcon />}
-              sx={{ width: '100%' }}
-            >
-              New reminder
-            </Button>
             {/* No status chip on these rows: `lastOccurrence` is always a *past*
                 firing here, in practice always ACKNOWLEDGED, so the chip was a
                 constant reading "Done" beside a subtitle giving the *next* fire
@@ -108,6 +98,8 @@ export function UpcomingPage() {
             })}
           </Stack>
         </Box>
+
+        <NewReminderFab />
       </Stack>
     </PullToRefresh>
   )
