@@ -38,10 +38,10 @@ export function HelpPage() {
 
       <Section title="Creating a reminder">
         <Typography level="body-sm">
-          Tap <b>New</b> on the Reminders screen. Give it a title, pick a type if you like (Checklist or
-          Medication), and set a schedule: a one-off time, or a repeat (daily, certain weekdays, monthly
-          on the days you choose, every N days) with one or more times of day. Add optional details — for medications
-          you can list what to take and the dose.
+          Tap <b>New</b> on the Reminders screen. Give it a title, pick a type if you like (Checklist), and set
+          a schedule: a one-off time, or a repeat (daily, certain weekdays, monthly on the days you choose, every
+          N days) with one or more times of day. Add optional details — anything you want to see on the
+          notification itself.
         </Typography>
       </Section>
 
@@ -129,10 +129,10 @@ export function HelpPage() {
 
       <Section title="Reminders with several times repeat independently">
         <Typography level="body-sm">
-          Each notification a reminder sends is its own item. If you take a medication at 9:00 and 1:00 and you haven&apos;t
-          confirmed the 9:00 dose when 1:00 comes around, you&apos;ll see <b>both</b> — each with its own Done — and
-          you confirm them <b>separately</b>. Marking the 1:00 dose done never silently clears the 9:00 one, so a
-          missed dose is never lost.
+          Each notification a reminder sends is its own item. If a reminder fires at 9:00 and 1:00 and you
+          haven&apos;t confirmed the 9:00 one when 1:00 comes around, you&apos;ll see <b>both</b> — each with its own
+          Done — and you confirm them <b>separately</b>. Marking the 1:00 one done never silently clears the 9:00
+          one, so a firing you missed is never lost.
         </Typography>
       </Section>
 

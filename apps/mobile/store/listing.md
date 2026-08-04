@@ -6,6 +6,19 @@ Package: `ca.dynamicsolutions.persistent` (Play) · Category: Productivity
 The sideloaded GitHub build keeps `ca.persistent.app`; only the Play flavor carries
 the new applicationId, so the two can coexist on a device.
 
+> **No health framing while the Medication type is withheld.** Play requires an
+> organization developer account for an app that handles health data, and the
+> switch from an individual account takes up to 30 days. Until it lands the app
+> does not offer the Medication type (`selectableReminderTypes` in
+> `packages/shared/src/reminders.ts`), so this listing must not advertise
+> medication, doses or "not a medical device" — that copy is what routes a listing
+> into health-app review. Everything withheld here goes back at the same time the
+> type does; the removed passages are recoverable from git history.
+>
+> **Screenshots:** all six are regenerated and medication-free (see *Captured
+> screenshots*). Play reads the images as much as the copy, so any future edit to
+> this listing has to keep them in step.
+
 ---
 
 ## App name (max 30 chars)
@@ -29,7 +42,7 @@ Reminders that nag until you confirm them done. Real alarms, not a silent ping.
 ```
 Every other reminder app lets you swipe the notification away and forget. Persistent doesn't.
 
-A Persistent reminder keeps nagging until you explicitly confirm it's done. Dismiss the notification and it comes back. Ignore it long enough and it escalates into a full-screen alarm that rings and vibrates until you deal with it. It's built for the reminders you genuinely cannot afford to miss — medication, insulin, a dose you already forgot once this week.
+A Persistent reminder keeps nagging until you explicitly confirm it's done. Dismiss the notification and it comes back. Ignore it long enough and it escalates into a full-screen alarm that rings and vibrates until you deal with it. It's built for the reminders you genuinely cannot afford to miss — the ones you already forgot once this week.
 
 WON'T TAKE A SWIPE FOR AN ANSWER
 Marking a reminder Done is the only thing that ends it. Not dismissing it, not unlocking your phone, not tapping it by accident in your pocket — Done is a deliberate two-tap confirm on every surface.
@@ -42,8 +55,8 @@ Choose how hard a reminder pushes:
 
 Alarms are scheduled on the device as exact alarms, so they fire on time even with no network connection and even when the app is closed.
 
-EVERY DOSE IS ITS OWN REMINDER
-If your 9:00 dose is still unconfirmed when the 13:00 dose fires, both nag — separately, each with its own Done. Confirming the afternoon one never silently erases the morning one you actually missed. Most reminder apps collapse these into one notification; that's exactly how a missed dose disappears.
+EVERY FIRING IS ITS OWN REMINDER
+Set a reminder for 9:00 and 13:00 and they are two separate obligations. If the 9:00 one is still unconfirmed when 13:00 fires, both nag — each with its own Done. Confirming the afternoon one never silently erases the morning one you actually missed. Most reminder apps collapse these into one notification; that's exactly how the missed one disappears.
 
 THREE HONEST ACTIONS
 • Done — confirms it and clears it from every device you own
@@ -57,10 +70,7 @@ WORKS IN THE CAR
 Reminders project to Android Auto, and you can answer by voice — say "done", "snooze 15 minutes", or "de-escalate" without touching the phone. Reading a reminder aloud never counts as confirming it.
 
 SYNCS EVERYWHERE, INSTANTLY
-Confirm on your phone and it clears on your tablet and in your browser at the same moment. Manage reminders from any browser at persistent.dynamic-solutions.ca — the web app and the Android app are the same account, live-synced.
-
-BUILT FOR MEDICATION
-Tag a reminder as Medication and list what it's for — each drug with its dose and unit ("Ibuprofen 200 mg, Tylenol 500 mg"). The reminder tells you exactly what to take, and your history shows what you actually confirmed taking and when.
+Confirm on your phone and it clears on your tablet and in your browser at the same moment. Manage reminders from any browser at persistent.dynamic-solutions.ca — same account, live-synced.
 
 CHECKLISTS
 Some reminders cover several things at once. Tag one as a Checklist, list the items, and tick them off as you go — each firing tracks its own ticks, so a repeating checklist starts fresh every time. It still keeps nagging until you confirm it: ticking the last item doesn't let you off the hook.
@@ -79,15 +89,17 @@ SIGN IN WITHOUT A PASSWORD
 There is no password to forget or leak. Sign in with a one-time email code, with Google, or with a passkey.
 
 WHAT IT'S FOR
-Medication and supplements. Insulin and blood sugar checks. Physio exercises. Watering, feeding, and dosing schedules. Anything where "I'll do it in a minute" has already cost you once.
-
-WHAT IT ISN'T
-Persistent is not a medical device and doesn't give medical advice. It reminds you; the judgment stays yours.
+Watering, feeding, and cleaning schedules. Bins out on the right night. Physio and stretches. Timesheets, invoices, and renewals. Anything where "I'll do it in a minute" has already cost you once.
 
 Persistent requires a free account so your reminders can sync across devices and escalate when you miss one.
 ```
 
-*(~2,750 chars — comfortably inside the 4,000 limit.)*
+*(3,880 of the 4,000 characters — 120 spare. Don't hand-count this: the figure
+this note used to carry was wrong by 1,500 and the description sat over the limit
+unnoticed, and* `wc -m` *reports bytes unless the locale is UTF-8, which
+over-counts every* — *and* • *by two. The publisher is the authority and refuses
+to push an over-limit description:*
+`node scripts/play-publish.mjs --listing store/listing.md --check`*.)*
 
 ---
 
@@ -97,7 +109,7 @@ Persistent requires a free account so your reminders can sync across devices and
 | --- | --- | --- |
 | App icon | 512×512 PNG, 32-bit, no transparency | ✅ `graphics/play-icon.png` |
 | Feature graphic | 1024×500 PNG/JPG, no transparency | ✅ `graphics/feature-graphic.png` |
-| Phone screenshots | 2–8, min 320px, 16:9 or 9:16 | ✅ 5 in `graphics/screenshots/` (see below) |
+| Phone screenshots | 2–8, min 320px, 16:9 or 9:16 | ✅ 6 in `graphics/screenshots/` (see below) |
 | 7" / 10" tablet screenshots | optional | ❌ optional |
 
 Sources are `graphics/*.svg`; re-render with
@@ -115,6 +127,8 @@ adb shell screenrecord --time-limit 20 /sdcard/v.mp4 && adb pull /sdcard/v.mp4
 
 **Always capture against the demo account, never a real one.** The owner's real
 account contains actual prescriptions; a Play listing is public and permanent.
+The in-app shots are scripted now (`npm run shots`) and never touch a phone; only
+the alarm and the notification shade still need adb.
 
 ---
 
@@ -172,7 +186,6 @@ crashlytics / firebase-analytics / posthog / amplitude / gtag returns zero hits)
 | --- | --- | --- | --- | --- |
 | Email address | Yes | Yes | Account management, app functionality | Sign-in codes via Cloudflare; user-set escalation contact |
 | Name | Yes | No | Account management | `displayName`, only if signing in with Google |
-| **Health info** | Yes | Yes | App functionality | Medication reminders store drug name + dose; push payloads carry titles |
 | Other user-generated content | Yes | Yes | App functionality | Reminder titles/details, sent in push payloads and escalation emails |
 | Device or other IDs | Yes | Yes | App functionality | Web Push endpoints / FCM tokens |
 | App activity / other actions | Yes | No | App functionality | Occurrence log: fired, acknowledged, snoozed times |
@@ -188,28 +201,73 @@ Security practices to declare:
 - ⚠️ **At rest, Postgres columns are plaintext** — only session secrets and email codes are hashed. Don't over-claim encryption at rest.
 - ❌ **"Users can request data deletion" — you cannot truthfully claim this yet.** See blockers.
 
-Because the app stores medication names and doses, expect Play to route the
-listing through **health-app review**. Keep the "not a medical device" line in the
-full description; it's doing real work there.
+**Health info was declared here and is not any more**, because the Medication type
+is withheld from the picker — the app collects no new drug names or doses. Restore
+the row (`Health info | Yes | Yes | App functionality | Medication reminders store
+drug name + dose; push payloads carry titles`) the moment the type comes back;
+until it does, expect the listing to skip **health-app review**, which is the point
+of withholding it.
+
+One caveat worth resolving before you submit: reminders created *before* the type
+was withheld keep their doses, and are still displayed, still edited as
+medications, and still sent in push payloads. No new user can produce that data —
+but if Play's reading of "collects" covers data the app still stores and
+transmits for existing users, the row belongs back on the form. Confirm which way
+you're declaring it rather than assuming this file settled it.
 
 ---
 
 ## Captured screenshots
 
-In `graphics/screenshots/`, taken on a Pixel 9 Pro (960x2142) against a **demo
-account** — no real medication data. Ordered as they should appear in Play.
+All six live in `graphics/screenshots/`, taken against the seeded demo account and
+free of health data. Ordered as they should appear in Play.
 
-| File | Shows |
-| --- | --- |
-| `00-ringing-alarm.png` | The full-screen alarm, mid two-tap confirm — the thing no other reminder app does. Lead with this. |
-| `01-independent-doses.png` | Two unconfirmed Amoxicillin doses (8:00 a.m. + 2:00 p.m.) nagging separately — the differentiator |
-| `02-reminder-detail.png` | Reminder detail: daily 3x schedule, both doses under "Needs attention" |
-| `03-escalation-settings.png` | Escalate-to-alarm settings: delay presets, escalate-at-a-time, email a contact |
-| `04-notification-actions.png` | Notification with Done / Snooze, two doses stacked (cropped to 9:16; quick-settings removed) |
-| `05-history.png` | History: what was confirmed and when |
+| File | Shows | Size | Source |
+| --- | --- | --- | --- |
+| `00-ringing-alarm.png` | The full-screen alarm mid two-tap confirm — the thing no other reminder app does. Lead with this. | 960x2142 | device |
+| `01-current.png` | Three distinct reminders still waiting to be confirmed, each with its own Done | 1120x2495 | `npm run shots` |
+| `02-reminder-detail.png` | Reminder detail: the 3x daily schedule and what it is still waiting on | 1120x2495 | `npm run shots` |
+| `03-escalation-settings.png` | Escalate-to-alarm settings: delay presets, escalate-at-a-time, email a contact | 1120x2495 | `npm run shots` |
+| `04-notification-actions.png` | Notification shade: Done / Snooze on the notification itself, five distinct reminders nagging | 960x1425 | device |
+| `05-history.png` | History: what was confirmed and when | 1120x2495 | `npm run shots` |
 
-All five plus the ringing alarm are captured. The alarm shot was taken on Android
-15 with a neutral reminder title and contains no personal data.
+Sizes differ between the scripted and device shots; the aspect ratios match to
+within a rounding error (0.449 vs 0.448) and Play scales them, so the carousel
+still reads as one set.
+
+**No screen repeats a reminder.** Two cards for one reminder is the app's headline
+behavior, but as a picture it reads as a duplicate bug — two identical cards
+separated only by a timestamp. The copy makes that claim in words instead. Keep it
+that way.
+
+### Regenerating
+
+Four of the six are scripted. Do the whole set in one go — the copy and the UI both
+move, and this set went stale twice over before anyone noticed (medication content,
+then a fourth nav tab):
+
+```
+npm run dev                                        # web + api
+npm run db:seed:demo -- --email=<demo account>     # the reminders the shots need
+npm run shots -- --email=<demo account>            # renders 01/02/03/05
+```
+
+Seed after 6:30 p.m. local or the "Due" cards date themselves yesterday and say so.
+
+**`00` and `04` need a real device** — the full-screen alarm is a native Kotlin
+activity (`AlarmActivity.kt`) and the shade is Android's own chrome, so no browser
+can produce either. To retake them, sign the phone into the demo account (the
+`REVIEW_ACCOUNT_CODE` fixed code works, so no mailbox is needed), then:
+
+- **`04`**: move two PENDING occurrences of *different* reminders to a minute out
+  and let the live scheduler fire them; pull the shade, expand the group, expand
+  one entry so its Done/Snooze show. Crop the quick-settings band out and stitch
+  the status bar back on (`magick … -crop … -append`).
+- **`00`**: flip a reminder to `ALARM` and add an occurrence a minute out. **A
+  direct database write is not enough** — the device arms its own alarms from
+  `/api/sync/occurrences`, and a row inserted behind the API sends no sync nudge,
+  so nothing rings until the app is foregrounded and syncs. Foreground it, then tap
+  Done once to reach the "Confirm done / Not yet" state before capturing.
 
 ### Video
 
@@ -240,8 +298,8 @@ as unlisted and paste the links — the `.mp4`s here are source, not listing ass
 
 Sign in as the demo account (`ryan.ewen+persistentdemo@gmail.com`), then note that
 a repeating schedule only materializes *forward* from now — to get already-passed
-dose times, create the reminder as `once` with the past times (the server
+firing times, create the reminder as `once` with the past times (the server
 back-fills within `MATERIALIZE_WINDOW_MS`, 48h), let both fire, then edit it to
 `daily`. The fired occurrences survive that edit by design
-(`docs/notification-behavior.md` §6), so the card shows real dose times instead of
-firings a couple of minutes apart.
+(`docs/notification-behavior.md` §6), so the card shows believable times of day
+instead of firings a couple of minutes apart.

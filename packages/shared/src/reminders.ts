@@ -19,6 +19,24 @@ export const reminderTypeSchema = z.enum(reminderTypes)
 export type ReminderType = (typeof reminderTypes)[number]
 
 /**
+ * The types the editor offers when picking one — currently every type except
+ * MEDICATION.
+ *
+ * **Temporary.** Google Play requires an organization developer account for an
+ * app that handles health data, and the switch from an individual account takes
+ * up to 30 days; until it lands the app takes on no new health data. MEDICATION
+ * stays a fully valid *stored* type throughout — this withholds it from the
+ * picker, nothing more. Reminders that already are one keep their doses, still
+ * show them everywhere, and still edit as medications (the picker re-admits the
+ * type when the reminder it is editing already carries it).
+ *
+ * To restore: delete this and point the picker back at `reminderTypes`.
+ */
+export const selectableReminderTypes: readonly ReminderType[] = reminderTypes.filter(
+  (type) => type !== 'MEDICATION'
+)
+
+/**
  * How hard the reminder nags:
  * - PERSISTENT: a notification that re-appears until acknowledged (sounds once).
  * - ALARM: persistent + looping sound/vibration (native full-screen alarm).

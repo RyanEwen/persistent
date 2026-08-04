@@ -7,8 +7,34 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 
-// @ts-expect-error - plain .mjs script, no type declarations
-import { parseArgs, parseTracks, playNotesFrom, highestVersionCode, describeTracks } from './play-publish.mjs'
+import {
+  parseArgs,
+  parseTracks,
+  playNotesFrom,
+  highestVersionCode,
+  describeTracks,
+  listingFromMarkdown,
+  listingProblems,
+  describeListingDiff,
+  LISTING_LIMITS,
+  pngSize,
+  pngHasAlpha,
+  screenshotProblems
+  // @ts-expect-error - plain .mjs script, no type declarations
+} from './play-publish.mjs'
+
+/** Minimal valid PNG header: signature + IHDR with the given size/colour type. */
+function fakePng(width: number, height: number, colorType = 2): Buffer {
+  const buf = Buffer.alloc(33)
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(buf, 0)
+  buf.writeUInt32BE(13, 8)
+  buf.write('IHDR', 12)
+  buf.writeUInt32BE(width, 16)
+  buf.writeUInt32BE(height, 20)
+  buf.writeUInt8(8, 24)
+  buf.writeUInt8(colorType, 25)
+  return buf
+}
 
 describe('parseArgs', () => {
   it('reads flag/value pairs', () => {
@@ -108,6 +134,145 @@ describe('describeTracks', () => {
   })
 })
 
+describe('listingFromMarkdown', () => {
+  // Deliberately shaped like the real listing.md: other fenced blocks before and
+  // after the ones we want, so a parser counting fences picks up the wrong text.
+  const markdown = [
+    '# Google Play store listing',
+    '',
+    '## App name (max 30 chars)',
+    '',
+    '```',
+    'Persistent: Reminders That Nag',
+    '```',
+    '',
+    '## Short description (max 80 chars)',
+    '',
+    '```',
+    'Reminders that nag until you confirm them done.',
+    '```',
+    '',
+    '## Full description (max 4000 chars)',
+    '',
+    '```',
+    'Line one.',
+    '',
+    'Line two.',
+    '```',
+    '',
+    '## Capturing more',
+    '',
+    '```',
+    'adb exec-out screencap -p > shot.png',
+    '```'
+  ].join('\n')
+
+  it('takes the block under each heading, not the Nth block in the file', () => {
+    const listing = listingFromMarkdown(markdown)
+    assert.equal(listing.shortDescription, 'Reminders that nag until you confirm them done.')
+    assert.equal(listing.fullDescription, 'Line one.\n\nLine two.')
+  })
+
+  it('keeps blank lines inside the description', () => {
+    // Play renders the paragraph breaks; collapsing them would reflow the listing.
+    assert.match(listingFromMarkdown(markdown).fullDescription, /Line one\.\n\nLine two\./)
+  })
+
+  it('throws rather than returning a partial listing', () => {
+    const noFull = markdown.split('## Full description')[0]
+    assert.throws(() => listingFromMarkdown(noFull), /Full description/)
+  })
+
+  it('does not borrow the next section when a heading has no block', () => {
+    const empty = ['## Short description (max 80 chars)', '', '## Full description (max 4000 chars)', '', '```', 'x', '```'].join('\n')
+    assert.throws(() => listingFromMarkdown(empty), /Short description/)
+  })
+})
+
+describe('listingProblems', () => {
+  it('passes copy inside the limits', () => {
+    assert.deepEqual(listingProblems({ shortDescription: 'Short.', fullDescription: 'Full.' }), [])
+  })
+
+  it('catches an over-long description — the bug a hand-written count missed', () => {
+    const problems = listingProblems({
+      shortDescription: 'ok',
+      fullDescription: 'x'.repeat(LISTING_LIMITS.fullDescription + 1)
+    })
+    assert.equal(problems.length, 1)
+    assert.match(problems[0], /fullDescription is 4001 characters/)
+  })
+
+  it('treats an empty field as a problem — Play reads it as "clear this"', () => {
+    const problems = listingProblems({ shortDescription: '', fullDescription: 'Full.' })
+    assert.match(problems[0], /shortDescription is empty/)
+  })
+
+  it('counts characters the way a person does, not UTF-16 units', () => {
+    // An em dash and a bullet are one character each; the description is full of
+    // both, so a naive .length would over-count and reject valid copy.
+    assert.deepEqual(listingProblems({ shortDescription: '— • ✓', fullDescription: 'ok' }), [])
+  })
+})
+
+describe('describeListingDiff', () => {
+  it('names the fields that would change', () => {
+    const out = describeListingDiff(
+      { shortDescription: 'old', fullDescription: 'same' },
+      { shortDescription: 'new copy', fullDescription: 'same' }
+    )
+    assert.match(out, /shortDescription: CHANGED \(3 -> 8\/80 chars\)/)
+    assert.match(out, /fullDescription: unchanged \(4\/4000 chars\)/)
+  })
+
+  it('handles Play returning no listing at all', () => {
+    assert.match(describeListingDiff(undefined, { shortDescription: 'a', fullDescription: 'b' }), /CHANGED \(0 -> 1/)
+  })
+})
+
+describe('screenshot checks', () => {
+  it('reads dimensions out of the PNG header', () => {
+    assert.deepEqual(pngSize(fakePng(1120, 2495)), { width: 1120, height: 2495 })
+  })
+
+  it('rejects anything that is not a PNG', () => {
+    assert.equal(pngSize(Buffer.from('not an image at all, just bytes')), null)
+  })
+
+  it('spots an alpha channel — Play rejects the upload for it', () => {
+    assert.equal(pngHasAlpha(fakePng(960, 2142, 6)), true) // RGBA
+    assert.equal(pngHasAlpha(fakePng(960, 2142, 4)), true) // grey + alpha
+    assert.equal(pngHasAlpha(fakePng(960, 2142, 2)), false) // RGB, what Play wants
+  })
+
+  it('passes a healthy set', () => {
+    const shots = [
+      { name: '00.png', bytes: fakePng(960, 2142) },
+      { name: '01.png', bytes: fakePng(1120, 2495) }
+    ]
+    assert.deepEqual(screenshotProblems(shots), [])
+  })
+
+  it('names the offending file, since Play\'s own error does not', () => {
+    const shots = [
+      { name: 'good.png', bytes: fakePng(1120, 2495) },
+      { name: 'alpha.png', bytes: fakePng(960, 2142, 6) },
+      { name: 'tiny.png', bytes: fakePng(200, 400) }
+    ]
+    const problems = screenshotProblems(shots)
+    assert.ok(problems.some((p: string) => p.startsWith('alpha.png') && /alpha channel/.test(p)))
+    assert.ok(problems.some((p: string) => p.startsWith('tiny.png') && /320-3840/.test(p)))
+    assert.ok(!problems.some((p: string) => p.startsWith('good.png')))
+  })
+
+  it('enforces Play\'s 2-8 count', () => {
+    const one = [{ name: 'a.png', bytes: fakePng(1120, 2495) }]
+    assert.ok(screenshotProblems(one).some((p: string) => /2-8 phone screenshots/.test(p)))
+    const nine = Array.from({ length: 9 }, (_, i) => ({ name: `${i}.png`, bytes: fakePng(1120, 2495) }))
+    assert.ok(screenshotProblems(nine).some((p: string) => /2-8 phone screenshots/.test(p)))
+  })
+})
+
 /**
  * Integration coverage for the request sequence itself — the part that replaced
  * a third-party publish action, and the part unit tests of pure helpers cannot
@@ -118,7 +283,7 @@ describe('publish request sequence', () => {
 
   async function runPublish(
     args: string[],
-    opts: { commitFailsForReview?: boolean; existingTracks?: unknown[] } = {}
+    opts: { commitFailsForReview?: boolean; existingTracks?: unknown[]; existingListing?: unknown } = {}
   ): Promise<{ calls: Call[]; stdout: string; stderr: string; code: number | null }> {
     const http = await import('node:http')
     const { generateKeyPairSync } = await import('node:crypto')
@@ -146,6 +311,22 @@ describe('publish request sequence', () => {
         if (path.endsWith('/token')) return json({ access_token: 'test-token' })
         if (path.endsWith('/bundles?uploadType=media')) return json({ versionCode: 40 })
         if (path.endsWith('/tracks') && req.method === 'GET') return json({ tracks: opts.existingTracks ?? [] })
+        if (path.includes(`/${'phoneScreenshots'}`)) {
+          if (req.method === 'GET') return json({ images: [{ id: 'old-1' }, { id: 'old-2' }] })
+          if (req.method === 'DELETE') return json({})
+          return json({ image: { id: 'new' } })
+        }
+        if (path.includes('/listings/') && req.method === 'GET') {
+          return json(
+            opts.existingListing ?? {
+              language: 'en-US',
+              title: 'Persistent: Reminders That Nag',
+              shortDescription: 'The old short description.',
+              fullDescription: 'The old full description.',
+              video: 'https://youtu.be/promo'
+            }
+          )
+        }
         if (path.includes(':commit')) {
           commitAttempts++
           if (opts.commitFailsForReview && !path.includes('changesNotSentForReview')) {
@@ -172,11 +353,34 @@ describe('publish request sequence', () => {
     writeFileSync(aabPath, Buffer.alloc(1024, 7))
     const notesPath = join(dir, 'RELEASE_NOTES.md')
     writeFileSync(notesPath, "## What's changed\n\n- Alarms survive a reboot\n\n**Full changelog**: https://x/y\n")
+    const listingPath = join(dir, 'listing.md')
+    writeFileSync(
+      listingPath,
+      [
+        '## Short description (max 80 chars)',
+        '',
+        '```',
+        'Reminders that nag until you confirm them done.',
+        '```',
+        '',
+        '## Full description (max 4000 chars)',
+        '',
+        '```',
+        'Every other reminder app lets you swipe away and forget.',
+        '```',
+        ''
+      ].join('\n')
+    )
 
     try {
       const child = spawn(
         'node',
-        ['scripts/play-publish.mjs', ...args.map((a) => a.replace('{aab}', aabPath).replace('{notes}', notesPath))],
+        [
+          'scripts/play-publish.mjs',
+          ...args.map((a) =>
+            a.replace('{aab}', aabPath).replace('{notes}', notesPath).replace('{listing}', listingPath)
+          )
+        ],
         {
           cwd: new URL('..', import.meta.url).pathname,
           env: {
@@ -271,5 +475,81 @@ describe('publish request sequence', () => {
     assert.equal(code, 0, stdout)
     assert.equal(calls.filter((c) => c.path.includes('/bundles')).length, 0)
     assert.match(stdout, /highest versionCode on Play: 41/)
+  })
+
+  it('--listing patches only the descriptions, then commits', async () => {
+    const { calls, code, stdout } = await runPublish(['--listing', '{listing}', '--no-screenshots'])
+    assert.equal(code, 0, `expected success, stdout:\n${stdout}`)
+
+    const patches = calls.filter((c) => c.method === 'PATCH' && c.path.includes('/listings/'))
+    assert.equal(patches.length, 1, 'exactly one listing write')
+    assert.ok(patches[0].path.endsWith('/listings/en-US'))
+
+    const payload = JSON.parse(patches[0].body)
+    assert.equal(payload.shortDescription, 'Reminders that nag until you confirm them done.')
+    assert.equal(payload.fullDescription, 'Every other reminder app lets you swipe away and forget.')
+    // PATCH, and only these fields: the same resource holds the app title and
+    // the promo video, and naming them here would be the way to wipe them.
+    assert.deepEqual(Object.keys(payload).sort(), ['fullDescription', 'language', 'shortDescription'])
+
+    assert.equal(calls.filter((c) => c.path.includes(':commit')).length, 1)
+    assert.equal(calls.filter((c) => c.path.includes('/bundles')).length, 0, 'no bundle touched')
+  })
+
+  it('--listing --check writes nothing and leaves no edit behind', async () => {
+    const { calls, code, stdout } = await runPublish(['--listing', '{listing}', '--check', '--no-screenshots'])
+    assert.equal(code, 0, stdout)
+    assert.equal(calls.filter((c) => c.method === 'PATCH').length, 0)
+    assert.equal(calls.filter((c) => c.path.includes(':commit')).length, 0)
+    assert.ok(calls.some((c) => c.method === 'DELETE' && c.path.includes('/edits/edit-1')))
+    // It still reports what a push would change.
+    assert.match(stdout, /shortDescription: CHANGED/)
+  })
+
+  it('--listing replaces the whole screenshot set inside one edit', async () => {
+    const { writeFileSync, mkdtempSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const { tmpdir } = await import('node:os')
+    const dir = mkdtempSync(join(tmpdir(), 'play-shots-'))
+    // Named out of order on disk to prove the upload is sorted, not readdir order:
+    // Play shows screenshots in upload order and the numbering is the intent.
+    for (const name of ['02-b.png', '00-a.png', '01-c.png']) {
+      writeFileSync(join(dir, name), fakePng(1120, 2495))
+    }
+    const { calls, code, stdout } = await runPublish(['--listing', '{listing}', '--screenshots', dir])
+    assert.equal(code, 0, `expected success, stdout:\n${stdout}`)
+
+    const deletes = calls.filter((c) => c.method === 'DELETE' && c.path.includes('phoneScreenshots'))
+    const uploads = calls.filter((c) => c.method === 'POST' && c.path.includes('phoneScreenshots'))
+    assert.equal(deletes.length, 1, 'the old set is cleared exactly once')
+    assert.equal(uploads.length, 3, 'every local screenshot is uploaded')
+
+    const commit = calls.findIndex((c) => c.path.includes(':commit'))
+    assert.ok(calls.indexOf(uploads[2]) < commit, 'uploads land inside the edit, before the commit')
+    assert.ok(calls.indexOf(deletes[0]) < calls.indexOf(uploads[0]), 'clear before upload')
+    // The descriptions still go up in the same edit.
+    assert.equal(calls.filter((c) => c.method === 'PATCH' && c.path.includes('/listings/')).length, 1)
+  })
+
+  it('--no-screenshots leaves the images on Play alone', async () => {
+    const { calls, code } = await runPublish(['--listing', '{listing}', '--no-screenshots'])
+    assert.equal(code, 0)
+    assert.equal(calls.filter((c) => c.path.includes('phoneScreenshots')).length, 0)
+  })
+
+  it('--listing refuses an over-limit description before opening an edit', async () => {
+    const { writeFileSync, mkdtempSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const { tmpdir } = await import('node:os')
+    const bad = join(mkdtempSync(join(tmpdir(), 'play-listing-')), 'listing.md')
+    writeFileSync(
+      bad,
+      ['## Short description (max 80 chars)', '', '```', 'ok', '```', '', '## Full description (max 4000 chars)', '', '```', 'x'.repeat(4001), '```', ''].join('\n')
+    )
+    const { calls, code, stderr } = await runPublish(['--listing', bad, '--no-screenshots'])
+    assert.equal(code, 1)
+    assert.match(stderr, /fullDescription is 4001 characters/)
+    // Nothing reached Play — not even an edit that would linger uncommitted.
+    assert.equal(calls.filter((c) => c.path.includes('/edits')).length, 0)
   })
 })

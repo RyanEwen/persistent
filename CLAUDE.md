@@ -53,7 +53,16 @@ A reminder's **`type`** (`NONE` / `TODO` / `MEDICATION`) selects the extra field
 it carries in **`typeData`** — a medication's doses, a `TODO`'s checklist `items`.
 (It was called `category`/`categoryData` until the type started selecting behavior
 rather than just an icon. `TASK` and `APPOINTMENT` were dropped in the same pass:
-they selected nothing, so they were an icon pretending to be a type.) A `TODO` is a single
+they selected nothing, so they were an icon pretending to be a type.)
+**`MEDICATION` is temporarily withheld from the picker** — Play requires an
+organization developer account for an app handling health data and the switch from
+individual takes up to 30 days, so the app takes on no new health data meanwhile.
+It stays a fully valid stored type: existing medication reminders keep their doses,
+display them everywhere, and still edit as medications. The withholding is one
+constant, `selectableReminderTypes` (`packages/shared/src/reminders.ts`); don't
+"fix" the picker by pointing it back at `reminderTypes`, and keep the Play listing
+free of health framing while it stands (`apps/mobile/store/listing.md`).
+A `TODO` is a single
 reminder covering several items; the items belong to the reminder, but **which of
 them are ticked belongs to the occurrence** (`ReminderOccurrence.checkedItems`), so
 a repeating checklist starts each firing blank. Ticking every item does *not*
@@ -169,6 +178,16 @@ directory guide `apps/api/CLAUDE.md`.
   checklist, paused, history). Replaces that user's reminders only — the account,
   passkeys and sessions survive, so it never signs you out. `-- --keep` to append,
   `-- --email=…` to pick the user.
+- **Play listing assets** are regenerated, not hand-made:
+  `npm run db:seed:demo -- --email=…` fills the **store demo account** with the
+  small, health-data-free set the screenshots are taken against, and
+  `npm run shots -- --email=…` renders four of the six store screenshots from the
+  running dev web app (Playwright, kept out of `package.json` — the script prints
+  the one-off install). The full-screen alarm and the notification shade are
+  native/OS surfaces and still need a device. `apps/mobile/store/listing.md` is the
+  source of truth for the copy *and* the screenshot set; both are pushed to Play by
+  the manual `play-listing` workflow (`apps/mobile/scripts/play-publish.mjs
+  --listing`). See `apps/mobile/store/play-readiness.md`.
 - Before finishing a task run `npm run validate` (lint + test + typecheck +
   prisma validate). Add focused tests for non-trivial behavior.
 - `npm test` discovers `*.test.ts` under `apps/`, `packages/` **and `scripts/`**.

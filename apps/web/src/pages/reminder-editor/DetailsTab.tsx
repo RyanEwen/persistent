@@ -5,6 +5,10 @@
  * replace the free-text textarea outright (the list is the description — see
  * `toInput`, which saves no separate details for a TODO), while medication keeps
  * the textarea and adds its dose rows beneath.
+ *
+ * The picker offers `typeOptions`, not every type: medication is withheld from
+ * new reminders for now (see `selectableReminderTypes`), but a reminder that is
+ * already one still edits as one, dose rows and all.
  */
 import Stack from '@mui/joy/Stack'
 import FormControl from '@mui/joy/FormControl'
@@ -13,12 +17,12 @@ import Input from '@mui/joy/Input'
 import Textarea from '@mui/joy/Textarea'
 import Select from '@mui/joy/Select'
 import Option from '@mui/joy/Option'
-import { reminderTypes, type ReminderType } from '@persistent/shared'
+import type { ReminderType } from '@persistent/shared'
 import { TypeIcon } from '../../components/ReminderIcons.js'
 import { reminderTypeLabel } from '../../lib/format.js'
 import { MedicationFields } from './MedicationFields.js'
 import { TodoItemsField, type TodoCheckState } from './TodoItemsField.js'
-import type { FormState, MedicationRow, TodoRow } from './formState.js'
+import { typeOptions, type FormState, type MedicationRow, type TodoRow } from './formState.js'
 
 export function DetailsTab({
   form,
@@ -60,7 +64,7 @@ export function DetailsTab({
           onChange={(_e, value) => value && onTypeChange(value)}
           startDecorator={<TypeIcon type={form.type} />}
         >
-          {reminderTypes.map((type) => (
+          {typeOptions(form.type).map((type) => (
             <Option key={type} value={type}>
               <TypeIcon type={type} />
               {reminderTypeLabel(type)}

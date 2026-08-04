@@ -18,7 +18,7 @@ import type {
   ScheduleKind,
   ShadeProminence
 } from '@persistent/shared'
-import { isTimeless, todoItems } from '@persistent/shared'
+import { isTimeless, selectableReminderTypes, todoItems } from '@persistent/shared'
 import { immediateSchedule, localCalendarDate, localTimeOfDay } from '../../lib/immediate-schedule.js'
 import type { SchedulePreviewInput } from '../../lib/schedule-preview.js'
 
@@ -100,6 +100,21 @@ export interface FormState {
 // New reminders default to no repeat; medications repeat daily (the common case).
 export function defaultKindForType(type: ReminderType): ScheduleKind {
   return type === 'MEDICATION' ? 'daily' : 'once'
+}
+
+/**
+ * The types the Type picker lists while editing a reminder of type `current`.
+ *
+ * `selectableReminderTypes` is the offered set, but a reminder created before a
+ * type was withheld still *is* that type, so it is added back for that reminder
+ * only. Without it the Select would sit on a value none of its options match —
+ * showing blank, and turning the first stray change into a silent loss of the
+ * reminder's typeData (see `toInput`, which saves only the chosen type's fields).
+ * Appending keeps `reminderTypes` order, since the withheld types are the tail.
+ */
+export function typeOptions(current: ReminderType): readonly ReminderType[] {
+  if (selectableReminderTypes.includes(current)) return selectableReminderTypes
+  return [...selectableReminderTypes, current]
 }
 
 export function emptyForm(): FormState {

@@ -13,6 +13,13 @@ dist/
 *firebase-adminsdk*.json
 google-services.json
 
+# Google Cloud service-account keys download under their project's own name
+# (`<project>-<keyid>.json`), so they land in the tree matching none of the rules
+# above and one `git add .` from being public. Keys belong in .secrets/; this is
+# the backstop for one dropped anywhere else.
+/*-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*.json
+*service-account*.json
+
 # Runtime data / scratch (root only — must not match apps/web/src/data)
 /data/
 tmp/

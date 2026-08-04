@@ -18,6 +18,8 @@
     "db:migrate": "npm run prisma:migrate:dev --workspace @persistent/api --",
     "db:migrate:deploy": "npm run prisma:migrate:deploy --workspace @persistent/api",
     "db:seed": "tsx scripts/dev/seed-reminders.ts",
+    "db:seed:demo": "tsx scripts/dev/seed-demo-listing.ts",
+    "shots": "tsx scripts/dev/capture-listing-shots.ts",
     "lint": "eslint .",
     "test": "node scripts/dev/run-tests.mjs",
     "typecheck": "npm run typecheck --workspace @persistent/shared && npm run build --workspace @persistent/shared && npm run typecheck --workspace @persistent/api && npm run typecheck --workspace @persistent/web",

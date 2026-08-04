@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { emptyForm, fromReminder, isFormDirty, toInput, type FormState } from './formState.js'
+import { emptyForm, fromReminder, isFormDirty, toInput, typeOptions, type FormState } from './formState.js'
 import type { Reminder, Schedule } from '@persistent/shared'
 
 function form(overrides: Partial<FormState> = {}): FormState {
@@ -122,4 +122,22 @@ test('a note keeps the repeat the user had picked, ready for it to fire again', 
 test('switching a firing reminder to a note is a change worth stopping for', () => {
   const original = form({ when: 'scheduled', kind: 'daily' })
   assert.equal(isFormDirty(original, { ...original, when: 'never' }), true)
+})
+
+// --- Withheld types ----------------------------------------------------------
+
+test('the type picker does not offer medication for a new reminder', () => {
+  assert.deepEqual([...typeOptions('NONE')], ['NONE', 'TODO'])
+})
+
+test('the type picker re-admits medication for a reminder that already is one', () => {
+  // Otherwise the Select sits on a value none of its options match: it renders
+  // blank, and the first change drops the reminder's doses without the user ever
+  // seeing what the type was.
+  assert.deepEqual([...typeOptions('MEDICATION')], ['NONE', 'TODO', 'MEDICATION'])
+})
+
+test('an existing medication reminder still saves its doses', () => {
+  const state = form({ type: 'MEDICATION', medications: [{ name: 'Ibuprofen', unit: 'mg', quantity: '200' }] })
+  assert.deepEqual(toInput(state).typeData, { medications: [{ name: 'Ibuprofen', unit: 'mg', quantity: 200 }] })
 })

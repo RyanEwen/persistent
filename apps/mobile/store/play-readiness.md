@@ -230,6 +230,40 @@ published — the API rejects `completed` on a draft app. This app is past that,
 for review (it retries the commit with `changesNotSentForReview=true`) rather than
 failing the release.
 
+### Store listing copy
+
+[`listing.md`](listing.md) is the source of truth for the short and full
+descriptions, and `graphics/screenshots/` for the phone screenshots. Both go up
+together via `.github/workflows/play-listing.yml` (`workflow_dispatch`, never on a
+release — the listing changes on its own schedule). `check` is the default mode and
+only diffs; `publish` writes. The same service account covers this, so no extra
+grant was needed beyond step 3.
+
+The descriptions are written via **PATCH** — the app title, promo video and
+localized graphics share that resource, and a PUT omitting them clears them.
+
+Screenshots are a separate API and are **replaced wholesale**: Play has no stable
+identity for "the third screenshot", so there is nothing to diff a local file
+against. The delete and the six uploads all live inside the one edit, so a failure
+part-way leaves the live listing untouched — the edit simply never commits. Upload
+order is the display order, which is why the files are numbered and the script
+sorts by name. `--no-screenshots` pushes copy alone.
+
+Play wants **24-bit PNG with no alpha**; `adb exec-out screencap` produces RGBA, so
+device shots need `magick … -alpha remove -alpha off`. The script checks this (plus
+the 320–3840px and 2–8 count rules) before opening an edit, because Play's own
+rejection doesn't name the offending file.
+
+Two things to know before pushing:
+
+- **The edits API has no merge.** Anything edited by hand in the Console is
+  overwritten. Run `check` first; it reports per-field CHANGED/unchanged.
+- **`listing.md` can run ahead of what's live.** It did for months — the
+  CHECKLISTS section and the monthly-schedule bullet were added here and never
+  reached Play, partly because the description had quietly grown past the 4,000
+  cap and could not be pasted in. The publisher now refuses an over-limit
+  description instead of letting it rot.
+
 ## 6. AAB build ✅ DONE — Play App Signing still to decide 🟡
 
 `npm run bundle:play` produces the AAB (`bundlePlayRelease`), and

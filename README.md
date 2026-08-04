@@ -4,8 +4,7 @@
 
 Most reminder apps fire once and are easy to swipe away. Persistent keeps
 nagging — a notification that won't dismiss, or a full alarm that loops — until
-you *actually mark it done*. It's built for the things you can't afford to miss:
-medications, appointments, and important tasks.
+you *actually mark it done*. It's built for the things you can't afford to miss.
 
 ## What makes it different
 
@@ -17,17 +16,17 @@ medications, appointments, and important tasks.
   is actually overdue, so they can act on it — and you can silence that alarm
   without losing the reminder, so it keeps nagging quietly.
 - **Nothing slips through.** Every firing is tracked on its own. If a reminder
-  has several times of day, each one nags and is confirmed separately — taking
-  your 1:00 dose never silently clears a 9:00 dose you missed.
+  has several times of day, each one nags and is confirmed separately —
+  confirming the 1:00 firing never silently clears the 9:00 one you missed.
 - **Works offline.** The Android app schedules exact on-device alarms, so
   reminders fire even with no signal, and sync across your devices.
 - **Flexible.** Remind me now with no date to pick, a one-time or repeating
   schedule — daily, weekdays, every N days, or monthly on the days you choose
   (including the last day of every month) — or never at all, for something you
   want to keep but never be reminded about. Multi-line notes that stay multi-line
-  wherever you read them; medication lists, custom snooze and re-nag intervals,
-  separate tones for a reminder firing and for its follow-up nags, per-reminder
-  notification-shade prominence (Android), and a history of what you've done.
+  wherever you read them; custom snooze and re-nag intervals, separate tones for a
+  reminder firing and for its follow-up nags, per-reminder notification-shade
+  prominence (Android), and a history of what you've done.
 - **Checklists.** A reminder can cover several things at once — a morning routine,
   a packing list. Tick items off as you go; each firing tracks its own ticks, so a
   repeating checklist starts fresh every time. Ticking everything still doesn't

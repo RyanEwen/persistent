@@ -1,6 +1,13 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { reminderBodyText, reminderInputSchema, reminderSchema, todoItems, todoProgress } from './reminders.js'
+import {
+  reminderBodyText,
+  reminderInputSchema,
+  reminderSchema,
+  selectableReminderTypes,
+  todoItems,
+  todoProgress
+} from './reminders.js'
 
 const base = {
   title: 'Test',
@@ -193,4 +200,21 @@ test('a note carries its own checked items; everything else defaults to none', (
     updatedAt: '2026-08-02T09:00:00.000Z'
   })
   assert.deepEqual(parsed.checkedItemIds, ['cp-1'])
+})
+
+// --- Withheld types ----------------------------------------------------------
+
+test('medication is not offered for a new reminder while it is withheld', () => {
+  assert.equal(selectableReminderTypes.includes('MEDICATION'), false)
+  assert.deepEqual([...selectableReminderTypes], ['NONE', 'TODO'])
+})
+
+test('medication is still a valid stored type — existing reminders keep their doses', () => {
+  const parsed = reminderInputSchema.parse({
+    ...base,
+    type: 'MEDICATION',
+    typeData: { medications: [{ name: 'Ibuprofen', quantity: 200, unit: 'mg' }] }
+  })
+  assert.equal(parsed.type, 'MEDICATION')
+  assert.equal(reminderBodyText({ ...parsed, details: parsed.details ?? null }), 'Ibuprofen 200 mg')
 })

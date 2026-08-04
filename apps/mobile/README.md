@@ -197,6 +197,12 @@ launcher icon).
 > [`store/play-readiness.md`](store/play-readiness.md) before attempting a Play
 > submission.
 
+The listing is not hand-maintained in the Console: `store/listing.md` (copy) and
+`store/graphics/screenshots/` (images) are the source of truth, pushed together by
+the manual `play-listing` GitHub workflow. Regenerate the scripted screenshots with
+`npm run db:seed:demo` + `npm run shots` from the repo root; only the full-screen
+alarm and the notification shade still need a device.
+
 To build a signed release locally, set the `ANDROID_*` vars (see `.env.example`)
 in the workspace `.env`, then:
 

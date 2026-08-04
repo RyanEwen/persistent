@@ -138,7 +138,9 @@ export function ReminderEditorPage() {
   // Repeat themselves. Existing reminders keep their saved schedule. Medication
   // implies a real schedule, so it also flips the reminder to scheduled — but only
   // from the untouched default, so neither explicit When choice (Schedule it, or
-  // Never) is ever undone by picking a type.
+  // Never) is ever undone by picking a type. (That medication clause is dormant
+  // while the type is withheld from the picker — see `selectableReminderTypes` —
+  // since only a new reminder reaches it and a new one can no longer be one.)
   function setType(type: ReminderType) {
     setForm((prev) => ({
       ...prev,

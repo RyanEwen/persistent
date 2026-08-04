@@ -1,0 +1,50 @@
+name: play-listing
+
+# Push the Google Play store listing — the copy from apps/mobile/store/listing.md
+# and the phone screenshots from apps/mobile/store/graphics/screenshots.
+#
+# Deliberately separate from `release`: the listing changes on its own schedule,
+# and nobody cutting a version expects it to also rewrite the store page. Manual
+# dispatch only, and `check` is the default — the repo can drift from the Console
+# (anyone can edit it there), and the edits API has no merge, so a blind push
+# silently discards whatever was changed by hand.
+#
+# The descriptions go up via PATCH; the app title and promo video share that Play
+# resource and are left alone. Screenshots are replaced wholesale — Play has no
+# stable per-image identity to diff against. See apps/mobile/scripts/play-publish.mjs.
+#
+# Play reviews a description change before it goes live; a green run here means
+# submitted, not published.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'check = diff against the live listing and write nothing; publish = push the copy'
+        required: true
+        default: check
+        type: choice
+        options: [check, publish]
+
+permissions:
+  contents: read
+
+jobs:
+  listing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      # No `npm ci`: the script is dependency-free by design (Node 20 has fetch
+      # and RS256 signing built in), so this needs nothing from the workspace.
+      - name: ${{ inputs.mode == 'publish' && 'Push store listing' || 'Check store listing' }}
+        working-directory: apps/mobile
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          node scripts/play-publish.mjs --listing store/listing.md \
+            ${{ inputs.mode == 'check' && '--check' || '' }}

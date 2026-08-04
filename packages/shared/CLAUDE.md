@@ -9,6 +9,12 @@
   Keep `zod` as the only runtime dependency.
 - Keep enum string-literal unions (e.g. `reminderTypes`) in lockstep with
   the Prisma enums of the same name in `apps/api/prisma/schema.prisma`.
+- `reminderTypes` is every type a reminder can be **stored** as;
+  `selectableReminderTypes` is the subset the editor **offers**. They differ right
+  now because `MEDICATION` is temporarily withheld (Play needs an organization
+  account for health data — see the root `CLAUDE.md`). Don't collapse them back
+  together: existing medication reminders still store, display and edit as
+  medications, and only the picker changed.
 - The API consumes the built `dist/`, so after editing run a build (the dev
   orchestrator and `npm run dev` rebuild it; `npm run typecheck` builds it too).
 - Export everything through `src/index.ts`.
