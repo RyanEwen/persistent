@@ -4,6 +4,17 @@
   up. The shell is a single centered column (`components/AppLayout.tsx`).
 - **Joy UI only** for components; theme in `src/theme.ts`. Don't pull in MUI
   Material or other component kits.
+- **One heading treatment.** Every screen and in-page section opens with
+  `components/SectionHeading.tsx` (`title-md` + an optional `body-sm`
+  `text.tertiary` line) — don't hand-roll a `Typography` pair. It carries **no
+  margin of its own**: put it first inside a `Stack` and that `Stack`'s `spacing`
+  is the single number setting the gap to the content. The tabs had drifted to
+  `title-lg` on Settings/Help versus `title-md` on the lists, with the gap built
+  from `mb` on the subtitle in some places and a `mt: -1` pulling it back up in
+  others; keeping the spacing in the container is what stops those corrections
+  reappearing. `1.5` (12px) is the app's rhythm for stacked items — list rows,
+  cards and heading-to-content alike. Signed-out documents (`PrivacyPage`,
+  `DeleteAccountPage`) are prose, not app screens, and keep their own convention.
 - **No god files.** Break components into their own files — one primary
   component per file, with its tightly-coupled subcomponents/helpers extracted
   into sibling files under a feature folder (e.g. `pages/reminder-editor/`)
@@ -77,6 +88,12 @@
   **and** `env(safe-area-inset-bottom)`, and anchor to the 640px centred column
   rather than the viewport.
 - **No native dialogs:** don't use `alert`/`confirm`/`prompt` (eslint enforces).
+- **A new screen starts at the top.** `lib/useScrollReset.ts` (called once in
+  `App.tsx`) scrolls to 0 on route change, because the app is one scrolling
+  document and nothing else resets it — without it, leaving a scrolled-down
+  History dropped you part-way down Settings. It exempts `POP` deliberately, so
+  Back returns you to where you were rather than fighting the browser's own
+  `scrollRestoration`.
 - **Dialogs are back-aware:** build modals with `components/BackAwareModal.tsx`
   (not raw Joy `Modal`) so Android/browser Back closes the top dialog and dialogs
   don't linger in history. Pages are routes (Back navigates normally).

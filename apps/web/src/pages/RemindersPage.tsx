@@ -26,8 +26,8 @@
  */
 import { useState } from 'react'
 import Stack from '@mui/joy/Stack'
-import Box from '@mui/joy/Box'
 import Typography from '@mui/joy/Typography'
+import { SectionHeading } from '../components/SectionHeading.js'
 import { NewReminderFab } from '../components/NewReminderFab.js'
 import { useReminders } from '../data/reminders.js'
 import {
@@ -68,18 +68,15 @@ export function RemindersPage() {
   return (
     <PullToRefresh onRefresh={() => Promise.all([reminders.refetch(), active.refetch()])}>
       <Stack spacing={3}>
-        <Box>
-          <Typography level="title-md">Current</Typography>
-          <Typography level="body-sm" sx={{ mb: 1.5, color: 'text.tertiary' }}>
-            Reminders that have notified you and are still waiting to be confirmed.
-          </Typography>
+        <Stack spacing={1.5}>
+          <SectionHeading title="Current" subtitle="Reminders still waiting to be confirmed." />
 
           {reminders.isLoading && <Typography level="body-sm">Loading…</Typography>}
           {/* An empty Current is the *good* state — everything is confirmed — so it
               says so and points at the tab that has something to show, rather than
               reading like an error or an empty app. */}
           {reminders.data && attention.length === 0 && (
-            <Typography level="body-sm" sx={{ mb: 1.5 }}>
+            <Typography level="body-sm">
               Nothing needs confirming right now. Check Upcoming for what's scheduled.
             </Typography>
           )}
@@ -100,7 +97,7 @@ export function RemindersPage() {
               />
             ))}
           </Stack>
-        </Box>
+        </Stack>
 
         <NotesSection reminders={reminders.data ?? []} />
 

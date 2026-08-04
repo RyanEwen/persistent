@@ -36,25 +36,21 @@ import { reminderBodyText, todoItems, type Reminder } from '@persistent/shared'
 import { useCheckReminderItem } from '../data/reminders.js'
 import { TypeIcon } from './ReminderIcons.js'
 import { TodoChecklist } from './TodoChecklist.js'
+import { SectionHeading } from './SectionHeading.js'
 
 export function NotesSection({ reminders }: { reminders: readonly Reminder[] }) {
   const notes = reminders.filter((reminder) => reminder.schedule.kind === 'never')
   if (notes.length === 0) return null
 
   return (
-    <Box>
-      <Typography level="title-md" sx={{ mb: 1 }}>
-        Notes
-      </Typography>
-      <Typography level="body-sm" sx={{ mb: 1.5 }}>
-        These never notify you.
-      </Typography>
+    <Stack spacing={1.5}>
+      <SectionHeading title="Notes" subtitle="Reminders set not to notify you." />
       <Stack spacing={1.5}>
         {notes.map((reminder) => (
           <NoteCard key={reminder.id} reminder={reminder} />
         ))}
       </Stack>
-    </Box>
+    </Stack>
   )
 }
 

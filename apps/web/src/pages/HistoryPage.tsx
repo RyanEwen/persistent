@@ -21,6 +21,7 @@ import { useSettings } from '../settings/useSettings.js'
 import { ReminderListItem } from '../components/ReminderListItem.js'
 import { PullToRefresh } from '../components/PullToRefresh.js'
 import { NewReminderFab } from '../components/NewReminderFab.js'
+import { SectionHeading } from '../components/SectionHeading.js'
 
 /**
  * "2 of 3 checked" for a past checklist firing — how much of it was actually
@@ -47,40 +48,39 @@ export function HistoryPage() {
 
   return (
     <PullToRefresh onRefresh={() => past.refetch()}>
-    <Stack spacing={2}>
-      <Typography level="title-lg">History</Typography>
-      <Typography level="body-sm" sx={{ mt: -1, color: 'text.tertiary' }}>
-        Notifications you have already dealt with, most recent first.
-      </Typography>
-
-      {past.isLoading && <Typography level="body-sm">Loading…</Typography>}
-      {past.data && occurrences.length === 0 && (
-        <Typography level="body-sm">Nothing here yet. Done and missed reminders show up here.</Typography>
-      )}
-
+    <Stack spacing={3}>
       <Stack spacing={1.5}>
-        {occurrences.map((occurrence) => (
-          <ReminderListItem
-            key={occurrence.id}
-            to={`/reminders/${occurrence.reminderId}`}
-            type={occurrence.reminder.type}
-            title={occurrence.reminder.title}
-            status={occurrence.status}
-            description={reminderBodyText(occurrence.reminder)}
-            subtitle={formatWhen(occurrence.scheduledFor, timeFormat)}
-            secondary={checklistProgress(occurrence)}
-          />
-        ))}
-        {past.hasNextPage && (
-          <Button
-            variant="outlined"
-            color="neutral"
-            loading={past.isFetchingNextPage}
-            onClick={() => void past.fetchNextPage()}
-          >
-            Show more
-          </Button>
+        <SectionHeading title="History" subtitle="Already dealt with, most recent first." />
+
+        {past.isLoading && <Typography level="body-sm">Loading…</Typography>}
+        {past.data && occurrences.length === 0 && (
+          <Typography level="body-sm">Nothing here yet. Done and missed reminders show up here.</Typography>
         )}
+
+        <Stack spacing={1.5}>
+          {occurrences.map((occurrence) => (
+            <ReminderListItem
+              key={occurrence.id}
+              to={`/reminders/${occurrence.reminderId}`}
+              type={occurrence.reminder.type}
+              title={occurrence.reminder.title}
+              status={occurrence.status}
+              description={reminderBodyText(occurrence.reminder)}
+              subtitle={formatWhen(occurrence.scheduledFor, timeFormat)}
+              secondary={checklistProgress(occurrence)}
+            />
+          ))}
+          {past.hasNextPage && (
+            <Button
+              variant="outlined"
+              color="neutral"
+              loading={past.isFetchingNextPage}
+              onClick={() => void past.fetchNextPage()}
+            >
+              Show more
+            </Button>
+          )}
+        </Stack>
       </Stack>
 
       <NewReminderFab />

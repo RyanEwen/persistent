@@ -11,6 +11,7 @@ import Card from '@mui/joy/Card'
 import Typography from '@mui/joy/Typography'
 import Chip from '@mui/joy/Chip'
 import Link from '@mui/joy/Link'
+import { SectionHeading } from '../components/SectionHeading.js'
 import { isNative } from '../native/alarmBridge.js'
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -24,8 +25,8 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 export function HelpPage() {
   return (
-    <Stack spacing={2}>
-      <Typography level="title-lg">Help</Typography>
+    <Stack spacing={1.5}>
+      <SectionHeading title="Help" subtitle="How Persistent behaves, and what each setting does." />
 
       <Section title="What Persistent does">
         <Typography level="body-sm">

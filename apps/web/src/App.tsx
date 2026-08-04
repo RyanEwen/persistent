@@ -21,6 +21,7 @@ import { DeleteAccountPage } from './pages/DeleteAccountPage.js'
 import { UpdateCheck } from './native/UpdateCheck.js'
 import { registerNavHandler } from './native/navTo.js'
 import { useNativeBack } from './native/useNativeBack.js'
+import { useScrollReset } from './lib/useScrollReset.js'
 
 export function App() {
   const { user, loading } = useAuth()
@@ -30,6 +31,8 @@ export function App() {
   useEffect(() => registerNavHandler((path) => navigate(path)), [navigate])
   // Android Back follows the screen hierarchy instead of browser history.
   useNativeBack()
+  // A new screen starts at the top; Back keeps where you were.
+  useScrollReset()
 
   if (loading) {
     return (

@@ -21,6 +21,7 @@ import { enablePush, disablePush, pushSupported, notificationPermission } from '
 import { useSettings, type SoundChoice } from '../settings/useSettings.js'
 import { APP_THEMES } from '../settings/themes.js'
 import { formatDateTime } from '../lib/datetime.js'
+import { SectionHeading } from '../components/SectionHeading.js'
 import { AlarmPlugin, isNative } from '../native/alarmBridge.js'
 import { hostSupportsPush } from '../native/desktopBridge.js'
 import { UpdateSettings } from '../native/UpdateSettings.js'
@@ -98,11 +99,11 @@ export function SettingsPage() {
   }
 
   return (
-    <Stack spacing={2}>
-      <Typography level="title-lg">Settings</Typography>
-      <Typography level="body-sm" sx={{ mt: -1, color: 'text.tertiary' }}>
-        Appearance, sounds and notifications on this device — plus your account.
-      </Typography>
+    <Stack spacing={1.5}>
+      <SectionHeading
+        title="Settings"
+        subtitle="Appearance, sounds and notifications on this device"
+      />
 
       <Card variant="outlined">
         <Typography level="title-sm">Appearance</Typography>

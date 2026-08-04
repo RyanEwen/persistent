@@ -18,9 +18,9 @@
  * can never reach the front of.
  */
 import Stack from '@mui/joy/Stack'
-import Box from '@mui/joy/Box'
 import Typography from '@mui/joy/Typography'
 import Chip from '@mui/joy/Chip'
+import { SectionHeading } from '../components/SectionHeading.js'
 import { NewReminderFab } from '../components/NewReminderFab.js'
 import { reminderBodyText } from '@persistent/shared'
 import type { Reminder } from '@persistent/shared'
@@ -55,17 +55,12 @@ export function UpcomingPage() {
   return (
     <PullToRefresh onRefresh={() => Promise.all([reminders.refetch(), active.refetch()])}>
       <Stack spacing={3}>
-        <Box>
-          <Typography level="title-md">Upcoming</Typography>
-          <Typography level="body-sm" sx={{ mb: 1.5, color: 'text.tertiary' }}>
-            Everything you have set up, soonest first. Tap one to change it.
-          </Typography>
+        <Stack spacing={1.5}>
+          <SectionHeading title="Upcoming" subtitle="Everything coming up, soonest first." />
 
           {reminders.isLoading && <Typography level="body-sm">Loading…</Typography>}
           {reminders.data && idle.length === 0 && (
-            <Typography level="body-sm" sx={{ mb: 1.5 }}>
-              Nothing scheduled. Anything due right now is on Current.
-            </Typography>
+            <Typography level="body-sm">Nothing scheduled. Anything due right now is on Current.</Typography>
           )}
 
           <Stack spacing={1.5}>
@@ -97,7 +92,7 @@ export function UpcomingPage() {
               )
             })}
           </Stack>
-        </Box>
+        </Stack>
 
         <NewReminderFab />
       </Stack>
