@@ -14,14 +14,11 @@ Architecture and conventions are borrowed, thinned, from the sibling
 
 ## Architecture
 
-- Node.js + TypeScript monorepo. The npm **workspaces** are `apps/api`,
-  `apps/web` and `packages/shared`; `apps/mobile` and `apps/desktop` sit in the
-  tree outside that graph (the first has its own `package.json` but is not listed
-  in the root `workspaces`, the second is C# and has none).
-- **`apps/api`** — Express + Prisma + PostgreSQL. Owns auth, reminder CRUD, the
-  scheduling/escalation engine, push delivery, and a per-user WebSocket at `/ws`.
-- **`apps/web`** — Vite + React + Joy UI PWA. Loads data over HTTP, subscribes to
-  `/ws` for live updates fed into TanStack Query.
+- `apps/mobile` and `apps/desktop` sit in the tree outside the npm **workspaces**
+  graph (the first has its own `package.json` but is not listed in the root
+  `workspaces`, the second is C# and has none).
+- **`apps/api`** owns auth, reminder CRUD, the scheduling/escalation engine, push
+  delivery, and a per-user WebSocket at `/ws`.
 - **`apps/mobile`** — Capacitor (Android) wrapper of the built web app plus a
   custom native alarm plugin. The web/PWA is best-effort; the native app is the
   real persistence guarantee. See `docs/alarm-architecture.md`.
@@ -33,9 +30,8 @@ Architecture and conventions are borrowed, thinned, from the sibling
   one signal it offers, raised by the host from its own `/ws` connection — the page
   is suspended while the flyout is hidden, so it can't deliver anything. See
   `docs/desktop-architecture.md`.
-- **`packages/shared`** — Zod schemas + inferred types used by API and web. Do
-  not duplicate request/response shapes elsewhere.
-- PostgreSQL via Prisma; migrations under `apps/api/prisma/migrations/`.
+- **`packages/shared`** — the single source of truth for request/response shapes;
+  do not duplicate them elsewhere.
 
 ## The persistence reality (read before touching notifications)
 
@@ -178,16 +174,6 @@ directory guide `apps/api/CLAUDE.md`.
   checklist, paused, history). Replaces that user's reminders only — the account,
   passkeys and sessions survive, so it never signs you out. `-- --keep` to append,
   `-- --email=…` to pick the user.
-- **Play listing assets** are regenerated, not hand-made:
-  `npm run db:seed:demo -- --email=…` fills the **store demo account** with the
-  small, health-data-free set the screenshots are taken against, and
-  `npm run shots -- --email=…` renders four of the six store screenshots from the
-  running dev web app (Playwright, kept out of `package.json` — the script prints
-  the one-off install). The full-screen alarm and the notification shade are
-  native/OS surfaces and still need a device. `apps/mobile/store/listing.md` is the
-  source of truth for the copy *and* the screenshot set; both are pushed to Play by
-  the manual `play-listing` workflow (`apps/mobile/scripts/play-publish.mjs
-  --listing`). See `apps/mobile/store/play-readiness.md`.
 - Before finishing a task run `npm run validate` (lint + test + typecheck +
   prisma validate). Add focused tests for non-trivial behavior.
 - `npm test` discovers `*.test.ts` under `apps/`, `packages/` **and `scripts/`**.
@@ -195,48 +181,14 @@ directory guide `apps/api/CLAUDE.md`.
   that the lockfile's recorded workspace versions match their `package.json`
   (`scripts/dev/workspace-versions.test.ts`), since a version bump doesn't
   regenerate the lockfile on its own. Fix with `npm install --package-lock-only`.
-- **Native (Kotlin/Java) changes** aren't covered by `npm run validate`. The
-  devcontainer ships JDK 17 + the Android SDK (platform-34, build-tools 34.0.0),
-  so verify them by compiling: from `apps/mobile`, `npm run verify:android`
-  (re-syncs `android-plugin/` into the generated project, then compiles the Kotlin
-  **and** Java tasks for **both product flavors**). All four tasks matter — the
-  plugin is Kotlin but `MainActivity.java` is Java, and the Kotlin task alone
-  compiles right past a broken `MainActivity`. Run `npm run prepare:android` once
-  first if the generated `apps/mobile/android` project doesn't exist yet.
-- **Windows (C#/WinUI 3) changes** aren't covered by `npm run validate`. The app
-  cannot be *built* here — the Windows App SDK's XAML compiler and `MakePri.exe`
-  are Windows-only binaries — so `.github/workflows/build-desktop-msix.yml`
-  (`windows-2025`, every push/PR touching `apps/desktop`) is the only complete
-  check; treat a red run there as a failed validate. The devcontainer does ship
-  the .NET SDK, though, so `npm run verify:desktop` compiles the app's **non-XAML**
-  C# against the real Windows App SDK reference assemblies. That catches a
-  misremembered WinRT API without a CI round-trip; it checks no XAML, no
-  code-behind and no packaging. Local builds are Windows-side:
-  `dotnet build Persistent.Desktop/Persistent.Desktop.csproj -c Debug`, packaged
-  with `Persistent.DesktopMSIX/build-msix.ps1`. Desktop releases are tagged
-  `desktop-vX.Y.Z` so they don't collide with the Android `vX.Y.Z` tags.
-- **Two Android flavors** (`apps/mobile/android-plugin/flavor/`): `play` for the
-  Play Store, `direct` for sideloaded GitHub releases. They differ only in the
-  in-app updater — `direct` registers `UpdatePlugin` and declares
-  `REQUEST_INSTALL_PACKAGES`; `play` has neither, because Play forbids an app it
-  distributes from updating itself. `MainActivity` is shared and calls
-  `FlavorPlugins.register(this)`, which each flavor supplies. Build with
-  `npm run assemble:release` (direct APK) or `npm run bundle:play` (Play AAB).
-  Both flavors load the *same* hosted web bundle, so any updater UI must gate on
-  `hasNativeUpdater()` (`apps/web/src/native/alarmBridge.ts`), never `isNative()`.
+- **`npm run validate` covers neither native surface.** Kotlin/Java changes have
+  their own compile check (`apps/mobile/CLAUDE.md`) and the C# desktop app has
+  its own too, plus a CI job that is its only complete check
+  (`apps/desktop/CLAUDE.md`). Neither is optional before finishing.
 
 ## How guidance is organized
 
-- This root `CLAUDE.md` is always loaded.
-- Directory-scoped conventions load when you read/edit files there:
-  `apps/api/CLAUDE.md`, `apps/web/CLAUDE.md`, `apps/desktop/CLAUDE.md`,
-  `packages/shared/CLAUDE.md`.
-- Cross-cutting contracts live in `docs/`: `auth-architecture.md`,
-  `data-event-contract.md`, `alarm-architecture.md`, `notification-behavior.md`
-  (the done/silence/snooze + independent-occurrence guarantee),
-  `desktop-architecture.md`. Read the relevant one before related work.
-- Repeatable workflows are `.claude/commands/` slash commands: `/commit`
-  (review + validate + commit), `/deploy` (commit + push + SSH-Docker deploy),
-  `/release` (version-bump + tag; CI builds both Android flavors — signed APK to
-  a GitHub Release, AAB to Google Play's `internal` + `alpha` tracks),
-  and `/audit-docs` (resync docs with the code).
+Cross-cutting contracts live in `docs/`: `auth-architecture.md`,
+`data-event-contract.md`, `alarm-architecture.md`, `notification-behavior.md`
+(the done/silence/snooze + independent-occurrence guarantee),
+`desktop-architecture.md`. Read the relevant one before related work.

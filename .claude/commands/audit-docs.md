@@ -16,7 +16,7 @@ Requirements:
 
 Audit scope:
 - `README.md`
-- Root `CLAUDE.md` and the nested guides (`apps/api/CLAUDE.md`, `apps/web/CLAUDE.md`, `packages/shared/CLAUDE.md`)
+- Root `CLAUDE.md` and the nested guides (`apps/api/CLAUDE.md`, `apps/web/CLAUDE.md`, `apps/mobile/CLAUDE.md`, `apps/desktop/CLAUDE.md`, `packages/shared/CLAUDE.md`)
 - `docs/auth-architecture.md`, `docs/data-event-contract.md`, `docs/alarm-architecture.md`
 - `.claude/commands/`
 - Shared contract guidance implied by `packages/shared`, `apps/api`, and `apps/web`

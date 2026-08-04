@@ -94,7 +94,11 @@ Do not widen it. Anything else about a reminder still belongs in the PWA.
 - `global::` does not parse inside interpolated strings — assign to a local first.
   Fully-qualify `Microsoft.UI.Xaml.Visibility` / `FocusState` in page code-behind.
 - Bump `<Version>` in `Directory.Build.props` for every packaged build; MSIX
-  refuses to reinstall the same version with different content.
+  refuses to reinstall the same version with different content. Releases are
+  tagged `desktop-vX.Y.Z` so they don't collide with the Android `vX.Y.Z` tags.
+- Real builds are Windows-side:
+  `dotnet build Persistent.Desktop/Persistent.Desktop.csproj -c Debug`, packaged
+  with `Persistent.DesktopMSIX/build-msix.ps1`.
 
 ## Changing the web side too
 

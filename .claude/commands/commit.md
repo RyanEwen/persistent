@@ -27,8 +27,9 @@ not gate this on whether the change "feels user-visible". Drift is a bug. Review
   releases, the slash-command list.
 - `apps/mobile/README.md` — the Android build/run/sign/update flow and native plugins.
 - Every `CLAUDE.md`: root plus the directory guides `apps/api/CLAUDE.md`,
-  `apps/web/CLAUDE.md`, `packages/shared/CLAUDE.md` — conventions, model lists,
-  helper inventories, and "do/don't" rules that the change affects.
+  `apps/web/CLAUDE.md`, `apps/mobile/CLAUDE.md`, `apps/desktop/CLAUDE.md`,
+  `packages/shared/CLAUDE.md` — conventions, model lists, helper inventories,
+  and "do/don't" rules that the change affects.
 - `docs/` contracts — `auth-architecture.md`, `data-event-contract.md`,
   `alarm-architecture.md` — whenever auth/sessions/passkeys, the HTTP/WS data
   flow + offline sync, or the notification/alarm/escalation model changed.
