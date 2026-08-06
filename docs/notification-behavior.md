@@ -128,6 +128,22 @@ that reason — two places holding "what is checked", with a firing to disagree 
 is exactly what §1a forbids. A note's list also has no "tap Done to confirm": there
 is nothing to confirm.
 
+**Hiding the ticked items is a view, and belongs to the reminder.** "Hide
+checked" collapses the ticked rows out of a checklist so a long list shows only
+what is left. That choice is stored (`Reminder.hideCheckedItems`, via `POST
+/api/reminders/:id/hide-checked`) so a list stays the way the user left it — on
+that device and on their others.
+
+It is per *reminder* even though the ticks are per firing, and that is not a
+contradiction: ticks reset each firing, so a fresh nag starts with nothing ticked
+and a remembered "hidden" hides nothing until the user ticks something themselves.
+The card a notification lands on therefore still shows the whole list.
+
+Hiding changes nothing this contract guarantees. It is presentation only: the
+notification body is built from the *unticked* items either way, hiding is not
+ticking, and a hidden item is neither confirmed nor excused. Done still clears the
+firing, and only Done.
+
 ## 2. Silence — drops the alarm back to the notification it escalated from
 
 Silence applies only to an **escalated** alarm (a `PERSISTENT` reminder that

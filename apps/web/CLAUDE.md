@@ -78,7 +78,13 @@
   `FcmService` acts on pushes when the bridge is dead (see `docs/alarm-architecture.md`).
 - **Client display prefs** (time format, theme, chosen sounds, and the
   device-default notification-shade prominence) live in `settings/useSettings.tsx`
-  (localStorage-backed, per-device — not server-synced). Themes are defined in
+  (localStorage-backed, per-device — not server-synced). They describe a *device*,
+  which is what makes local right for them. The one display state that is **not**
+  local is whether a checklist's ticked items are collapsed
+  (`Reminder.hideCheckedItems`, `data/reminders.ts` `useSetHideCheckedItems`): it
+  describes one *list*, and the whole point is that a list stays as you left it on
+  your other device. Don't move a per-list view state into `useSettings`, and
+  don't put a device-shaped preference on the reminder. Themes are defined in
   `settings/themes.ts` and applied as a background pattern + accent CSS variables
   by `components/AppLayout.tsx`. Format dates/times via `lib/datetime.ts`, never
   `toLocaleString` directly.

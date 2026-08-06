@@ -7,8 +7,12 @@
  * confirm the firing — only Done clears a nag (docs/notification-behavior.md §1a) —
  * so a fully-ticked list says so and points at Done rather than quietly
  * acknowledging on the user's behalf.
+ *
+ * Whether the ticked ones are hidden is the other way round: it belongs to the
+ * *reminder* and is stored, so the state of a list survives a reload and follows
+ * the user to their other devices. This component owns none of it — both the
+ * ticks and the collapse are controlled by the caller.
  */
-import { useState } from 'react'
 import Stack from '@mui/joy/Stack'
 import Box from '@mui/joy/Box'
 import Button from '@mui/joy/Button'
@@ -30,12 +34,27 @@ export function TodoChecklist({
   items,
   checkedItemIds,
   onToggle,
+  hideChecked = false,
+  onHideCheckedChange,
   disabled,
   confirmable = true
 }: {
   items: TodoItem[]
   checkedItemIds: readonly string[]
   onToggle: (itemId: string, checked: boolean) => void
+  /**
+   * Whether the ticked items are collapsed out of the list. Controlled by the
+   * caller and stored on the reminder (`Reminder.hideCheckedItems`), so a list
+   * left collapsed on one device is still collapsed on the next — this used to be
+   * local `useState` and reset on every mount.
+   *
+   * Persisting it costs nothing at a fresh firing, which was the original
+   * objection: ticks belong to the occurrence, so a new firing starts blank and a
+   * remembered "hidden" hides nothing until the user ticks something themselves.
+   */
+  hideChecked?: boolean
+  /** Omitted where nothing owns the state — the control is then not offered. */
+  onHideCheckedChange?: (hidden: boolean) => void
   disabled?: boolean
   /**
    * Whether there is a Done to point at once everything is ticked. False on a
@@ -44,11 +63,6 @@ export function TodoChecklist({
    */
   confirmable?: boolean
 }) {
-  // Per firing and not persisted: hiding is a working aid for getting through a
-  // long list, and defaulting a *fresh* card to a partial view would hide what the
-  // reminder covers from someone who has just been notified.
-  const [hideChecked, setHideChecked] = useState(false)
-
   if (items.length === 0) return null
   const checked = new Set(checkedItemIds)
   const { done, total } = todoProgress(items, checkedItemIds)
@@ -121,13 +135,13 @@ export function TodoChecklist({
         {/* Only once something is ticked: before that it would toggle nothing.
             Right-anchored, opposite the count, so it reads as a control on that
             line rather than another item at the end of the list. */}
-        {done > 0 && (
+        {done > 0 && onHideCheckedChange && (
           <Button
             variant="plain"
             color="neutral"
             size="sm"
             disabled={disabled}
-            onClick={() => setHideChecked((hidden) => !hidden)}
+            onClick={() => onHideCheckedChange(!hideChecked)}
             // A text button rather than a link: this sits under a thumb on a phone,
             // sometimes against a ringing alarm, so it keeps a real tap target.
             sx={{ flexShrink: 0, minHeight: 32, px: 1, fontSize: 'xs', fontWeight: 'md' }}

@@ -6,7 +6,13 @@
  * away rather than waiting for the tick.
  */
 import { Router } from 'express'
-import { checkItemInputSchema, reminderInputSchema, todoItems, type TypeData } from '@persistent/shared'
+import {
+  checkItemInputSchema,
+  hideCheckedInputSchema,
+  reminderInputSchema,
+  todoItems,
+  type TypeData
+} from '@persistent/shared'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '../lib/prisma.js'
 import { requireUser, requireUserId } from '../lib/auth-middleware.js'
@@ -173,6 +179,41 @@ remindersRouter.post('/:id/check', async (request, response) => {
   response.json({ reminder: toReminder(updated) })
 })
 
+/**
+ * Collapse or expand the ticked items on this reminder's checklist.
+ *
+ * A view preference, stored server-side purely so it follows the user between
+ * devices — the per-device display prefs live in the web client's localStorage.
+ * It changes nothing the user is on the hook for, so unlike a tick it does *not*
+ * nudge native sync: notification text is built from the unticked items either
+ * way, and no armed alarm goes stale because someone collapsed a list.
+ *
+ * Kept off `PUT /api/reminders/:id` deliberately. That endpoint replaces the
+ * whole definition from the editor form, and this is set by a button on a card
+ * the editor never sees — routing it through the form would make every collapse
+ * a full-definition write, racing a real edit made on another device.
+ */
+remindersRouter.post('/:id/hide-checked', async (request, response) => {
+  const userId = requireUserId(request)
+  const parsed = hideCheckedInputSchema.safeParse(request.body)
+  if (!parsed.success) throw badRequest('Invalid checklist view state.')
+
+  const existing = await prisma.reminder.findFirst({ where: { id: request.params.id, userId } })
+  if (!existing) throw notFound('Reminder not found.')
+  if (existing.type !== 'TODO') throw badRequest('This reminder has no checklist.')
+
+  const updated = await prisma.reminder.update({
+    where: { id: existing.id },
+    data: { hideCheckedItems: parsed.data.hidden }
+  })
+
+  // WS only, for the same reason there is no push: this is what one list looks
+  // like, not what the user owes anyone. Other open clients converge; devices
+  // have nothing to re-schedule.
+  broadcast(userId, { type: 'reminder.changed', reminderId: updated.id })
+  response.json({ reminder: toReminder(updated) })
+})
+
 remindersRouter.delete('/:id', async (request, response) => {
   const userId = requireUserId(request)
   const existing = await prisma.reminder.findFirst({ where: { id: request.params.id, userId } })
@@ -227,6 +268,11 @@ function toReminderData(
     // blank), so leaving these would strand ticks that nothing reads — and hand
     // them back, weeks stale, if it ever became a note again.
     ...(input.schedule.kind === 'never' ? {} : { checkedItems: [] })
+    // `hideCheckedItems` is deliberately absent, so an edit leaves it as it was.
+    // It is not a field of the form — it's set by a button on the card — and
+    // unlike ticks there is nothing stale to strand: it says how to draw a list,
+    // so the worst a leftover can do is collapse a checklist the user themselves
+    // collapsed, and only once something is ticked again.
   }
 }
 

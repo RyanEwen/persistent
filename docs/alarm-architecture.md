@@ -409,6 +409,9 @@ the Desktop Head Unit (DHU) or a real car** — it can't be exercised in the dev
   reminder create/update/delete — and on a checklist tick, which rewrites a live
   notification's body (skipping Web Push, which would surface a blank
   "site updated" notification; open web clients already converge over `/ws`).
+  The test is whether a device would show something different: collapsing a
+  checklist's ticked items (`hide-checked`) is a reminder write that sends no
+  nudge, because the body is built from the unticked items either way.
 
 On native, FCM is handled by `FcmService` (Kotlin) — it subclasses
 `@capacitor/push-notifications`' `MessagingService` and is registered in its place

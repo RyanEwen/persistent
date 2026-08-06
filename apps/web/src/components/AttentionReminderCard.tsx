@@ -31,7 +31,8 @@ export function AttentionReminderCard({
   onSnooze,
   onSilence,
   silenceLoading,
-  onToggleItem
+  onToggleItem,
+  onHideChecked
 }: {
   reminder: Reminder
   occurrence: Occurrence
@@ -42,6 +43,8 @@ export function AttentionReminderCard({
   onSilence: () => void
   silenceLoading: boolean
   onToggleItem: (itemId: string, checked: boolean) => void
+  /** Collapse/expand the ticked items. Stored on the reminder, so it holds across devices. */
+  onHideChecked: (hidden: boolean) => void
 }) {
   // A checklist renders as real checkboxes below, so the body text drops the
   // bulleted copy of it that reminderBodyText builds for notifications. The editor
@@ -114,7 +117,13 @@ export function AttentionReminderCard({
           Done above still does (docs/notification-behavior.md §1a). */}
       {items.length > 0 && (
         <Box sx={{ mt: 0.5 }}>
-          <TodoChecklist items={items} checkedItemIds={occurrence.checkedItemIds} onToggle={onToggleItem} />
+          <TodoChecklist
+            items={items}
+            checkedItemIds={occurrence.checkedItemIds}
+            onToggle={onToggleItem}
+            hideChecked={reminder.hideCheckedItems}
+            onHideCheckedChange={onHideChecked}
+          />
         </Box>
       )}
       {/* Full width, below the row: the sentence needs the whole card to read as one

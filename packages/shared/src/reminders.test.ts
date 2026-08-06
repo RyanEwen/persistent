@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  hideCheckedInputSchema,
   reminderBodyText,
   reminderInputSchema,
   reminderSchema,
@@ -200,6 +201,52 @@ test('a note carries its own checked items; everything else defaults to none', (
     updatedAt: '2026-08-02T09:00:00.000Z'
   })
   assert.deepEqual(parsed.checkedItemIds, ['cp-1'])
+})
+
+// --- Hiding ticked checklist items -------------------------------------------
+
+test('hideCheckedItems defaults to expanded on a row that predates the column', () => {
+  // Older API responses and older persisted cache entries carry no such field;
+  // a checklist must render whole rather than collapsed when nobody has asked.
+  const parsed = reminderSchema.parse({
+    id: 'r1',
+    title: 'Camping kit',
+    details: null,
+    type: 'TODO',
+    typeData: { items: [{ id: 'cp-1', text: 'Tent' }] },
+    schedule: { kind: 'never', timesOfDay: [] },
+    persistence: 'PERSISTENT',
+    soundIntervalSeconds: null,
+    shadeProminence: 'INHERIT',
+    escalateAfterMinutes: null,
+    escalateAtTime: null,
+    escalateEmail: null,
+    escalateEmailMessage: null,
+    escalateEmailAfterMinutes: null,
+    active: true,
+    startDate: '2026-08-02',
+    endDate: null,
+    checkedItemIds: [],
+    createdAt: '2026-08-02T09:00:00.000Z',
+    updatedAt: '2026-08-02T09:00:00.000Z'
+  })
+  assert.equal(parsed.hideCheckedItems, false)
+})
+
+test('the hide-checked input carries the whole state, not a toggle', () => {
+  assert.equal(hideCheckedInputSchema.parse({ hidden: true }).hidden, true)
+  assert.equal(hideCheckedInputSchema.parse({ hidden: false }).hidden, false)
+  // No default: "collapse this" and "expand this" are different requests, and a
+  // body that says neither is a bug in the caller rather than a request to expand.
+  assert.equal(hideCheckedInputSchema.safeParse({}).success, false)
+  assert.equal(hideCheckedInputSchema.safeParse({ hidden: 'yes' }).success, false)
+})
+
+test('saving the editor form cannot change whether checked items are hidden', () => {
+  // It is set by a button on the card, never by the form, so the update path must
+  // drop it — otherwise every edit would quietly reset how the list is drawn.
+  const parsed = reminderInputSchema.parse({ ...base, hideCheckedItems: true })
+  assert.equal('hideCheckedItems' in parsed, false)
 })
 
 // --- Withheld types ----------------------------------------------------------

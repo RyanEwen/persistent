@@ -249,7 +249,7 @@ const seeds: Seed[] = [
     }
   },
   {
-    note: 'a note holding a checklist — ticked on the reminder itself, not a firing',
+    note: 'a note holding a checklist — ticked on the reminder, and left collapsed',
     reminder: {
       title: 'Camping kit',
       type: 'TODO',
@@ -258,7 +258,10 @@ const seeds: Seed[] = [
       startDate: isoDay(-2),
       // A note has no occurrence, so its ticks live here. Nothing else in this
       // file sets `checkedItems` on a Reminder, and nothing else should.
-      checkedItems: ['cp-1', 'cp-3']
+      checkedItems: ['cp-1', 'cp-3'],
+      // The one seed covering the stored "Hide checked" view: this list opens
+      // showing only the two items still outstanding.
+      hideCheckedItems: true
     }
   },
   {

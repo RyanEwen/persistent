@@ -342,6 +342,16 @@ export const reminderSchema = z.object({
   // Always empty for anything that is not a `TODO` note; the server clears it the
   // moment a note gains a schedule.
   checkedItemIds: z.array(z.string()).default([]),
+  // View preference: collapse this checklist's ticked items out of the list.
+  //
+  // Server-stored rather than local, so the state of a list follows the user
+  // between devices (the localStorage prefs in `settings/useSettings` are
+  // deliberately per-device; this one is per *list*, so it belongs to the list).
+  // Purely presentational: it never affects firing, nagging or notification text.
+  // Held per reminder rather than per firing because a fresh firing starts with
+  // nothing ticked — so a remembered "hidden" hides nothing until the user ticks
+  // something, and a long list stays collapsed the way they left it.
+  hideCheckedItems: z.boolean().default(false),
   // Status of the most recent occurrence at or before now (done/snoozed/etc.),
   // for the list view. Null when nothing has fired yet.
   lastOccurrence: z
@@ -507,3 +517,16 @@ export const checkItemInputSchema = z.object({
   checked: z.boolean()
 })
 export type CheckItemInput = z.infer<typeof checkItemInputSchema>
+
+/**
+ * Collapse or expand the ticked items on one reminder's checklist.
+ *
+ * Whole-state rather than a toggle, unlike `checkItemInputSchema`: there is one
+ * flag, so a replayed stale write can only restore a view the user themselves
+ * chose, and "toggle" replayed twice would land on the opposite of what they
+ * asked for.
+ */
+export const hideCheckedInputSchema = z.object({
+  hidden: z.boolean()
+})
+export type HideCheckedInput = z.infer<typeof hideCheckedInputSchema>

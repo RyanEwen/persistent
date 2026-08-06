@@ -147,6 +147,37 @@ is still no push. The web client applies the toggle optimistically
 (`mutationKeys.checkOccurrenceItem`) — a checkbox that waits for a round trip feels
 broken.
 
+## Hiding ticked checklist items
+
+Whether a checklist is drawn with its ticked items collapsed is stored on the
+reminder (`Reminder.hideCheckedItems`) and set by `POST
+/api/reminders/:id/hide-checked`, which takes `{ hidden }` and is rejected for
+anything that is not a `TODO`. It exists as stored state for one reason: so a
+list left collapsed on one device is still collapsed on the next.
+
+It is the one **display** preference that is server-synced. The rest (time
+format, theme, chosen sounds, the default shade prominence) are deliberately
+per-device in the web client's localStorage — they describe a device, whereas
+this describes one *list*.
+
+Whole state (`{ hidden }`) rather than a toggle, unlike a tick: there is a single
+flag, so a stale replay can only restore a view the user themselves chose, while
+"toggle" replayed twice would land on the opposite of what they asked for.
+
+`reminder.changed` over WS, and **no** push and **no** sync nudge — unlike a
+tick. Notification text is built from the *unticked* items either way, so no
+armed alarm goes stale because someone collapsed a list, and nothing about the
+done/nag guarantee is affected. Applied optimistically on the web
+(`mutationKeys.hideCheckedItems`), like the tick it sits beside.
+
+Deliberately not part of `PUT /api/reminders/:id`: that endpoint replaces the
+whole definition from the editor form, and this is set by a button on a card the
+editor never shows — routing it through the form would make every collapse a
+full-definition write racing a real edit from another device. So the update path
+leaves the column alone, and nothing clears it: the worst a leftover can do is
+collapse a list the user themselves collapsed, and only once something is ticked
+again.
+
 ## Native sync nudge
 
 Reminder create/update/delete has no self-contained fire/dismiss payload, but a

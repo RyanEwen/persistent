@@ -34,7 +34,12 @@
   (`notificationBody(reminder, checkedItemIds)`), so a tick makes an already-armed
   alarm's body stale. Every surface that renders a notification — the fire/escalate
   payloads, the silence downgrade, `buildDeviceAlarms`, the escalation email — must
-  pass the occurrence's `checkedItems`, never the reminder alone.
+  pass the occurrence's `checkedItems`, never the reminder alone. The nudge is for
+  writes that change what a device would *show*: `POST
+  /api/reminders/:id/hide-checked` is a reminder write that deliberately skips it
+  (and push), because collapsing ticked items is presentation only — the body is
+  built from the unticked items either way, so no armed alarm goes stale. WS alone
+  is enough there.
 - **Scheduler:** `lib/scheduler.ts` owns materialization, the tick loop, and the
   snooze/escalation/miss sweeps. On reminder create/update, materialize the
   changed reminder immediately (don't wait for the 5-min cycle); on update, drop

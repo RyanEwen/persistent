@@ -52,6 +52,7 @@ export function toReminder(
     // Only ever populated for a `TODO` note; the write path clears it as soon as
     // the reminder gains a schedule, since ticks belong to occurrences then.
     checkedItemIds: toCheckedItemIds(row.checkedItems),
+    hideCheckedItems: row.hideCheckedItems,
     lastOccurrence: lastOccurrence
       ? { status: lastOccurrence.status, scheduledFor: lastOccurrence.scheduledFor.toISOString() }
       : null,

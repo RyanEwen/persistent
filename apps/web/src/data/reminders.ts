@@ -5,7 +5,7 @@
  * polling.
  */
 import { useMutation, useQuery } from '@tanstack/react-query'
-import type { CheckItemInput, Reminder, ReminderInput } from '@persistent/shared'
+import type { CheckItemInput, HideCheckedInput, Reminder, ReminderInput } from '@persistent/shared'
 import { apiFetch } from '../lib/apiClient.js'
 import { mutationKeys, queryKeys } from '../lib/queryClient.js'
 
@@ -38,5 +38,16 @@ export function useDeleteReminder() {
 export function useCheckReminderItem() {
   return useMutation<unknown, Error, { id: string; arg: CheckItemInput }>({
     mutationKey: mutationKeys.checkReminderItem
+  })
+}
+
+/**
+ * Collapse or expand the ticked items on a reminder's checklist. Stored on the
+ * reminder rather than in `settings/useSettings`, which is per-device — the point
+ * of this one is that a list stays the way you left it on your other device.
+ */
+export function useSetHideCheckedItems() {
+  return useMutation<unknown, Error, { id: string; arg: HideCheckedInput }>({
+    mutationKey: mutationKeys.hideCheckedItems
   })
 }

@@ -73,7 +73,7 @@ SYNCS EVERYWHERE, INSTANTLY
 Confirm on your phone and it clears on your tablet and in your browser at the same moment. Manage reminders from any browser at persistent.dynamic-solutions.ca — same account, live-synced.
 
 CHECKLISTS
-Some reminders cover several things at once. Tag one as a Checklist, list the items, and tick them off as you go — each firing tracks its own ticks, so a repeating checklist starts fresh every time. It still keeps nagging until you confirm it: ticking the last item doesn't let you off the hook.
+Some reminders cover several things at once. Tag one as a Checklist, list the items, and tick them off as you go — each firing tracks its own ticks, so a repeating checklist starts fresh every time. Hide the ticked ones to see just what's left, on every device. It still keeps nagging until you confirm it: ticking the last item doesn't let you off the hook.
 
 SCHEDULING
 • One-off reminders at a date and time

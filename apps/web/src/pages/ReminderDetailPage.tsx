@@ -27,7 +27,7 @@ import SnoozeIcon from '@mui/icons-material/Snooze'
 import EditIcon from '@mui/icons-material/Edit'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import { reminderBodyText, todoItems } from '@persistent/shared'
-import { useReminders } from '../data/reminders.js'
+import { useReminders, useSetHideCheckedItems } from '../data/reminders.js'
 import {
   useActiveOccurrences,
   useAckOccurrence,
@@ -57,6 +57,7 @@ export function ReminderDetailPage() {
   const snooze = useSnoozeOccurrence()
   const silence = useSilenceOccurrence()
   const checkItem = useCheckOccurrenceItem()
+  const hideChecked = useSetHideCheckedItems()
   const { timeFormat } = useSettings()
   const [snoozeFor, setSnoozeFor] = useState<string | null>(null)
 
@@ -216,6 +217,11 @@ export function ReminderDetailPage() {
                         onToggle={(itemId, checked) =>
                           checkItem.mutate({ id: occurrence.id, arg: { itemId, checked } })
                         }
+                        // Ticks are per firing, the collapse is per reminder — so
+                        // every card here hides and shows together, and agrees with
+                        // the same list on Current.
+                        hideChecked={reminder.hideCheckedItems}
+                        onHideCheckedChange={(hidden) => hideChecked.mutate({ id: reminder.id, arg: { hidden } })}
                       />
                     </Box>
                   )}

@@ -147,6 +147,13 @@ model Reminder {
   /// Cleared whenever the reminder stops being a note, since ticks against a
   /// definition mean nothing once occurrences own them again.
   checkedItems Json     @default("[]")
+  /// View preference for this reminder's checklist: collapse the ticked items out
+  /// of the list. Stored on the reminder (not per firing, and not in localStorage
+  /// like the other display prefs) so it follows the user between devices. Purely
+  /// presentational — it changes nothing about firing, nagging or notification
+  /// text, and a fresh firing starts with nothing ticked, so hiding hides nothing
+  /// until the user ticks something again.
+  hideCheckedItems Boolean @default(false)
 
   persistence          PersistenceLevel @default(PERSISTENT)
   /// null = no repeating sound; otherwise seconds between sound repeats.

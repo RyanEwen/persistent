@@ -70,6 +70,14 @@ reminder (`Reminder.checkedItems`, written by `POST /api/reminders/:id/check`) �
 legitimate precisely because there is no firing whose record they could contradict.
 The server rejects that endpoint for anything that is not a note, and clears the
 column the moment one gains a schedule.
+Whether the ticked items are **collapsed out of the list** is a third thing again:
+it belongs to the reminder (`Reminder.hideCheckedItems`, written by `POST
+/api/reminders/:id/hide-checked`), because it says how to draw that list rather
+than what happened at one firing. Stored, rather than kept per-device like the
+other display preferences, precisely so a list stays as the user left it on their
+other devices. Per-reminder costs nothing at a fresh firing — ticks reset, so a
+remembered "hidden" hides nothing until something is ticked again. It is
+presentation only and never touches the guarantee.
 
 `Reminder` (the definition the user manages) → expanded by the scheduler into
 `ReminderOccurrence` rows (one per firing). The persistence guarantee = an
@@ -173,7 +181,7 @@ directory guide `apps/api/CLAUDE.md`.
   status` answers "is the schema in step?" without touching anything.
 - `npm run db:seed` — fill a dev account with reminders covering every type,
   schedule kind and occurrence state (due, escalated, snoozed, orphaned, part-ticked
-  checklist, paused, history). Replaces that user's reminders only — the account,
+  checklist, a checklist left collapsed, paused, history). Replaces that user's reminders only — the account,
   passkeys and sessions survive, so it never signs you out. `-- --keep` to append,
   `-- --email=…` to pick the user.
 - Before finishing a task run `npm run validate` (lint + test + typecheck +

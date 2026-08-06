@@ -12,6 +12,7 @@ import { QueryClient, QueryCache, MutationCache } from '@tanstack/react-query'
 import {
   extractErrorMessage,
   type CheckItemInput,
+  type HideCheckedInput,
   type Occurrence,
   type Reminder,
   type ReminderInput
@@ -59,7 +60,8 @@ export const mutationKeys = {
   snoozeOccurrence: ['occurrences', 'snooze'] as const,
   silenceOccurrence: ['occurrences', 'silence'] as const,
   checkOccurrenceItem: ['occurrences', 'check'] as const,
-  checkReminderItem: ['reminders', 'check'] as const
+  checkReminderItem: ['reminders', 'check'] as const,
+  hideCheckedItems: ['reminders', 'hide-checked'] as const
 }
 
 let tempCounter = 0
@@ -93,6 +95,9 @@ function optimisticReminder(input: ReminderInput, id = tempId()): Reminder {
     // edit's optimistic row is replaced by the server's on settle. (The server
     // also clears these whenever the reminder is not a note.)
     checkedItemIds: [],
+    // Likewise not a form field: a new checklist starts expanded, and an edit's
+    // optimistic row carries the stored value over (see the update default).
+    hideCheckedItems: false,
     lastOccurrence: null,
     createdAt: now,
     updatedAt: now
@@ -159,7 +164,11 @@ export function registerMutationDefaults(): void {
           r.id === id
             ? {
                 ...optimisticReminder(input, id),
-                checkedItemIds: input.schedule.kind === 'never' ? r.checkedItemIds : []
+                checkedItemIds: input.schedule.kind === 'never' ? r.checkedItemIds : [],
+                // Carried over unconditionally: the server's update never touches
+                // this column, so rebuilding the row from the form must not blink
+                // a collapsed checklist open until the real row lands.
+                hideCheckedItems: r.hideCheckedItems
               }
             : r
         )
@@ -200,6 +209,24 @@ export function registerMutationDefaults(): void {
           const checked = reminder.checkedItemIds.filter((itemId) => itemId !== arg.itemId)
           return { ...reminder, checkedItemIds: arg.checked ? [...checked, arg.itemId] : checked }
         })
+      )
+      return { previous }
+    },
+    onError: rollback,
+    onSettled: invalidateReminders
+  })
+
+  // Collapsing a checklist is a view state, but a *shared* one — it is stored so
+  // it follows the user between devices. Optimistic for the same reason ticking
+  // is: the button sits right next to the checkboxes and must respond instantly.
+  queryClient.setMutationDefaults(mutationKeys.hideCheckedItems, {
+    mutationFn: ({ id, arg }: { id: string; arg: HideCheckedInput }) =>
+      apiFetch(`/api/reminders/${id}/hide-checked`, { method: 'POST', body: JSON.stringify(arg) }),
+    onMutate: async ({ id, arg }: { id: string; arg: HideCheckedInput }): Promise<RemindersSnapshot> => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.reminders })
+      const previous = reminders()
+      queryClient.setQueryData<Reminder[]>(queryKeys.reminders, (list) =>
+        (list ?? []).map((reminder) => (reminder.id === id ? { ...reminder, hideCheckedItems: arg.hidden } : reminder))
       )
       return { previous }
     },

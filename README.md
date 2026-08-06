@@ -60,7 +60,9 @@ you *actually mark it done*. It's built for the things you can't afford to miss.
 - **Checklists.** A reminder can cover several things at once — a morning routine,
   a packing list. Tick items off as you go; each firing tracks its own ticks, so a
   repeating checklist starts fresh every time, and the notification lists only what
-  you have left. Ticking everything still doesn't confirm it — only you do.
+  you have left. Hide the ticked ones to see just what's outstanding — a long list
+  stays collapsed the way you left it, on every device you use. Ticking everything
+  still doesn't confirm it — only you do.
 - **Simple sign-in.** A one-time email code, a passkey, or Sign in with Google —
   there is no password to forget or leak.
 - **Your data stays yours.** No ads, no analytics, no tracking. Delete your

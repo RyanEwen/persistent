@@ -33,7 +33,7 @@ import Chip from '@mui/joy/Chip'
 import Typography from '@mui/joy/Typography'
 import { Link as RouterLink } from 'react-router-dom'
 import { reminderBodyText, todoItems, type Reminder } from '@persistent/shared'
-import { useCheckReminderItem } from '../data/reminders.js'
+import { useCheckReminderItem, useSetHideCheckedItems } from '../data/reminders.js'
 import { TypeIcon } from './ReminderIcons.js'
 import { TodoChecklist } from './TodoChecklist.js'
 import { SectionHeading } from './SectionHeading.js'
@@ -56,6 +56,7 @@ export function NotesSection({ reminders }: { reminders: readonly Reminder[] }) 
 
 function NoteCard({ reminder }: { reminder: Reminder }) {
   const checkItem = useCheckReminderItem()
+  const hideChecked = useSetHideCheckedItems()
 
   // A checklist renders as its own lines below, so the body text drops the
   // bulleted copy `reminderBodyText` builds for notifications — the same split the
@@ -105,6 +106,8 @@ function NoteCard({ reminder }: { reminder: Reminder }) {
             checkedItemIds={reminder.checkedItemIds}
             confirmable={false}
             onToggle={(itemId, checked) => checkItem.mutate({ id: reminder.id, arg: { itemId, checked } })}
+            hideChecked={reminder.hideCheckedItems}
+            onHideCheckedChange={(hidden) => hideChecked.mutate({ id: reminder.id, arg: { hidden } })}
           />
         </Box>
       )}
