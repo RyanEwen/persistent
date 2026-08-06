@@ -54,9 +54,26 @@ test('a checklist is listed one item per line, so BigTextStyle and email both re
   assert.match(escalationEmailText(todo), /\n\n• Vitamins\n• Inhaler\nBefore leaving$/)
 })
 
-test('checklist items are listed unticked — a sent email and an armed alarm cannot track progress', () => {
+test('a ticked item drops off the notification — a nag lists what is left to do', () => {
+  const todo = reminder({
+    type: 'TODO',
+    typeData: { items: [{ id: 'a', text: 'Vitamins' }, { id: 'b', text: 'Inhaler' }] }
+  })
+  assert.equal(notificationBody(todo, ['a']), '• Inhaler')
+  // The escalation email is a snapshot of what the contact would be chasing.
+  assert.match(escalationEmailText(todo, ['a']), /\n\n• Inhaler$/)
+})
+
+test('a fully-ticked checklist leaves no body — the firing still needs Done', () => {
   const todo = reminder({ type: 'TODO', typeData: { items: [{ id: 'a', text: 'Vitamins' }] } })
-  assert.equal(notificationBody(todo), '• Vitamins')
+  assert.equal(notificationBody(todo, ['a']), '')
+  // Message alone, with no trailing blank lines, exactly as a body-less reminder.
+  assert.equal(escalationEmailText(todo, ['a']), 'The reminder "Evening meds" is overdue and hasn\'t been confirmed.')
+})
+
+test('a tick left behind by a since-deleted item hides nothing', () => {
+  const todo = reminder({ type: 'TODO', typeData: { items: [{ id: 'a', text: 'Vitamins' }] } })
+  assert.equal(notificationBody(todo, ['gone']), '• Vitamins')
 })
 
 test('a checklist on a non-TODO reminder is not described (the type selects the body)', () => {

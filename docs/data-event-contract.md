@@ -139,17 +139,20 @@ after the ack can't rewrite a finished firing's record.
 
 Ticking every item **does not acknowledge** the occurrence — only Done clears a
 firing (`notification-behavior.md` §1). The server broadcasts `occurrence.changed`
-over WS but sends **no push and no sync nudge**: a device alarm is armed ahead of
-time with static text, so it cannot track a checked state that moves afterwards,
-and nothing about the notification changes. The web client applies the toggle
-optimistically (`mutationKeys.checkOccurrenceItem`) — a checkbox that waits for a
-round trip feels broken.
+over WS **and** sends a sync nudge: the notification body is only the *unticked*
+items, so a tick changes the text of an already-armed alarm. Native devices re-pull
+`/api/sync/occurrences` and re-post the nag silently (`alertOnce`, so a refreshed
+body never re-alerts); web clients converge over the WS event, which is why there
+is still no push. The web client applies the toggle optimistically
+(`mutationKeys.checkOccurrenceItem`) — a checkbox that waits for a round trip feels
+broken.
 
 ## Native sync nudge
 
 Reminder create/update/delete has no self-contained fire/dismiss payload, but a
 device still needs to re-derive what it should schedule/show (a renamed reminder, a
-changed schedule, a deletion). Alongside the `reminder.changed` WS broadcast, the
+changed schedule, a deletion) — as does a checklist tick, which rewrites a live
+notification's body. Alongside the `reminder.changed` WS broadcast, the
 server sends an **FCM-only** `sync` push (`nudgeNativeSync`) so a native device with
 a live bridge resyncs promptly. It is deliberately not sent over Web Push (a push
 that shows no notification makes browsers surface a generic "site updated" one) —

@@ -218,3 +218,23 @@ test('medication is still a valid stored type — existing reminders keep their 
   assert.equal(parsed.type, 'MEDICATION')
   assert.equal(reminderBodyText({ ...parsed, details: parsed.details ?? null }), 'Ibuprofen 200 mg')
 })
+
+test('a checklist body omits the items this firing has already ticked', () => {
+  const source = {
+    type: 'TODO' as const,
+    typeData: { items: [{ id: 'a', text: 'Milk' }, { id: 'b', text: 'Bread' }] },
+    details: 'From the corner shop'
+  }
+  assert.equal(reminderBodyText(source, ['a']), '• Bread\nFrom the corner shop')
+  // Every item, unfiltered, when no ticks are supplied (an interactive checklist).
+  assert.equal(reminderBodyText(source), '• Milk\n• Bread\nFrom the corner shop')
+})
+
+test('a fully-ticked checklist falls back to details alone', () => {
+  const source = {
+    type: 'TODO' as const,
+    typeData: { items: [{ id: 'a', text: 'Milk' }] },
+    details: 'From the corner shop'
+  }
+  assert.equal(reminderBodyText(source, ['a']), 'From the corner shop')
+})

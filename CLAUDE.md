@@ -61,7 +61,9 @@ free of health framing while it stands (`apps/mobile/store/listing.md`).
 A `TODO` is a single
 reminder covering several items; the items belong to the reminder, but **which of
 them are ticked belongs to the occurrence** (`ReminderOccurrence.checkedItems`), so
-a repeating checklist starts each firing blank. Ticking every item does *not*
+a repeating checklist starts each firing blank. A firing's notification body is its
+**unticked** items only — a nag is about what is left, so ticking one drops it off
+every channel and off the on-device alarm. Ticking every item does *not*
 acknowledge the firing — only Done does (`docs/notification-behavior.md` §1a).
 **A note is the one exception**: it has no occurrences, so its ticks live on the
 reminder (`Reminder.checkedItems`, written by `POST /api/reminders/:id/check`) —

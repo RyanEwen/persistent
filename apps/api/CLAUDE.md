@@ -29,7 +29,12 @@
   `dispatchToUser` / dismiss helpers so notifications stay in sync across devices.
   On reminder writes (which have no fire/dismiss payload) also call
   `nudgeNativeSync(userId)` — an FCM-only `sync` so native devices re-pull
-  `/api/sync/occurrences` (it skips Web Push; web converges over WS).
+  `/api/sync/occurrences` (it skips Web Push; web converges over WS). A checklist
+  tick needs it too: notification text is built from the firing's *unticked* items
+  (`notificationBody(reminder, checkedItemIds)`), so a tick makes an already-armed
+  alarm's body stale. Every surface that renders a notification — the fire/escalate
+  payloads, the silence downgrade, `buildDeviceAlarms`, the escalation email — must
+  pass the occurrence's `checkedItems`, never the reminder alone.
 - **Scheduler:** `lib/scheduler.ts` owns materialization, the tick loop, and the
   snooze/escalation/miss sweeps. On reminder create/update, materialize the
   changed reminder immediately (don't wait for the 5-min cycle); on update, drop

@@ -12,6 +12,7 @@
 import type { Reminder } from '@prisma/client'
 import { type DeviceAlarm, ESC_SUFFIX } from '@persistent/shared'
 import { notificationBody } from './notification-format.js'
+import { toCheckedItemIds } from './serializers.js'
 
 interface OccurrenceForAlarm {
   id: string
@@ -19,6 +20,8 @@ interface OccurrenceForAlarm {
   status: string
   scheduledFor: Date
   snoozedUntil: Date | null
+  /** This firing's checklist ticks (loose JSON column) — ticked items drop off the body. */
+  checkedItems: unknown
   reminder: Reminder
 }
 
@@ -36,7 +39,9 @@ export function buildDeviceAlarms(occurrence: OccurrenceForAlarm, escalateAt: Da
   ).getTime()
   // ALARM persistence always rings; an already-escalated occurrence also rings.
   const alarm = reminder.persistence === 'ALARM' || occurrence.status === 'ESCALATED'
-  const body = notificationBody(reminder)
+  // Only the unticked checklist items: the device re-pulls this list whenever a tick
+  // lands (the `/check` sync nudge), and re-posts the nag when the text drifts.
+  const body = notificationBody(reminder, toCheckedItemIds(occurrence.checkedItems))
 
   const main: DeviceAlarm = {
     occurrenceId: occurrence.id,

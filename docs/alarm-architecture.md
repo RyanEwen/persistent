@@ -340,7 +340,8 @@ hold and no sound replays):
 
 - **Device default** changed -> `ACTION_RESTYLE` -> `restyleActive` re-posts every
   active notification immediately.
-- **Per-reminder** value changed (or the reminder was renamed / its body edited) ->
+- **Per-reminder** value changed (or the reminder was renamed, its body edited, or
+  a checklist item ticked — the body is only the *unticked* items) ->
   the next resync's `scheduleAll` calls `AlarmService.refreshActiveStyles`
   (`ACTION_REFRESH` -> `refreshActive`), which reloads each active spec from
   `AlarmStore` and re-posts those whose title/body changed (in place) or whose
@@ -405,7 +406,8 @@ the Desktop Head Unit (DHU) or a real car** — it can't be exercised in the dev
   The dispatcher (`delivery/index.ts`) targets each device by
   `PushSubscription.kind`; `dispatchToUser` fans `fire`/`escalate`/`dismiss`/
   `silence` to all channels, and `nudgeNativeSync` sends an FCM-only `sync` on
-  reminder create/update/delete (skipping Web Push, which would surface a blank
+  reminder create/update/delete — and on a checklist tick, which rewrites a live
+  notification's body (skipping Web Push, which would surface a blank
   "site updated" notification; open web clients already converge over `/ws`).
 
 On native, FCM is handled by `FcmService` (Kotlin) — it subclasses
@@ -476,8 +478,9 @@ own devices and may **also email a contact** (`escalateEmail` +
 `escalateEmailMessage`, sent once via `sendCloudflareEmail` on escalation). That
 email is the user's covering message (or a default) followed by the reminder's own
 body — the same `notificationBody` text every other channel shows, composed by the
-pure `escalationEmailText` (`lib/notification-format.ts`). It **deliberately
-includes medications** and is deliberately not gated: withholding the dose from the
+pure `escalationEmailText` (`lib/notification-format.ts`) — a checklist lists what
+was still unticked when it was sent, since an email cannot be revised afterwards.
+It **deliberately includes medications** and is deliberately not gated: withholding the dose from the
 person nominated to chase a missed dose defeats the escalation. It is plain text,
 so multi-line details keep their line breaks. It does **not** apply to
 `ALARM`-persistence reminders (they already ring continuously — enforced in the

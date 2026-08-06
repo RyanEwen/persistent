@@ -26,6 +26,7 @@ function occurrence(overrides: Record<string, unknown> = {}) {
     status: 'FIRED',
     scheduledFor,
     snoozedUntil: null,
+    checkedItems: [],
     reminder: reminder(),
     ...overrides
   } as Parameters<typeof buildDeviceAlarms>[0]
@@ -77,4 +78,20 @@ test('an already-escalated occurrence rings and adds no future escalation alarm'
   assert.equal(alarms.length, 1)
   assert.equal(alarms[0]!.alarm, true)
   assert.equal(alarms[0]!.canSilence, true) // soft reminder escalated -> silenceable
+})
+
+test("an armed alarm's body lists only the checklist items this firing has left", () => {
+  const todo = reminder({
+    type: 'TODO',
+    typeData: { items: [{ id: 'a', text: 'Vitamins' }, { id: 'b', text: 'Inhaler' }] }
+  })
+  const alarms = buildDeviceAlarms(occurrence({ reminder: todo, checkedItems: ['a'] }), null)
+  assert.equal(alarms[0]!.body, '• Inhaler')
+})
+
+test('ticking the last item leaves a body-less nag — it still needs Done', () => {
+  const todo = reminder({ type: 'TODO', typeData: { items: [{ id: 'a', text: 'Vitamins' }] } })
+  const alarms = buildDeviceAlarms(occurrence({ reminder: todo, checkedItems: ['a'] }), null)
+  assert.equal(alarms.length, 1)
+  assert.equal(alarms[0]!.body, '')
 })

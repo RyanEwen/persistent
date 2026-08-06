@@ -57,8 +57,8 @@ Two things hold on every surface regardless of which action the user takes:
   attention cards use `pre-wrap`, the native notification uses `BigTextStyle`, the
   full-screen alarm renders them as-is, and the escalation email is plain text. The
   compact list row is the one deliberate exception — it is single-line by design, so
-  breaks collapse to spaces there. A checklist reminder's body is its items, one per
-  line, and depends on exactly the same thing.
+  breaks collapse to spaces there. A checklist reminder's body is its still-unticked
+  items (§1a), one per line, and depends on exactly the same thing.
 
 The three user actions on a firing are **Done**, **Silence**, and **Snooze**.
 Their guaranteed effects follow. (Silence is labeled **"De-escalate"** in the UI —
@@ -104,9 +104,19 @@ Done rather than acting for the user. The reverse also holds — Done works at a
 point, whether or not every item is ticked; the ticks are a working aid, not a
 gate. What was actually ticked survives in History.
 
-Ticks are in-app only. A notification's body lists the items unticked, because it
-is pre-armed on the device (or already sent, for the escalation email) and cannot
-track a checked state that moves afterwards.
+**A notification lists only what is left.** Ticking an item removes it from the
+firing's notification body — a nag is about what is still outstanding, so it does
+not keep repeating work already done. The server rebuilds the body from the
+firing's ticks on every surface that carries it (fire and escalate pushes, the
+downgraded nag after a Silence, the on-device alarm list at
+`/api/sync/occurrences`), and a tick nudges native devices to re-pull and re-post
+the notification silently, so the shown text keeps up. Ticking the *last* item
+leaves the reminder's title with no body — which is correct: the firing is still
+unconfirmed, and only Done confirms it. A tick left behind by a since-deleted item
+hides nothing.
+
+The escalation email is the one snapshot: it lists what was unticked at the moment
+it was sent, since an email cannot be revised afterwards.
 
 **A note's checklist is the exception, and only because it cannot be a firing's.**
 A note (§7) has no occurrences, so `ReminderOccurrence.checkedItems` has nothing to

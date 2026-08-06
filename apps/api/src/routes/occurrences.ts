@@ -9,6 +9,7 @@
  * keeps the occurrence FIRED/nagging, and suppresses any further escalation.
  */
 import { Router } from 'express'
+import type { ReminderOccurrence } from '@prisma/client'
 import {
   checkItemInputSchema,
   snoozeInputSchema,
@@ -19,9 +20,9 @@ import {
 import { prisma } from '../lib/prisma.js'
 import { requireUser, requireUserId } from '../lib/auth-middleware.js'
 import { badRequest, conflict, notFound } from '../lib/http-error.js'
-import { toOccurrence } from '../lib/serializers.js'
+import { toOccurrence, toCheckedItemIds } from '../lib/serializers.js'
 import { broadcast } from '../lib/realtime.js'
-import { dispatchToUser } from '../lib/delivery/index.js'
+import { dispatchToUser, nudgeNativeSync } from '../lib/delivery/index.js'
 import { notificationTitle, notificationBody } from '../lib/notification-format.js'
 import { ackDecision } from '../lib/occurrence-ack.js'
 import { logger } from '../lib/logger.js'
@@ -223,9 +224,16 @@ occurrencesRouter.post('/:id/check', async (request, response) => {
     include: { reminder: true }
   })
 
-  // WS only: no notification text changes (a pre-armed device alarm can't track a
-  // moving checked state), so there is nothing to push or re-sync on-device.
+  // A notification lists only the items still unticked, so this tick changed its
+  // text. Web clients converge over WS; native devices need the FCM-only `sync` to
+  // re-pull and re-post the nag (silently — `ensureNags` re-posts on text drift
+  // with `alertOnce`, so refreshing the list never re-alerts).
+  // Not awaited: working down a checklist is a burst of taps, and none of them
+  // should wait on an FCM round trip to answer.
   broadcast(userId, { type: 'occurrence.changed', occurrence: toOccurrence(updated) })
+  void nudgeNativeSync(userId).catch((error) =>
+    logger.warn('checklist sync nudge failed', { error: String(error), occurrenceId: updated.id })
+  )
   response.json({ occurrence: toOccurrence(updated) })
 })
 
@@ -258,7 +266,7 @@ occurrencesRouter.post('/:id/silence', async (request, response) => {
     include: { reminder: true }
   })
 
-  await silenceEverywhere(userId, updated.id, updated.reminder)
+  await silenceEverywhere(userId, updated)
   broadcast(userId, { type: 'occurrence.changed', occurrence: toOccurrence(updated) })
   response.json({ occurrence: toOccurrence(updated) })
 })
@@ -268,18 +276,21 @@ async function dismissEverywhere(userId: string, occurrenceId: string): Promise<
   await dispatchToUser(userId, { type: 'dismiss', occurrenceId })
 }
 
-/** Tell every device to stop the alarm but keep the soft nag for this occurrence. */
+/**
+ * Tell every device to stop the alarm but keep the soft nag for this occurrence.
+ * The downgraded nag carries the firing's own text, so a checklist still lists
+ * only what is unticked.
+ */
 async function silenceEverywhere(
   userId: string,
-  occurrenceId: string,
-  reminder: Parameters<typeof notificationTitle>[0] & Parameters<typeof notificationBody>[0]
+  occurrence: ReminderOccurrence & { reminder: Parameters<typeof notificationTitle>[0] & Parameters<typeof notificationBody>[0] }
 ): Promise<void> {
-  broadcast(userId, { type: 'silence', occurrenceId })
+  broadcast(userId, { type: 'silence', occurrenceId: occurrence.id })
   await dispatchToUser(userId, {
     type: 'silence',
-    occurrenceId,
-    title: notificationTitle(reminder),
-    body: notificationBody(reminder),
+    occurrenceId: occurrence.id,
+    title: notificationTitle(occurrence.reminder),
+    body: notificationBody(occurrence.reminder, toCheckedItemIds(occurrence.checkedItems)),
     alarm: false
   })
 }

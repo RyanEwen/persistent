@@ -15,7 +15,7 @@
  * (The legacy `SUPERSEDED` status is no longer produced; old rows may still carry
  * it and live in History.)
  */
-import type { OccurrenceStatus, Reminder } from '@prisma/client'
+import type { OccurrenceStatus, Reminder, ReminderOccurrence } from '@prisma/client'
 import type { PushPayload, Schedule } from '@persistent/shared'
 import { isTimeless } from '@persistent/shared'
 import { prisma } from './prisma.js'
@@ -25,7 +25,7 @@ import { notificationTitle, notificationBody, escalationEmailText } from './noti
 import { dispatchToUser } from './delivery/index.js'
 import { sendCloudflareEmail } from './cloudflare-email.js'
 import { escalateAtFor, shouldEscalateNow } from './escalation.js'
-import { toOccurrence } from './serializers.js'
+import { toOccurrence, toCheckedItemIds } from './serializers.js'
 import { broadcast } from './realtime.js'
 
 /** Statuses that still have a firing in front of the user (i.e. not terminal). */
@@ -177,7 +177,7 @@ async function fireOccurrence(occurrenceId: string): Promise<void> {
   // Each occurrence nags on its own — a fresh fire never supersedes an earlier
   // still-unconfirmed firing of the same reminder. A reminder with several times
   // of day shows one notification per fired occurrence, each confirmed separately.
-  fireNotification(occurrence.userId, occurrence.reminder, occurrence.id, occurrence.scheduledFor, false)
+  fireNotification(occurrence, false)
   broadcast(occurrence.userId, { type: 'occurrence.fired', occurrence: toOccurrence(occurrence) })
 }
 
@@ -219,7 +219,7 @@ async function sweep(): Promise<void> {
         data: { status: 'ESCALATED', escalatedAt: now, lastNotifiedAt: now, snoozedUntil: null },
         include: { reminder: true }
       })
-      await escalate(updated.userId, updated.reminder, updated.id, updated.scheduledFor)
+      await escalate(updated)
       broadcast(updated.userId, { type: 'occurrence.changed', occurrence: toOccurrence(updated) })
     }
   }
@@ -244,7 +244,7 @@ async function sweep(): Promise<void> {
     if (now.getTime() < emailAt) continue
     // Mark first so a slow send can't double-fire across overlapping sweeps.
     await prisma.reminderOccurrence.update({ where: { id: occurrence.id }, data: { escalationEmailedAt: now } })
-    await sendEscalationEmail(r).catch((error) =>
+    await sendEscalationEmail(r, toCheckedItemIds(occurrence.checkedItems)).catch((error) =>
       logger.warn('escalate email failed', { error: String(error), reminderId: r.id })
     )
   }
@@ -265,7 +265,7 @@ async function sweep(): Promise<void> {
       include: { reminder: true }
     })
     // A revived snooze nags again on its own; it never supersedes its siblings.
-    fireNotification(updated.userId, updated.reminder, updated.id, updated.scheduledFor, false)
+    fireNotification(updated, false)
     broadcast(updated.userId, { type: 'occurrence.fired', occurrence: toOccurrence(updated) })
   }
 
@@ -300,7 +300,7 @@ async function reviveMissed(): Promise<void> {
         data: { status: 'FIRED', firedAt: now, lastNotifiedAt: now, snoozedUntil: null },
         include: { reminder: true }
       })
-      fireNotification(updated.userId, updated.reminder, updated.id, updated.scheduledFor, false)
+      fireNotification(updated, false)
       broadcast(updated.userId, { type: 'occurrence.fired', occurrence: toOccurrence(updated) })
       revived++
     }
@@ -308,34 +308,36 @@ async function reviveMissed(): Promise<void> {
   if (revived > 0) logger.info('revived previously-missed occurrences to FIRED', { count: revived })
 }
 
-function buildPayload(
-  type: PushPayload['type'],
-  reminder: Reminder,
-  occurrenceId: string,
-  scheduledFor: Date,
-  alarm: boolean
-): PushPayload {
+/**
+ * The whole occurrence, not just its id: the notification body is built from the
+ * firing's ticks as well as its reminder, so a checklist nags with only the items
+ * still outstanding.
+ */
+type OccurrenceForNotification = ReminderOccurrence & { reminder: Reminder }
+
+function buildPayload(type: PushPayload['type'], occurrence: OccurrenceForNotification, alarm: boolean): PushPayload {
+  const { reminder } = occurrence
   return {
     type,
-    occurrenceId,
+    occurrenceId: occurrence.id,
     reminderId: reminder.id,
     title: notificationTitle(reminder),
-    body: notificationBody(reminder),
+    body: notificationBody(reminder, toCheckedItemIds(occurrence.checkedItems)),
     alarm: alarm || reminder.persistence === 'ALARM',
     soundIntervalSeconds: reminder.soundIntervalSeconds,
-    scheduledFor: scheduledFor.toISOString()
+    scheduledFor: occurrence.scheduledFor.toISOString()
   }
 }
 
-function fireNotification(userId: string, reminder: Reminder, occurrenceId: string, scheduledFor: Date, alarm: boolean): void {
-  void dispatchToUser(userId, buildPayload('fire', reminder, occurrenceId, scheduledFor, alarm)).catch((error) =>
+function fireNotification(occurrence: OccurrenceForNotification, alarm: boolean): void {
+  void dispatchToUser(occurrence.userId, buildPayload('fire', occurrence, alarm)).catch((error) =>
     logger.warn('fire dispatch failed', { error: String(error) })
   )
 }
 
 /** The alarm escalation: ring an alarm on the user's own devices. */
-async function escalate(userId: string, reminder: Reminder, occurrenceId: string, scheduledFor: Date): Promise<void> {
-  await dispatchToUser(userId, buildPayload('escalate', reminder, occurrenceId, scheduledFor, true)).catch((error) =>
+async function escalate(occurrence: OccurrenceForNotification): Promise<void> {
+  await dispatchToUser(occurrence.userId, buildPayload('escalate', occurrence, true)).catch((error) =>
     logger.warn('escalate dispatch failed', { error: String(error) })
   )
 }
@@ -350,13 +352,13 @@ async function escalate(userId: string, reminder: Reminder, occurrenceId: string
  * message are the user's to choose, and a reminder with no details still sends
  * just the message.
  */
-async function sendEscalationEmail(reminder: Reminder): Promise<void> {
+async function sendEscalationEmail(reminder: Reminder, checkedItemIds: readonly string[]): Promise<void> {
   const to = reminder.escalateEmail
   if (!to) return
   await sendCloudflareEmail({
     to,
     subject: `Reminder overdue: ${reminder.title}`,
-    text: escalationEmailText(reminder)
+    text: escalationEmailText(reminder, checkedItemIds)
   })
 }
 

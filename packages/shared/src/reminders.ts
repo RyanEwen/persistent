@@ -244,11 +244,18 @@ export function todoItems(typeData: TypeData): TodoItem[] {
 /**
  * The checklist as notification/email text — one item per line, so the native
  * `BigTextStyle` body and the plain-text escalation email both read as a list.
- * Deliberately unticked: a notification is pre-armed on the device and an email
- * is already sent, so neither can track a checked state that moves afterwards.
+ *
+ * `checkedItemIds` (one firing's ticks) are left OUT: a nag is about what is
+ * still outstanding, so an item the user has ticked drops off the notification.
+ * The list can therefore be empty even when the reminder has items — a fully
+ * ticked firing still nags, because only Done confirms it
+ * (`docs/notification-behavior.md` §1a). Callers that render an interactive
+ * checklist pass nothing and get every item.
  */
-export function formatTodoItems(typeData: TypeData): string {
+export function formatTodoItems(typeData: TypeData, checkedItemIds: readonly string[] = []): string {
+  const checked = new Set(checkedItemIds)
   return todoItems(typeData)
+    .filter((item) => !checked.has(item.id))
     .map((item) => `• ${item.text}`)
     .join('\n')
 }
@@ -271,12 +278,19 @@ export function todoProgress(items: TodoItem[], checkedItemIds: readonly string[
  * than the usual middle dot — the surfaces that render this all preserve line
  * breaks (`pre-wrap` in-app, `BigTextStyle` natively, plain text by email), and
  * "• Milk\n• Bread · from the corner shop" would read as part of the last item.
+ *
+ * `checkedItemIds` are the ticks of the firing this text describes: they drop out
+ * of the checklist, so a notification lists only what is left to do. Omit them
+ * (the default) for a surface that is not describing one firing's progress.
  */
-export function reminderBodyText(source: {
-  type: ReminderType
-  typeData: TypeData
-  details: string | null
-}): string {
+export function reminderBodyText(
+  source: {
+    type: ReminderType
+    typeData: TypeData
+    details: string | null
+  },
+  checkedItemIds: readonly string[] = []
+): string {
   const parts: string[] = []
   let multiline = false
   if (source.type === 'MEDICATION') {
@@ -284,7 +298,7 @@ export function reminderBodyText(source: {
     if (meds) parts.push(meds)
   }
   if (source.type === 'TODO') {
-    const items = formatTodoItems(source.typeData)
+    const items = formatTodoItems(source.typeData, checkedItemIds)
     if (items) {
       parts.push(items)
       multiline = true

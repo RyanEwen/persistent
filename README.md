@@ -59,8 +59,8 @@ you *actually mark it done*. It's built for the things you can't afford to miss.
   prominence (Android), and a history of what you've done.
 - **Checklists.** A reminder can cover several things at once — a morning routine,
   a packing list. Tick items off as you go; each firing tracks its own ticks, so a
-  repeating checklist starts fresh every time. Ticking everything still doesn't
-  confirm it — only you do.
+  repeating checklist starts fresh every time, and the notification lists only what
+  you have left. Ticking everything still doesn't confirm it — only you do.
 - **Simple sign-in.** A one-time email code, a passkey, or Sign in with Google —
   there is no password to forget or leak.
 - **Your data stays yours.** No ads, no analytics, no tracking. Delete your
