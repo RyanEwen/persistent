@@ -67,8 +67,14 @@ internal static class NotificationService
             // Registration is what routes clicks back to this process. Without it a
             // toast would appear and then do nothing, which is worse than none.
             Logger.Warn("Notifications enabled but toast registration failed; not connecting");
+            Classes.StartupDiagnostics.Mark("notifications: toast registration FAILED");
             return;
         }
+
+        // Recorded in startup.log as well as the NLog file: this is the breadcrumb
+        // that separates "the user never turned it on" from "it was on and did not
+        // work", which is the first fork in diagnosing silent notifications.
+        Classes.StartupDiagnostics.Mark("notifications: enabled, toast registration OK");
 
         _api ??= new OccurrenceApi(AppFlyout.GetSessionCookieAsync, () => SettingsManager.Current.EffectiveServerUrl);
         _realtime ??= new RealtimeClient(AppFlyout.GetSessionCookieAsync, () => SettingsManager.Current.EffectiveServerUrl);

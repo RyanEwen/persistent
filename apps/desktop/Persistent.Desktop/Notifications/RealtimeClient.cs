@@ -57,11 +57,32 @@ internal sealed class RealtimeClient : IDisposable
     private static readonly TimeSpan MinRetry = TimeSpan.FromSeconds(3);
     private static readonly TimeSpan MaxRetry = TimeSpan.FromSeconds(60);
 
+    /// <summary>
+    /// How long to wait for the session cookie before giving up on this attempt.
+    ///
+    /// The cookie comes from the WebView2 profile, which is suspended whenever the
+    /// flyout is hidden — i.e. nearly always. Without a bound, a call that never
+    /// returns parks this loop forever: no connection, no toasts, and no log line
+    /// saying so, because the loop is not failing, it is waiting. A timeout turns
+    /// that into an ordinary retry.
+    /// </summary>
+    private static readonly TimeSpan CookieTimeout = TimeSpan.FromSeconds(10);
+
     private readonly Func<Task<string?>> _cookieProvider;
     private readonly Func<string> _serverUrlProvider;
 
     private CancellationTokenSource? _cts;
     private Task? _loop;
+
+    /// <summary>True once a connection has succeeded at least once this run. Until
+    /// then, failures are logged loudly — see the catch in <see cref="RunAsync"/>.</summary>
+    private bool _everConnected;
+    private int _failuresBeforeFirstConnect;
+
+    /// <summary>How many never-connected failures to log at Warn before falling back
+    /// to Debug. Enough to explain a broken setup, few enough not to fill the log
+    /// while a machine is simply offline.</summary>
+    private const int LoudFailureLimit = 5;
 
     public event Action<RealtimeEvent>? EventReceived;
 
@@ -115,10 +136,25 @@ internal sealed class RealtimeClient : IDisposable
             }
             catch (Exception ex)
             {
-                // Debug, not Warn: being disconnected is the expected state on a
-                // laptop that sleeps or a machine that is offline, and logging it
-                // loudly every retry would bury the entries that matter.
-                Logger.Debug(ex, "Realtime connection dropped; will retry in {0}s", retry.TotalSeconds);
+                // Losing a connection that has worked is expected — a laptop sleeps,
+                // Wi-Fi drops — and logging every retry at Warn would bury the
+                // entries that matter, so those stay at Debug.
+                //
+                // Never having connected at all is a different thing entirely: it
+                // means notifications are silently doing nothing, and at Debug it
+                // left no trace in the shipped log (NLog.config writes Info and
+                // above). The first few failures are therefore loud enough to be in
+                // the file the user actually has.
+                if (_everConnected || _failuresBeforeFirstConnect >= LoudFailureLimit)
+                {
+                    Logger.Debug(ex, "Realtime connection dropped; will retry in {0}s", retry.TotalSeconds);
+                }
+                else
+                {
+                    _failuresBeforeFirstConnect++;
+                    Logger.Warn(ex, "Realtime has not connected yet (attempt {0}); retrying in {1}s",
+                        _failuresBeforeFirstConnect, retry.TotalSeconds);
+                }
             }
 
             try
@@ -135,7 +171,14 @@ internal sealed class RealtimeClient : IDisposable
 
     private async Task ConnectAndPumpAsync(CancellationToken token)
     {
-        string? cookieHeader = await _cookieProvider();
+        var cookieTask = _cookieProvider();
+        if (await Task.WhenAny(cookieTask, Task.Delay(CookieTimeout, token)) != cookieTask)
+        {
+            throw new TimeoutException(
+                $"Reading the session cookie took longer than {CookieTimeout.TotalSeconds:0}s (WebView busy or suspended).");
+        }
+
+        string? cookieHeader = await cookieTask;
         if (string.IsNullOrEmpty(cookieHeader))
         {
             // Signed out, or the WebView hasn't finished starting. Not an error.
@@ -151,6 +194,7 @@ internal sealed class RealtimeClient : IDisposable
         socket.Options.KeepAliveInterval = TimeSpan.FromSeconds(30);
 
         await socket.ConnectAsync(uri, token);
+        _everConnected = true;
         Logger.Info("Realtime connected to {0}", uri);
 
         var buffer = new byte[16 * 1024];
