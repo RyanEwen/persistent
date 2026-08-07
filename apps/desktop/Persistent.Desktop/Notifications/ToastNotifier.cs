@@ -42,23 +42,32 @@ internal sealed class ToastNotifier
     public const string SnoozeChoiceKey = "snoozeMinutes";
 
     /// <summary>
-    /// The snooze durations, mirroring `SNOOZE_PRESETS` in
-    /// `apps/web/src/lib/durations.ts` so this surface offers what every other one
-    /// does. Snoozing is a *choice* about when to be asked again — a single
-    /// duration buried in app settings is not the same feature.
+    /// Windows allows a toast combo box **five items**, and throws
+    /// <c>ArgumentException("Maximum number of items added")</c> on the sixth. That
+    /// exception escapes mid-build, so the whole toast fails and nothing is shown:
+    /// one item too many silently disables notifications entirely. This shipped
+    /// with seven and no toast ever appeared.
+    /// </summary>
+    private const int MaxComboItems = 5;
+
+    /// <summary>
+    /// The snooze durations offered on a toast: a five-item subset of
+    /// `SNOOZE_PRESETS` in `apps/web/src/lib/durations.ts`, chosen to span the same
+    /// range (minutes to a day) within the platform's limit. Snoozing is a *choice*
+    /// about when to be asked again, so the picker stays — the full seven are one
+    /// click away in the flyout.
+    ///
+    /// **Do not add a sixth.** See <see cref="MaxComboItems"/>.
     ///
     /// Kept as a literal rather than fetched: it is a list of durations, not a
-    /// rule, so it cannot disagree with the server about anything. If the web list
-    /// changes, change it here too — that is the whole maintenance burden.
+    /// rule, so it cannot disagree with the server about anything.
     /// </summary>
     private static readonly (int Minutes, string Label)[] SnoozeChoices =
     [
         (5, "5 min"),
-        (10, "10 min"),
         (15, "15 min"),
         (30, "30 min"),
         (60, "1 hr"),
-        (180, "3 hr"),
         (1440, "1 day")
     ];
 
@@ -106,11 +115,13 @@ internal sealed class ToastNotifier
     /// The ordinary firing toast: what it is, and the two things you can do about
     /// it.
     ///
-    /// <para>Shown as <see cref="AppNotificationScenario.Reminder"/>, which keeps it
-    /// on screen until the user deals with it instead of fading after a few
-    /// seconds. That is as close to nagging as this surface honestly gets — it is
-    /// still not the persistence guarantee, because a machine that is asleep or an
-    /// app that is not running shows nothing at all.</para>
+    /// <para><b>Transient by design.</b> No <c>AppNotificationScenario</c> is set, so
+    /// this behaves like any ordinary Windows toast: it alerts, then fades into the
+    /// Action Center. It deliberately does not use <c>Reminder</c> or <c>Urgent</c>,
+    /// which pin a toast on screen until dismissed — that is nagging, and this
+    /// surface does not nag. Windows gets an alert each time a reminder fires or
+    /// escalates and nothing more; the persistence guarantee lives on Android
+    /// (docs/desktop-architecture.md).</para>
     /// </summary>
     public void ShowOccurrence(RealtimeEvent occurrence, int defaultSnoozeMinutes)
     {
@@ -125,10 +136,7 @@ internal sealed class ToastNotifier
                 // every toast carries the ids its actions will need.
                 .AddArgument(ActionKey, ActionOpen)
                 .AddArgument(OccurrenceKey, occurrence.OccurrenceId)
-                .AddArgument(ReminderKey, occurrence.ReminderId)
-                .SetScenario(occurrence.IsEscalated
-                    ? AppNotificationScenario.Urgent
-                    : AppNotificationScenario.Reminder);
+                .AddArgument(ReminderKey, occurrence.ReminderId);
 
             if (occurrence.Body.Length > 0) builder.AddText(occurrence.Body);
             if (occurrence.IsEscalated)
@@ -141,9 +149,13 @@ internal sealed class ToastNotifier
             // A picker, not a fixed duration: snoozing is a choice about when to be
             // asked again, and every other surface offers the same list (see
             // SnoozeChoices). The app setting only chooses which one starts selected.
+            // Truncated rather than trusted: overrunning the limit throws mid-build
+            // and costs the whole toast, so an over-long list degrades to a short
+            // picker instead of to no notifications at all.
+            var offered = SnoozeChoices.Take(MaxComboItems).ToArray();
             var picker = new AppNotificationComboBox(SnoozeChoiceKey)
-                .SetSelectedItem(NearestChoice(defaultSnoozeMinutes).ToString());
-            foreach (var (minutes, label) in SnoozeChoices) picker.AddItem(minutes.ToString(), label);
+                .SetSelectedItem(NearestChoice(offered, defaultSnoozeMinutes).ToString());
+            foreach (var (minutes, label) in offered) picker.AddItem(minutes.ToString(), label);
 
             builder
                 .AddComboBox(picker)
@@ -176,7 +188,6 @@ internal sealed class ToastNotifier
                 .AddArgument(ActionKey, ActionOpen)
                 .AddArgument(OccurrenceKey, occurrence.OccurrenceId)
                 .AddArgument(ReminderKey, occurrence.ReminderId)
-                .SetScenario(AppNotificationScenario.Reminder)
                 .AddButton(Button(ActionConfirmDone, occurrence, "Confirm done"))
                 .AddButton(Button(ActionNotYet, occurrence, "Not yet"));
 
@@ -225,11 +236,14 @@ internal sealed class ToastNotifier
     /// default comes from a settings combo that may be edited by hand or predate a
     /// change to the list, and a picker whose selection matches no item renders
     /// blank — so this always resolves to something real.
+    ///
+    /// Takes the choices actually added to the picker, not the full list: selecting
+    /// an item that was truncated away would leave the picker blank.
     /// </summary>
-    private static int NearestChoice(int minutes)
+    private static int NearestChoice((int Minutes, string Label)[] choices, int minutes)
     {
-        int best = SnoozeChoices[0].Minutes;
-        foreach (var (candidate, _) in SnoozeChoices)
+        int best = choices[0].Minutes;
+        foreach (var (candidate, _) in choices)
         {
             if (Math.Abs(candidate - minutes) < Math.Abs(best - minutes)) best = candidate;
         }

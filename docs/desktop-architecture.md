@@ -20,7 +20,9 @@ page all say it. A Windows app that *looked* like it would nag you, and then
 didn't because the machine was asleep, would be worse than no Windows app.
 
 **Optional Windows toasts are the one signal it offers** — off by default, per
-machine, and described in the settings copy as exactly what they are. See
+machine, **transient**, and described in the settings copy as exactly what they
+are. They alert as a reminder fires or escalates and then fade to the Action
+Center; nothing here stays on screen, re-raises or demands dismissal. See
 [Notifications](#notifications) below. Beyond them it is silent: the tray icon is
 a plain mark. An earlier version badged it with a due count; that was dropped, and
 with it the only reason the *page* had to keep running while hidden (see the
@@ -333,6 +335,23 @@ C# copy of it is precisely the drift this app's design rejects. A medication toa
 therefore shows the title alone, and the doses are one click away in the flyout.
 If that ever needs to change, the fix is for the **server** to render the body
 into the event, not for the host to learn the rules.
+
+**The toasts are transient, deliberately.** No `AppNotificationScenario` is set,
+so they alert and then fade into the Action Center like any ordinary Windows
+notification. `Reminder` and `Urgent` both pin a toast on screen until it is
+dismissed, which is nagging — and this surface does not nag. Windows gets an
+alert when a reminder fires or escalates, and nothing more. Anything that
+re-raises, re-sounds or refuses to go away belongs on Android, which is the only
+client that can actually guarantee it.
+
+A toast that fails to build shows nothing at all, and the failure is one
+`Logger.Warn` deep in a background handler — easy to ship and never notice. That
+is not hypothetical: the snooze picker was created with **seven** items when
+Windows caps a toast combo box at **five**, so `AddItem` threw on the sixth,
+every toast build failed, and notifications appeared completely dead while the
+socket, the registration and the settings were all fine. See `MaxComboItems` in
+`ToastNotifier.cs`; the list is truncated defensively so the same mistake costs a
+short picker rather than the feature.
 
 **The contract obligations it does carry**, from
 [`notification-behavior.md`](notification-behavior.md):
