@@ -365,6 +365,10 @@ class AlarmPlugin : Plugin() {
             // per-reminder prominence changed); re-post any active notification so its
             // text and channel match the server.
             AlarmService.refreshActiveStyles(context)
+            // The armed set IS what the Android Auto screen lists (due now + the next 48
+            // hours), so a resync is the one change to it that no notification reflects —
+            // an added, retimed or deleted future reminder never touches the shade.
+            CarListRefresh.notifyChanged(context)
         }
 
         /** Build the PendingIntent that fires [AlarmReceiver] for an occurrence. */

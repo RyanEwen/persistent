@@ -22,8 +22,12 @@ end-user-facing changes only — internal/docs/tooling commits are excluded; see
   `PLAY_SERVICE_ACCOUNT_JSON` secret exists, so tagging still works on forks.
   Promotion beyond alpha is a deliberate Play Console action, not part of a tag.
 
-Never publish the `direct` APK to Play — it carries the in-app updater and
-`REQUEST_INSTALL_PACKAGES`, which Play prohibits.
+Never publish the `direct` APK to Play — it carries two things the `play` flavor
+deliberately omits: the in-app updater with `REQUEST_INSTALL_PACKAGES`, which Play
+prohibits, and the Android Auto car screen (`ReminderCarAppService`), which would draw
+an Auto review against a category this app can't honestly claim. The workflow asserts
+both are absent from the Play bundle before uploading ("Verify the Play bundle carries
+no direct-only components"); see `apps/mobile/store/play-readiness.md` #1 and #1a.
 
 This command decides the next version, records it, and pushes the tag.
 

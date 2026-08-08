@@ -192,28 +192,32 @@ jobs:
           npm run assemble:release
           npm run bundle:play
 
-      # The play AAB must not carry REQUEST_INSTALL_PACKAGES — that is the signal
-      # Play review rejects, and the two flavors are one gradle typo apart. Cheap
-      # to assert, so assert it rather than trusting the flavor wiring.
-      - name: Verify the Play bundle has no self-updater
+      # Two things belong to the `direct` flavor alone and would each cost a Play
+      # review if they leaked: REQUEST_INSTALL_PACKAGES (the self-updater signal
+      # review rejects) and the Android Auto CarAppService (a templated car app has
+      # to claim an approved Auto category, and a reminder app has none). The flavors
+      # are one gradle or manifest typo apart, so assert rather than trust the wiring.
+      - name: Verify the Play bundle carries no direct-only components
         working-directory: apps/mobile
         run: |
           # Located by search, not a fixed path: AGP moves packaged_manifests
           # between versions, and a stale path here would silently stop checking.
-          # A permission that IS present fails the release; a manifest that cannot
-          # be found only warns, so an AGP upgrade doesn't block shipping.
+          # A marker that IS present fails the release; a manifest that cannot be
+          # found only warns, so an AGP upgrade doesn't block shipping.
           FOUND=0
           while IFS= read -r manifest; do
             FOUND=1
-            COUNT=$(grep -c REQUEST_INSTALL_PACKAGES "$manifest" || true)
-            if [ "$COUNT" != "0" ]; then
-              echo "::error::$manifest declares REQUEST_INSTALL_PACKAGES ($COUNT) — Play prohibits a self-updating app."
-              exit 1
-            fi
-            echo "clean (0 REQUEST_INSTALL_PACKAGES): $manifest"
+            for marker in REQUEST_INSTALL_PACKAGES androidx.car.app.CarAppService; do
+              COUNT=$(grep -c "$marker" "$manifest" || true)
+              if [ "$COUNT" != "0" ]; then
+                echo "::error::$manifest declares $marker ($COUNT) — that component is direct-flavor only. See apps/mobile/store/play-readiness.md."
+                exit 1
+              fi
+            done
+            echo "clean (no direct-only components): $manifest"
           done < <(find android/app/build/intermediates/packaged_manifests -ipath '*playRelease*' -name AndroidManifest.xml 2>/dev/null)
           if [ "$FOUND" = "0" ]; then
-            echo "::warning::No playRelease packaged manifest found — updater check skipped. See apps/mobile/store/play-readiness.md #1."
+            echo "::warning::No playRelease packaged manifest found — direct-only component check skipped. See apps/mobile/store/play-readiness.md #1."
           fi
 
       - name: Stage APK

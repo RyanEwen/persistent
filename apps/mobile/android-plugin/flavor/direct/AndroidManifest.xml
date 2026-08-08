@@ -2,11 +2,42 @@
 <!--
   `direct` flavor manifest — merged only into the sideloaded build.
 
-  REQUEST_INSTALL_PACKAGES lets UpdatePlugin hand a downloaded APK to the system
-  installer. That is the whole point of the direct build and is flatly prohibited
-  for anything distributed through Google Play (Device and Network Abuse policy),
-  so it lives here rather than in src/main and can never leak into the `play` AAB.
+  Everything here is something Google Play would take issue with, so it lives in this
+  source set and can never leak into the `play` AAB.
+
+  1. REQUEST_INSTALL_PACKAGES lets UpdatePlugin hand a downloaded APK to the system
+     installer. That is the whole point of the direct build and is flatly prohibited
+     for anything distributed through Google Play (Device and Network Abuse policy).
+
+  2. ReminderCarAppService is the Android Auto car screen. A templated car app must
+     declare one of Auto's approved categories, and a reminder app is none of them
+     (navigation / parking / charging / POI / IOT / settings / messaging / calling /
+     weather), so shipping it in the Play build would put every release at risk of an
+     Auto review rejection for the sake of a screen. SETTINGS is the closest fit of a
+     bad set and is what the sideloaded build declares. See docs/alarm-architecture.md
+     and store/play-readiness.md.
+
+     Note that the *notification* side of Android Auto is NOT here: mirroring nags into
+     the car needs no category and ships in both flavors (src/main's
+     com.google.android.gms.car.application meta-data).
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <application>
+        <!-- Car API level 1 is all the list/message templates this app uses need, so it
+             stays compatible with the widest set of head units. -->
+        <meta-data
+            android:name="androidx.car.app.minCarApiLevel"
+            android:value="1" />
+
+        <service
+            android:name="ca.persistent.app.alarm.ReminderCarAppService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="androidx.car.app.CarAppService" />
+                <category android:name="androidx.car.app.category.SETTINGS" />
+            </intent-filter>
+        </service>
+    </application>
 </manifest>

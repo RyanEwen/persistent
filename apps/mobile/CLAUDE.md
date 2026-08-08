@@ -19,10 +19,19 @@ generated `android/` project doesn't exist yet.
 ## Two Android flavors
 
 `android-plugin/flavor/`: `play` for the Play Store, `direct` for sideloaded
-GitHub releases. They differ only in the in-app updater — `direct` registers
-`UpdatePlugin` and declares `REQUEST_INSTALL_PACKAGES`; `play` has neither,
-because Play forbids an app it distributes from updating itself. `MainActivity`
-is shared and calls `FlavorPlugins.register(this)`, which each flavor supplies.
+GitHub releases. Two things live in `direct` only, each because Play would object:
+
+- **the in-app updater** — `direct` registers `UpdatePlugin` and declares
+  `REQUEST_INSTALL_PACKAGES`; Play forbids an app it distributes from updating itself.
+- **the Android Auto car screen** (`ReminderCarAppService` + its screens) — a
+  templated car app must declare one of Auto's approved categories and a reminder app
+  is none of them, so it stays out of the reviewed build rather than putting every
+  release at risk. The Auto *notification* mirror needs no category and is shared.
+
+Direct-only Kotlin sources are listed in `scripts/setup-android.mjs`
+(`DIRECT_ONLY_KT`) and their manifest entries in `flavor/direct/AndroidManifest.xml`.
+`MainActivity` is shared and calls `FlavorPlugins.register(this)`, which each flavor
+supplies.
 Build with `npm run assemble:release` (direct APK) or `npm run bundle:play` (Play
 AAB). Both flavors load the *same* hosted web bundle, so any updater UI must gate
 on `hasNativeUpdater()` (`apps/web/src/native/alarmBridge.ts`), never

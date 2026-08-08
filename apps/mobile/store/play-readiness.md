@@ -25,6 +25,7 @@ two flavors instead of dropping the updater outright:
 | --- | --- | --- |
 | `UpdatePlugin` | yes | **no** |
 | `REQUEST_INSTALL_PACKAGES` | yes | **no** |
+| `ReminderCarAppService` (Android Auto screen) | yes | **no** — see #1a |
 
 - Flavor sources: `apps/mobile/android-plugin/flavor/{play,direct}/`
 - `setup-android.mjs` copies them into `android/app/src/<flavor>/` and injects the `productFlavors` block
@@ -41,12 +42,12 @@ differently — every updater surface gates on `hasNativeUpdater()`
 (`Capacitor.isPluginAvailable('Update')`) instead of `isNative()`.
 
 ⚠️ **Never upload the `direct` artifact to Play.** CI now asserts this on every
-release ("Verify the Play bundle has no self-updater"): it locates the `playRelease`
-packaged manifest and fails the run if `REQUEST_INSTALL_PACKAGES` appears. To check
-by hand:
+release ("Verify the Play bundle carries no direct-only components"): it locates the
+`playRelease` packaged manifest and fails the run if `REQUEST_INSTALL_PACKAGES` or
+`androidx.car.app.CarAppService` appears. To check by hand:
 
 ```bash
-grep -c REQUEST_INSTALL_PACKAGES \
+grep -cE 'REQUEST_INSTALL_PACKAGES|androidx.car.app.CarAppService' \
   apps/mobile/android/app/build/intermediates/packaged_manifests/playRelease/AndroidManifest.xml   # expect 0
 ```
 
@@ -54,6 +55,30 @@ grep -c REQUEST_INSTALL_PACKAGES \
 `packaged_manifests` between versions. If the manifest can't be found the step
 warns instead of failing, so an AGP upgrade can't block a release — but that
 warning means the check has stopped running and the path needs updating.)
+
+## 1a. Android Auto car screen ✅ DONE (kept out of the Play build)
+
+Android Auto's **notification** extension — mirroring a nag into the car as a
+`MessagingStyle` notification — needs no app category and ships in **both** flavors.
+It is not affected by anything here.
+
+A **templated car app** (`CarAppService`) is different: it must declare one of Auto's
+approved categories, and a reminder app is honestly none of them — navigation,
+parking, charging, POI, IOT, settings, messaging, calling, weather. Declaring one
+anyway puts an Auto review in the path of *every* Play release, and a rejection there
+blocks the whole release, not just the car part. Not worth it for a screen, so
+`ReminderCarAppService` and its screens went into the `direct` flavor. The sideloaded
+build declares `SETTINGS`, the least-wrong of the set.
+
+Consequence to remember: seeing the car screen needs Android Auto's developer setting
+**"Add new apps to launcher"**, as any sideloaded car app does (Auto only runs car
+apps from Play-installed apps otherwise). That is a one-time toggle on the phone.
+
+**If this is ever wanted on Play**, the decision to revisit is the category — check
+what the Play Console's Android Auto declaration will actually accept for this app
+before moving the manifest entry out of `flavor/direct/`, and move the sources out of
+`DIRECT_ONLY_KT` in `setup-android.mjs` at the same time. The CI assertion above will
+fail loudly until both are done deliberately.
 
 ## 2. targetSdk 35 ✅ DONE (device check outstanding)
 

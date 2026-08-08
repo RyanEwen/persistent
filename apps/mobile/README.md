@@ -54,8 +54,10 @@ npm run prepare:android   # build web -> cap add android -> wire plugin -> cap s
    - adds the `androidx.car.app` dependency and the
      `com.google.android.gms.car.application` manifest meta-data (with a
      `tools:overrideLibrary` for its minSdk 23), so reminder notifications project
-     into **Android Auto** (`CarProjection.kt` + `android-res/xml/automotive_app_desc.xml`);
-     see `docs/alarm-architecture.md` (Android Auto),
+     into **Android Auto** (`CarProjection.kt` + `android-res/xml/automotive_app_desc.xml`),
+     and — in the `direct` flavor only — the templated car screen listing the whole
+     reminder set (`ReminderCarAppService.kt`); see `docs/alarm-architecture.md`
+     (Android Auto),
    - if `ANDROID_KEYSTORE_FILE` is set, copies the keystore in and injects a
      release `signingConfig` (passwords read from env at build time), plus
      `versionName`/`versionCode` from `ANDROID_VERSION_NAME`/`_CODE`.
@@ -221,26 +223,36 @@ npm run bundle:play        # -> android/app/build/outputs/bundle/playRelease/app
 
 ## Product flavors (`play` | `direct`)
 
-One artifact cannot serve both channels, so the app builds in two flavors that
-differ **only** in the in-app updater:
+One artifact cannot serve both channels, so the app builds in two flavors. They are
+the same app apart from two things Google Play would object to, which the sideloaded
+build keeps and the Play build does without:
 
 | | `direct` (GitHub releases) | `play` (Play Store) |
 | --- | --- | --- |
 | `UpdatePlugin` | compiled in, registered | absent |
 | `REQUEST_INSTALL_PACKAGES` | declared | **not** declared |
 | Updates via | in-app APK install | Google Play |
+| Android Auto **car screen** (`ReminderCarAppService`) | compiled in, declared | absent |
+| Android Auto **notification** mirror | yes | yes |
 
-Sources live in `android-plugin/flavor/<flavor>/`; `setup-android.mjs` copies them
-into `android/app/src/<flavor>/` and injects the `productFlavors` block. The shared
+The car screen is split out because a templated Auto app has to declare one of Auto's
+approved categories and a reminder app is none of them, so declaring one would put an
+Auto review in the path of every Play release. Mirroring notifications into the car
+needs no category and stays in both. See `store/play-readiness.md` #1a.
+
+Sources live in `android-plugin/flavor/<flavor>/`, and direct-only Kotlin files are
+listed in `setup-android.mjs`'s `DIRECT_ONLY_KT`; the script copies both into
+`android/app/src/<flavor>/` and injects the `productFlavors` block. The shared
 `MainActivity` calls `FlavorPlugins.register(this)` rather than naming
 `UpdatePlugin`, which only exists in one flavor.
 
 **Never publish the `direct` build to Play** — `REQUEST_INSTALL_PACKAGES` plus a
-self-updater is a Device and Network Abuse violation. To confirm what a build
-actually contains:
+self-updater is a Device and Network Abuse violation, and the car screen would draw an
+Auto review. CI asserts both on every release. To confirm what a build actually
+contains:
 
 ```bash
-grep -c REQUEST_INSTALL_PACKAGES \
+grep -cE 'REQUEST_INSTALL_PACKAGES|androidx.car.app.CarAppService' \
   android/app/build/intermediates/packaged_manifests/playRelease/AndroidManifest.xml   # expect 0
 ```
 

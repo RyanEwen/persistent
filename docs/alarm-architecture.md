@@ -353,9 +353,11 @@ hold and no sound replays):
 
 A fired reminder is invisible while the user is driving with Android Auto (AA), so
 the native client **projects nags into the car** and lets the user act on them by
-voice. This is **notification-only** (no `CarAppService` / templated car screen — a
-reminder app is not an approved AA distribution category); the phone/Wear keep the
-full hard-alarm guarantee unchanged.
+voice, and the sideloaded build adds a **templated car screen** listing the whole
+on-device set. The phone/Wear keep the full hard-alarm guarantee unchanged.
+
+The two halves divide by *time*, and that division is the point: **notifications are
+for what is happening**, the **car screen is for everything else**.
 
 - **AA surfaces only `MessagingStyle` notifications** that carry a reply action
   (`SEMANTIC_ACTION_REPLY` + a single `RemoteInput`, `showsUserInterface=false`) and a
@@ -364,13 +366,32 @@ full hard-alarm guarantee unchanged.
   `res/xml/automotive_app_desc.xml` (`<uses name="notification"/>`).
 - **Gated on active projection.** The phone shade notification is heavily tuned, so we
   do **not** permanently convert it. `CarProjection` observes `androidx.car.app`'s
-  `CarConnection`; only while it reports `CONNECTION_TYPE_PROJECTION` does
+  `CarConnection`; only while it reports `CONNECTION_TYPE_PROJECTION` can
   `AlarmService.buildNotification` add a MessagingStyle mirror + the two **invisible**
   car actions (`addCarProjection`). Off the car the notification is byte-identical to
-  before. When projection flips, `CarProjection` fires `ACTION_RESTYLE` so live nags
-  gain/lose the car form immediately (same re-post path used for prominence changes).
-  A cold-process first post can briefly be normal-style before the async `CarConnection`
-  value arrives; the resulting restyle re-posts it within ~a second.
+  before.
+- **Projecting is not on its own enough to mirror a nag** (`AlarmService.mirrorsToCar`).
+  Connecting used to re-style *every* live nag at once, and each one then reached the
+  car as a brand-new message — so starting the car replayed the entire backlog as a
+  burst of heads-up cards. A nag is mirrored only if it **genuinely alerted since
+  projection began**: its first fire, or a follow-up nag (`alertedAt`, stamped in
+  `startAlarm` when not silent and in `startReNotifyLoop` — never by the incidental
+  re-posts: keep-alive, swipe-reshow, text/style refresh, peek). Two riders:
+  - a **ringing alarm always mirrors** — it is sounding on the phone right now, and it
+    is the one thing a driver must not miss;
+  - `CONNECT_GRACE_MS` **before** the connect instant counts as after it, because
+    `CarConnection` is observed asynchronously and a fire that starts the process while
+    already projecting can beat the flag by a second or two.
+
+  Because the answer is derived from timestamps rather than stored, the incidental
+  re-posts can't flip it either way. `alertedAt` is in-memory on purpose: a fresh
+  process has genuinely alerted for nothing yet, which is the correct answer after a
+  cold start (in particular after a silent `ensureNags` restore).
+- **The two projection edges are asymmetric.** Connecting fires `ACTION_MIRROR_CAR`
+  (`mirrorLiveToCar` → `mirrorEligibleToCar`), which re-posts *only* what qualifies —
+  in place, since the car form never moves a notification between channels.
+  Disconnecting fires `ACTION_RESTYLE` (`restyleAll`), which re-posts *everything*,
+  because every nag that did gain the car form has to lose it again.
 - **Managing from the car is the reply channel.** AA gives no arbitrary buttons, so the
   reply `RemoteInput` is how the user acts: `AlarmReceiver.ACTION_CAR_REPLY` →
   `AlarmService.handleCarReply` parses the spoken/typed text — "done/finished/..." →
@@ -388,12 +409,55 @@ full hard-alarm guarantee unchanged.
   capability; in-car an alarm shows as an urgent messaging heads-up (AA's own chime +
   Assistant read-aloud). The real looping alarm + full-screen UI still fire on the phone.
 
+### The car screen (`direct` flavor only)
+
+`ReminderCarAppService` is a templated AA app showing the whole on-device set, so the
+backlog that connecting no longer announces is still *findable* — read at the driver's
+own pace instead of pushed at them all at once.
+
+- **Direct flavor only**, alongside `UpdatePlugin` and for the same kind of reason: a
+  templated car app must declare one of AA's approved categories, and a reminder app is
+  none of them (navigation / parking / charging / POI / IOT / settings / messaging /
+  calling / weather), so shipping it in the Play AAB would risk an Auto review rejection
+  on every release. The sideloaded build declares `SETTINGS`, the closest fit of a bad
+  set. The **notification** mirror above needs no category and stays in *both* flavors.
+  Sources are listed in `setup-android.mjs`'s `DIRECT_ONLY_KT`; the service is declared
+  in `flavor/direct/AndroidManifest.xml`. Seeing it needs AA's developer setting "Add
+  new apps to launcher", as any sideloaded car app does.
+- **Screens**: `ReminderListScreen` (root — "Needs attention" / "Coming up" sections) →
+  `ReminderDetailScreen` (body + Done / Snooze, De-escalate on the action strip when
+  `AlarmService.isSilenceable`) → `CarSnoozeScreen` (fixed durations; typing a number
+  is not a driving task, and the voice reply already parses an arbitrary one). Three
+  screens deep, inside AA's five-step task limit.
+- **Done sits one screen in from the list.** The phone's shade action wants a second
+  confirming tap because a notification can be brushed in a pocket; reaching a
+  reminder's own screen is that same guard by another route — two intentional taps —
+  without repeating the confirm dance on a surface where reading costs road attention.
+  Actions appear only for a firing that has actually happened, matching the
+  notification surface.
+- **Data**: `CarReminders` reads `AlarmStore` (everything due, plus the server's 48-hour
+  window) and `AlarmService`'s live sets, so the list works offline and with the WebView
+  dead, exactly as the alarms do — no car fetch, no new endpoint, and nothing that can
+  disagree with what the phone is about to ring. `::esc` twins are folded away (an
+  escalation upgrades the base occurrence in place). Acting routes through the same
+  `AlarmService` companion entry points the notification actions use, so a car Done
+  reaches the server and re-arms locally with no separate path.
+- **Redraw is pushed, not polled**: `CarListRefresh` (a package-scoped broadcast) is
+  fired wherever the set changes — a fire, an ack, a de-escalation, a resync — and each
+  screen listens for it on its own lifecycle. The sender is shared code, so in the
+  `play` build it is a send with nobody home; that is deliberate, so no caller has to
+  know whether a car screen was compiled in.
+- **Head units cap list length** (`ConstraintManager.CONTENT_LIMIT_TYPE_LIST`, lower
+  while driving). The list truncates to it and says so in the section header — a short
+  list must never be mistaken for a complete one.
+
 The car dependency is minSdk 23 while the app floor is 22; `tools:overrideLibrary` in
 the manifest reconciles that (AA needs 23+ anyway, and `CarProjection.init` is
 SDK-guarded). `setup-android.mjs` injects `androidx.car.app:app` and copies
 `android-res/xml/automotive_app_desc.xml` into `res/xml/`. **Runtime verification needs
 the Desktop Head Unit (DHU) or a real car** — it can't be exercised in the devcontainer;
-`npm run verify:android` only confirms it compiles/wires.
+`npm run verify:android` only confirms it compiles/wires (and that the car screen is
+absent from the `play` flavor).
 
 ## Push channels
 

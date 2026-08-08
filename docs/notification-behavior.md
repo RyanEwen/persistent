@@ -226,8 +226,17 @@ alarm right now. It is also the only firing that gets a loud card
 While the phone is projecting to Android Auto, the native notification is mirrored
 into the car (as a `MessagingStyle` notification — the only form Auto surfaces).
 This is a **projection of the native surface, not a new outcome**: the same three
-actions apply and converge to the same server state as everywhere else. Because Auto
-offers no arbitrary buttons, the user acts by **voice reply**:
+actions apply and converge to the same server state as everywhere else.
+
+**Only what is happening pops up.** Starting the car is not itself an event, so a nag
+that was already on screen when the drive began does not announce itself in the car;
+what fires, nags or rings *during* the drive does, as it happens. A ringing alarm is
+the exception — it is sounding right now, so it appears the moment the car connects.
+Nothing about this changes the guarantee: an unannounced nag is still `FIRED` and
+still nagging on the phone, and it is listed in full on the car screen (§5b).
+
+Because Auto offers no arbitrary buttons on a notification, the user acts on one by
+**voice reply**:
 
 - "done" / "finished" / "all done" → **Done** (acknowledges). This is the one place
   Done is *not* a two-tap confirm — a spoken Done is inherently deliberate and there
@@ -244,6 +253,25 @@ the car exactly as on every other surface. A continuously-looping alarm tone is 
 an Auto capability, so in-car an alarm is an urgent messaging heads-up (Auto's chime
 + read-aloud) while the real looping alarm keeps ringing on the phone. See
 [`alarm-architecture.md`](alarm-architecture.md) (Android Auto) for the mechanism.
+
+## 5b. The Android Auto screen — the list, at the driver's pace
+
+The sideloaded build also carries a car screen listing everything the device knows
+about: what is nagging now under **Needs attention**, and the next 48 hours under
+**Coming up**. It is the counterpart to the rule above — notifications carry what is
+happening, this carries everything else — and it is why a standing nag can stay quiet
+when the car starts without becoming lost.
+
+Opening a reminder there shows its full body (its **unticked** items, as everywhere)
+and offers **Done** and **Snooze**, plus **De-escalate** when an escalation is actually
+ringing. Same three actions, same server state, same guarantee: only Done clears a
+firing. Done sits one screen in from the list rather than on the list itself — the
+deliberateness the phone gets from its two-tap confirm, without asking a driver to
+read a confirmation. A reminder that has not fired yet offers no actions, exactly as
+it has no notification to act on.
+
+The Play build does not ship this screen (Android Auto has no app category a reminder
+app can honestly claim); the notification mirror above is in both builds.
 
 ## 5a. Windows tray app — the same actions, on a toast
 

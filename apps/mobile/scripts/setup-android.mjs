@@ -40,10 +40,21 @@ if (!existsSync(join(mobileRoot, 'android'))) {
 }
 
 // --- 1. Copy the Kotlin sources ---------------------------------------------
-// UpdatePlugin is the exception: it installs downloaded APKs, which Google Play
-// forbids, so it belongs to the `direct` flavor's source set rather than main
-// (see step 1b). Everything else is shared.
-const DIRECT_ONLY_KT = new Set(['UpdatePlugin.kt'])
+// Most sources are shared. The exceptions belong to the `direct` flavor's source set
+// rather than main (see step 1b), each because Google Play would object to it:
+//   - UpdatePlugin installs downloaded APKs, which Play forbids outright.
+//   - The Android Auto car screen must declare one of Auto's approved app categories,
+//     and a reminder app is none of them — so it stays out of the reviewed build
+//     rather than risking a rejection. (The Auto *notification* mirror needs no
+//     category and stays shared.)
+const DIRECT_ONLY_KT = new Set([
+  'UpdatePlugin.kt',
+  'ReminderCarAppService.kt',
+  'ReminderListScreen.kt',
+  'ReminderDetailScreen.kt',
+  'CarSnoozeScreen.kt',
+  'CarReminders.kt'
+])
 
 mkdirSync(alarmPkgDir, { recursive: true })
 const kotlinFiles = readdirSync(pluginDir)

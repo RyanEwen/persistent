@@ -40,6 +40,13 @@ class AlarmService : Service() {
     private val confirming = HashSet<String>()
     // First-post time per occurrence, pinned so re-posts don't reorder the shade.
     private val postedAt = HashMap<String, Long>()
+    // When each occurrence last GENUINELY alerted — its first fire, or a follow-up nag.
+    // Deliberately NOT stamped by the incidental re-posts (keep-alive, swipe-reshow,
+    // style/text refresh, peek), which is what separates "this reminder is happening"
+    // from "this reminder is still on screen". Only the car mirror reads it; see
+    // [mirrorsToCar]. In-memory on purpose: a fresh process has genuinely alerted for
+    // nothing yet, so an empty map is the correct answer after a cold start.
+    private val alertedAt = HashMap<String, Long>()
     private val loops = HashMap<String, Runnable>()
     private var player: MediaPlayer? = null
     private var continuousAlarm = false
@@ -171,6 +178,16 @@ class AlarmService : Service() {
                     clearAll()
                 } else {
                     repostActive()
+                }
+            }
+            ACTION_MIRROR_CAR -> {
+                // Android Auto just connected. Only the nags that are actually happening
+                // gain the car form; the backlog is left alone (see mirrorEligibleToCar).
+                if (active.isEmpty()) {
+                    startForeground(SENTINEL_ID, placeholderNotification())
+                    clearAll()
+                } else {
+                    mirrorEligibleToCar()
                 }
             }
             ACTION_ENSURE -> ensureNags()
@@ -306,8 +323,17 @@ class AlarmService : Service() {
         // isn't reshuffled by bookkeeping. A real nag deliberately re-stamps it
         // (startReNotifyLoop): whatever fired or nagged most recently belongs on top.
         postedAt.getOrPut(spec.occurrenceId) { System.currentTimeMillis() }
+        // A genuine fire, as opposed to the silent keep-alive re-assert that only
+        // maintains an already-showing nag. Stamped BEFORE the notification is built,
+        // because it's what tells buildNotification whether this nag belongs in the car.
+        if (!silent) alertedAt[spec.occurrenceId] = System.currentTimeMillis()
         activeIds.add(spec.occurrenceId)
         if (spec.alarm) alarmIds.add(spec.occurrenceId) else alarmIds.remove(spec.occurrenceId)
+        // An escalation upgrades the base occurrence in place and arrives carrying
+        // canSilence, so the live spec — not the pre-escalation one still in AlarmStore —
+        // is the only place that knows this ring can be quieted back to a nag.
+        if (spec.alarm && spec.canSilence) silenceableIds.add(spec.occurrenceId)
+        else silenceableIds.remove(spec.occurrenceId)
 
         val notif = buildNotification(spec)
         if (foregroundId == null) {
@@ -333,6 +359,7 @@ class AlarmService : Service() {
         )
         if (silent || debounced) {
             updateGroupSummary()
+            CarListRefresh.notifyChanged(this)
             return
         }
         AlarmStore.markSoundedNow(this, spec.occurrenceId, now)
@@ -350,6 +377,7 @@ class AlarmService : Service() {
             if (spec.soundIntervalSeconds > 0) startReNotifyLoop(spec)
         }
         updateGroupSummary()
+        CarListRefresh.notifyChanged(this)
     }
 
     /**
@@ -484,6 +512,7 @@ class AlarmService : Service() {
         val downgraded = spec.copy(alarm = false, canSilence = false)
         active[occurrenceId] = downgraded
         alarmIds.remove(occurrenceId)
+        silenceableIds.remove(occurrenceId)
         val notif = buildNotification(downgraded)
         if (foregroundId == occurrenceId) startForeground(notifId(occurrenceId), notif)
         else nm.notify(notifId(occurrenceId), notif)
@@ -495,6 +524,7 @@ class AlarmService : Service() {
         dismissAlarmSurface(occurrenceId)
         // A downgraded alarm may now sit on a (minimized) channel, changing the group.
         updateGroupSummary()
+        CarListRefresh.notifyChanged(this)
     }
 
     /**
@@ -597,6 +627,61 @@ class AlarmService : Service() {
             }
         }
         updateGroupSummary()
+        // A resync can have renamed a live reminder or re-cut its checklist body; the
+        // car list renders the same text, so it has to redraw too.
+        CarListRefresh.notifyChanged(this)
+    }
+
+    /**
+     * Whether the post being built should carry its Android Auto mirror.
+     *
+     * Projecting is not on its own a reason to put a nag in front of a driver.
+     * Connecting to Android Auto used to re-style EVERY live nag into the car form at
+     * once, and each one then reached the car as a brand-new message — so starting the
+     * car replayed the whole backlog as a burst of heads-up cards. A nag is mirrored
+     * only if it actually alerted (first fire, or a follow-up nag) since projection
+     * began: the car shows reminders as they happen, and the standing backlog lives
+     * where it can be read at leisure instead — the car app's own list
+     * (`ReminderCarAppService`, direct flavor).
+     *
+     * Two things ride along with "since":
+     * - **A ringing alarm always mirrors.** It is sounding on the phone right now, so it
+     *   is happening by any reading, and it's the one thing a driver must not miss.
+     * - **[CONNECT_GRACE_MS] before the connect instant counts as after it.**
+     *   `CarConnection` is observed asynchronously, so a fire that starts the process
+     *   while the phone is *already* projecting can land a second or two before
+     *   `projecting` flips true. Without the grace window that fire would be misread as
+     *   backlog and never reach the car at all.
+     *
+     * Because the answer is derived from timestamps rather than stored, the incidental
+     * re-posts (keep-alive, swipe-reshow, text/style refresh, peek) can't change it:
+     * a mirrored nag stays mirrored and an un-mirrored one stays quiet.
+     */
+    private fun mirrorsToCar(spec: AlarmSpec): Boolean {
+        if (!CarProjection.projecting) return false
+        if (spec.alarm) return true
+        val alerted = alertedAt[spec.occurrenceId] ?: return false
+        return alerted >= CarProjection.projectingSince - CONNECT_GRACE_MS
+    }
+
+    /**
+     * Android Auto just connected: re-post only the nags that qualify for the car right
+     * now (see [mirrorsToCar]) — in practice a ringing alarm, or one that fired in the
+     * moment the connection was coming up. Every other live notification already carries
+     * the correct, un-mirrored form, so it is left untouched and never reaches the car
+     * as a fresh message.
+     *
+     * In place rather than cancel + re-post: the car form doesn't move a notification
+     * between channels, so there is nothing a swap would fix, and an in-place update
+     * keeps the phone shade's ordering.
+     */
+    private fun mirrorEligibleToCar() {
+        for ((id, spec) in active) {
+            if (!mirrorsToCar(spec)) continue
+            android.util.Log.i("PersistAlarm", "car mirror occ=$id alarm=${spec.alarm}")
+            val notif = buildNotification(spec)
+            if (foregroundId == id) startForeground(notifId(id), notif) else nm.notify(notifId(id), notif)
+        }
     }
 
     /**
@@ -822,7 +907,7 @@ class AlarmService : Service() {
         if (channel != CHANNEL_MINIMIZED && channel != CHANNEL_PEEK) {
             builder.setGroup(GROUP_KEY).setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
         }
-        if (CarProjection.projecting) {
+        if (mirrorsToCar(spec)) {
             addCarProjection(builder, spec, posted)
         } else if (!awaitingConfirm && spec.body.isNotBlank()) {
             // setContentText alone collapses the body to a single ellipsized line even
@@ -963,7 +1048,11 @@ class AlarmService : Service() {
         val runnable = object : Runnable {
             override fun run() {
                 val current = active[spec.occurrenceId] ?: return
-                postedAt[current.occurrenceId] = System.currentTimeMillis()
+                val now = System.currentTimeMillis()
+                postedAt[current.occurrenceId] = now
+                // A follow-up nag is a genuine alert, so it's also what earns a nag its
+                // place in the car when Android Auto is already running (see mirrorsToCar).
+                alertedAt[current.occurrenceId] = now
                 nm.notify(notifId(current.occurrenceId), buildNotification(current, renotify = true))
                 playNotificationSound(current.nagSoundUri.ifEmpty { current.soundUri })
                 handler.postDelayed(this, intervalMs)
@@ -994,8 +1083,10 @@ class AlarmService : Service() {
         active.remove(occurrenceId)
         confirming.remove(occurrenceId)
         postedAt.remove(occurrenceId)
+        alertedAt.remove(occurrenceId)
         activeIds.remove(occurrenceId)
         alarmIds.remove(occurrenceId)
+        silenceableIds.remove(occurrenceId)
         loops.remove(occurrenceId)?.let { handler.removeCallbacks(it) }
         nm.cancel(notifId(occurrenceId))
         // Done/Snooze/dismiss for this occurrence — close its full-screen surface too.
@@ -1015,6 +1106,7 @@ class AlarmService : Service() {
             return
         }
         updateGroupSummary()
+        CarListRefresh.notifyChanged(this)
         // Re-bind the foreground notification if the cleared one was holding it.
         if (foregroundId == occurrenceId) {
             active.values.lastOrNull()?.let { bindForeground(it) }
@@ -1036,11 +1128,14 @@ class AlarmService : Service() {
         active.clear()
         confirming.clear()
         postedAt.clear()
+        alertedAt.clear()
         activeIds.clear()
         alarmIds.clear()
+        silenceableIds.clear()
         foregroundId = null
         nm.cancel(GROUP_SUMMARY_ID)
         dismissAlarmSurface(null)
+        CarListRefresh.notifyChanged(this)
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -1128,6 +1223,7 @@ class AlarmService : Service() {
         const val ACTION_RESTYLE = "ca.persistent.app.SERVICE_RESTYLE"
         const val ACTION_REFRESH = "ca.persistent.app.SERVICE_REFRESH"
         const val ACTION_ENSURE = "ca.persistent.app.SERVICE_ENSURE"
+        const val ACTION_MIRROR_CAR = "ca.persistent.app.SERVICE_MIRROR_CAR"
         const val ACTION_SNOOZE_LOCAL = "ca.persistent.app.SERVICE_SNOOZE_LOCAL"
         const val EXTRA_SNOOZE_MINUTES = "snoozeMinutes"
         const val DEFAULT_SNOOZE_MINUTES = 10
@@ -1157,6 +1253,10 @@ class AlarmService : Service() {
         // ...at most this often.
         private const val PEEK_INTERVAL_MS = 60 * 60_000L
         private const val PEEK_KEY = "__peek__"
+        // How far before the Android Auto connect instant a genuine alert still counts as
+        // having happened "since" it — CarConnection is observed asynchronously, so a fire
+        // that starts the process while already projecting can beat the flag by a moment.
+        private const val CONNECT_GRACE_MS = 60_000L
         private const val SENTINEL_ID = 4201
         // Group key + summary id that bundle the non-minimized reminders into one
         // status-bar icon (see updateGroupSummary / buildNotification).
@@ -1168,8 +1268,21 @@ class AlarmService : Service() {
         // a resync can re-arm future alarms without re-firing ones already on screen.
         val activeIds: MutableSet<String> = java.util.Collections.synchronizedSet(LinkedHashSet())
         val alarmIds: MutableSet<String> = java.util.Collections.synchronizedSet(LinkedHashSet())
+
+        /**
+         * Of the ringing ones, which can be de-escalated back to a soft nag — mirroring
+         * the `alarm && canSilence` test the notification's own De-escalate action makes
+         * on the live spec, for surfaces that can't reach it.
+         *
+         * It has to be published from here rather than read back from [AlarmStore],
+         * because an escalation upgrades the base occurrence *in place*: the live spec
+         * carries `canSilence`, while the store still holds the pre-escalation spec that
+         * says it can't.
+         */
+        val silenceableIds: MutableSet<String> = java.util.Collections.synchronizedSet(LinkedHashSet())
         fun isActive(occurrenceId: String): Boolean = activeIds.contains(occurrenceId)
         fun isAlarmActive(occurrenceId: String): Boolean = alarmIds.contains(occurrenceId)
+        fun isSilenceable(occurrenceId: String): Boolean = silenceableIds.contains(occurrenceId)
 
         /**
          * Clear any live notification whose occurrence isn't in the latest sync set
@@ -1199,13 +1312,28 @@ class AlarmService : Service() {
         }
 
         /**
-         * Re-post live notifications (used when Android Auto projection starts or stops,
-         * so each nag gains or loses its MessagingStyle car form). No-op when nothing is
-         * showing — off the car there's nothing to re-style.
+         * Re-post every live notification. Used when Android Auto projection *stops*, so
+         * any nag that gained the MessagingStyle car form loses it and gets its phone
+         * shade styling back. No-op when nothing is showing.
+         *
+         * Deliberately not the connect path — see [mirrorLiveToCar].
          */
         fun restyleAll(context: Context) {
             if (activeIds.isNotEmpty()) {
                 context.startService(Intent(context, AlarmService::class.java).setAction(ACTION_RESTYLE))
+            }
+        }
+
+        /**
+         * Android Auto projection just started. Re-posts only the nags that qualify for
+         * the car right now — a ringing alarm, or one that fired as the connection came
+         * up (see `mirrorsToCar`). Everything already on screen stays as it is, so
+         * starting the car no longer replays the standing backlog into it as a burst of
+         * fresh message cards; that list is what the car app's own screen is for.
+         */
+        fun mirrorLiveToCar(context: Context) {
+            if (activeIds.isNotEmpty()) {
+                context.startService(Intent(context, AlarmService::class.java).setAction(ACTION_MIRROR_CAR))
             }
         }
 
