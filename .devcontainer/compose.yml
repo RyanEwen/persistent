@@ -29,6 +29,9 @@ services:
     build:
       context: ..
       dockerfile: .devcontainer/Dockerfile
+    # Run tini as PID 1 so orphaned child processes are reaped instead of
+    # accumulating as zombies (a bare `sleep infinity` PID 1 never calls wait()).
+    init: true
     command: sleep infinity
     working_dir: /workspace/persistent
     group_add:

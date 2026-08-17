@@ -134,5 +134,5 @@ RUN printf 'export PATH="$PATH:%s"\nexport DOTNET_ROOT="%s"\n' /opt/dotnet /opt/
 # server before postCreate runs, so a postCreate chown is too late. Creating the
 # parent (and the extensions mountpoint) node-owned here fixes that.
 RUN set -eux; \
-    mkdir -p /home/node/.vscode-server/extensions; \
+    mkdir -p /home/node/.vscode-server/extensions /home/node/.vscode-server/data/agent-host /home/node/.vscode-server/data/agentSessionData; \
     chown -R node:node /home/node/.vscode-server
