@@ -580,6 +580,19 @@ and used in two places so it fires regardless of connectivity:
   fires on Android without FCM and while offline; it's cancelled together with
   the main alarm on ack/dismiss, and a Done on it acks the underlying occurrence.
 
+**A snooze does not un-escalate a firing** (`lib/device-alarms.ts`). Once a firing
+has escalated, its main alarm stays an alarm — including the one re-armed for the
+end of a snooze — because snoozing an alarm snoozes *the alarm*
+(`notification-behavior.md` §3). That is read off `escalatedAt`, never off the
+status, which is `SNOOZED` for the duration: reading the status re-armed a soft
+notification, and since the escalation instant sits *behind* the snooze the `::esc`
+twin was skipped too, so the ring only came back when the server's 60s sweep pushed
+it. A snooze long enough to outlast a still-*pending* escalation returns ringing for
+the same reason — `escalateAt` is anchored to the first fire and never reset by a
+snooze. **Silence** is the one thing that ends the ring for good, and it outranks
+both. The device's own local snooze (`AlarmService.snoozeLocal`) already kept the
+spec's fidelity; this is what stopped the next sync from overwriting it.
+
 ## Residual risk
 
 Aggressive OEM battery managers (Xiaomi, Samsung, etc.) can still defer alarms.

@@ -178,7 +178,11 @@ elapses (it does not silently degrade into a soft notification).
   it to `FIRED` and it nags again; if its escalation threshold has already
   passed, it escalates (rings) again immediately — i.e. you snoozed the alarm.
 - Native: cancels the current notification/alarm and re-arms the on-device alarm
-  to fire `now + minutes`, so it still works offline.
+  to fire `now + minutes`, so it still works offline. The re-armed alarm keeps the
+  fidelity of the one snoozed — an escalated firing comes back **ringing**, not as a
+  nag, and a snooze that outlasts a pending escalation comes back ringing too
+  (`lib/device-alarms.ts` reads `escalatedAt`, not the `SNOOZED` status). Silence is
+  the only thing that ends the ring for this firing.
 - The escalation backstop stays anchored to the original fire, never reset by a
   snooze (escalation is a hard backstop, not a thing you can indefinitely defer
   by snoozing).

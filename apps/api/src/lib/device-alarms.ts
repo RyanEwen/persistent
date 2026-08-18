@@ -20,6 +20,10 @@ interface OccurrenceForAlarm {
   status: string
   scheduledFor: Date
   snoozedUntil: Date | null
+  /** When this firing escalated, if it has. Survives a snooze — see `ringing` below. */
+  escalatedAt: Date | null
+  /** Set once the user has silenced the escalation: it must never ring again. */
+  escalationSilencedAt: Date | null
   /** This firing's checklist ticks (loose JSON column) — ticked items drop off the body. */
   checkedItems: unknown
   reminder: Reminder
@@ -37,8 +41,31 @@ export function buildDeviceAlarms(occurrence: OccurrenceForAlarm, escalateAt: Da
     ? occurrence.snoozedUntil
     : occurrence.scheduledFor
   ).getTime()
-  // ALARM persistence always rings; an already-escalated occurrence also rings.
-  const alarm = reminder.persistence === 'ALARM' || occurrence.status === 'ESCALATED'
+  // Whether the device should RING at `fireAtMs` rather than post a soft nag.
+  //
+  // "Has this firing escalated?" is asked of `escalatedAt`, not of the status, because
+  // **snoozing an alarm snoozes the alarm** (docs/notification-behavior.md §3): the
+  // status is SNOOZED for the duration, but what comes back is the alarm that was
+  // snoozed, not a nag. Reading the status alone re-armed a soft notification and
+  // dropped the escalation alarm (its instant is behind the snooze, so the guard
+  // below skips it) — a snooze silently de-escalated the firing on-device until the
+  // server's 60s sweep pushed the escalation back.
+  //
+  // A snooze long enough to outlast a *pending* escalation ends in one too, for the
+  // same reason and by the same rule the server sweep applies: `escalateAt` is
+  // anchored to the first fire and never reset by a snooze, so once it is behind the
+  // return time the firing returns escalated. Only a snoozed firing can be in that
+  // position — an escalation instant is always strictly after the fire it belongs to.
+  //
+  // Silence is what takes the ring away for good: it says "stop yelling, keep
+  // reminding me", so it outranks both.
+  const snoozed = occurrence.status === 'SNOOZED' && occurrence.snoozedUntil != null
+  const escalationDueOnReturn = snoozed && escalateAt != null && escalateAt.getTime() <= fireAtMs
+  const ringing =
+    occurrence.escalationSilencedAt == null &&
+    (occurrence.status === 'ESCALATED' || occurrence.escalatedAt != null || escalationDueOnReturn)
+  // ALARM persistence always rings; so does anything currently escalated.
+  const alarm = reminder.persistence === 'ALARM' || ringing
   // Only the unticked checklist items: the device re-pulls this list whenever a tick
   // lands (the `/check` sync nudge), and re-posts the nag when the text drifts.
   const body = notificationBody(reminder, toCheckedItemIds(occurrence.checkedItems))
@@ -52,8 +79,10 @@ export function buildDeviceAlarms(occurrence: OccurrenceForAlarm, escalateAt: Da
     alarm,
     ongoing: true,
     // An escalation of a soft reminder can be silenced back to a nag; an inherent
-    // ALARM reminder cannot (no softer level to fall back to).
-    canSilence: reminder.persistence !== 'ALARM' && occurrence.status === 'ESCALATED',
+    // ALARM reminder cannot (no softer level to fall back to). Tracks `ringing`, so
+    // an alarm returning from a snooze can still be quietened — offering the ring
+    // without the way out of it would be the worse half of the bug above.
+    canSilence: reminder.persistence !== 'ALARM' && ringing,
     soundKind: alarm ? 'alarm' : 'notification',
     reminderId: occurrence.reminderId,
     shadeProminence: reminder.shadeProminence
@@ -64,8 +93,9 @@ export function buildDeviceAlarms(occurrence: OccurrenceForAlarm, escalateAt: Da
   // on-device: a looping alarm at the computed instant, cancelled together with the
   // main alarm on ack/dismiss. Guard that the instant is strictly after the main
   // fire — an escalation must never ring before its reminder does.
+  // Nothing already ringing needs one: the main alarm above IS the escalation.
   const escalateAtMs = escalateAt ? escalateAt.getTime() : 0
-  if (escalateAtMs > fireAtMs && occurrence.status !== 'ESCALATED') {
+  if (escalateAtMs > fireAtMs && !ringing) {
     alarms.push({
       ...main,
       occurrenceId: main.occurrenceId + ESC_SUFFIX,

@@ -26,6 +26,8 @@ function occurrence(overrides: Record<string, unknown> = {}) {
     status: 'FIRED',
     scheduledFor,
     snoozedUntil: null,
+    escalatedAt: null,
+    escalationSilencedAt: null,
     checkedItems: [],
     reminder: reminder(),
     ...overrides
@@ -74,10 +76,73 @@ test('a snoozed occurrence fires at snoozedUntil, not the scheduled time', () =>
 
 test('an already-escalated occurrence rings and adds no future escalation alarm', () => {
   const escalateAt = new Date(scheduledFor.getTime() + 15 * 60_000)
-  const alarms = buildDeviceAlarms(occurrence({ status: 'ESCALATED' }), escalateAt)
+  const alarms = buildDeviceAlarms(occurrence({ status: 'ESCALATED', escalatedAt: escalateAt }), escalateAt)
   assert.equal(alarms.length, 1)
   assert.equal(alarms[0]!.alarm, true)
   assert.equal(alarms[0]!.canSilence, true) // soft reminder escalated -> silenceable
+})
+
+// --- Snoozing an alarm snoozes the ALARM (docs/notification-behavior.md §3) -----
+
+test('snoozing an escalated firing brings the alarm back, not a soft nag', () => {
+  // The regression this guards: `status` is SNOOZED for the duration, so reading it
+  // alone re-armed a notification and dropped the escalation alarm (whose instant is
+  // behind the snooze) — the snooze quietly de-escalated the firing on-device.
+  const snoozedUntil = new Date(scheduledFor.getTime() + 30 * 60_000)
+  const alarms = buildDeviceAlarms(
+    occurrence({
+      status: 'SNOOZED',
+      snoozedUntil,
+      escalatedAt: new Date(scheduledFor.getTime() + 15 * 60_000)
+    }),
+    null
+  )
+  assert.equal(alarms.length, 1)
+  assert.equal(alarms[0]!.fireAtMs, snoozedUntil.getTime())
+  assert.equal(alarms[0]!.alarm, true)
+  assert.equal(alarms[0]!.soundKind, 'alarm')
+  // It has to be quietenable on the way back, or the ring has no way out.
+  assert.equal(alarms[0]!.canSilence, true)
+})
+
+test('a silenced escalation stays silent across a snooze', () => {
+  // Silence is "stop yelling, keep reminding me" — for this firing, for good.
+  const snoozedUntil = new Date(scheduledFor.getTime() + 30 * 60_000)
+  const alarms = buildDeviceAlarms(
+    occurrence({
+      status: 'SNOOZED',
+      snoozedUntil,
+      escalatedAt: new Date(scheduledFor.getTime() + 15 * 60_000),
+      escalationSilencedAt: new Date(scheduledFor.getTime() + 16 * 60_000)
+    }),
+    null
+  )
+  assert.equal(alarms.length, 1)
+  assert.equal(alarms[0]!.alarm, false)
+  assert.equal(alarms[0]!.canSilence, false)
+})
+
+test('a snooze that outlasts a pending escalation returns escalated', () => {
+  // Same rule the server sweep applies: escalateAt is anchored to the first fire and
+  // never reset by a snooze, so once it is behind the return time the firing returns
+  // ringing rather than as a nag the sweep has to escalate a minute later.
+  const escalateAt = new Date(scheduledFor.getTime() + 15 * 60_000)
+  const snoozedUntil = new Date(scheduledFor.getTime() + 30 * 60_000)
+  const alarms = buildDeviceAlarms(occurrence({ status: 'SNOOZED', snoozedUntil }), escalateAt)
+  assert.equal(alarms.length, 1) // no second ::esc alarm — this one already rings
+  assert.equal(alarms[0]!.alarm, true)
+  assert.equal(alarms[0]!.canSilence, true)
+})
+
+test('a snooze that ends before a pending escalation still returns as a nag', () => {
+  // The escalation is still ahead, so it rides its own ::esc alarm as usual.
+  const escalateAt = new Date(scheduledFor.getTime() + 60 * 60_000)
+  const snoozedUntil = new Date(scheduledFor.getTime() + 30 * 60_000)
+  const alarms = buildDeviceAlarms(occurrence({ status: 'SNOOZED', snoozedUntil }), escalateAt)
+  assert.equal(alarms.length, 2)
+  assert.equal(alarms[0]!.alarm, false)
+  assert.equal(alarms[1]!.fireAtMs, escalateAt.getTime())
+  assert.equal(alarms[1]!.alarm, true)
 })
 
 test("an armed alarm's body lists only the checklist items this firing has left", () => {
