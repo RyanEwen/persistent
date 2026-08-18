@@ -3,9 +3,14 @@
  * occurrence): the warning-styled card shown at the top of the reminders list.
  *
  * It pulls double duty as the reminder's list row — the info region links to the
- * reminder's detail view (like ReminderListItem) while the Done/Snooze/De-escalate
- * buttons act on the occurrence without navigating (they sit outside the link, not
- * nested in it). ("De-escalate" is the user-facing label for the silence action.)
+ * editor (in the app the user already has the reminder in front of them, so the
+ * detail view would be a stop on the way) while the Done/Snooze/De-escalate buttons
+ * act on the occurrence without navigating (they sit outside the link, not nested in
+ * it). ("De-escalate" is the user-facing label for the silence action.)
+ *
+ * The action row repeats that link as an icon-only Edit, and a checklist's add row
+ * writes the reminder's items: between them, the two things a nag most often needs —
+ * fix this, or add to this — no longer mean finding your way into the editor first.
  */
 import { Link as RouterLink } from 'react-router-dom'
 import Card from '@mui/joy/Card'
@@ -13,7 +18,7 @@ import Stack from '@mui/joy/Stack'
 import Box from '@mui/joy/Box'
 import Typography from '@mui/joy/Typography'
 import SnoozeIcon from '@mui/icons-material/Snooze'
-import { reminderBodyText, todoItems, type Occurrence, type Reminder } from '@persistent/shared'
+import { reminderBodyText, todoItems, type Occurrence, type Reminder, type TodoItem } from '@persistent/shared'
 import { formatWhen } from '../lib/datetime.js'
 import type { TimeFormat } from '../lib/datetime.js'
 import { TypeIcon } from './ReminderIcons.js'
@@ -32,6 +37,8 @@ export function AttentionReminderCard({
   onSilence,
   silenceLoading,
   onToggleItem,
+  onAddItem,
+  onReorderItems,
   onHideChecked
 }: {
   reminder: Reminder
@@ -43,6 +50,10 @@ export function AttentionReminderCard({
   onSilence: () => void
   silenceLoading: boolean
   onToggleItem: (itemId: string, checked: boolean) => void
+  /** Add an item to the checklist here rather than in the editor — see TodoChecklist. */
+  onAddItem: (item: TodoItem) => void
+  /** Store a new order for the checklist (the full id list) — also a reminder write. */
+  onReorderItems: (itemIds: string[]) => void
   /** Collapse/expand the ticked items. Stored on the reminder, so it holds across devices. */
   onHideChecked: (hidden: boolean) => void
 }) {
@@ -63,10 +74,11 @@ export function AttentionReminderCard({
           action buttons stacked on the right. The buttons sit beside the text rather
           than below it so they consume the text block's existing height instead of
           adding a row to the card.
-          The row wraps once the text would drop below 8.5rem — an escalated occurrence
-          carries a third button (De-escalate), which at phone widths would otherwise
-          crush the title and details to one word per line. Wrapping puts the chip and
-          buttons on their own right-aligned row instead.*/}
+          The row wraps once the text would drop below 8.5rem — the action row runs to
+          four controls on an escalated occurrence (icon Edit, De-escalate, icon Snooze,
+          Done), which at phone widths would otherwise crush the title and details to
+          one word per line. Wrapping puts the chip and buttons on their own
+          right-aligned row instead.*/}
       {/* The buttons stay outside the link so they act without navigating.
           Use Box (not Joy Link) so the nested Typography lines stay block-level —
           Joy Link forces descendant Typography inline, collapsing them onto one row. */}
@@ -103,6 +115,10 @@ export function AttentionReminderCard({
           <OccurrenceActions
             size="sm"
             doneLabel={doneLabel}
+            // The card body links to the editor too, but only as a whole-card tap —
+            // an explicit control is what makes editing findable, and it belongs
+            // with the other things you can do to what's on the card.
+            editHref={`/reminders/${reminder.id}/edit`}
             occurrence={occurrence}
             onDone={onDone}
             doneLoading={doneLoading}
@@ -121,6 +137,13 @@ export function AttentionReminderCard({
             items={items}
             checkedItemIds={occurrence.checkedItemIds}
             onToggle={onToggleItem}
+            // Adding writes the reminder, not this firing: the item joins the
+            // definition, so it turns up on every later firing too. It arrives
+            // unticked, so it also joins this nag's notification body.
+            onAddItem={onAddItem}
+            // Order is part of the definition too, so a drag here re-orders the list
+            // every later firing shows — and the lines of its notification body.
+            onReorder={onReorderItems}
             hideChecked={reminder.hideCheckedItems}
             onHideCheckedChange={onHideChecked}
           />

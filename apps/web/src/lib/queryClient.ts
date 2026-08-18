@@ -11,11 +11,15 @@
 import { QueryClient, QueryCache, MutationCache } from '@tanstack/react-query'
 import {
   extractErrorMessage,
+  withTodoItem,
+  withTodoOrder,
+  type AddTodoItemInput,
   type CheckItemInput,
   type HideCheckedInput,
   type Occurrence,
   type Reminder,
-  type ReminderInput
+  type ReminderInput,
+  type ReorderTodoItemsInput
 } from '@persistent/shared'
 import { apiFetch } from './apiClient.js'
 import { notify } from './toast.js'
@@ -61,6 +65,8 @@ export const mutationKeys = {
   silenceOccurrence: ['occurrences', 'silence'] as const,
   checkOccurrenceItem: ['occurrences', 'check'] as const,
   checkReminderItem: ['reminders', 'check'] as const,
+  addTodoItem: ['reminders', 'add-item'] as const,
+  reorderTodoItems: ['reminders', 'reorder-items'] as const,
   hideCheckedItems: ['reminders', 'hide-checked'] as const
 }
 
@@ -209,6 +215,50 @@ export function registerMutationDefaults(): void {
           const checked = reminder.checkedItemIds.filter((itemId) => itemId !== arg.itemId)
           return { ...reminder, checkedItemIds: arg.checked ? [...checked, arg.itemId] : checked }
         })
+      )
+      return { previous }
+    },
+    onError: rollback,
+    onSettled: invalidateReminders
+  })
+
+  // Adding an item from a card writes the reminder's *definition*, so it applies to
+  // the same cache the checklist is drawn from. Optimistic because the add row stays
+  // open for the next line: the item the user just typed has to be on the list
+  // before they type the next one, or they lose their place. `withTodoItem` skips an
+  // id the list already carries, mirroring the endpoint, so a replay can't double it.
+  queryClient.setMutationDefaults(mutationKeys.addTodoItem, {
+    mutationFn: ({ id, arg }: { id: string; arg: AddTodoItemInput }) =>
+      apiFetch(`/api/reminders/${id}/items`, { method: 'POST', body: JSON.stringify(arg) }),
+    onMutate: async ({ id, arg }: { id: string; arg: AddTodoItemInput }): Promise<RemindersSnapshot> => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.reminders })
+      const previous = reminders()
+      queryClient.setQueryData<Reminder[]>(queryKeys.reminders, (list) =>
+        (list ?? []).map((reminder) =>
+          reminder.id === id ? { ...reminder, typeData: withTodoItem(reminder.typeData, arg) } : reminder
+        )
+      )
+      return { previous }
+    },
+    onError: rollback,
+    onSettled: invalidateReminders
+  })
+
+  // Reordering writes the definition too, and applies to the same cache the checklist
+  // is drawn from. The card has already shown the new order under the user's finger, so
+  // this is what stops it flicking back to the old one before the server answers.
+  // `withTodoOrder` is the same ranking rule the endpoint applies, so the optimistic
+  // result and the stored one agree.
+  queryClient.setMutationDefaults(mutationKeys.reorderTodoItems, {
+    mutationFn: ({ id, arg }: { id: string; arg: ReorderTodoItemsInput }) =>
+      apiFetch(`/api/reminders/${id}/items/order`, { method: 'POST', body: JSON.stringify(arg) }),
+    onMutate: async ({ id, arg }: { id: string; arg: ReorderTodoItemsInput }): Promise<RemindersSnapshot> => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.reminders })
+      const previous = reminders()
+      queryClient.setQueryData<Reminder[]>(queryKeys.reminders, (list) =>
+        (list ?? []).map((reminder) =>
+          reminder.id === id ? { ...reminder, typeData: withTodoOrder(reminder.typeData, arg.itemIds) } : reminder
+        )
       )
       return { previous }
     },

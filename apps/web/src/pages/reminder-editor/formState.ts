@@ -20,6 +20,7 @@ import type {
 } from '@persistent/shared'
 import { isTimeless, selectableReminderTypes, todoItems } from '@persistent/shared'
 import { immediateSchedule, localCalendarDate, localTimeOfDay } from '../../lib/immediate-schedule.js'
+import { newTodoItemId } from '../../lib/todoItemId.js'
 import type { SchedulePreviewInput } from '../../lib/schedule-preview.js'
 
 export interface MedicationRow {
@@ -33,27 +34,15 @@ export function emptyMedication(): MedicationRow {
 }
 
 export interface TodoRow {
-  /** Stable id, minted here and kept for the life of the item (see `newTodoId`). */
+  /** Stable id, minted by `newTodoItemId` and kept for the life of the item. */
   id: string
   text: string
 }
 
-/**
- * A checklist item's id keys the per-occurrence checked set, so it has to be
- * unique and — crucially — *stable* across edits: renaming or reordering an item
- * must not move a tick onto a different one. So ids are minted once, here, and
- * carried through `fromReminder`/`toInput` untouched.
- *
- * `crypto.randomUUID` needs a secure context; the fallback keeps the editor
- * working on a plain-http origin rather than minting colliding ids.
- */
-export function newTodoId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
-  return `i${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`
-}
-
 export function emptyTodo(): TodoRow {
-  return { id: newTodoId(), text: '' }
+  // Ids are minted once and carried through `fromReminder`/`toInput` untouched, so
+  // renaming or reordering a row can't move a firing's tick onto another item.
+  return { id: newTodoItemId(), text: '' }
 }
 
 export interface FormState {

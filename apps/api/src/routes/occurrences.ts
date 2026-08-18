@@ -208,8 +208,9 @@ occurrencesRouter.post('/:id/check', async (request, response) => {
   // the second overwrites the first.
   //
   // `-` removes every matching element (so re-ticking can't duplicate, making the
-  // toggle idempotent for offline replays) and `||` appends. The only raw query in
-  // the codebase; the tagged template parameterizes, and `userId` still scopes it.
+  // toggle idempotent for offline replays) and `||` appends. Raw SQL is confined to
+  // the checklist writes that need this atomicity (the two in `routes/reminders.ts`
+  // are the others); the tagged template parameterizes, and `userId` still scopes it.
   const { itemId, checked } = parsed.data
   await prisma.$executeRaw`
     UPDATE "ReminderOccurrence"

@@ -186,6 +186,15 @@ export const medicationListSchema = z.array(medicationDataSchema).max(20)
 export type MedicationList = z.infer<typeof medicationListSchema>
 
 /**
+ * Bounds on one checklist. Both are exported because the surfaces that *add* an
+ * item enforce them before the write — the add row on a card stops offering
+ * itself at the cap, and its input stops accepting text at the length — so the
+ * user meets the limit as a limit rather than as a rejected request.
+ */
+export const MAX_TODO_ITEMS = 50
+export const MAX_TODO_ITEM_TEXT = 200
+
+/**
  * One item on a TODO reminder's checklist.
  *
  * `id` is a client-minted stable key, not an index: the checked set lives on the
@@ -195,12 +204,12 @@ export type MedicationList = z.infer<typeof medicationListSchema>
  */
 export const todoItemSchema = z.object({
   id: z.string().trim().min(1).max(64),
-  text: z.string().trim().min(1).max(200)
+  text: z.string().trim().min(1).max(MAX_TODO_ITEM_TEXT)
 })
 export type TodoItem = z.infer<typeof todoItemSchema>
 
 /** A TODO reminder's checklist. Stored in typeData under `items`. */
-export const todoItemListSchema = z.array(todoItemSchema).max(50)
+export const todoItemListSchema = z.array(todoItemSchema).max(MAX_TODO_ITEMS)
 export type TodoItemList = z.infer<typeof todoItemListSchema>
 
 /** Loose JSON bag for per-type fields; medication uses `medicationDataSchema`, todo `todoItemSchema`. */
@@ -239,6 +248,25 @@ export function formatMedications(typeData: TypeData): string {
 export function todoItems(typeData: TypeData): TodoItem[] {
   const parsed = todoItemListSchema.safeParse((typeData ?? {}).items ?? [])
   return parsed.success ? parsed.data : []
+}
+
+/**
+ * `typeData` with one item appended to its checklist — the client-side mirror of
+ * what `POST /api/reminders/:id/items` stores, used to apply a card's "Add item"
+ * to the cache optimistically.
+ *
+ * An id the list already carries is returned unchanged rather than appended
+ * twice, which is the same rule the endpoint's own statement encodes: ids are
+ * client-minted, so a duplicate id *is* the same item arriving twice.
+ *
+ * Every other key in the bag is carried through untouched — a reminder that was
+ * once a medication still holds its doses, and adding a checklist line is not the
+ * write that should throw them away.
+ */
+export function withTodoItem(typeData: TypeData, item: TodoItem): TypeData {
+  const items = todoItems(typeData)
+  if (items.some((existing) => existing.id === item.id)) return typeData
+  return { ...typeData, items: [...items, item] }
 }
 
 /**
@@ -517,6 +545,57 @@ export const checkItemInputSchema = z.object({
   checked: z.boolean()
 })
 export type CheckItemInput = z.infer<typeof checkItemInputSchema>
+
+/**
+ * Append one item to a reminder's checklist — the add row on a card, which saves
+ * opening the editor for the one thing a list needs most often.
+ *
+ * The **client mints the id**, exactly as the editor does, and here that is also
+ * what makes the write idempotent: the server ignores an id the list already
+ * carries, so an add replayed after an offline stretch cannot append the item
+ * twice. One item at a time rather than "here is the whole list", for the same
+ * reason a tick is per item — a whole-list write replayed stale would drop
+ * whatever was added in the meantime, and a card has no business restating a
+ * definition it only shows part of.
+ */
+export const addTodoItemInputSchema = todoItemSchema
+export type AddTodoItemInput = z.infer<typeof addTodoItemInputSchema>
+
+/**
+ * Reorder a reminder's checklist — the drag handles on a card, so the order a list
+ * is worked through can be changed where it is being worked through.
+ *
+ * The body is a **ranking, not a replacement**, and the server applies it as one:
+ * items are sorted by their position in `itemIds`, an id that no longer exists is
+ * ignored, and an item the list has gained since (added on another device, or by the
+ * user between the drag and its arrival) keeps its place at the end rather than being
+ * dropped. That is what makes a stale replay safe — the worst it can do is reshuffle,
+ * where a whole-list write would silently delete whatever it hadn't heard about.
+ *
+ * Reordering never touches a tick. Ids are stable precisely so that moving an item
+ * carries its ticked state with it (`todoItemSchema`).
+ */
+export const reorderTodoItemsInputSchema = z.object({
+  itemIds: z.array(z.string().trim().min(1).max(64)).max(MAX_TODO_ITEMS)
+})
+export type ReorderTodoItemsInput = z.infer<typeof reorderTodoItemsInputSchema>
+
+/**
+ * `typeData` with its checklist re-sorted by `itemIds` — the optimistic-cache mirror
+ * of `POST /api/reminders/:id/items/order`, and the single statement of the ranking
+ * rule the endpoint's SQL encodes.
+ */
+export function withTodoOrder(typeData: TypeData, itemIds: readonly string[]): TypeData {
+  const items = todoItems(typeData)
+  const rank = new Map(itemIds.map((id, index) => [id, index]))
+  // Anything unranked sorts after everything ranked, keeping its own relative order:
+  // it is either new or unknown to whoever sent this, and both mean "leave it be".
+  const ordered = items
+    .map((item, index) => ({ item, index, rank: rank.get(item.id) ?? Number.POSITIVE_INFINITY }))
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map((entry) => entry.item)
+  return { ...typeData, items: ordered }
+}
 
 /**
  * Collapse or expand the ticked items on one reminder's checklist.

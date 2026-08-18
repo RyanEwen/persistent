@@ -65,6 +65,12 @@ a repeating checklist starts each firing blank. A firing's notification body is 
 **unticked** items only — a nag is about what is left, so ticking one drops it off
 every channel and off the on-device alarm. Ticking every item does *not*
 acknowledge the firing — only Done does (`docs/notification-behavior.md` §1a).
+An item can be **added from a card** as well as in the editor (`POST
+/api/reminders/:id/items`): it is an item either way, so it joins the definition and
+every later firing, arrives unticked, and changes no tick. The list can be **reordered
+from a card** too (`POST /api/reminders/:id/items/order`), which is a definition write
+for the same reason — sent as a *ranking* so a late one can reshuffle but never drop an
+item added meanwhile, and never touching a tick.
 **A note is the one exception**: it has no occurrences, so its ticks live on the
 reminder (`Reminder.checkedItems`, written by `POST /api/reminders/:id/check`) —
 legitimate precisely because there is no firing whose record they could contradict.

@@ -7,9 +7,12 @@
  */
 import { Router } from 'express'
 import {
+  addTodoItemInputSchema,
   checkItemInputSchema,
   hideCheckedInputSchema,
+  MAX_TODO_ITEMS,
   reminderInputSchema,
+  reorderTodoItemsInputSchema,
   todoItems,
   type TypeData
 } from '@persistent/shared'
@@ -129,6 +132,165 @@ remindersRouter.put('/:id', async (request, response) => {
   broadcast(userId, { type: 'reminder.changed', reminderId: reminder.id })
   void nudgeNativeSync(userId).catch((error) => logger.warn('sync nudge failed', { error: String(error) }))
   response.json({ reminder: toReminder(reminder) })
+})
+
+/**
+ * Append one item to this reminder's checklist.
+ *
+ * The add row on a card — Current's attention cards, a note, the detail view —
+ * exists so extending a list doesn't mean opening the editor. Kept off `PUT
+ * /api/reminders/:id` for the same reason `hide-checked` is: that endpoint
+ * replaces the whole definition from the editor form, so routing an added line
+ * through it would make a card restate every field it doesn't show, racing a real
+ * edit from another device.
+ *
+ * What it adds is an *item*, and items belong to the reminder — so it joins the
+ * definition and every later firing carries it. There is no per-firing item list
+ * to add to; only the *ticks* are per firing (docs/notification-behavior.md §1a),
+ * and this touches none of them.
+ */
+remindersRouter.post('/:id/items', async (request, response) => {
+  const userId = requireUserId(request)
+  const parsed = addTodoItemInputSchema.safeParse(request.body)
+  // A fixed message, like its sibling routes: the add row can't produce a blank or
+  // over-long item (it trims, and stops at the stored limit), so anything caught
+  // here is a client bug rather than something to explain in Zod's words.
+  if (!parsed.success) throw badRequest('Invalid checklist item.')
+
+  const existing = await prisma.reminder.findFirst({ where: { id: request.params.id, userId } })
+  if (!existing) throw notFound('Reminder not found.')
+  if (existing.type !== 'TODO') throw badRequest('This reminder has no checklist.')
+  // Read first for two reasons: a full list is refused with a sentence the user can
+  // act on, and the statement below manipulates `typeData.items` as jsonb, which
+  // raises on the wrong type rather than returning no rows. Postgres does not
+  // promise to evaluate WHERE clauses in order, so a `jsonb_typeof` guard *in the
+  // statement* cannot be relied on to run before `jsonb_array_length` — the shape
+  // has to be settled out here. Nothing reachable writes a malformed bag (the editor
+  // validates, this endpoint appends), and saving once in the editor repairs one.
+  const stored = (existing.typeData ?? {}) as { items?: unknown }
+  if (typeof stored !== 'object' || Array.isArray(stored) || (stored.items !== undefined && !Array.isArray(stored.items))) {
+    throw badRequest("This reminder's checklist needs saving in the editor before items can be added to it.")
+  }
+  if (todoItems(stored as TypeData).length >= MAX_TODO_ITEMS) {
+    throw badRequest(`A checklist holds at most ${MAX_TODO_ITEMS} items.`)
+  }
+
+  // Appended in ONE atomic statement, exactly as a tick is: the add row stays open
+  // for the next line, so two adds are routinely in flight together, and a
+  // read-modify-write would have both read the same list and the second overwrite
+  // the first — silently dropping an item the user watched appear.
+  //
+  // Both clauses carry a rule, not just the message above them: `@>` makes a
+  // replayed add a no-op (the client mints the id, so a duplicate id IS the same
+  // item arriving twice) and the length check holds the cap when two adds race at 49.
+  const { id: itemId, text } = parsed.data
+  const appended = await prisma.$executeRaw`
+    UPDATE "Reminder"
+    SET "typeData" = jsonb_set(
+          "typeData",
+          '{items}',
+          COALESCE("typeData" -> 'items', '[]'::jsonb) ||
+            jsonb_build_array(jsonb_build_object('id', ${itemId}::text, 'text', ${text}::text)),
+          true
+        ),
+        -- Bumped, unlike a tick's statement: this changes the definition, so an
+        -- older edit replayed from another device must lose to it (isStaleWrite).
+        "updatedAt" = NOW()
+    WHERE "id" = ${existing.id}
+      AND "userId" = ${userId}
+      AND NOT COALESCE("typeData" -> 'items', '[]'::jsonb) @> jsonb_build_array(jsonb_build_object('id', ${itemId}::text))
+      AND jsonb_array_length(COALESCE("typeData" -> 'items', '[]'::jsonb)) < ${MAX_TODO_ITEMS}
+  `
+  const updated = await prisma.reminder.findFirstOrThrow({ where: { id: existing.id, userId } })
+  // Nothing updated and the item isn't there: a racing add took the last slot
+  // between the check above and the statement. An id that IS there is the idempotent
+  // case — the stored list is already what the client asked for, so it goes back
+  // as-is rather than erroring on a request that has already had its effect.
+  if (appended === 0 && !todoItems(updated.typeData as TypeData).some((item) => item.id === itemId)) {
+    throw badRequest(`A checklist holds at most ${MAX_TODO_ITEMS} items.`)
+  }
+
+  // The new item arrives unticked, so it joins the body of every live firing —
+  // which is a tick's problem in reverse, and needs the same nudge: web clients
+  // converge on the WS event, native devices re-pull /api/sync/occurrences and
+  // re-post the nag silently (`alertOnce`). A note is the exception, as it is for
+  // a tick: it notifies nobody, so no device has anything to re-render.
+  broadcast(userId, { type: 'reminder.changed', reminderId: updated.id })
+  if ((updated.schedule as unknown as { kind?: string }).kind !== 'never') {
+    void nudgeNativeSync(userId).catch((error) =>
+      logger.warn('checklist add sync nudge failed', { error: String(error), reminderId: updated.id })
+    )
+  }
+  response.json({ reminder: toReminder(updated) })
+})
+
+/**
+ * Reorder this reminder's checklist — the drag handles on a card, so the order a list
+ * is worked through can be changed where it is being worked through rather than only
+ * in the editor.
+ *
+ * The body is a **ranking, not a replacement** (`reorderTodoItemsInputSchema`), and the
+ * statement below is what makes that true rather than a promise: it sorts the items the
+ * row actually holds, so an id that has since been deleted is ignored and an item added
+ * in the meantime keeps its place at the end instead of being dropped. A whole-list
+ * write would have deleted whatever the client hadn't heard about yet, which is exactly
+ * what a drag on a phone that has been offline for an hour would send.
+ *
+ * Ticks are untouched — ids are stable, so an item carries its ticked state with it.
+ */
+remindersRouter.post('/:id/items/order', async (request, response) => {
+  const userId = requireUserId(request)
+  const parsed = reorderTodoItemsInputSchema.safeParse(request.body)
+  if (!parsed.success) throw badRequest('Invalid checklist order.')
+
+  const existing = await prisma.reminder.findFirst({ where: { id: request.params.id, userId } })
+  if (!existing) throw notFound('Reminder not found.')
+  if (existing.type !== 'TODO') throw badRequest('This reminder has no checklist.')
+  // Same shape guard as the add route, and for the same reason: the statement treats
+  // `items` as a jsonb array, and Postgres does not promise to evaluate a WHERE-clause
+  // type check before the expression that depends on it.
+  const stored = (existing.typeData ?? {}) as { items?: unknown }
+  if (typeof stored !== 'object' || Array.isArray(stored) || (stored.items !== undefined && !Array.isArray(stored.items))) {
+    throw badRequest("This reminder's checklist needs saving in the editor before it can be reordered.")
+  }
+
+  // One atomic statement rather than read-modify-write: a reorder rewrites the whole
+  // list, so a concurrent add read a moment earlier would be silently undone. Sorting
+  // in SQL means the rows being sorted are the rows as they are *now*.
+  //
+  // `array_position` gives each item its rank; an id that isn't in the ranking returns
+  // NULL, and `NULLS LAST` with the original ordinal as the tiebreak leaves those in
+  // place at the end. That is the ranking rule, encoded once, matching `withTodoOrder`.
+  const { itemIds } = parsed.data
+  await prisma.$executeRaw`
+    UPDATE "Reminder"
+    SET "typeData" = jsonb_set(
+          "typeData",
+          '{items}',
+          COALESCE(
+            (
+              SELECT jsonb_agg(item ORDER BY array_position(${itemIds}::text[], item ->> 'id') NULLS LAST, ordinality)
+              FROM jsonb_array_elements(COALESCE("typeData" -> 'items', '[]'::jsonb)) WITH ORDINALITY AS t(item, ordinality)
+            ),
+            '[]'::jsonb
+          ),
+          true
+        ),
+        "updatedAt" = NOW()
+    WHERE "id" = ${existing.id} AND "userId" = ${userId}
+  `
+  const updated = await prisma.reminder.findFirstOrThrow({ where: { id: existing.id, userId } })
+
+  // The notification body lists the unticked items *in order*, so a reorder changes the
+  // text of an already-armed alarm exactly as adding one does — hence the same nudge,
+  // and the same exception for a note, which notifies nobody.
+  broadcast(userId, { type: 'reminder.changed', reminderId: updated.id })
+  if ((updated.schedule as unknown as { kind?: string }).kind !== 'never') {
+    void nudgeNativeSync(userId).catch((error) =>
+      logger.warn('checklist reorder sync nudge failed', { error: String(error), reminderId: updated.id })
+    )
+  }
+  response.json({ reminder: toReminder(updated) })
 })
 
 /**

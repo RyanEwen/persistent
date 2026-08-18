@@ -12,7 +12,11 @@
 - **The loudest control on a screen is the one that finishes work.** Done
   (`components/OccurrenceActions.tsx`, solid `success`) is the app's entire
   guarantee, so nothing that merely *creates* or navigates may outrank it —
-  no solid accent fill, no larger size, no position above it. "New reminder" was
+  no solid accent fill, no larger size, no position above it. Done is also the only
+  **labelled** control on that row: Edit and Snooze are icon-only (`aria-label` +
+  `title`), which is what makes Done the thing you reach for and what keeps a
+  four-control row inside a phone's width. Don't reverse that trade — an icon-only
+  Done would make the app's one terminal action the hardest to find. "New reminder" was
   exactly that mistake: a full-width solid `primary` bar sitting directly on top
   of the Done it competed with. It is a soft floating button now
   (`components/NewReminderFab.tsx`) — the rule is about emphasis, not position:

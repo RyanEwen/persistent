@@ -122,7 +122,9 @@ export function HelpPage() {
             </Chip>
             <Typography level="body-sm">
               Hides the reminder for a while and brings it back later. If it was ringing as an alarm, it rings again
-              when the snooze ends — snoozing snoozes the alarm itself, it doesn&apos;t quietly downgrade it.
+              when the snooze ends — snoozing snoozes the alarm itself, it doesn&apos;t quietly downgrade it. On a card
+              it&apos;s the <b>clock icon</b> beside Done; Done keeps its name because it&apos;s the one action that
+              ends the nag.
             </Typography>
           </Stack>
         </Stack>

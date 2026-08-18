@@ -147,6 +147,73 @@ is still no push. The web client applies the toggle optimistically
 (`mutationKeys.checkOccurrenceItem`) — a checkbox that waits for a round trip feels
 broken.
 
+## Adding a checklist item
+
+`POST /api/reminders/:id/items` appends one item to a `TODO` reminder's
+`typeData.items` — the add row every card's checklist carries, so extending a list
+doesn't mean a trip to the editor. Rejected for anything that is not a `TODO`, and
+at the 50-item cap (`MAX_TODO_ITEMS`).
+
+The body is one item, `{ id, text }`, with the **id minted by the client** exactly
+as the editor mints it. That is what makes the write idempotent: an add replayed
+after an offline stretch carries the id it already used, the server sees the list
+already contains it, and nothing happens. One item at a time rather than a whole
+list, for the same reason a tick is per item — a stale whole-list replay would drop
+whatever was added in between, and a card has no business restating a definition it
+only shows part of.
+
+The append is **one atomic `jsonb` statement** (`||` onto `typeData.items`), like a
+tick's, because the add row stays open for the next line: two adds are routinely in
+flight, and a read-modify-write would have both read the same list and the second
+overwrite the first. `updatedAt` *is* bumped, unlike a tick's statement — this
+changes the definition, so a later-replayed older edit must lose to it
+(`isStaleWrite`). The shape of `typeData` is settled in TypeScript before the
+statement runs: Postgres does not promise WHERE-clause evaluation order, so a
+`jsonb_typeof` guard can't be relied on to run before `jsonb_array_length`.
+
+`reminder.changed` over WS **and** a sync nudge — the same pair a tick gets, and for
+the same reason: the new item is unticked, so it joins the notification body of
+every live firing and an already-armed alarm's text is now stale. A **note** is the
+exception, as it is for a tick: it notifies nobody, so there is nothing to re-post
+and the nudge is skipped. Applied optimistically on the web
+(`mutationKeys.addTodoItem`, via the shared `withTodoItem`, which skips a duplicate
+id the same way the endpoint does) — the item has to be on the list before the user
+types the next one.
+
+Ticks are untouched. Adding an item is not a statement about what this firing has
+done, and it never confirms or excuses one (`notification-behavior.md` §1a).
+
+## Reordering a checklist
+
+`POST /api/reminders/:id/items/order` takes `{ itemIds }` — the whole list, in the order
+it should be in — and is what the drag handles on a card write. Rejected for anything
+that is not a `TODO`.
+
+The body is a **ranking, not a replacement**, and the endpoint applies it as one: items
+are sorted by their position in `itemIds`, an id that no longer exists is ignored, and an
+item the list has gained since keeps its place at the end instead of being dropped. That
+is what makes a late-arriving reorder safe — the worst it can do is reshuffle, where a
+whole-list write would delete whatever the client hadn't heard about. It is also
+naturally idempotent: applying the same ranking twice lands in the same place.
+
+Sorted in **one SQL statement** (`jsonb_agg … ORDER BY array_position(...) NULLS LAST`)
+rather than read-modify-write, because a reorder rewrites the entire list: a concurrent
+add read a moment earlier would otherwise be silently undone. `withTodoOrder` states the
+same rule in TypeScript for the optimistic cache update, so the two agree.
+
+`reminder.changed` over WS **and** a sync nudge, like adding — the notification body
+lists the unticked items *in order*, so a reorder changes the text of an already-armed
+alarm. A note skips the nudge, as always.
+
+**One write per gesture.** The card holds the order locally while the finger is down and
+sends it once the drag settles (`components/TodoChecklist.tsx` + `lib/useDragReorder.ts`
+`onCommit`); writing on every row crossed would put a request, a broadcast and a push on
+each step of a single drag. The editor needs none of that — it reorders form state, and
+nothing is written until Save.
+
+Ticks are untouched by a reorder. Item ids are stable precisely so an item carries its
+ticked state as it moves (`notification-behavior.md` §1a).
+
 ## Hiding ticked checklist items
 
 Whether a checklist is drawn with its ticked items collapsed is stored on the

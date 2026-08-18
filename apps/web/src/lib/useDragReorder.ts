@@ -16,6 +16,16 @@
  * outruns it, and `touchAction: 'none'` stops a touch-drag from scrolling the page
  * instead. The handle is focusable and takes Up/Down as well — a drag handle that
  * only responds to a pointer is unusable by keyboard.
+ *
+ * Two callers with different costs per move, which is what `onCommit` is for. The
+ * editor reorders form state, so every step is free and it needs nothing. A card
+ * reorders the *stored* list, so a step that wrote would put a request (and a push to
+ * every device) on each row the finger crosses — there, `onMove` updates a local
+ * working order and `onCommit` writes it once, when the drag ends or a key move lands.
+ *
+ * It lives in `lib/` rather than beside the editor because the cards reorder the same
+ * list from `components/TodoChecklist.tsx`, and a component reaching into a page's
+ * folder is backwards.
  */
 import { useRef, useState, type KeyboardEvent, type PointerEvent, type RefObject } from 'react'
 
@@ -31,10 +41,24 @@ interface Drag {
 export function useDragReorder(
   listRef: RefObject<HTMLElement | null>,
   count: number,
-  onMove: (from: number, to: number) => void
+  onMove: (from: number, to: number) => void,
+  /** Called once the order has settled — see the note above about write cost. */
+  onCommit?: () => void
 ) {
   const drag = useRef<Drag | null>(null)
+  // Whether the drag in progress has actually moved anything, so letting go without
+  // moving doesn't write a "reorder" that reorders nothing.
+  const moved = useRef(false)
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null)
+
+  function endDrag() {
+    drag.current = null
+    setDraggingIndex(null)
+    if (moved.current) {
+      moved.current = false
+      onCommit?.()
+    }
+  }
 
   /** Centre-to-centre distance between rows (row height + the stack's gap). */
   function rowPitch(): number {
@@ -50,6 +74,7 @@ export function useDragReorder(
     const target = Math.min(count - 1, Math.max(0, to))
     if (target === current.index) return
     onMove(current.index, target)
+    moved.current = true
     // Rebase: the row now sits `target` rows down, so subsequent travel is
     // measured from there. Without this the next move re-applies the same offset.
     current.originY += (target - current.index) * current.pitch
@@ -70,6 +95,7 @@ export function useDragReorder(
           // Capture is an optimization, not a requirement — carry on without it.
         }
         drag.current = { index, originY: event.clientY, pitch: rowPitch() }
+        moved.current = false
         setDraggingIndex(index)
       },
       onPointerMove: (event: PointerEvent<HTMLElement>) => {
@@ -78,20 +104,17 @@ export function useDragReorder(
         const steps = Math.round((event.clientY - current.originY) / current.pitch)
         if (steps !== 0) step(current.index + steps)
       },
-      onPointerUp: () => {
-        drag.current = null
-        setDraggingIndex(null)
-      },
-      onPointerCancel: () => {
-        drag.current = null
-        setDraggingIndex(null)
-      },
+      onPointerUp: endDrag,
+      onPointerCancel: endDrag,
       onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
         const delta = event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : 0
         if (delta === 0) return
         event.preventDefault()
         const target = Math.min(count - 1, Math.max(0, index + delta))
-        if (target !== index) onMove(index, target)
+        if (target === index) return
+        // A key move is its own complete gesture, so it commits on the spot.
+        onMove(index, target)
+        onCommit?.()
       }
     })
   }

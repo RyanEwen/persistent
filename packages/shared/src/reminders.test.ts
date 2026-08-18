@@ -2,12 +2,15 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   hideCheckedInputSchema,
+  MAX_TODO_ITEMS,
   reminderBodyText,
   reminderInputSchema,
   reminderSchema,
   selectableReminderTypes,
   todoItems,
-  todoProgress
+  todoProgress,
+  withTodoItem,
+  withTodoOrder
 } from './reminders.js'
 
 const base = {
@@ -284,4 +287,82 @@ test('a fully-ticked checklist falls back to details alone', () => {
     details: 'From the corner shop'
   }
   assert.equal(reminderBodyText(source, ['a']), 'From the corner shop')
+})
+
+// --- Adding a checklist item from a card ------------------------------------
+
+test('withTodoItem appends to the end of the checklist', () => {
+  const typeData = { items: [{ id: 'a', text: 'Milk' }] }
+  const next = withTodoItem(typeData, { id: 'b', text: 'Bread' })
+  assert.deepEqual(todoItems(next), [
+    { id: 'a', text: 'Milk' },
+    { id: 'b', text: 'Bread' }
+  ])
+})
+
+test('withTodoItem starts a checklist that has none yet', () => {
+  assert.deepEqual(todoItems(withTodoItem({}, { id: 'a', text: 'Milk' })), [{ id: 'a', text: 'Milk' }])
+})
+
+test('withTodoItem ignores an id the list already carries', () => {
+  // Ids are client-minted, so the same id arriving twice is one add replayed —
+  // the same rule the endpoint applies, so the optimistic cache matches it.
+  const typeData = { items: [{ id: 'a', text: 'Milk' }] }
+  assert.equal(withTodoItem(typeData, { id: 'a', text: 'Milk' }), typeData)
+})
+
+test('withTodoItem leaves the rest of typeData alone', () => {
+  // A reminder that was once a medication still holds its doses; adding a
+  // checklist line must not be the write that drops them.
+  const next = withTodoItem({ medications: [{ name: 'Ibuprofen' }] }, { id: 'a', text: 'Milk' })
+  assert.deepEqual(next.medications, [{ name: 'Ibuprofen' }])
+})
+
+test('a checklist is capped at MAX_TODO_ITEMS', () => {
+  const items = Array.from({ length: MAX_TODO_ITEMS + 1 }, (_v, i) => ({ id: `i${i}`, text: `Item ${i}` }))
+  assert.equal(reminderInputSchema.safeParse({ ...base, type: 'TODO', typeData: { items } }).success, false)
+  assert.equal(
+    reminderInputSchema.safeParse({ ...base, type: 'TODO', typeData: { items: items.slice(0, MAX_TODO_ITEMS) } })
+      .success,
+    true
+  )
+})
+
+// --- Reordering a checklist from a card ---------------------------------------
+
+test('withTodoOrder sorts the checklist by the given ranking', () => {
+  const typeData = { items: [{ id: 'a', text: 'Milk' }, { id: 'b', text: 'Bread' }, { id: 'c', text: 'Eggs' }] }
+  assert.deepEqual(
+    todoItems(withTodoOrder(typeData, ['c', 'a', 'b'])).map((i) => i.id),
+    ['c', 'a', 'b']
+  )
+})
+
+test('withTodoOrder keeps an item the ranking never heard of, at the end', () => {
+  // The other device added 'd' after this order was decided. A whole-list write would
+  // drop it; a ranking leaves it alone.
+  const typeData = { items: [{ id: 'a', text: 'Milk' }, { id: 'b', text: 'Bread' }, { id: 'd', text: 'Jam' }] }
+  assert.deepEqual(
+    todoItems(withTodoOrder(typeData, ['b', 'a'])).map((i) => i.id),
+    ['b', 'a', 'd']
+  )
+})
+
+test('withTodoOrder ignores an id that is no longer on the list', () => {
+  const typeData = { items: [{ id: 'a', text: 'Milk' }, { id: 'b', text: 'Bread' }] }
+  assert.deepEqual(
+    todoItems(withTodoOrder(typeData, ['gone', 'b', 'a'])).map((i) => i.id),
+    ['b', 'a']
+  )
+})
+
+test('withTodoOrder is idempotent — a replayed reorder changes nothing', () => {
+  const typeData = { items: [{ id: 'a', text: 'Milk' }, { id: 'b', text: 'Bread' }] }
+  const once = withTodoOrder(typeData, ['b', 'a'])
+  assert.deepEqual(todoItems(withTodoOrder(once, ['b', 'a'])).map((i) => i.id), ['b', 'a'])
+})
+
+test('withTodoOrder leaves the rest of typeData alone', () => {
+  const next = withTodoOrder({ medications: [{ name: 'Ibuprofen' }], items: [{ id: 'a', text: 'Milk' }] }, ['a'])
+  assert.deepEqual(next.medications, [{ name: 'Ibuprofen' }])
 })

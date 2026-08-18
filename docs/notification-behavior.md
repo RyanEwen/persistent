@@ -118,6 +118,28 @@ hides nothing.
 The escalation email is the one snapshot: it lists what was unticked at the moment
 it was sent, since an email cannot be revised afterwards.
 
+**Items can be added from the card, and what they join is the definition.** Every
+checklist the app draws carries an add row (`POST /api/reminders/:id/items`), so
+extending a list does not mean opening the editor — the thing a list needs most
+often was the thing that cost the most taps. What it adds is an *item*, and items
+belong to the reminder: every later firing carries it too, and every card drawing
+that checklist gains the row at once. It arrives **unticked**, so it also joins the
+body of whatever is nagging right now, exactly as an item added in the editor would
+— which is why the add nudges native devices to re-post, like a tick does. It
+touches no ticks: adding a line to a list says nothing about what was done this
+time, and it neither confirms nor excuses a firing. Only Done does that.
+
+**The order is part of the definition too, and can be changed from the card.** Drag
+handles sit on every checklist the app draws (`POST /api/reminders/:id/items/order`), so
+a list can be re-ordered where it is being worked through rather than only in the
+editor. It moves *items*, so the new order is the one every later firing shows and the
+order the notification body lists them in — which is why it nudges devices to re-post,
+exactly as adding one does. Ticks are untouched: ids are stable, so an item carries its
+ticked state with it as it moves, and a reorder neither confirms nor excuses anything.
+With the ticked items hidden, the rows on screen are only part of the list; the ones out
+of sight keep their places relative to their neighbours rather than being flung to the
+end.
+
 **A note's checklist is the exception, and only because it cannot be a firing's.**
 A note (§7) has no occurrences, so `ReminderOccurrence.checkedItems` has nothing to
 hang off; its ticks live on the reminder itself (`Reminder.checkedItems`, via

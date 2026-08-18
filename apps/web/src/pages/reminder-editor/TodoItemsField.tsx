@@ -34,7 +34,7 @@ import DragIndicatorIcon from '@mui/icons-material/DragIndicator'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked'
 import { emptyTodo, type TodoRow } from './formState.js'
-import { REORDER_ROW_ATTR, useDragReorder } from './useDragReorder.js'
+import { REORDER_ROW_ATTR, useDragReorder } from '../../lib/useDragReorder.js'
 
 /**
  * What one live firing has ticked, for display only. Absent when the reminder has

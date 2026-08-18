@@ -5,7 +5,14 @@
  * polling.
  */
 import { useMutation, useQuery } from '@tanstack/react-query'
-import type { CheckItemInput, HideCheckedInput, Reminder, ReminderInput } from '@persistent/shared'
+import type {
+  AddTodoItemInput,
+  CheckItemInput,
+  HideCheckedInput,
+  Reminder,
+  ReminderInput,
+  ReorderTodoItemsInput
+} from '@persistent/shared'
 import { apiFetch } from '../lib/apiClient.js'
 import { mutationKeys, queryKeys } from '../lib/queryClient.js'
 
@@ -38,6 +45,28 @@ export function useDeleteReminder() {
 export function useCheckReminderItem() {
   return useMutation<unknown, Error, { id: string; arg: CheckItemInput }>({
     mutationKey: mutationKeys.checkReminderItem
+  })
+}
+
+/**
+ * Append one item to a reminder's checklist from a card, instead of opening the
+ * editor for it. Items belong to the reminder, so this writes the definition —
+ * every later firing carries the new item, and it starts unticked.
+ */
+export function useAddTodoItem() {
+  return useMutation<unknown, Error, { id: string; arg: AddTodoItemInput }>({
+    mutationKey: mutationKeys.addTodoItem
+  })
+}
+
+/**
+ * Reorder a reminder's checklist from a card. Sent as the full set of ids in their new
+ * order and applied by the server as a *ranking*, so a reorder that lands late can
+ * reshuffle but never drop an item added in the meantime.
+ */
+export function useReorderTodoItems() {
+  return useMutation<unknown, Error, { id: string; arg: ReorderTodoItemsInput }>({
+    mutationKey: mutationKeys.reorderTodoItems
   })
 }
 

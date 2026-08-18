@@ -1,6 +1,12 @@
 /**
  * The interactive checklist on one firing of a TODO reminder: a checkbox per item
- * plus an "n of m done" progress line, and a control to hide the ticked ones.
+ * plus an "n of m done" progress line, a control to hide the ticked ones, and —
+ * where the caller has somewhere to put it — a row for adding an item.
+ *
+ * Ticking and adding write different objects, which is the one thing to keep
+ * straight here: a tick belongs to the firing, an item belongs to the reminder. So
+ * ticking the same list on two cards ticks one firing each, while adding to it adds
+ * to the definition and every card showing that checklist gains the row.
  *
  * The ticked set belongs to the *occurrence*, not the reminder, so a repeating
  * checklist starts each firing blank. Ticking every item deliberately does NOT
@@ -12,14 +18,26 @@
  * *reminder* and is stored, so the state of a list survives a reload and follows
  * the user to their other devices. This component owns none of it — both the
  * ticks and the collapse are controlled by the caller.
+ *
+ * **Reordering** is the third kind of write again, and the same kind as adding: the
+ * order is part of the definition, so a drag here changes the list every firing shows
+ * and the order the notification lists it in. It is the one interaction that owns local
+ * state — the rows follow the finger immediately, and the new order is *sent* once, when
+ * the drag settles. Writing on every row crossed would put a request, and a push to
+ * every device, on each step of a single gesture.
  */
+import { useRef, useState } from 'react'
 import Stack from '@mui/joy/Stack'
 import Box from '@mui/joy/Box'
 import Button from '@mui/joy/Button'
 import Checkbox from '@mui/joy/Checkbox'
 import Typography from '@mui/joy/Typography'
 import LinearProgress from '@mui/joy/LinearProgress'
-import { todoProgress, type TodoItem } from '@persistent/shared'
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator'
+import { MAX_TODO_ITEMS, todoProgress, type TodoItem } from '@persistent/shared'
+import { REORDER_ROW_ATTR, useDragReorder } from '../lib/useDragReorder.js'
+import { moveTodoItem } from '../lib/todoOrder.js'
+import { TodoAddItem } from './TodoAddItem.js'
 
 /**
  * Minimum tap-target height per row. Ticking happens one-handed and sometimes
@@ -34,6 +52,8 @@ export function TodoChecklist({
   items,
   checkedItemIds,
   onToggle,
+  onAddItem,
+  onReorder,
   hideChecked = false,
   onHideCheckedChange,
   disabled,
@@ -42,6 +62,19 @@ export function TodoChecklist({
   items: TodoItem[]
   checkedItemIds: readonly string[]
   onToggle: (itemId: string, checked: boolean) => void
+  /**
+   * Append an item to the list, without going to the editor. Unlike a tick this
+   * writes the *reminder* — items belong to the definition — so a caller wires it
+   * to the reminder rather than to the firing on screen. Omitted where nothing
+   * owns that write; the add row is then not offered.
+   */
+  onAddItem?: (item: TodoItem) => void
+  /**
+   * Store a new order for the list, as the full set of ids in the order they should
+   * be in. Like adding, this writes the *reminder*. Omitted where nothing owns that
+   * write; the drag handles are then not offered.
+   */
+  onReorder?: (itemIds: string[]) => void
   /**
    * Whether the ticked items are collapsed out of the list. Controlled by the
    * caller and stored on the reminder (`Reminder.hideCheckedItems`), so a list
@@ -63,22 +96,64 @@ export function TodoChecklist({
    */
   confirmable?: boolean
 }) {
-  if (items.length === 0) return null
+  // The order being dragged, before it is sent. Null except mid-gesture: the stored
+  // list is the truth, and holding a copy any longer would fight an edit arriving from
+  // another device. Cleared on commit, when the optimistic cache update makes `items`
+  // say the same thing.
+  //
+  // Mirrored in a ref because the commit has to *read* it without being inside a state
+  // updater. Putting the send in the updater looks tidy and is wrong: React calls
+  // updaters twice under StrictMode, so a single drag posted the order twice — and each
+  // post is a write, a broadcast and a push to every device.
+  const [dragOrder, setDragOrder] = useState<string[] | null>(null)
+  const dragOrderRef = useRef<string[] | null>(null)
+  const listRef = useRef<HTMLDivElement | null>(null)
+
+  function setOrder(ids: string[] | null) {
+    dragOrderRef.current = ids
+    setDragOrder(ids)
+  }
+
+  const ordered = dragOrder
+    ? dragOrder.flatMap((id) => items.filter((item) => item.id === id))
+    : items
   const checked = new Set(checkedItemIds)
   const { done, total } = todoProgress(items, checkedItemIds)
   const allDone = done === total
   // Ticking is the only way to hide an item, and unticking is the only way back —
   // so the control stays visible while anything is hidden, however few are left.
-  const visible = hideChecked ? items.filter((item) => !checked.has(item.id)) : items
+  const visible = hideChecked ? ordered.filter((item) => !checked.has(item.id)) : ordered
+  // Nothing to reorder with one row, and nothing to drag when only one is on screen.
+  const reorderable = Boolean(onReorder) && !disabled && visible.length > 1
+
+  // `from`/`to` index the *visible* rows, which with ticked items hidden is a subset of
+  // the list — so the move is applied to the whole list relative to the row landed on
+  // (see `moveTodoItem`), leaving the hidden ones where they were.
+  function moveVisible(from: number, to: number) {
+    const moved = visible[from]
+    const target = visible[to]
+    if (!moved || !target) return
+    setOrder(moveTodoItem(ordered, moved.id, target.id, to > from).map((item) => item.id))
+  }
+
+  const { draggingIndex, handleProps } = useDragReorder(listRef, visible.length, moveVisible, () => {
+    // Sent once the gesture has settled, as the full set of ids: the server treats it
+    // as a ranking, so an item added elsewhere meanwhile survives (see the endpoint).
+    const settled = dragOrderRef.current
+    if (!settled) return
+    setOrder(null)
+    onReorder?.(settled)
+  })
+
+  if (items.length === 0) return null
 
   return (
     <Box>
-      <Stack spacing={0.25} sx={{ mb: visible.length > 0 ? 1 : 0 }}>
-        {visible.map((item) => {
+      <Stack spacing={0.25} ref={listRef} sx={{ mb: visible.length > 0 ? 1 : 0 }}>
+        {visible.map((item, index) => {
           const isChecked = checked.has(item.id)
-          return (
+          const row = (
             <Checkbox
-              key={item.id}
               size="md"
               disabled={disabled}
               checked={isChecked}
@@ -110,8 +185,60 @@ export function TodoChecklist({
               }
             />
           )
+          if (!reorderable) return <Box key={item.id}>{row}</Box>
+          return (
+            <Stack
+              key={item.id}
+              direction="row"
+              alignItems="center"
+              {...{ [REORDER_ROW_ATTR]: '' }}
+              // The row being dragged lifts off the list, so it's obvious which one is
+              // moving as the others shuffle around it — the same treatment the editor
+              // gives its rows.
+              sx={{
+                borderRadius: 'sm',
+                ...(draggingIndex === index
+                  ? { bgcolor: 'background.level1', boxShadow: 'sm', position: 'relative', zIndex: 1 }
+                  : {})
+              }}
+            >
+              <Box sx={{ flex: 1, minWidth: 0 }}>{row}</Box>
+              {/* Trailing, unlike the editor's leading handle, because here the row
+                  *starts* with the checkbox and the whole line is the tick target: a
+                  handle in front of it would put a drag zone exactly where the thumb
+                  reaches to tick. Only the handle drags; everywhere else still ticks. */}
+              <Box
+                {...handleProps(index)}
+                tabIndex={0}
+                role="button"
+                aria-label={`Reorder ${item.text}. Use the up and down arrow keys to move it.`}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  flexShrink: 0,
+                  alignSelf: 'stretch',
+                  px: 0.5,
+                  color: 'text.tertiary',
+                  borderRadius: 'sm',
+                  '&:active': { cursor: 'grabbing' },
+                  '&:hover': { color: 'text.secondary' }
+                }}
+              >
+                <DragIndicatorIcon fontSize="small" />
+              </Box>
+            </Stack>
+          )
         })}
       </Stack>
+      {/* Under the rows and above the progress line: it extends the list, so it
+          belongs to the list rather than to the "how far through it are you" row.
+          A full list simply stops offering it — the cap is the stored limit, so
+          there is nothing a card could do about it. */}
+      {onAddItem && items.length < MAX_TODO_ITEMS && (
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+          <TodoAddItem onAdd={onAddItem} disabled={disabled} />
+        </Box>
+      )}
       <LinearProgress
         determinate
         value={total > 0 ? (done / total) * 100 : 0}

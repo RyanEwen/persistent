@@ -26,8 +26,8 @@ import Chip from '@mui/joy/Chip'
 import SnoozeIcon from '@mui/icons-material/Snooze'
 import EditIcon from '@mui/icons-material/Edit'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
-import { reminderBodyText, todoItems } from '@persistent/shared'
-import { useReminders, useSetHideCheckedItems } from '../data/reminders.js'
+import { MAX_TODO_ITEMS, reminderBodyText, todoItems } from '@persistent/shared'
+import { useAddTodoItem, useReminders, useReorderTodoItems, useSetHideCheckedItems } from '../data/reminders.js'
 import {
   useActiveOccurrences,
   useAckOccurrence,
@@ -46,6 +46,7 @@ import { firingTone } from '../lib/firingTone.js'
 import { compareFirings } from '../lib/firingOrder.js'
 import { OccurrenceActions } from '../components/OccurrenceActions.js'
 import { TodoChecklist } from '../components/TodoChecklist.js'
+import { TodoAddItem } from '../components/TodoAddItem.js'
 import { SnoozeDialog } from '../components/SnoozeDialog.js'
 import { PullToRefresh } from '../components/PullToRefresh.js'
 
@@ -57,6 +58,8 @@ export function ReminderDetailPage() {
   const snooze = useSnoozeOccurrence()
   const silence = useSilenceOccurrence()
   const checkItem = useCheckOccurrenceItem()
+  const addItem = useAddTodoItem()
+  const reorderItems = useReorderTodoItems()
   const hideChecked = useSetHideCheckedItems()
   const { timeFormat } = useSettings()
   const [snoozeFor, setSnoozeFor] = useState<string | null>(null)
@@ -217,6 +220,10 @@ export function ReminderDetailPage() {
                         onToggle={(itemId, checked) =>
                           checkItem.mutate({ id: occurrence.id, arg: { itemId, checked } })
                         }
+                        // Items are per reminder, so adding one from any of these
+                        // cards adds it to the list every card is drawing.
+                        onAddItem={(item) => addItem.mutate({ id: reminder.id, arg: item })}
+                        onReorder={(itemIds) => reorderItems.mutate({ id: reminder.id, arg: { itemIds } })}
                         // Ticks are per firing, the collapse is per reminder — so
                         // every card here hides and shows together, and agrees with
                         // the same list on Current.
@@ -226,6 +233,8 @@ export function ReminderDetailPage() {
                     </Box>
                   )}
                   <Box sx={{ mt: 1 }}>
+                    {/* No editHref: this screen already carries Edit in its header,
+                        and two of them within a screen-height is one too many. */}
                     <OccurrenceActions
                       occurrence={occurrence}
                       doneLabel={doneLabel}
@@ -241,6 +250,56 @@ export function ReminderDetailPage() {
             })}
           </Stack>
         )}
+
+        {/* With nothing due there is no firing to tick against — a checked set
+            belongs to an occurrence — so the list shows as the definition it is.
+            Still extendable: an item belongs to the reminder either way. */}
+        {items.length > 0 && occurrences.length === 0 && (
+          <Card variant="soft">
+            <Typography level="title-sm">Checklist</Typography>
+            <Stack spacing={0.25}>
+              {items.map((item) => (
+                <Typography key={item.id} level="body-sm">
+                  • {item.text}
+                </Typography>
+              ))}
+            </Stack>
+            {items.length < MAX_TODO_ITEMS && (
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <TodoAddItem onAdd={(item) => addItem.mutate({ id: reminder.id, arg: item })} />
+              </Box>
+            )}
+            <Typography level="body-xs" sx={{ color: 'text.tertiary' }}>
+              {/* A checklist that never fires is a kept list, not a routine waiting
+                  to come round — there is no firing for its ticks to belong to. */}
+              {reminder.schedule.kind === 'never'
+                ? 'A kept list — it never notifies you, so there is nothing to tick off.'
+                : 'Ticked off each time this reminder notifies you.'}
+            </Typography>
+          </Card>
+        )}
+
+        {/* Last, because it is reference rather than the reason the user is here: a
+            notification tap lands on this screen to be answered, and the schedule is
+            what you check afterwards. */}
+        <Card variant="soft">
+          <Typography level="title-sm">Schedule</Typography>
+          <Typography level="body-sm">{scheduleSummary(reminder.schedule, timeFormat)}</Typography>
+          <Typography level="body-xs" sx={{ color: 'text.tertiary' }}>
+            {/* "No upcoming fire" is the normal resting state of a one-shot that has
+                already fired (every "remind me now" reminder lands here immediately),
+                so it must not be reported as paused — only an inactive reminder is.
+                A note is neither: it has no fire to be missing and pausing it would
+                change nothing, so it says what that means instead. */}
+            {reminder.schedule.kind === 'never'
+              ? 'Nothing to confirm — kept on the Notes tab.'
+              : !reminder.active
+                ? 'Paused — no upcoming notification'
+                : next
+                  ? `Next: ${formatWhen(next, timeFormat)}`
+                  : 'No upcoming notification'}
+          </Typography>
+        </Card>
       </Stack>
 
       <SnoozeDialog
