@@ -14,7 +14,10 @@ services:
       - persistent-agent-sessions:/home/node/.vscode-server/data/agentSessionData
       - persistent-bash-history:/commandhistory
       - ${HOME}/.ssh:/home/node/.ssh:ro
-      - ${HOME}/development/claude-shared:/etc/claude-code:ro
+      # Writable so a session in this container can update the shared rules.
+      # managed-settings.json sits here too; these containers can already read
+      # its token, so write access here is not a new exposure.
+      - ${HOME}/development/claude-shared:/etc/claude-code:rw
 volumes:
   persistent-config-data:
     name: ${DEVCONTAINER_CONFIG_VOLUME:-persistent-config-data}
