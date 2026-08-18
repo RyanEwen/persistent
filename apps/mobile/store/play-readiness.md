@@ -140,6 +140,55 @@ ringing alarm collapsed to a heads-up banner **whenever the phone was unlocked**
 `SYSTEM_ALERT_WINDOW` — see #5 and `docs/alarm-architecture.md`. Re-tested with the
 phone unlocked: full-screen surface restored, zero BAL blocks in logcat.
 
+## 2a. targetSdk 36 ⚠️ SHIPPED, DEVICE CHECK OUTSTANDING
+
+Play requires updates to target the API level of the last Android release: from
+2026-08-30 that is **Android 16 (API 36)**, and the console flagged the app on
+2026-08-18 with "your highest non-compliant target API level is Android 15".
+
+Same shape as #2 — a toolchain upgrade, not a version bump, since AGP caps the
+compileSdk it will build:
+
+| | was | now |
+| --- | --- | --- |
+| compileSdk / targetSdk | 35 | **36** |
+| Android Gradle Plugin | 8.6.1 | **8.13.2** (max API 36.1) |
+| Gradle | 8.7 | **8.13** (AGP 8.13's minimum) |
+| SDK platform / build-tools | `android-35` / 35.0.0 | + `android-36` / 36.0.0 |
+
+JDK 17 is unchanged (AGP 8.13's minimum is still 17). Both flavors compile, both
+built APKs report `targetSdkVersion:'36'`, and the Play one still carries no
+direct-only component.
+
+**Predictive back is explicitly opted out** (`android:enableOnBackInvokedCallback="false"`,
+applied by `setup-android.mjs`). Targeting 36 turns it on by default, and an app that
+opts in stops receiving `onBackPressed()` and `KEYCODE_BACK` — which is where three of
+this app's back behaviours live: `AlarmActivity` overrides `onBackPressed` to do
+nothing (that is what stops Back dismissing a **ringing alarm**), `SnoozePickerActivity`
+steps out of its custom view with it, and Capacitor 6's `App.backButton` — the whole
+web hierarchy in `native/useNativeBack.ts` — is dispatched from it. Opting in without
+migrating all three would have turned Back into "finish the activity", i.e. Back would
+kill a ringing alarm. Migrating to `OnBackInvokedCallback` is real work that needs a
+device to verify the alarm surface, so it is tracked as its own change rather than
+smuggled into a compliance bump.
+
+**Checked and not applicable:** the 16 KB page-size requirement (the app ships no
+`.so` — nothing to re-align), intent-redirection hardening (the only
+`getParcelableExtra` is a `Uri` from the system ringtone picker, not a nested
+intent), and ordered-broadcast priority scoping (the app is single-process). Edge-to-edge
+needs nothing new: the opt-out attribute API 36 removes was never used, and the insets
+added in #2 already handle it.
+
+**The device check is outstanding, and #2 is the reason to take that seriously.** That
+bump compiled clean and still broke the alarm on real hardware — `BAL_BLOCK` collapsed
+the full-screen surface whenever the phone was unlocked, which no build could have
+shown. On a device, re-check in this order: a ringing alarm still takes over the screen
+unlocked *and* locked; **Back does nothing on the alarm surface**; Back inside the
+snooze picker's custom view returns to the list rather than closing it; Back in the app
+walks the screen hierarchy as before; and the WorkManager sync still runs (API 36
+tightens JobScheduler quotas — the sync is a backstop, not the guarantee, but a
+throttled one means slower catch-up on a closed device).
+
 ## 2b. App access for reviewers ✅ DONE
 
 Play reviewers must be given credentials, and none of this app's sign-in paths

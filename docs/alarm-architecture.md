@@ -639,6 +639,31 @@ snooze. **Silence** is the one thing that ends the ring for good, and it outrank
 both. The device's own local snooze (`AlarmService.snoozeLocal`) already kept the
 spec's fidelity; this is what stopped the next sync from overwriting it.
 
+## Predictive back is off, on purpose
+
+Three back behaviours here are built on `onBackPressed()` / `KEYCODE_BACK`:
+
+- **`AlarmActivity` overrides `onBackPressed` to do nothing.** That is what stops Back
+  dismissing a ringing alarm's full-screen surface — Done and Snooze are the only ways
+  out (Home leaves it ringing, with the ongoing notification whose tap reopens it).
+- **`SnoozePickerActivity`** uses it to step out of the custom-duration view back to the
+  presets, rather than closing the picker outright.
+- **Capacitor's `App.backButton`** is dispatched from it, and the entire web screen
+  hierarchy (`apps/web/src/native/useNativeBack.ts`) rides on that event.
+
+Targeting **API 36 enables predictive back by default**, and an app that opts in stops
+receiving both `onBackPressed()` and `KEYCODE_BACK`. All three would fall back to the
+system default — finish the activity — so Back would kill a ringing alarm, which is the
+one thing this app must never let a stray gesture do.
+
+So the manifest carries Android's documented opt-out,
+`android:enableOnBackInvokedCallback="false"`, applied idempotently by
+`setup-android.mjs`. It is **temporary by intent**: migrating the three call sites to
+`OnBackInvokedCallback` is the real fix, and it needs a device to verify the alarm
+surface, so it is tracked separately from the API-level bump that forced the question.
+Don't flip the flag without doing that migration and testing a ringing alarm on
+hardware.
+
 ## Residual risk
 
 Aggressive OEM battery managers (Xiaomi, Samsung, etc.) can still defer alarms.

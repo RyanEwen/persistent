@@ -7,8 +7,16 @@ adb and signing are in `README.md`.
 
 ## Verifying native changes
 
+**A target-SDK bump needs a device, not just a compile.** The move to `targetSdk 35`
+compiled clean and still broke the alarm on real hardware (`BAL_BLOCK` collapsed the
+full-screen surface whenever the phone was unlocked). Treat "both flavors compile" as
+the floor, and see `store/play-readiness.md` #2a for the checklist to run on a phone
+after one.
+
 **Native (Kotlin/Java) changes aren't covered by `npm run validate`.** The
-devcontainer ships JDK 17 + the Android SDK (platform-34, build-tools 34.0.0), so
+devcontainer ships JDK 17 + the Android SDK (platform-36, build-tools 36.0.0 — the
+app targets API 36; `setup-android.mjs` pins the compileSdk/targetSdk, AGP and Gradle
+versions together, since AGP caps the compileSdk it will build), so
 verify them by compiling: from here, `npm run verify:android` (re-syncs
 `android-plugin/` into the generated project, then compiles the Kotlin **and**
 Java tasks for **both product flavors**). All four tasks matter — the plugin is

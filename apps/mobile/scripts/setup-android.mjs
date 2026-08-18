@@ -182,6 +182,32 @@ if (!manifest.includes('xmlns:tools=')) {
   manifest = manifest.replace(/<manifest\b/, '<manifest xmlns:tools="http://schemas.android.com/tools"')
 }
 
+// Predictive back stays OFF, deliberately, and this is a guarantee decision rather
+// than a styling one.
+//
+// Targeting API 36 turns predictive back on by default, and an app that opts in stops
+// receiving `onBackPressed()` and `KEYCODE_BACK` entirely. Three of this app's back
+// behaviours are built on exactly those: `AlarmActivity` overrides `onBackPressed` to
+// do NOTHING, which is what stops Back dismissing a ringing alarm's full-screen
+// surface (only Done/Snooze leave it); `SnoozePickerActivity` uses it to step out of
+// the custom-duration view; and Capacitor 6's `App.backButton` — which the whole web
+// hierarchy in `native/useNativeBack.ts` rides on — is dispatched from it too. Opting
+// in without migrating all three would silently turn Back into "finish the activity",
+// i.e. Back would kill a ringing alarm.
+//
+// `enableOnBackInvokedCallback="false"` is Android's own documented opt-out for
+// exactly this, and it keeps today's behaviour bit-for-bit while the API level moves.
+// Migrating to OnBackInvokedCallback is real work that needs a device to verify the
+// alarm surface, so it is tracked separately rather than smuggled into a compliance
+// bump. See docs/alarm-architecture.md (Predictive back).
+if (!manifest.includes('android:enableOnBackInvokedCallback')) {
+  manifest = manifest.replace(
+    /<application\b/,
+    '<application android:enableOnBackInvokedCallback="false"'
+  )
+  console.log('[setup-android] opted out of predictive back (see the note in this script)')
+}
+
 writeFileSync(manifestPath, manifest)
 console.log('[setup-android] merged permissions + components into AndroidManifest.xml')
 
@@ -227,13 +253,15 @@ if (!appGradle.includes("apply plugin: 'kotlin-android'")) {
 const PLAY_APPLICATION_ID = 'ca.dynamicsolutions.persistent'
 
 // --- 4a1. SDK level + toolchain ---------------------------------------------
-// Capacitor 6's template pins compileSdk/targetSdk 34 and AGP 8.2.1, but Google
-// Play requires new apps and updates to target API 35+. AGP 8.2 refuses to build
-// against compileSdk 35, and AGP 8.6 in turn needs Gradle 8.7 — so all three move
-// together or none do. Each patch is idempotent (matches the old value only).
-const TARGET_SDK = 35
-const AGP_VERSION = '8.6.1'
-const GRADLE_VERSION = '8.7'
+// Capacitor 6's template pins compileSdk/targetSdk 34 and AGP 8.2.1, but Google Play
+// requires updates to target the API level of the last Android release: 36 from
+// 2026-08-30, which is what this now targets. The three versions move together or not
+// at all — AGP caps the compileSdk it will build (8.6 stops at 35, 8.13 reaches 36.1),
+// and each AGP needs its own minimum Gradle (8.13 needs Gradle 8.13). Each patch is
+// idempotent (it matches the old value only).
+const TARGET_SDK = 36
+const AGP_VERSION = '8.13.2'
+const GRADLE_VERSION = '8.13'
 
 {
   const variablesPath = join(mobileRoot, 'android', 'variables.gradle')
