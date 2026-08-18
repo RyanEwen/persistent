@@ -14,6 +14,13 @@
  * Every active occurrence of the reminder is confirmed independently (a reminder
  * with several times of day can have more than one pending at once), mirroring the
  * attention cards on the main list.
+ *
+ * **Order follows what the user came for.** The reminder's own body sits at the top
+ * and the firings to answer come straight after it, with the schedule last — a
+ * notification tap arrives here to read the thing and confirm it, and the schedule
+ * is what you check afterwards, if at all. It used to sit between the two, so on a
+ * phone the checklist and Done began below the fold on any reminder with a body
+ * worth reading.
  */
 import { useState } from 'react'
 import { Link as RouterLink, useParams } from 'react-router-dom'
@@ -139,47 +146,6 @@ export function ReminderDetailPage() {
             </Typography>
           )}
         </Box>
-
-        <Card variant="soft">
-          <Typography level="title-sm">Schedule</Typography>
-          <Typography level="body-sm">{scheduleSummary(reminder.schedule, timeFormat)}</Typography>
-          <Typography level="body-xs" sx={{ color: 'text.tertiary' }}>
-            {/* "No upcoming fire" is the normal resting state of a one-shot that has
-                already fired (every "remind me now" reminder lands here immediately),
-                so it must not be reported as paused — only an inactive reminder is.
-                A note is neither: it has no fire to be missing and pausing it would
-                change nothing, so it says what that means instead. */}
-            {reminder.schedule.kind === 'never'
-              ? 'Nothing to confirm — kept under Notes on Current.'
-              : !reminder.active
-                ? 'Paused — no upcoming notification'
-                : next
-                  ? `Next: ${formatWhen(next, timeFormat)}`
-                  : 'No upcoming notification'}
-          </Typography>
-        </Card>
-
-        {/* With nothing due there is no firing to tick against — a checked set
-            belongs to an occurrence — so the list shows as the definition it is. */}
-        {items.length > 0 && occurrences.length === 0 && (
-          <Card variant="soft">
-            <Typography level="title-sm">Checklist</Typography>
-            <Stack spacing={0.25}>
-              {items.map((item) => (
-                <Typography key={item.id} level="body-sm">
-                  • {item.text}
-                </Typography>
-              ))}
-            </Stack>
-            <Typography level="body-xs" sx={{ color: 'text.tertiary' }}>
-              {/* A checklist that never fires is a kept list, not a routine waiting
-                  to come round — there is no firing for its ticks to belong to. */}
-              {reminder.schedule.kind === 'never'
-                ? 'A kept list — it never notifies you, so there is nothing to tick off.'
-                : 'Ticked off each time this reminder notifies you.'}
-            </Typography>
-          </Card>
-        )}
 
         {occurrences.length > 0 && (
           <Stack spacing={1.5}>
