@@ -51,13 +51,15 @@ npm run prepare:android   # build web -> cap add android -> wire plugin -> cap s
      manifest (in place of Capacitor's `MessagingService`, via `tools:node="remove"`),
      so server FCM pushes are handled natively even when the bridge is dead — see
      `docs/alarm-architecture.md`,
-   - adds the `androidx.car.app` dependency and the
-     `com.google.android.gms.car.application` manifest meta-data (with a
-     `tools:overrideLibrary` for its minSdk 23), so reminder notifications project
-     into **Android Auto** (`CarProjection.kt` + `android-res/xml/automotive_app_desc.xml`),
-     and — in the `direct` flavor only — the templated car screen listing the whole
-     reminder set (`ReminderCarAppService.kt`); see `docs/alarm-architecture.md`
-     (Android Auto),
+   - adds the `androidx.car.app` dependency (with a `tools:overrideLibrary` for its
+     minSdk 23) in both flavors, and — in the **`direct` flavor only** — the entire
+     **Android Auto** integration: the `com.google.android.gms.car.application`
+     meta-data plus `automotive_app_desc.xml` that project reminder notifications into
+     the car (`CarProjection.kt`), and the templated car screen listing the whole
+     reminder set (`ReminderCarAppService.kt`). The Play build carries no Auto surface —
+     declaring the notification mirror makes it a *messaging* app in Play's Auto review,
+     which a reminder app fails; see `docs/alarm-architecture.md` (Android Auto) and
+     `store/play-readiness.md` #1b,
    - if `ANDROID_KEYSTORE_FILE` is set, copies the keystore in and injects a
      release `signingConfig` (passwords read from env at build time), plus
      `versionName`/`versionCode` from `ANDROID_VERSION_NAME`/`_CODE`.

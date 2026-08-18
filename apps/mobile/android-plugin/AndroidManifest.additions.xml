@@ -88,9 +88,6 @@
     android:name="com.capacitorjs.plugins.pushnotifications.MessagingService"
     tools:node="remove" />
 
-<!-- Declares that the app extends its notifications to Android Auto; points at
-     res/xml/automotive_app_desc.xml (<uses name="notification"/>). Required for Auto
-     to project our MessagingStyle reminder notifications. See docs/alarm-architecture.md. -->
-<meta-data
-    android:name="com.google.android.gms.car.application"
-    android:resource="@xml/automotive_app_desc" />
+<!-- The Android Auto declaration (com.google.android.gms.car.application) is NOT here.
+     It lives in the `direct` flavor's manifest, because declaring it opts the app into
+     Google Play's Auto review as a *messaging* app — see flavor/direct/AndroidManifest.xml. -->

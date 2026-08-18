@@ -359,14 +359,30 @@ on-device set. The phone/Wear keep the full hard-alarm guarantee unchanged.
 The two halves divide by *time*, and that division is the point: **notifications are
 for what is happening**, the **car screen is for everything else**.
 
+- **The whole Auto integration is `direct`-flavor only, mirror included.** The car
+  *screen* always was; the notification mirror was not, and that was the mistake. `<uses
+  name="notification"/>` needs no Auto *category*, which is why it looked safe to ship in
+  the Play build — but to Auto it declares the app a **messaging** app, and Play's Auto
+  App Quality review then tests it as one. On 2026-08-17 it failed exactly that test
+  ("not able to send outgoing messages / receive incoming messages"), with updates to be
+  rejected until fixed. No reminder app passes a messaging test, so the declaration moved
+  to the `direct` manifest alongside the screen, and `res/xml/automotive_app_desc.xml`
+  moved with it (`setup-android.mjs` copies it into that flavor's `res/`, and deletes any
+  stale copy from `src/main`). The Play build now has no Auto surface at all — which is
+  what Play's own remediation offers as the alternative to being a messaging app. See
+  `store/play-readiness.md` #1b.
 - **AA surfaces only `MessagingStyle` notifications** that carry a reply action
   (`SEMANTIC_ACTION_REPLY` + a single `RemoteInput`, `showsUserInterface=false`) and a
   mark-as-read action (`SEMANTIC_ACTION_MARK_AS_READ`, `showsUserInterface=false`).
   Plus a manifest `<meta-data com.google.android.gms.car.application>` pointing at
-  `res/xml/automotive_app_desc.xml` (`<uses name="notification"/>`).
+  `res/xml/automotive_app_desc.xml` (`<uses name="notification"/>`) — in the `direct`
+  flavor only, per the point above.
 - **Gated on active projection.** The phone shade notification is heavily tuned, so we
-  do **not** permanently convert it. `CarProjection` observes `androidx.car.app`'s
-  `CarConnection`; only while it reports `CONNECTION_TYPE_PROJECTION` can
+  do **not** permanently convert it. `CarProjection` first checks that this build even
+  declares itself to Auto (`declaresAutoApp`, read from the app's own manifest, so the
+  `play` flavor stops here and never builds a car-shaped notification — asking the
+  declaration beats duplicating a flavor constant that can drift from it). It then
+  observes `androidx.car.app`'s `CarConnection`; only while it reports `CONNECTION_TYPE_PROJECTION` can
   `AlarmService.buildNotification` add a MessagingStyle mirror + the two **invisible**
   car actions (`addCarProjection`). Off the car the notification is byte-identical to
   before.

@@ -66,9 +66,6 @@ THREE HONEST ACTIONS
 ESCALATE TO SOMEONE WHO'LL NOTICE
 If a reminder goes unconfirmed, Persistent can escalate beyond the device in front of you — to your other devices, and to an email contact you choose. Useful when the person who needs the reminder isn't always the person who'll act on it.
 
-WORKS IN THE CAR
-Reminders project to Android Auto, and you can answer by voice — say "done", "snooze 15 minutes", or "de-escalate" without touching the phone. Reading a reminder aloud never counts as confirming it.
-
 SYNCS EVERYWHERE, INSTANTLY
 Confirm on your phone and it clears on your tablet and in your browser at the same moment. Manage reminders from any browser at persistent.dynamic-solutions.ca — same account, live-synced.
 
@@ -102,6 +99,15 @@ to push an over-limit description:*
 `node scripts/play-publish.mjs --listing store/listing.md --check`*.)*
 
 ---
+
+
+> **No Android Auto copy here, deliberately.** The description carried a "WORKS IN THE
+> CAR" section until 2026-08-18. The Play build no longer projects to Auto at all (the
+> `com.google.android.gms.car.application` declaration is direct-only — see
+> `docs/alarm-architecture.md`), so the claim became false, and an Auto claim in the
+> listing is also what invites the Auto review that flagged the app as a messaging app
+> in the first place. The sideloaded build still does it; the store copy must not say so.
+
 
 ## Graphics
 

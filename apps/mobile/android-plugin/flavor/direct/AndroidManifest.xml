@@ -17,9 +17,20 @@
      bad set and is what the sideloaded build declares. See docs/alarm-architecture.md
      and store/play-readiness.md.
 
-     Note that the *notification* side of Android Auto is NOT here: mirroring nags into
-     the car needs no category and ships in both flavors (src/main's
-     com.google.android.gms.car.application meta-data).
+  3. **The Android Auto notification declaration**, which is the part this file used to
+     say was safe to ship in both flavors. `com.google.android.gms.car.application` sat
+     in src/main on the reasoning that mirroring nags into the car "needs no category".
+     It needs no *category*, but it does opt the app into Play's **Auto App Quality
+     Guidelines as a messaging app**: the only thing `<uses name="notification"/>` means
+     to Auto is "this app sends and receives messages". Play's review then tests exactly
+     that and finds — correctly — that a reminder app can neither send an outgoing
+     message nor receive an incoming one, which is the 2026-08-17 policy notice. No
+     version of Persistent passes a messaging test, so the declaration joins the rest of
+     the Auto integration in the sideloaded build. That leaves the Play build with no
+     Android Auto surface at all, which is the alternative Play's own "how to fix"
+     offers. `res/xml/automotive_app_desc.xml` moves with it (setup-android.mjs copies it
+     into this flavor's res/, not src/main's) — a resource the entry points at is part
+     of the same declaration.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
@@ -30,6 +41,13 @@
         <meta-data
             android:name="androidx.car.app.minCarApiLevel"
             android:value="1" />
+
+        <!-- Extends this build's notifications to Android Auto; points at
+             res/xml/automotive_app_desc.xml (<uses name="notification"/>). Direct-only —
+             see note 3 above. -->
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
 
         <service
             android:name="ca.persistent.app.alarm.ReminderCarAppService"

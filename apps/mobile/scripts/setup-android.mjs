@@ -47,6 +47,12 @@ if (!existsSync(join(mobileRoot, 'android'))) {
 //     and a reminder app is none of them — so it stays out of the reviewed build
 //     rather than risking a rejection. (The Auto *notification* mirror needs no
 //     category and stays shared.)
+/**
+ * The Android Auto notification descriptor, relative to `android-res/`. Direct-only for
+ * the same reason as the car screen — see 1c below.
+ */
+const AUTO_DESC_REL = join('xml', 'automotive_app_desc.xml')
+
 const DIRECT_ONLY_KT = new Set([
   'UpdatePlugin.kt',
   'ReminderCarAppService.kt',
@@ -100,6 +106,23 @@ mkdirSync(directAlarmPkg, { recursive: true })
 for (const file of DIRECT_ONLY_KT) {
   copyFileSync(join(pluginDir, file), join(directAlarmPkg, file))
 }
+
+// --- 1c. The Android Auto declaration is direct-only -------------------------
+// `com.google.android.gms.car.application` (flavor/direct/AndroidManifest.xml) opts an
+// app into Play's Auto review *as a messaging app* — which a reminder app fails, since
+// it can neither send nor receive a message (2026-08-17 policy notice). Both halves of
+// the declaration therefore live in `direct`: the manifest entry above, and the
+// descriptor it points at, here.
+const directAutoXml = join(mobileRoot, 'android', 'app', 'src', 'direct', 'res', 'xml')
+mkdirSync(directAutoXml, { recursive: true })
+copyFileSync(join(mobileRoot, 'android-res', AUTO_DESC_REL), join(directAutoXml, 'automotive_app_desc.xml'))
+// An earlier checkout copied it into src/main, where it would ship in the Play AAB.
+const staleAutoXml = join(androidApp, 'res', AUTO_DESC_REL)
+if (existsSync(staleAutoXml)) {
+  rmSync(staleAutoXml)
+  console.log('[setup-android] removed stale automotive_app_desc.xml from src/main (now direct-only)')
+}
+
 console.log('[setup-android] installed play/direct flavor source sets')
 
 // --- 2. Merge the manifest additions ----------------------------------------
@@ -295,7 +318,13 @@ $1`
 // android-res/) onto the generated res/, replacing Capacitor's default icon.
 const iconOverlay = join(mobileRoot, 'android-res')
 if (existsSync(iconOverlay)) {
-  cpSync(iconOverlay, join(androidApp, 'res'), { recursive: true })
+  // Everything EXCEPT the Android Auto descriptor, which belongs to the `direct`
+  // flavor along with the manifest entry that points at it (see 1c). Copying it into
+  // src/main would put it in the Play AAB, where the entry no longer exists to use it.
+  cpSync(iconOverlay, join(androidApp, 'res'), {
+    recursive: true,
+    filter: (src) => !src.endsWith(AUTO_DESC_REL)
+  })
   console.log('[setup-android] applied custom launcher icons')
 }
 

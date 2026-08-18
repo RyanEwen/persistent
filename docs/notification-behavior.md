@@ -239,6 +239,15 @@ the exception — it is sounding right now, so it appears the moment the car con
 Nothing about this changes the guarantee: an unannounced nag is still `FIRED` and
 still nagging on the phone, and it is listed in full on the car screen (§5b).
 
+**Android Auto is the sideloaded build only.** Both halves of it — the notification
+mirror here and the car screen in §5b — ship in the `direct` APK and not in the Play one.
+Declaring the mirror (`<uses name="notification"/>`) tells Auto the app sends and receives
+messages, and Play's Auto review holds it to that; a reminder app cannot pass a messaging
+test, so the Play build opts out of Auto entirely rather than claim to be something it is
+not (`alarm-architecture.md`, `store/play-readiness.md` #1b). Nothing about the guarantee
+changes for a Play user: the phone still nags, rings and escalates exactly as specified —
+it simply does not project into the car.
+
 Because Auto offers no arbitrary buttons on a notification, the user acts on one by
 **voice reply**:
 

@@ -1,6 +1,7 @@
 package ca.persistent.app.alarm
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -21,6 +22,9 @@ import androidx.car.app.connection.CarConnection
  * each occurrence last genuinely alerted.
  */
 object CarProjection {
+    /** The manifest entry that opts a build into Android Auto (direct flavor only). */
+    private const val AUTO_APP_META = "com.google.android.gms.car.application"
+
     @Volatile
     var projecting: Boolean = false
         private set
@@ -55,6 +59,13 @@ object CarProjection {
         if (started) return
         // Android Auto requires API 23+, and androidx.car.app is minSdk 23.
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        // Only a build that actually declares itself to Auto has anything to project to.
+        // The `play` flavor does not (see flavor/direct/AndroidManifest.xml note 3), so
+        // there this never observes the connection and never builds a car-shaped
+        // notification. Read off the manifest rather than a flavor constant: the
+        // declaration is the thing that decides, so asking it directly cannot drift
+        // from it — and if the entry ever moves again, this follows on its own.
+        if (!declaresAutoApp(context)) return
         started = true
         val appContext = context.applicationContext
         // observeForever must run on the main thread; a Service's onCreate may not be it.
@@ -74,4 +85,19 @@ object CarProjection {
             }
         }
     }
+
+    /**
+     * Whether this build carries the Android Auto declaration at all.
+     *
+     * Asked of the app's own manifest, so it is true in the sideloaded build and false in
+     * the Play one without either flavor holding a copy of the answer. A missing entry is
+     * the normal case here, not an error — hence the quiet false rather than a throw.
+     */
+    private fun declaresAutoApp(context: Context): Boolean = runCatching {
+        val info = context.packageManager.getApplicationInfo(
+            context.packageName,
+            PackageManager.GET_META_DATA
+        )
+        info.metaData?.containsKey(AUTO_APP_META) == true
+    }.getOrDefault(false)
 }

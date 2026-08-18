@@ -26,6 +26,7 @@ two flavors instead of dropping the updater outright:
 | `UpdatePlugin` | yes | **no** |
 | `REQUEST_INSTALL_PACKAGES` | yes | **no** |
 | `ReminderCarAppService` (Android Auto screen) | yes | **no** — see #1a |
+| `com.google.android.gms.car.application` (Auto notification mirror) | yes | **no** — see #1b |
 
 - Flavor sources: `apps/mobile/android-plugin/flavor/{play,direct}/`
 - `setup-android.mjs` copies them into `android/app/src/<flavor>/` and injects the `productFlavors` block
@@ -35,7 +36,31 @@ two flavors instead of dropping the updater outright:
 **Verified on the built artifacts, not just the source:** the `playDebug` packaged
 manifest contains **0** occurrences of `REQUEST_INSTALL_PACKAGES` and the flavor's
 compiled output contains **0** `UpdatePlugin` classes; `directDebug` has both. Both
-flavors compile (Kotlin + Java).
+flavors compile (Kotlin + Java). The same check covers Auto: the built `playDebug` APK
+has **no** `com.google.android.gms.car.application` meta-data, **no**
+`ReminderCarAppService`, and **no** `res/xml/automotive_app_desc.xml`; `directDebug` has
+all three. Check the APK, not the source — the entry reached the Play build for months
+because it was merged into `src/main` by `setup-android.mjs`, which no source file for
+the `play` flavor mentions.
+
+### 1b. The Auto notification mirror was the actual policy hit
+
+On 2026-08-17 Play raised *Auto App Quality Guidelines: Message functionality* against
+the app — "your app is not able to send outgoing messages / receive incoming messages" —
+with updates to be rejected until fixed. Nothing about the car *screen* caused it: that
+was already direct-only. The cause was `<meta-data com.google.android.gms.car.application>`
+pointing at `<uses name="notification"/>`, which shipped in **both** flavors on the
+reasoning that it "needs no category". It needs no category, but to Auto it means *this
+app sends and receives messages*, and review holds it to that. A reminder app cannot pass
+a messaging test, so the declaration moved to `direct` — which is the alternative Play's
+own remediation offers ("exclude your app from Android Auto by removing the Android Auto
+manifest entry"). The Play build now has no Auto surface; the sideloaded build keeps
+both the mirror and the screen.
+
+Two things follow from it, and both are done: the store description no longer claims the
+app works in the car (`listing.md`), and `CarProjection.init` reads the app's own manifest
+for the declaration rather than trusting a flavor constant, so the Play build never even
+observes the car connection.
 
 The web UI is the same hosted bundle for both flavors, so it cannot be compiled
 differently — every updater surface gates on `hasNativeUpdater()`
