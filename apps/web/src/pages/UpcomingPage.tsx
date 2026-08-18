@@ -12,10 +12,9 @@
  * exactly one of the two tabs at a time, which is what stops a busy morning
  * listing the same thing twice with different affordances.
  *
- * **Notes** (schedule kind `never`) are absent for the same reason — they have
- * their own section on Current (`components/NotesSection.tsx`). Nothing about them
- * is upcoming or ever will be, so listing them here would put them in a queue they
- * can never reach the front of.
+ * **Notes** (schedule kind `never`) are absent for the same reason — they have their
+ * own tab (`pages/NotesPage.tsx`). Nothing about them is upcoming or ever will be, so
+ * listing them here would put them in a queue they can never reach the front of.
  */
 import Stack from '@mui/joy/Stack'
 import Typography from '@mui/joy/Typography'
@@ -25,6 +24,7 @@ import { NewReminderFab } from '../components/NewReminderFab.js'
 import { reminderBodyText } from '@persistent/shared'
 import type { Reminder } from '@persistent/shared'
 import { useReminders } from '../data/reminders.js'
+import { isNote } from '../lib/notes.js'
 import { useActiveOccurrences } from '../data/occurrences.js'
 import { scheduleSummary } from '../lib/scheduleSummary.js'
 import { formatWhen } from '../lib/datetime.js'
@@ -47,8 +47,8 @@ export function UpcomingPage() {
 
   const pendingReminderIds = new Set((active.data ?? []).map((o) => o.reminderId))
   const idle = (reminders.data ?? [])
-    // Notes are on Current, in their own section — nothing about one is upcoming.
-    .filter((r) => r.schedule.kind !== 'never' && !isFinished(r) && !pendingReminderIds.has(r.id))
+    // Notes have their own tab — nothing about one is upcoming.
+    .filter((r) => !isNote(r) && !isFinished(r) && !pendingReminderIds.has(r.id))
     .map((reminder) => ({ reminder, next: reminderNextFire(reminder) }))
     .sort((a, b) => (a.next?.getTime() ?? Infinity) - (b.next?.getTime() ?? Infinity))
 

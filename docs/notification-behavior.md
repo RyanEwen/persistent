@@ -448,18 +448,22 @@ above is a guarantee about an occurrence.
 - It **never fires**, so it never nags, never escalates, never emails a contact,
   and never needs confirming. There is nothing to Done, Silence or Snooze.
 - It therefore **never appears as a firing** — no attention card, no notification,
-  nothing in any shade on any device. Notes are listed on Current all the same, in
-  their own section below the cards: that is the screen the app opens on, so it is
-  where something kept to be read has to be. The heading is what separates them
-  from the cards above, which all need confirming.
+  nothing in any shade on any device. Notes are listed all the same, on a **tab of
+  their own** that the bar offers only while at least one note exists: a note is
+  opt-in, and an empty tab would spend a fifth of a phone's nav bar on a feature the
+  account doesn't use. They sat at the foot of Current until there were enough of them
+  to be in the way — Current answers "is anything waiting on me?", and nothing on this
+  list ever is. In the car they are listed too, in their own section and with nothing
+  to act on (§5b).
 - Materialization deliberately expands nothing for it, exactly as for `none`
   (`isTimeless`) — so no timer can start it firing later.
 - Escalation is rejected at the boundary rather than stored and ignored: a note
   cannot be escalated to an alarm or emailed to a nominated contact, because
   nothing about it can ever go unanswered.
 - It is a note, not a *type* — a `TODO` note is a kept checklist, a `MEDICATION`
-  note is a dose reference. There is no firing for a tick to belong to, so its
-  items show as a plain list.
+  note is a dose reference. Its checklist is ticked and extended like any other; the
+  ticks just live on the reminder, since there is no firing for them to belong to
+  (§1a).
 
 Pausing (`active: false`) is not the same thing and does not overlap: a paused
 reminder is one that *would* fire, held; a note is one that would not. That is why

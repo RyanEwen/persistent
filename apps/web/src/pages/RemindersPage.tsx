@@ -9,12 +9,11 @@
  * and ran together as one column for long enough to prove that a divider between
  * them wasn't enough separation once either group got long.
  *
- * **Notes** (`components/NotesSection.tsx`) sit below the cards, under their own
- * heading. They are the exception to "this screen is things needing action", and
- * they are here because this is the screen the app opens on: reference material
- * has to be to hand, not behind the tab you visit to change a schedule. The
- * heading is what keeps the two apart — nothing in the notes list has a status, a
- * Done or a Snooze, because a note has no occurrence to act on.
+ * **Notes have their own tab** (`pages/NotesPage.tsx`). They sat at the foot of this
+ * screen while there were only ever one or two, but this screen answers "is anything
+ * waiting on me?" — and a page of kept reference material under the answer turns that
+ * into a scroll. Nothing about a note belongs to it either: no status, no Done, no
+ * Snooze, because there is no occurrence to act on.
  *
  * Tapping a card opens the **editor**. In the app the user already has the
  * reminder in front of them, so the detail view is a stop on the way to the only
@@ -40,7 +39,6 @@ import {
 import { compareFirings } from '../lib/firingOrder.js'
 import { useSettings } from '../settings/useSettings.js'
 import { AttentionReminderCard } from '../components/AttentionReminderCard.js'
-import { NotesSection } from '../components/NotesSection.js'
 import { SnoozeDialog } from '../components/SnoozeDialog.js'
 import { PullToRefresh } from '../components/PullToRefresh.js'
 
@@ -108,8 +106,6 @@ export function RemindersPage() {
             ))}
           </Stack>
         </Stack>
-
-        <NotesSection reminders={reminders.data ?? []} />
 
         <NewReminderFab />
 

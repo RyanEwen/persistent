@@ -107,9 +107,12 @@ escalate or need confirming; the shared schema rejects escalation on one outrigh
 and the editor's Notifications and Escalation tabs explain themselves instead of
 offering settings. Notes are still reminders in every other way (type, checklist,
 medications, details), so a `TODO` note is a kept list rather than a routine. They
-are listed under their own heading on **Current**, below the attention cards — the
-screen the app opens on, so where reference material is to hand — and never on
-Upcoming, since nothing about a note is upcoming. **Turning a reminder into a note retires whatever
+have their own **Notes tab**, which the tab bar offers only while at least one note
+exists (`apps/web/src/pages/NotesPage.tsx`, `components/BottomNav.tsx`) — the route
+stays live regardless, so a saved note lands somewhere. They are never on Upcoming,
+since nothing about a note is upcoming, and no longer at the foot of Current, which
+answers "is anything waiting on me?" and where kept material was in the way of the
+answer. **Turning a reminder into a note retires whatever
 it left nagging**: the user has said this thing does not remind, and unlike an
 ordinary reschedule there is no later firing to carry the obligation forward to.
 `none` and `never` are the two kinds carrying no time of day (`isTimeless`), and

@@ -2,12 +2,12 @@
  * The Notes list: reminders whose schedule kind is `never`, kept to be read
  * rather than acted on.
  *
- * It sits on **Current**, below the attention cards. Current is where the app
- * opens, so it is where something you keep is actually to hand — a door code or a
- * packing list is no use behind a tab you only visit to change a schedule. The
- * section is separated by its own heading precisely because everything above it
- * needs confirming and nothing here does: a note carries no occurrence, so it has
- * no Done, no Snooze and no status of any kind.
+ * It is the body of the **Notes tab** (`pages/NotesPage.tsx`) and carries the heading
+ * that names it, so the page above adds none. It lived at the foot of Current until
+ * there was enough of it to be in the way there — Current answers "is anything waiting
+ * on me?", and nothing here ever is: a note carries no occurrence, so it has no Done,
+ * no Snooze and no status of any kind. That is also why the tab it lives on comes after
+ * the chronological ones rather than among them.
  *
  * The one line under the heading says only that these never notify you. Anything
  * more presumes what the user keeps notes *for*, which is not the app's business.
@@ -53,7 +53,9 @@ import { TodoChecklist } from './TodoChecklist.js'
 import { SectionHeading } from './SectionHeading.js'
 
 export function NotesSection({ reminders }: { reminders: readonly Reminder[] }) {
-  const notes = reminders.filter((reminder) => reminder.schedule.kind === 'never')
+  const notes = reminders.filter(isNote)
+  // The page owns the empty state — it has more room to explain what a note is than a
+  // heading with nothing under it would.
   if (notes.length === 0) return null
 
   return (

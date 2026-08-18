@@ -11,6 +11,7 @@ import { AppLayout } from './components/AppLayout.js'
 import { SignInPage } from './pages/SignInPage.js'
 import { RemindersPage } from './pages/RemindersPage.js'
 import { UpcomingPage } from './pages/UpcomingPage.js'
+import { NotesPage } from './pages/NotesPage.js'
 import { ReminderDetailPage } from './pages/ReminderDetailPage.js'
 import { ReminderEditorPage } from './pages/reminder-editor/ReminderEditorPage.js'
 import { HistoryPage } from './pages/HistoryPage.js'
@@ -61,6 +62,9 @@ export function App() {
       <Routes>
         <Route path="/" element={<RemindersPage />} />
         <Route path="/upcoming" element={<UpcomingPage />} />
+        {/* Routed unconditionally even though its tab is hidden without notes: a saved
+            note lands here, and a link to it must not fall through to Current. */}
+        <Route path="/notes" element={<NotesPage />} />
         <Route path="/reminders/new" element={<ReminderEditorPage />} />
         <Route path="/reminders/:id" element={<ReminderDetailPage />} />
         <Route path="/reminders/:id/edit" element={<ReminderEditorPage />} />

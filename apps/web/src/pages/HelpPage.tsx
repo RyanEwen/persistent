@@ -50,7 +50,7 @@ export function HelpPage() {
         <Typography level="body-sm">
           On the <b>Schedule</b> tab, <b>Never — just a note</b> keeps something in the app without ever reminding you
           about it: a door code, a packing list, what the vet said. A note never notifies you, never nags and never needs
-          confirming — it just sits under <b>Notes</b> at the bottom of the <b>Current</b> screen, where you can read
+          confirming — it just sits on the <b>Notes</b> tab, which appears as soon as you have one, where you can read
           it whenever you need it, checklist and all — a note&apos;s items tick off right there, and stay ticked until
           you untick them (there is no firing to reset them). You can give it a real schedule later if it turns out you
           do want reminding; that clears the ticks, because from then on each notification tracks its own. Doing it the

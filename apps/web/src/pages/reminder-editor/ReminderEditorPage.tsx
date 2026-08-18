@@ -167,11 +167,11 @@ export function ReminderEditorPage() {
   /**
    * Which tab to land on after saving.
    *
-   * Current and Upcoming are separate tabs, so returning to Current unconditionally
-   * would drop the user on a page that doesn't contain what they just saved. An
-   * unscheduled reminder ("remind me now") gets its single firing immediately and
-   * so *is* on Current; anything with a real schedule is on Upcoming. A note is on
-   * Current too — not as a firing, but in the Notes section below the cards.
+   * Each list is its own tab, so returning to Current unconditionally would drop the
+   * user on a page that doesn't contain what they just saved. An unscheduled reminder
+   * ("remind me now") gets its single firing immediately and so *is* on Current;
+   * anything with a real schedule is on Upcoming; a note is on Notes — the tab that
+   * appears the moment this save creates the first one.
    *
    * Judged by schedule kind rather than by the next fire time: a `once` reminder
    * left at an instant that has already passed fires straight away and lands on
@@ -180,6 +180,7 @@ export function ReminderEditorPage() {
    * the client — the sort of duplicated rule that drifts.
    */
   function landingTab(kind: ScheduleKind): string {
+    if (kind === 'never') return '/notes'
     return isTimeless(kind) ? '/' : '/upcoming'
   }
 

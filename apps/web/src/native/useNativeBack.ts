@@ -36,7 +36,10 @@ import { hasOpenBackAwareDialog } from '../components/backAwareDialogStack.js'
 import { runBackInterceptor } from './backInterceptor.js'
 
 /** The bottom-nav destinations. The first is the one Back falls back to. */
-const TAB_ROUTES = ['/', '/upcoming', '/history', '/settings']
+// '/notes' is a tab root whether or not its tab is currently offered (BottomNav hides
+// it with no notes): Back from a note's editor must land on the list the user came
+// from, and a hidden tab is still somewhere they can be standing.
+const TAB_ROUTES = ['/', '/upcoming', '/notes', '/history', '/settings']
 const HOME_ROUTE = TAB_ROUTES[0]!
 
 /** Screens reached from Settings, so Back returns there rather than to the list. */
