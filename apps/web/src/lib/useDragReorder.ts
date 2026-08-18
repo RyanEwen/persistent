@@ -12,6 +12,12 @@
  * rebase the origin every time a step is applied so the drag stays anchored to the
  * row under the finger instead of drifting.
  *
+ * The dragged row also *follows the pointer* rather than only snapping between slots:
+ * `dragOffset` is the leftover travel since the last whole step (always within half a
+ * row), which the caller applies as a `translateY`. Without it the row you are holding
+ * sits still until it jumps a whole position, which reads as a stutter rather than as
+ * dragging — the other rows move and the one under your finger does not.
+ *
  * Pointer capture means move/up keep arriving at the handle even when the pointer
  * outruns it, and `touchAction: 'none'` stops a touch-drag from scrolling the page
  * instead. The handle is focusable and takes Up/Down as well — a drag handle that
@@ -50,10 +56,13 @@ export function useDragReorder(
   // moving doesn't write a "reorder" that reorders nothing.
   const moved = useRef(false)
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null)
+  // Pixels the held row is offset from its slot — see the note above.
+  const [dragOffset, setDragOffset] = useState(0)
 
   function endDrag() {
     drag.current = null
     setDraggingIndex(null)
+    setDragOffset(0)
     if (moved.current) {
       moved.current = false
       onCommit?.()
@@ -84,6 +93,7 @@ export function useDragReorder(
 
   return {
     draggingIndex,
+    dragOffset,
     handleProps: (index: number) => ({
       style: { touchAction: 'none' as const, cursor: 'grab' },
       onPointerDown: (event: PointerEvent<HTMLElement>) => {
@@ -97,12 +107,16 @@ export function useDragReorder(
         drag.current = { index, originY: event.clientY, pitch: rowPitch() }
         moved.current = false
         setDraggingIndex(index)
+        setDragOffset(0)
       },
       onPointerMove: (event: PointerEvent<HTMLElement>) => {
         const current = drag.current
         if (!current) return
         const steps = Math.round((event.clientY - current.originY) / current.pitch)
         if (steps !== 0) step(current.index + steps)
+        // After any step, `originY` has been rebased onto the new slot, so what's left
+        // is how far past that slot the finger is — the row's own offset.
+        setDragOffset(event.clientY - current.originY)
       },
       onPointerUp: endDrag,
       onPointerCancel: endDrag,
@@ -112,7 +126,8 @@ export function useDragReorder(
         event.preventDefault()
         const target = Math.min(count - 1, Math.max(0, index + delta))
         if (target === index) return
-        // A key move is its own complete gesture, so it commits on the spot.
+        // A key move is its own complete gesture, so it commits on the spot. No offset
+        // to animate: the row is placed, not carried.
         onMove(index, target)
         onCommit?.()
       }

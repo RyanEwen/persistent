@@ -81,7 +81,7 @@ export function TodoItemsField({
   const inputs = useRef(new Map<string, HTMLInputElement | null>())
   const [focusId, setFocusId] = useState<string | null>(null)
   const listRef = useRef<HTMLDivElement | null>(null)
-  const { draggingIndex, handleProps } = useDragReorder(listRef, todos.length, onMove)
+  const { draggingIndex, dragOffset, handleProps } = useDragReorder(listRef, todos.length, onMove)
 
   // Ref callbacks run before effects, so by the time this fires the freshly
   // inserted input has registered itself and can be focused.
@@ -115,12 +115,19 @@ export function TodoItemsField({
             spacing={0.5}
             alignItems="center"
             {...{ [REORDER_ROW_ATTR]: '' }}
-            // The row being dragged lifts off the list so it's obvious which one
-            // is moving as the others shuffle around it.
+            // The row being dragged lifts off the list and follows the pointer, so it
+            // reads as carried rather than jumping a slot at a time; the others shuffle
+            // underneath it.
             sx={{
               borderRadius: 'sm',
               ...(draggingIndex === index
-                ? { bgcolor: 'background.level1', boxShadow: 'sm', position: 'relative', zIndex: 1 }
+                ? {
+                    bgcolor: 'background.level1',
+                    boxShadow: 'sm',
+                    position: 'relative',
+                    zIndex: 1,
+                    transform: `translateY(${dragOffset}px)`
+                  }
                 : {})
             }}
           >

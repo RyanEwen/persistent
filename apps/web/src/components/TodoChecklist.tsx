@@ -151,7 +151,7 @@ export function TodoChecklist({
     setOrder(moveTodoItem(ordered, moved.id, target.id, to > from).map((item) => item.id))
   }
 
-  const { draggingIndex, handleProps } = useDragReorder(listRef, visible.length, moveVisible, () => {
+  const { draggingIndex, dragOffset, handleProps } = useDragReorder(listRef, visible.length, moveVisible, () => {
     // Sent once the gesture has settled, as the full set of ids: the server treats it
     // as a ranking, so an item added elsewhere meanwhile survives (see the endpoint).
     const settled = dragOrderRef.current
@@ -201,13 +201,20 @@ export function TodoChecklist({
               direction="row"
               alignItems="center"
               {...{ [REORDER_ROW_ATTR]: '' }}
-              // The row being dragged lifts off the list, so it's obvious which one is
-              // moving as the others shuffle around it — the same treatment the editor
-              // gives its rows.
+              // The row being dragged lifts off the list and follows the pointer, so
+              // it reads as carried rather than teleporting a slot at a time; the
+              // others shuffle underneath it. The same treatment the editor gives its
+              // rows.
               sx={{
                 borderRadius: 'sm',
                 ...(draggingIndex === index
-                  ? { bgcolor: 'background.level1', boxShadow: 'sm', position: 'relative', zIndex: 1 }
+                  ? {
+                      bgcolor: 'background.level1',
+                      boxShadow: 'sm',
+                      position: 'relative',
+                      zIndex: 1,
+                      transform: `translateY(${dragOffset}px)`
+                    }
                   : {})
               }}
             >
