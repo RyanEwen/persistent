@@ -1,7 +1,14 @@
 /**
- * The interactive checklist on one firing of a TODO reminder: a checkbox per item
- * plus an "n of m done" progress line, a control to hide the ticked ones, and —
- * where the caller has somewhere to put it — a row for adding an item.
+ * The interactive checklist on one firing of a TODO reminder: a row per item, an
+ * "n of m done" progress line, a control to hide the ticked ones, and — where the
+ * caller has somewhere to put it — a row for adding an item.
+ *
+ * **A row is three regions, each doing exactly one thing**: the checkbox ticks, the
+ * text opens for editing, the handle drags. The whole row used to tick, which was the
+ * better tap target but left nowhere to put editing; the checkbox keeps a deliberately
+ * generous hit area to pay some of that back, because ticking is what happens
+ * one-handed against a ringing alarm. The same three regions appear in the editor's
+ * checklist field, so the list behaves the same in both places.
  *
  * Ticking and adding write different objects, which is the one thing to keep
  * straight here: a tick belongs to the firing, an item belongs to the reminder. So
@@ -38,6 +45,7 @@ import { MAX_TODO_ITEMS, todoProgress, type TodoItem } from '@persistent/shared'
 import { REORDER_ROW_ATTR, useDragReorder } from '../lib/useDragReorder.js'
 import { moveTodoItem } from '../lib/todoOrder.js'
 import { TodoAddItem } from './TodoAddItem.js'
+import { TodoItemText } from './TodoItemText.js'
 
 /**
  * Minimum tap-target height per row. Ticking happens one-handed and sometimes
@@ -53,6 +61,7 @@ export function TodoChecklist({
   checkedItemIds,
   onToggle,
   onAddItem,
+  onRenameItem,
   onReorder,
   hideChecked = false,
   onHideCheckedChange,
@@ -69,6 +78,12 @@ export function TodoChecklist({
    * owns that write; the add row is then not offered.
    */
   onAddItem?: (item: TodoItem) => void
+  /**
+   * Save new text for one item. Like adding and reordering this writes the *reminder*,
+   * so the new wording is what every later firing shows. Omitted where nothing owns
+   * the write; the text is then plain and inert.
+   */
+  onRenameItem?: (itemId: string, text: string) => void
   /**
    * Store a new order for the list, as the full set of ids in the order they should
    * be in. Like adding, this writes the *reminder*. Omitted where nothing owns that
@@ -153,37 +168,31 @@ export function TodoChecklist({
         {visible.map((item, index) => {
           const isChecked = checked.has(item.id)
           const row = (
-            <Checkbox
-              size="md"
-              disabled={disabled}
-              checked={isChecked}
-              onChange={(event) => onToggle(item.id, event.target.checked)}
-              // The whole row is the target, not just the box: Joy renders the
-              // label inside the <label>, so stretching it full width means a tap
-              // anywhere on the line ticks the item.
-              sx={{
-                minHeight: ROW_MIN_HEIGHT,
-                alignItems: 'center',
-                px: 0.5,
-                borderRadius: 'sm',
-                '& > *': { alignItems: 'center' },
-                '&:hover': { bgcolor: 'background.level1' }
-              }}
-              slotProps={{ label: { sx: { flex: 1, minWidth: 0 } } }}
-              label={
-                // Struck through rather than removed: the list is the record of
-                // what this firing covers, so a done item has to stay visible.
-                <Typography
-                  level="body-sm"
-                  sx={{
-                    textDecoration: isChecked ? 'line-through' : undefined,
-                    color: isChecked ? 'text.tertiary' : undefined
-                  }}
-                >
-                  {item.text}
-                </Typography>
-              }
-            />
+            <Stack direction="row" alignItems="center" sx={{ minHeight: ROW_MIN_HEIGHT, borderRadius: 'sm' }}>
+              {/* The tick target is now the box alone rather than the whole line, so it
+                  carries padding of its own to stay thumb-sized. It is labelled by the
+                  item, since the text beside it is a separate control now. */}
+              <Checkbox
+                size="md"
+                disabled={disabled}
+                checked={isChecked}
+                onChange={(event) => onToggle(item.id, event.target.checked)}
+                aria-label={item.text}
+                sx={{
+                  p: 0.75,
+                  borderRadius: 'sm',
+                  '&:hover': { bgcolor: 'background.level1' }
+                }}
+              />
+              {/* Struck through rather than removed: the list is the record of what
+                  this firing covers, so a done item has to stay visible. */}
+              <TodoItemText
+                text={item.text}
+                struck={isChecked}
+                disabled={disabled}
+                onRename={onRenameItem ? (text) => onRenameItem(item.id, text) : undefined}
+              />
+            </Stack>
           )
           if (!reorderable) return <Box key={item.id}>{row}</Box>
           return (

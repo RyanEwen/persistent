@@ -214,6 +214,30 @@ nothing is written until Save.
 Ticks are untouched by a reorder. Item ids are stable precisely so an item carries its
 ticked state as it moves (`notification-behavior.md` §1a).
 
+## Renaming a checklist item
+
+`POST /api/reminders/:id/items/:itemId` takes `{ text }` and is what clicking an item's
+text on a card, or typing in its row in the editor, ends up calling. Rejected for
+anything that is not a `TODO`, and **404 for an id the list no longer has** — a rename
+queued offline and drained after someone deleted that item must not resurrect it.
+
+**Last-write-wins**, which is the honest model for free text: two devices renaming one
+line have no merge, and the later edit is the one the user typed most recently. It is
+per item, so it cannot add, drop or reorder anything.
+
+Rebuilt in **one SQL statement** like its siblings (only the matching element's `text`
+changes; every other element and the order pass through), so a concurrent add or reorder
+is not undone by a read-modify-write. `withTodoItemText` states the same rule for the
+optimistic cache update.
+
+`reminder.changed` over WS **and** a sync nudge: the renamed line is part of the
+notification body, so an armed alarm's text is stale without it. A note skips the nudge,
+as always.
+
+**Ids and order are untouched, which is the point.** A rename changes what a line
+*says*, not which line it is, so a firing part-way through the checklist keeps its ticks
+against the same items (`notification-behavior.md` §1a).
+
 ## Hiding ticked checklist items
 
 Whether a checklist is drawn with its ticked items collapsed is stored on the

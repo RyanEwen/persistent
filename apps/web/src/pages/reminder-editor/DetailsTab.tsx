@@ -34,6 +34,7 @@ export function DetailsTab({
   set,
   autoFocusTitle,
   todoCheckedItemIds,
+  onToggleTodo,
   onTypeChange,
   onMedicationChange,
   onAddMedication,
@@ -47,8 +48,10 @@ export function DetailsTab({
   set: <K extends keyof FormState>(key: K, value: FormState[K]) => void
   /** Only a new reminder opens with the title focused — see the header note. */
   autoFocusTitle: boolean
-  /** Read-only ticks from the reminder's current firing, if it has one. */
+  /** Ticks from the reminder's current firing, if it has one. */
   todoCheckedItemIds?: readonly string[]
+  /** Tick one item on that firing — absent when there is no firing to tick. */
+  onToggleTodo?: (itemId: string, checked: boolean) => void
   onTypeChange: (type: ReminderType) => void
   onMedicationChange: (index: number, key: keyof MedicationRow, value: string) => void
   onAddMedication: () => void
@@ -85,6 +88,7 @@ export function DetailsTab({
         <TodoItemsField
           todos={form.todos}
           checkedItemIds={todoCheckedItemIds}
+          onToggle={onToggleTodo}
           onChange={onTodoChange}
           onInsert={onInsertTodo}
           onMove={onMoveTodo}

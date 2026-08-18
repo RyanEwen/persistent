@@ -562,6 +562,33 @@ export const addTodoItemInputSchema = todoItemSchema
 export type AddTodoItemInput = z.infer<typeof addTodoItemInputSchema>
 
 /**
+ * Retitle one checklist item — clicking its text on a card, or typing in its row in
+ * the editor, both end here (`POST /api/reminders/:id/items/:itemId`).
+ *
+ * Per item and last-write-wins, which is the honest model for free text: two devices
+ * renaming the same line have no merge, and the later one is the one the user typed
+ * most recently. It carries no id of its own because the path names the item, and it
+ * cannot add or remove anything — an id that has since been deleted is a 404 rather
+ * than a resurrection.
+ */
+export const renameTodoItemInputSchema = z.object({
+  text: z.string().trim().min(1).max(MAX_TODO_ITEM_TEXT)
+})
+export type RenameTodoItemInput = z.infer<typeof renameTodoItemInputSchema>
+
+/**
+ * `typeData` with one item's text replaced — the optimistic-cache mirror of the rename
+ * endpoint. Order and ids are untouched, so a firing's ticks stay against the same
+ * items: renaming is the one edit that changes what a line *says* without changing
+ * which line it is.
+ */
+export function withTodoItemText(typeData: TypeData, itemId: string, text: string): TypeData {
+  const items = todoItems(typeData)
+  if (!items.some((item) => item.id === itemId)) return typeData
+  return { ...typeData, items: items.map((item) => (item.id === itemId ? { ...item, text } : item)) }
+}
+
+/**
  * Reorder a reminder's checklist — the drag handles on a card, so the order a list
  * is worked through can be changed where it is being worked through.
  *

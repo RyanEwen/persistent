@@ -44,6 +44,7 @@ import { reminderBodyText, todoItems, type Reminder } from '@persistent/shared'
 import {
   useAddTodoItem,
   useCheckReminderItem,
+  useRenameTodoItem,
   useReorderTodoItems,
   useSetHideCheckedItems
 } from '../data/reminders.js'
@@ -74,6 +75,7 @@ function NoteCard({ reminder }: { reminder: Reminder }) {
   const checkItem = useCheckReminderItem()
   const addItem = useAddTodoItem()
   const reorderItems = useReorderTodoItems()
+  const renameItem = useRenameTodoItem()
   const hideChecked = useSetHideCheckedItems()
 
   // A checklist renders as its own lines below, so the body text drops the
@@ -146,6 +148,7 @@ function NoteCard({ reminder }: { reminder: Reminder }) {
             // is *for* extending, and it has no firing whose record could disagree.
             onAddItem={(item) => addItem.mutate({ id: reminder.id, arg: item })}
             onReorder={(itemIds) => reorderItems.mutate({ id: reminder.id, arg: { itemIds } })}
+            onRenameItem={(itemId, text) => renameItem.mutate({ id: reminder.id, itemId, arg: { text } })}
             hideChecked={reminder.hideCheckedItems}
             onHideCheckedChange={(hidden) => hideChecked.mutate({ id: reminder.id, arg: { hidden } })}
           />

@@ -34,7 +34,13 @@ import SnoozeIcon from '@mui/icons-material/Snooze'
 import EditIcon from '@mui/icons-material/Edit'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import { MAX_TODO_ITEMS, reminderBodyText, todoItems } from '@persistent/shared'
-import { useAddTodoItem, useReminders, useReorderTodoItems, useSetHideCheckedItems } from '../data/reminders.js'
+import {
+  useAddTodoItem,
+  useReminders,
+  useRenameTodoItem,
+  useReorderTodoItems,
+  useSetHideCheckedItems
+} from '../data/reminders.js'
 import {
   useActiveOccurrences,
   useAckOccurrence,
@@ -67,6 +73,7 @@ export function ReminderDetailPage() {
   const checkItem = useCheckOccurrenceItem()
   const addItem = useAddTodoItem()
   const reorderItems = useReorderTodoItems()
+  const renameItem = useRenameTodoItem()
   const hideChecked = useSetHideCheckedItems()
   const { timeFormat } = useSettings()
   const [snoozeFor, setSnoozeFor] = useState<string | null>(null)
@@ -190,6 +197,7 @@ export function ReminderDetailPage() {
                         // cards adds it to the list every card is drawing.
                         onAddItem={(item) => addItem.mutate({ id: reminder.id, arg: item })}
                         onReorder={(itemIds) => reorderItems.mutate({ id: reminder.id, arg: { itemIds } })}
+                        onRenameItem={(itemId, text) => renameItem.mutate({ id: reminder.id, itemId, arg: { text } })}
                         // Ticks are per firing, the collapse is per reminder — so
                         // every card here hides and shows together, and agrees with
                         // the same list on Current.

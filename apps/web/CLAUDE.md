@@ -23,6 +23,15 @@
   that button sits in the conventional bottom-right corner and may overlap a
   card's actions at narrow widths, which is a documented trade-off rather than a
   licence to outrank Done visually.
+- **A checklist row is three regions, and they mean the same thing everywhere.** The
+  checkbox ticks, the text opens for editing, the handle drags to reorder — on a card
+  (`components/TodoChecklist.tsx`) and in the editor's field
+  (`pages/reminder-editor/TodoItemsField.tsx`) alike, and adding a line is the same
+  `components/TodoAddItem.tsx` in both. Don't reintroduce a surface-specific gesture
+  (the whole row used to tick, which left nowhere to put editing); if a region has to
+  earn its tap, give it a bigger hit area rather than a second meaning. The editor's
+  checkbox writes the *firing* immediately and is not part of the draft, so it is shown
+  only when there is a firing (or a note) whose ticks it can write.
 - **One heading treatment.** Every screen and in-page section opens with
   `components/SectionHeading.tsx` (`title-md` + an optional `body-sm`
   `text.tertiary` line) — don't hand-roll a `Typography` pair. It carries **no

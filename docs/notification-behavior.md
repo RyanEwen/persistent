@@ -129,6 +129,13 @@ body of whatever is nagging right now, exactly as an item added in the editor wo
 touches no ticks: adding a line to a list says nothing about what was done this
 time, and it neither confirms nor excuses a firing. Only Done does that.
 
+**An item's text can be rewritten from the card too** (`POST
+/api/reminders/:id/items/:itemId`) — click it and type. It is the same kind of write as
+adding and reordering: the wording belongs to the reminder, so every later firing says
+the new thing and the notification body follows. The item's **id does not change**,
+which is what keeps a firing's ticks against the same lines: renaming changes what a
+line says, never which line it is.
+
 **The order is part of the definition too, and can be changed from the card.** Drag
 handles sit on every checklist the app draws (`POST /api/reminders/:id/items/order`), so
 a list can be re-ordered where it is being worked through rather than only in the

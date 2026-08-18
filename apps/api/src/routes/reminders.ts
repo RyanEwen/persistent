@@ -12,6 +12,7 @@ import {
   hideCheckedInputSchema,
   MAX_TODO_ITEMS,
   reminderInputSchema,
+  renameTodoItemInputSchema,
   reorderTodoItemsInputSchema,
   todoItems,
   type TypeData
@@ -288,6 +289,86 @@ remindersRouter.post('/:id/items/order', async (request, response) => {
   if ((updated.schedule as unknown as { kind?: string }).kind !== 'never') {
     void nudgeNativeSync(userId).catch((error) =>
       logger.warn('checklist reorder sync nudge failed', { error: String(error), reminderId: updated.id })
+    )
+  }
+  response.json({ reminder: toReminder(updated) })
+})
+
+/**
+ * Retitle one checklist item.
+ *
+ * The third card write on the same list, and the one that changes what a line *says*
+ * without changing which line it is: ids and order are untouched, so a firing part-way
+ * through the checklist keeps its ticks against the same items. Last-write-wins is the
+ * honest model for free text — two devices renaming one line have no merge, and the
+ * later edit is the one the user typed most recently.
+ *
+ * A 404 for an id the list no longer has, rather than re-adding it: a rename queued
+ * offline and drained after someone deleted the item must not resurrect it.
+ *
+ * **Registered after `/:id/items/order` on purpose.** Express matches in registration
+ * order, so this parametric route sitting above the literal one swallowed every reorder
+ * and answered it with "Invalid checklist item." — a drag that looked like a validation
+ * bug. `reminders.routes.test.ts` pins the order, and the guard below means the order
+ * being forgotten again costs nothing.
+ */
+remindersRouter.post('/:id/items/:itemId', async (request, response, next) => {
+  // `order` is the sibling route above, not an item id.
+  if (request.params.itemId === 'order') return next()
+
+  const userId = requireUserId(request)
+  const parsed = renameTodoItemInputSchema.safeParse(request.body)
+  if (!parsed.success) throw badRequest('Invalid checklist item.')
+
+  const existing = await prisma.reminder.findFirst({ where: { id: request.params.id, userId } })
+  if (!existing) throw notFound('Reminder not found.')
+  if (existing.type !== 'TODO') throw badRequest('This reminder has no checklist.')
+  // Same shape guard as the sibling routes: the statement treats `items` as a jsonb
+  // array and Postgres does not promise to evaluate a type check before the expression
+  // depending on it.
+  const stored = (existing.typeData ?? {}) as { items?: unknown }
+  if (typeof stored !== 'object' || Array.isArray(stored) || (stored.items !== undefined && !Array.isArray(stored.items))) {
+    throw badRequest("This reminder's checklist needs saving in the editor before it can be edited here.")
+  }
+  const itemId = request.params.itemId
+  if (!todoItems(stored as TypeData).some((item) => item.id === itemId)) throw notFound('Checklist item not found.')
+
+  // Rebuilt in one statement, like its siblings, so a concurrent add or reorder is not
+  // undone by a read-modify-write. Only the matching element's `text` changes; every
+  // other element, and the order, passes through as it is.
+  const { text } = parsed.data
+  await prisma.$executeRaw`
+    UPDATE "Reminder"
+    SET "typeData" = jsonb_set(
+          "typeData",
+          '{items}',
+          COALESCE(
+            (
+              SELECT jsonb_agg(
+                       CASE WHEN item ->> 'id' = ${itemId}
+                         THEN jsonb_set(item, '{text}', to_jsonb(${text}::text))
+                         ELSE item
+                       END
+                       ORDER BY ordinality
+                     )
+              FROM jsonb_array_elements(COALESCE("typeData" -> 'items', '[]'::jsonb)) WITH ORDINALITY AS t(item, ordinality)
+            ),
+            '[]'::jsonb
+          ),
+          true
+        ),
+        "updatedAt" = NOW()
+    WHERE "id" = ${existing.id} AND "userId" = ${userId}
+  `
+  const updated = await prisma.reminder.findFirstOrThrow({ where: { id: existing.id, userId } })
+
+  // The renamed line is part of the notification body, so an armed alarm's text is now
+  // stale — the same nudge adding and reordering send, and the same exception for a
+  // note, which notifies nobody.
+  broadcast(userId, { type: 'reminder.changed', reminderId: updated.id })
+  if ((updated.schedule as unknown as { kind?: string }).kind !== 'never') {
+    void nudgeNativeSync(userId).catch((error) =>
+      logger.warn('checklist rename sync nudge failed', { error: String(error), reminderId: updated.id })
     )
   }
   response.json({ reminder: toReminder(updated) })

@@ -12,6 +12,7 @@ import { QueryClient, QueryCache, MutationCache } from '@tanstack/react-query'
 import {
   extractErrorMessage,
   withTodoItem,
+  withTodoItemText,
   withTodoOrder,
   type AddTodoItemInput,
   type CheckItemInput,
@@ -19,6 +20,7 @@ import {
   type Occurrence,
   type Reminder,
   type ReminderInput,
+  type RenameTodoItemInput,
   type ReorderTodoItemsInput
 } from '@persistent/shared'
 import { apiFetch } from './apiClient.js'
@@ -67,6 +69,7 @@ export const mutationKeys = {
   checkReminderItem: ['reminders', 'check'] as const,
   addTodoItem: ['reminders', 'add-item'] as const,
   reorderTodoItems: ['reminders', 'reorder-items'] as const,
+  renameTodoItem: ['reminders', 'rename-item'] as const,
   hideCheckedItems: ['reminders', 'hide-checked'] as const
 }
 
@@ -258,6 +261,34 @@ export function registerMutationDefaults(): void {
       queryClient.setQueryData<Reminder[]>(queryKeys.reminders, (list) =>
         (list ?? []).map((reminder) =>
           reminder.id === id ? { ...reminder, typeData: withTodoOrder(reminder.typeData, arg.itemIds) } : reminder
+        )
+      )
+      return { previous }
+    },
+    onError: rollback,
+    onSettled: invalidateReminders
+  })
+
+  // Renaming an item is the third write to the same list, and the one the user is
+  // literally watching as they type: applied optimistically so the row reads back what
+  // they wrote rather than flicking to the stored text and back.
+  queryClient.setMutationDefaults(mutationKeys.renameTodoItem, {
+    mutationFn: ({ id, itemId, arg }: { id: string; itemId: string; arg: RenameTodoItemInput }) =>
+      apiFetch(`/api/reminders/${id}/items/${itemId}`, { method: 'POST', body: JSON.stringify(arg) }),
+    onMutate: async ({
+      id,
+      itemId,
+      arg
+    }: {
+      id: string
+      itemId: string
+      arg: RenameTodoItemInput
+    }): Promise<RemindersSnapshot> => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.reminders })
+      const previous = reminders()
+      queryClient.setQueryData<Reminder[]>(queryKeys.reminders, (list) =>
+        (list ?? []).map((reminder) =>
+          reminder.id === id ? { ...reminder, typeData: withTodoItemText(reminder.typeData, itemId, arg.text) } : reminder
         )
       )
       return { previous }

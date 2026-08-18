@@ -39,9 +39,10 @@
   /api/reminders/:id/hide-checked` is a reminder write that deliberately skips it
   (and push), because collapsing ticked items is presentation only — the body is
   built from the unticked items either way, so no armed alarm goes stale. WS alone
-  is enough there. `POST /api/reminders/:id/items` and `POST
-  /api/reminders/:id/items/order` are the opposite case and do nudge: an added item
-  arrives *unticked* and a reorder changes the order the body lists them in, so both
+  is enough there. `POST /api/reminders/:id/items`, `POST
+  /api/reminders/:id/items/order` and `POST /api/reminders/:id/items/:itemId` are the
+  opposite case and do nudge: an added item arrives *unticked*, a reorder changes the
+  order the body lists them in, and a rename changes the words in it, so all three
   change what a live firing shows — except on a note, which notifies nobody and so has
   nothing to re-post.
 - **Scheduler:** `lib/scheduler.ts` owns materialization, the tick loop, and the

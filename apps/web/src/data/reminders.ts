@@ -11,6 +11,7 @@ import type {
   HideCheckedInput,
   Reminder,
   ReminderInput,
+  RenameTodoItemInput,
   ReorderTodoItemsInput
 } from '@persistent/shared'
 import { apiFetch } from '../lib/apiClient.js'
@@ -67,6 +68,16 @@ export function useAddTodoItem() {
 export function useReorderTodoItems() {
   return useMutation<unknown, Error, { id: string; arg: ReorderTodoItemsInput }>({
     mutationKey: mutationKeys.reorderTodoItems
+  })
+}
+
+/**
+ * Retitle one checklist item, from a card or from the editor's row. Last-write-wins:
+ * free text has no merge, so the later edit is the one that stands.
+ */
+export function useRenameTodoItem() {
+  return useMutation<unknown, Error, { id: string; itemId: string; arg: RenameTodoItemInput }>({
+    mutationKey: mutationKeys.renameTodoItem
   })
 }
 

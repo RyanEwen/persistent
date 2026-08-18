@@ -28,7 +28,13 @@ import Stack from '@mui/joy/Stack'
 import Typography from '@mui/joy/Typography'
 import { SectionHeading } from '../components/SectionHeading.js'
 import { NewReminderFab } from '../components/NewReminderFab.js'
-import { useAddTodoItem, useReminders, useReorderTodoItems, useSetHideCheckedItems } from '../data/reminders.js'
+import {
+  useAddTodoItem,
+  useReminders,
+  useRenameTodoItem,
+  useReorderTodoItems,
+  useSetHideCheckedItems
+} from '../data/reminders.js'
 import {
   useActiveOccurrences,
   useAckOccurrence,
@@ -51,6 +57,7 @@ export function RemindersPage() {
   const checkItem = useCheckOccurrenceItem()
   const addItem = useAddTodoItem()
   const reorderItems = useReorderTodoItems()
+  const renameItem = useRenameTodoItem()
   const hideChecked = useSetHideCheckedItems()
   const { timeFormat } = useSettings()
   const [snoozeFor, setSnoozeFor] = useState<string | null>(null)
@@ -99,6 +106,7 @@ export function RemindersPage() {
                 // definition, so it outlives this firing and joins the next.
                 onAddItem={(item) => addItem.mutate({ id: reminder.id, arg: item })}
                 onReorderItems={(itemIds) => reorderItems.mutate({ id: reminder.id, arg: { itemIds } })}
+                onRenameItem={(itemId, text) => renameItem.mutate({ id: reminder.id, itemId, arg: { text } })}
                 // Keyed by the *reminder*, not the occurrence: collapsing is how
                 // the user wants this list drawn, not something about one firing.
                 onHideChecked={(hidden) => hideChecked.mutate({ id: reminder.id, arg: { hidden } })}

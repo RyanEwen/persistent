@@ -38,6 +38,7 @@ export function AttentionReminderCard({
   silenceLoading,
   onToggleItem,
   onAddItem,
+  onRenameItem,
   onReorderItems,
   onHideChecked
 }: {
@@ -52,6 +53,8 @@ export function AttentionReminderCard({
   onToggleItem: (itemId: string, checked: boolean) => void
   /** Add an item to the checklist here rather than in the editor — see TodoChecklist. */
   onAddItem: (item: TodoItem) => void
+  /** Save new text for one checklist item — also a reminder write. */
+  onRenameItem: (itemId: string, text: string) => void
   /** Store a new order for the checklist (the full id list) — also a reminder write. */
   onReorderItems: (itemIds: string[]) => void
   /** Collapse/expand the ticked items. Stored on the reminder, so it holds across devices. */
@@ -141,6 +144,9 @@ export function AttentionReminderCard({
             // definition, so it turns up on every later firing too. It arrives
             // unticked, so it also joins this nag's notification body.
             onAddItem={onAddItem}
+            // Renaming is a definition write as well: the wording a firing shows, and
+            // the line in its notification body, both come from the item.
+            onRenameItem={onRenameItem}
             // Order is part of the definition too, so a drag here re-orders the list
             // every later firing shows — and the lines of its notification body.
             onReorder={onReorderItems}

@@ -19,9 +19,16 @@ import TabList from '@mui/joy/TabList'
 import Tab, { tabClasses } from '@mui/joy/Tab'
 import TabPanel from '@mui/joy/TabPanel'
 import { extractErrorMessage, isTimeless, type ReminderType, type ScheduleKind } from '@persistent/shared'
-import { useReminders, useCreateReminder, useUpdateReminder, useDeleteReminder } from '../../data/reminders.js'
-import { useActiveOccurrences } from '../../data/occurrences.js'
+import {
+  useReminders,
+  useCreateReminder,
+  useUpdateReminder,
+  useDeleteReminder,
+  useCheckReminderItem
+} from '../../data/reminders.js'
+import { useActiveOccurrences, useCheckOccurrenceItem } from '../../data/occurrences.js'
 import { compareFirings } from '../../lib/firingOrder.js'
+import { isNote as isNoteReminder } from '../../lib/notes.js'
 import { fireSummary } from '../../lib/schedule-preview.js'
 import { useSettings } from '../../settings/useSettings.js'
 import { useToast } from '../../components/ToastProvider.js'
@@ -58,6 +65,8 @@ export function ReminderEditorPage() {
   const { timeFormat } = useSettings()
 
   const active = useActiveOccurrences()
+  const checkOccurrenceItem = useCheckOccurrenceItem()
+  const checkNoteItem = useCheckReminderItem()
   const existing = useMemo(() => reminders.data?.find((r) => r.id === id), [reminders.data, id])
   const [form, setForm] = useState<FormState>(() => (existing ? fromReminder(existing) : emptyForm()))
   // The state the editor was opened in, to tell edits from the untouched form.
@@ -245,11 +254,30 @@ export function ReminderEditorPage() {
    * this takes the one the user is most likely acting on, in the same order the
    * lists use.
    */
-  const todoCheckedItemIds = useMemo(() => {
+  const todoFiring = useMemo(() => {
     if (!id || form.type !== 'TODO') return undefined
-    const firings = (active.data ?? []).filter((o) => o.reminderId === id).sort(compareFirings)
-    return firings[0]?.checkedItemIds
+    return (active.data ?? []).filter((o) => o.reminderId === id).sort(compareFirings)[0]
   }, [active.data, id, form.type])
+  // A note has no firing, so its ticks live on the reminder itself
+  // (docs/notification-behavior.md §7) — the one case where the definition holds them.
+  //
+  // Judged by what is *saved*, not by the draft: the server rejects a tick on anything
+  // that is not already a note, so keying this off `form.when` would offer a checkbox
+  // that 400s the moment someone switches When to Never and ticks before saving.
+  const noteTicks = id && form.type === 'TODO' && existing && isNoteReminder(existing) ? existing : undefined
+  const todoCheckedItemIds = todoFiring?.checkedItemIds ?? noteTicks?.checkedItemIds
+
+  /**
+   * Ticking from the editor writes the same object the card's checkbox writes — the
+   * firing, or a note's own reminder row — and lands immediately rather than on Save.
+   * Absent when there is nothing to tick, which is what hides the column.
+   */
+  const onToggleTodo = todoFiring
+    ? (itemId: string, checked: boolean) =>
+        checkOccurrenceItem.mutate({ id: todoFiring.id, arg: { itemId, checked } })
+    : noteTicks
+      ? (itemId: string, checked: boolean) => checkNoteItem.mutate({ id: noteTicks.id, arg: { itemId, checked } })
+      : undefined
 
   const busy = create.isPending || update.isPending
   // Driven purely by the toggle now that `none` and `never` are real saved states:
@@ -331,6 +359,7 @@ export function ReminderEditorPage() {
                 set={set}
                 autoFocusTitle={!id}
                 todoCheckedItemIds={todoCheckedItemIds}
+                onToggleTodo={onToggleTodo}
                 onTypeChange={setType}
                 onMedicationChange={setMedication}
                 onAddMedication={() => setForm((prev) => ({ ...prev, medications: [...prev.medications, emptyMedication()] }))}

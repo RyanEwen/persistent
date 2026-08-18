@@ -6,14 +6,18 @@
  * checklist keeps its ticks against the right items. Removing a row drops its id,
  * and any tick against it falls away with it (`todoProgress` filters).
  *
- * When the reminder has a firing in front of the user, each row also shows whether
- * that firing has ticked it. It is an **indicator, not a checkbox**: ticks belong
- * to the occurrence and not to the list being edited
- * (docs/notification-behavior.md §1a), so this screen can report them but must not
- * be a second place to set them — a control here would be editing a different
- * object from everything else on the form. The icons carry that on their own; the
- * paragraph that used to spell it out under the field is gone, since the cards a
- * user actually ticks against are where the rule needs stating.
+ * **The rows behave like the ones on a card**: the checkbox ticks, the text edits, the
+ * handle drags. It used to be a read-only indicator instead, on the reasoning that a
+ * control here would edit a different object from the rest of the form — which is still
+ * true, and is now stated rather than avoided. A tick applies **immediately** and is not
+ * part of the draft, because it belongs to the firing (or, on a note, to the reminder),
+ * and there is exactly one home for it either way — the same one the card writes.
+ * Cancelling the form does not put it back.
+ *
+ * That is also why the column only appears when there is something to tick: a new
+ * reminder, or one merely scheduled, has no firing for a tick to belong to
+ * (docs/notification-behavior.md §1a), so no checkbox is offered rather than one that
+ * quietly does nothing.
  *
  * **Not a Joy `FormControl`**, unlike every other field on this form. That component is
  * built around a single control: it mints one id and hands it, with its
@@ -33,19 +37,18 @@ import Stack from '@mui/joy/Stack'
 import Box from '@mui/joy/Box'
 import FormLabel from '@mui/joy/FormLabel'
 import Input from '@mui/joy/Input'
-import Button from '@mui/joy/Button'
+import Checkbox from '@mui/joy/Checkbox'
 import IconButton from '@mui/joy/IconButton'
-import AddIcon from '@mui/icons-material/Add'
 import CloseIcon from '@mui/icons-material/Close'
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator'
-import CheckCircleIcon from '@mui/icons-material/CheckCircle'
-import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked'
 import { emptyTodo, type TodoRow } from './formState.js'
+import { TodoAddItem } from '../../components/TodoAddItem.js'
 import { REORDER_ROW_ATTR, useDragReorder } from '../../lib/useDragReorder.js'
 
 export function TodoItemsField({
   todos,
   checkedItemIds,
+  onToggle,
   onChange,
   onInsert,
   onMove,
@@ -60,6 +63,12 @@ export function TodoItemsField({
    * indicator column.
    */
   checkedItemIds?: readonly string[]
+  /**
+   * Tick or untick one item on the firing those ticks belong to. Omitted when there is
+   * nothing to tick (a new reminder, or one merely scheduled), which is what decides
+   * whether the checkbox column appears at all.
+   */
+  onToggle?: (itemId: string, checked: boolean) => void
   onChange: (index: number, text: string) => void
   /** Insert `row` at `index`, shifting the rest down. */
   onInsert: (index: number, row: TodoRow) => void
@@ -134,23 +143,18 @@ export function TodoItemsField({
                 <DragIndicatorIcon fontSize="small" />
               </Box>
             )}
-            {checkedIds && (
-              // An icon, not a checkbox: this reports the state of a firing, and a
-              // control here would look like a second way to tick items off — one
-              // that edits a different object from the rest of the form. Both states
-              // render so the rows stay aligned and "not ticked" is explicit rather
-              // than an empty gap.
-              <Box
-                role="img"
-                aria-label={checkedIds.has(item.id) ? 'Ticked off on this notification' : 'Not ticked off yet'}
-                sx={{ display: 'flex', alignItems: 'center', flexShrink: 0, pl: multiple ? 0 : 0.5 }}
-              >
-                {checkedIds.has(item.id) ? (
-                  <CheckCircleIcon fontSize="small" color="success" />
-                ) : (
-                  <RadioButtonUncheckedIcon fontSize="small" sx={{ color: 'text.tertiary', opacity: 0.4 }} />
-                )}
-              </Box>
+            {checkedIds && onToggle && (
+              // A real checkbox, writing the firing this row's ticks belong to — the
+              // same object, and the same endpoint, the card's checkbox writes. It
+              // applies at once rather than on Save; see the note at the top of this
+              // file for why that is the honest behaviour rather than a wart.
+              <Checkbox
+                size="md"
+                checked={checkedIds.has(item.id)}
+                onChange={(event) => onToggle(item.id, event.target.checked)}
+                aria-label={item.text || `Item ${index + 1}`}
+                sx={{ p: 0.5, flexShrink: 0, borderRadius: 'sm', '&:hover': { bgcolor: 'background.level1' } }}
+              />
             )}
             <Input
               sx={{ flex: 1, minWidth: 0 }}
@@ -189,15 +193,14 @@ export function TodoItemsField({
             )}
           </Stack>
         ))}
-        <Button
-          variant="outlined"
-          size="sm"
-          startDecorator={<AddIcon />}
-          onClick={() => insertAt(todos.length)}
-          sx={{ alignSelf: 'flex-start' }}
-        >
-          Add item
-        </Button>
+        {/* The same control the cards use, so adding a line is the same gesture in both
+            places: type it, press Enter, keep typing. It replaces a button that
+            appended an *empty* row for you to find and fill, which is a different
+            interaction for the same intent. Enter inside a row still inserts one below,
+            since that is how a list gets typed straight through. */}
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <TodoAddItem onAdd={(item) => onInsert(todos.length, item)} />
+        </Box>
       </Stack>
     </Box>
   )

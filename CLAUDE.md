@@ -70,7 +70,9 @@ An item can be **added from a card** as well as in the editor (`POST
 every later firing, arrives unticked, and changes no tick. The list can be **reordered
 from a card** too (`POST /api/reminders/:id/items/order`), which is a definition write
 for the same reason — sent as a *ranking* so a late one can reshuffle but never drop an
-item added meanwhile, and never touching a tick.
+item added meanwhile, and never touching a tick. An item's **text** is editable from a
+card as well (`POST /api/reminders/:id/items/:itemId`, last-write-wins): the id never
+changes, so a rename alters what a line says and never which line a tick belongs to.
 **A note is the one exception**: it has no occurrences, so its ticks live on the
 reminder (`Reminder.checkedItems`, written by `POST /api/reminders/:id/check`) —
 legitimate precisely because there is no firing whose record they could contradict.

@@ -10,6 +10,7 @@ import {
   todoItems,
   todoProgress,
   withTodoItem,
+  withTodoItemText,
   withTodoOrder
 } from './reminders.js'
 
@@ -364,5 +365,26 @@ test('withTodoOrder is idempotent — a replayed reorder changes nothing', () =>
 
 test('withTodoOrder leaves the rest of typeData alone', () => {
   const next = withTodoOrder({ medications: [{ name: 'Ibuprofen' }], items: [{ id: 'a', text: 'Milk' }] }, ['a'])
+  assert.deepEqual(next.medications, [{ name: 'Ibuprofen' }])
+})
+
+// --- Renaming a checklist item ------------------------------------------------
+
+test('withTodoItemText changes only the named item, keeping ids and order', () => {
+  const typeData = { items: [{ id: 'a', text: 'Milk' }, { id: 'b', text: 'Bread' }] }
+  const next = withTodoItemText(typeData, 'b', 'Sourdough')
+  assert.deepEqual(todoItems(next), [
+    { id: 'a', text: 'Milk' },
+    { id: 'b', text: 'Sourdough' }
+  ])
+})
+
+test('withTodoItemText ignores an id the list no longer has', () => {
+  const typeData = { items: [{ id: 'a', text: 'Milk' }] }
+  assert.equal(withTodoItemText(typeData, 'gone', 'Anything'), typeData)
+})
+
+test('withTodoItemText leaves the rest of typeData alone', () => {
+  const next = withTodoItemText({ medications: [{ name: 'Ibuprofen' }], items: [{ id: 'a', text: 'Milk' }] }, 'a', 'Oat milk')
   assert.deepEqual(next.medications, [{ name: 'Ibuprofen' }])
 })
