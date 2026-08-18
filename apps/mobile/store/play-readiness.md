@@ -68,13 +68,28 @@ differently — every updater surface gates on `hasNativeUpdater()`
 
 ⚠️ **Never upload the `direct` artifact to Play.** CI now asserts this on every
 release ("Verify the Play bundle carries no direct-only components"): it locates the
-`playRelease` packaged manifest and fails the run if `REQUEST_INSTALL_PACKAGES` or
-`androidx.car.app.CarAppService` appears. To check by hand:
+`playRelease` packaged manifest and fails the run if any direct-only marker appears —
+`REQUEST_INSTALL_PACKAGES`, `androidx.car.app.CarAppService`, or
+`com.google.android.gms.car.application`. **Add a marker the moment a component becomes
+flavor-specific.** The Auto notification meta-data was missing from this list, so the
+step ran green for months while the entry shipped in the Play build and eventually drew
+the enforcement in #1b — the guard was only ever as good as its list.
+
+Comments are stripped before matching, because a comment is not a declaration:
+`src/main`'s manifest carries a note saying where the Auto entry lives now, and a plain
+grep counted that note as the entry. A guard that fails every release on prose gets
+weakened rather than fixed.
+
+To check by hand:
 
 ```bash
-grep -cE 'REQUEST_INSTALL_PACKAGES|androidx.car.app.CarAppService' \
-  apps/mobile/android/app/build/intermediates/packaged_manifests/playRelease/AndroidManifest.xml   # expect 0
+perl -0777 -pe 's/<!--.*?-->//gs' \
+  apps/mobile/android/app/build/intermediates/packaged_manifests/playRelease/*/AndroidManifest.xml |
+  grep -cE 'REQUEST_INSTALL_PACKAGES|androidx.car.app.CarAppService|com.google.android.gms.car.application'   # expect 0
 ```
+
+Run the same against `directRelease` and expect a non-zero count — a guard nobody has
+seen fail is a guard nobody knows works.
 
 (CI searches for that path rather than hard-coding it, since AGP relocates
 `packaged_manifests` between versions. If the manifest can't be found the step
@@ -84,8 +99,9 @@ warning means the check has stopped running and the path needs updating.)
 ## 1a. Android Auto car screen ✅ DONE (kept out of the Play build)
 
 Android Auto's **notification** extension — mirroring a nag into the car as a
-`MessagingStyle` notification — needs no app category and ships in **both** flavors.
-It is not affected by anything here.
+`MessagingStyle` notification — needs no app category, which is why it shipped in
+**both** flavors until Play enforced against it. It is `direct`-only now, for the
+reasons in #1b, and the CI guard above covers its manifest entry.
 
 A **templated car app** (`CarAppService`) is different: it must declare one of Auto's
 approved categories, and a reminder app is honestly none of them — navigation,

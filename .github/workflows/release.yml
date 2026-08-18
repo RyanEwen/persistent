@@ -204,11 +204,32 @@ jobs:
           # between versions, and a stale path here would silently stop checking.
           # A marker that IS present fails the release; a manifest that cannot be
           # found only warns, so an AGP upgrade doesn't block shipping.
+          #
+          # The markers are every direct-only manifest entry, and each one is here
+          # because it has cost something:
+          #   REQUEST_INSTALL_PACKAGES        — Play prohibits self-updating apps.
+          #   androidx.car.app.CarAppService  — the car screen; a templated car app
+          #                                     must claim an Auto category this app
+          #                                     cannot honestly claim.
+          #   com.google.android.gms.car.application — the Auto *notification* mirror.
+          #     Added after it slipped into the Play build and drew an Auto App Quality
+          #     enforcement (2026-08-17): <uses name="notification"/> declares the app a
+          #     messaging app, and review then tests it for sending and receiving
+          #     messages, which a reminder app cannot pass. It is the reason to add a
+          #     marker the moment a component becomes flavor-specific — this guard ran
+          #     green for months while the entry shipped, because nothing listed it.
+          #
+          # Comments are stripped before matching, because they are not declarations:
+          # src/main's manifest carries a note explaining where the Auto entry lives
+          # now, and a plain grep counted that note as the entry itself — a guard that
+          # fails every release on prose is worse than no guard, since the fix is to
+          # weaken it.
           FOUND=0
           while IFS= read -r manifest; do
             FOUND=1
-            for marker in REQUEST_INSTALL_PACKAGES androidx.car.app.CarAppService; do
-              COUNT=$(grep -c "$marker" "$manifest" || true)
+            DECLARATIONS=$(perl -0777 -pe 's/<!--.*?-->//gs' "$manifest")
+            for marker in REQUEST_INSTALL_PACKAGES androidx.car.app.CarAppService com.google.android.gms.car.application; do
+              COUNT=$(printf '%s' "$DECLARATIONS" | grep -c "$marker" || true)
               if [ "$COUNT" != "0" ]; then
                 echo "::error::$manifest declares $marker ($COUNT) — that component is direct-flavor only. See apps/mobile/store/play-readiness.md."
                 exit 1
