@@ -22,7 +22,6 @@ import { extractErrorMessage, isTimeless, type ReminderType, type ScheduleKind }
 import { useReminders, useCreateReminder, useUpdateReminder, useDeleteReminder } from '../../data/reminders.js'
 import { useActiveOccurrences } from '../../data/occurrences.js'
 import { compareFirings } from '../../lib/firingOrder.js'
-import { formatWhen } from '../../lib/datetime.js'
 import { fireSummary } from '../../lib/schedule-preview.js'
 import { useSettings } from '../../settings/useSettings.js'
 import { useToast } from '../../components/ToastProvider.js'
@@ -242,22 +241,15 @@ export function ReminderEditorPage() {
    * (docs/notification-behavior.md §1a), so there is nothing to show while
    * creating a reminder or editing one that is merely scheduled. Occurrences are
    * also independent (§4): a checklist can have several unconfirmed at once, each
-   * with its own ticks, and merging them would invent a state no firing is in. So
-   * this takes the one the user is most likely acting on — the same ordering the
-   * lists use — and `ambiguous` tells the field to name it as the most recent
-   * rather than the only one.
+   * with its own ticks, and merging them would invent a state no firing is in — so
+   * this takes the one the user is most likely acting on, in the same order the
+   * lists use.
    */
-  const todoChecked = useMemo(() => {
+  const todoCheckedItemIds = useMemo(() => {
     if (!id || form.type !== 'TODO') return undefined
     const firings = (active.data ?? []).filter((o) => o.reminderId === id).sort(compareFirings)
-    const newest = firings[0]
-    if (!newest) return undefined
-    return {
-      itemIds: newest.checkedItemIds,
-      when: formatWhen(newest.scheduledFor, timeFormat),
-      ambiguous: firings.length > 1
-    }
-  }, [active.data, id, form.type, timeFormat])
+    return firings[0]?.checkedItemIds
+  }, [active.data, id, form.type])
 
   const busy = create.isPending || update.isPending
   // Driven purely by the toggle now that `none` and `never` are real saved states:
@@ -338,7 +330,7 @@ export function ReminderEditorPage() {
                 form={form}
                 set={set}
                 autoFocusTitle={!id}
-                todoChecked={todoChecked}
+                todoCheckedItemIds={todoCheckedItemIds}
                 onTypeChange={setType}
                 onMedicationChange={setMedication}
                 onAddMedication={() => setForm((prev) => ({ ...prev, medications: [...prev.medications, emptyMedication()] }))}

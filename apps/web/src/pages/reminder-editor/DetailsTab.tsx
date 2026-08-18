@@ -26,14 +26,14 @@ import type { ReminderType } from '@persistent/shared'
 import { TypeIcon } from '../../components/ReminderIcons.js'
 import { reminderTypeLabel } from '../../lib/format.js'
 import { MedicationFields } from './MedicationFields.js'
-import { TodoItemsField, type TodoCheckState } from './TodoItemsField.js'
+import { TodoItemsField } from './TodoItemsField.js'
 import { typeOptions, type FormState, type MedicationRow, type TodoRow } from './formState.js'
 
 export function DetailsTab({
   form,
   set,
   autoFocusTitle,
-  todoChecked,
+  todoCheckedItemIds,
   onTypeChange,
   onMedicationChange,
   onAddMedication,
@@ -48,7 +48,7 @@ export function DetailsTab({
   /** Only a new reminder opens with the title focused — see the header note. */
   autoFocusTitle: boolean
   /** Read-only ticks from the reminder's current firing, if it has one. */
-  todoChecked?: TodoCheckState
+  todoCheckedItemIds?: readonly string[]
   onTypeChange: (type: ReminderType) => void
   onMedicationChange: (index: number, key: keyof MedicationRow, value: string) => void
   onAddMedication: () => void
@@ -84,7 +84,7 @@ export function DetailsTab({
       {form.type === 'TODO' ? (
         <TodoItemsField
           todos={form.todos}
-          checked={todoChecked}
+          checkedItemIds={todoCheckedItemIds}
           onChange={onTodoChange}
           onInsert={onInsertTodo}
           onMove={onMoveTodo}

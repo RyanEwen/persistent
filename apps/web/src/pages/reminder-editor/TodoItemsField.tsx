@@ -11,7 +11,16 @@
  * to the occurrence and not to the list being edited
  * (docs/notification-behavior.md §1a), so this screen can report them but must not
  * be a second place to set them — a control here would be editing a different
- * object from everything else on the form.
+ * object from everything else on the form. The icons carry that on their own; the
+ * paragraph that used to spell it out under the field is gone, since the cards a
+ * user actually ticks against are where the rule needs stating.
+ *
+ * **Not a Joy `FormControl`**, unlike every other field on this form. That component is
+ * built around a single control: it mints one id and hands it, with its
+ * `aria-describedby` and `required`, to every input inside it — so N rows meant N inputs
+ * sharing one id, a label pointing at whichever won, and a console error per extra row.
+ * A checklist is a *set* of fields, so it is a labelled `role="group"` and each row
+ * carries its own accessible name.
  *
  * Typing a list should never require the mouse: Enter inserts a row *below the
  * current one* (not just at the end) and moves focus into it, so a list can be
@@ -22,9 +31,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Stack from '@mui/joy/Stack'
 import Box from '@mui/joy/Box'
-import FormControl from '@mui/joy/FormControl'
 import FormLabel from '@mui/joy/FormLabel'
-import FormHelperText from '@mui/joy/FormHelperText'
 import Input from '@mui/joy/Input'
 import Button from '@mui/joy/Button'
 import IconButton from '@mui/joy/IconButton'
@@ -36,30 +43,23 @@ import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked'
 import { emptyTodo, type TodoRow } from './formState.js'
 import { REORDER_ROW_ATTR, useDragReorder } from '../../lib/useDragReorder.js'
 
-/**
- * What one live firing has ticked, for display only. Absent when the reminder has
- * no firing waiting — a new reminder, or one that is merely scheduled, has no
- * ticks to show, because there is no occurrence for them to belong to.
- */
-export interface TodoCheckState {
-  itemIds: readonly string[]
-  /** When that firing arrived, so the ticks can say which one they came from. */
-  when: string
-  /** True when more than one firing is unconfirmed — see `checkedNote` below. */
-  ambiguous: boolean
-}
-
 export function TodoItemsField({
   todos,
-  checked,
+  checkedItemIds,
   onChange,
   onInsert,
   onMove,
   onRemove
 }: {
   todos: TodoRow[]
-  /** Ticks from the firing the user is most likely acting on, if there is one. */
-  checked?: TodoCheckState
+  /**
+   * What one live firing has ticked, for display only. Absent when the reminder has
+   * no firing waiting — a new reminder, or one that is merely scheduled, has no
+   * ticks to show, because there is no occurrence for them to belong to. Empty (but
+   * present) means a firing that has ticked nothing yet, which still gets the
+   * indicator column.
+   */
+  checkedItemIds?: readonly string[]
   onChange: (index: number, text: string) => void
   /** Insert `row` at `index`, shifting the rest down. */
   onInsert: (index: number, row: TodoRow) => void
@@ -89,11 +89,15 @@ export function TodoItemsField({
   }
 
   const multiple = todos.length > 1
-  const checkedIds = checked ? new Set(checked.itemIds) : null
+  const checkedIds = checkedItemIds ? new Set(checkedItemIds) : null
+  // Names the group rather than any one row (see the note above).
+  const labelId = 'checklist-field-label'
 
   return (
-    <FormControl>
-      <FormLabel>Checklist</FormLabel>
+    <Box role="group" aria-labelledby={labelId}>
+      <FormLabel id={labelId} sx={{ mb: 0.75 }}>
+        Checklist
+      </FormLabel>
       <Stack spacing={1} ref={listRef}>
         {todos.map((item, index) => (
           <Stack
@@ -150,6 +154,9 @@ export function TodoItemsField({
             )}
             <Input
               sx={{ flex: 1, minWidth: 0 }}
+              // Its own name: the group's label names the set, not the row, and a
+              // placeholder is not an accessible name (it vanishes once typing starts).
+              aria-label={`Checklist item ${index + 1}`}
               placeholder={index === 0 ? 'First thing to do' : 'Next item'}
               value={item.text}
               slotProps={{
@@ -192,20 +199,6 @@ export function TodoItemsField({
           Add item
         </Button>
       </Stack>
-      <FormHelperText sx={{ display: 'block' }}>
-        Tick these off as you go. The reminder keeps nagging until you tap Done — ticking everything doesn't confirm
-        it for you.
-        {checked && (
-          // Named rather than merged: several firings can be unconfirmed at once
-          // and each has its own ticks, so saying which one these came from is the
-          // difference between a fact and a guess.
-          <>
-            {' '}
-            Ticks shown are from {checked.ambiguous ? 'the most recent notification' : 'the notification'} sent{' '}
-            {checked.when} — they belong to that one, so editing the list here won't change them.
-          </>
-        )}
-      </FormHelperText>
-    </FormControl>
+    </Box>
   )
 }
