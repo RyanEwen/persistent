@@ -53,8 +53,29 @@ class ReminderCarAppService : CarAppService() {
     override fun onCreateSession(): Session = ReminderCarSession()
 }
 
-/** One connected-to-the-car session; the list is always the root screen. */
+/**
+ * One connected-to-the-car session; the list is always the root screen.
+ *
+ * Opening the app is also the one moment the standing backlog is allowed into the car as
+ * notifications ([AlarmService.mirrorBacklogToCar]). Connecting deliberately isn't —
+ * that is what stopped the car replaying every live nag as a burst of cards — but a
+ * driver who opens Persistent has asked to see what is outstanding, and the answer is
+ * more useful when it can also be read aloud and answered by voice.
+ *
+ * Hung off the session's own lifecycle rather than screen construction: `STARTED` means
+ * the app is actually on the head unit's screen, so a host that pre-warms or restores a
+ * session without showing it doesn't trip it. Re-entering the app mirrors again, which is
+ * harmless — the same nags, and the driver asked twice.
+ */
 class ReminderCarSession : Session() {
+    init {
+        lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStart(owner: LifecycleOwner) {
+                runCatching { AlarmService.mirrorBacklogToCar(carContext) }
+            }
+        })
+    }
+
     override fun onCreateScreen(intent: Intent): Screen = ReminderListScreen(carContext)
 }
 
@@ -80,7 +101,7 @@ internal fun Screen.redrawOnReminderChanges() {
     // the data — nothing broadcasts the passage of time, and a car screen that redrew
     // for it would spend its budget on a minute ticking over.
     fun rendered(): String = CarReminders.load(carContext).joinToString("|") {
-        "${it.occurrenceId}:${it.title}:${it.body}:${it.fireAtMs}:${it.due}:${it.ringing}:${it.canSilence}"
+        "${it.key}:${it.title}:${it.body}:${it.fireAtMs}:${it.due}:${it.ringing}:${it.canSilence}:${it.note}"
     }
 
     var lastRendered: String? = null

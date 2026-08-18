@@ -261,10 +261,26 @@ an Auto capability, so in-car an alarm is an urgent messaging heads-up (Auto's c
 ## 5b. The Android Auto screen — the list, at the driver's pace
 
 The sideloaded build also carries a car screen listing everything the device knows
-about: what is nagging now under **Needs attention**, and the next 48 hours under
-**Coming up**. It is the counterpart to the rule above — notifications carry what is
-happening, this carries everything else — and it is why a standing nag can stay quiet
-when the car starts without becoming lost.
+about: what is nagging now under **Needs attention**, the week ahead under **Coming
+up**, and the kept **Notes** last. It is the counterpart to the rule above —
+notifications carry what is happening, this carries everything else — and it is why a
+standing nag can stay quiet when the car starts without becoming lost.
+
+The week and the notes are more than the device *arms*: the alarm set is everything due
+plus 48 hours, because each entry is an exact alarm the OS holds. So the same sync also
+returns a read-only **agenda** (`deviceAgendaEntrySchema`) covering seven days plus the
+notes, stored apart from the alarm set so nothing in it can ring, and merged in at read
+time with the alarm set winning wherever both describe the same firing. Head units cap
+how many rows a list may carry — as few as six while driving — so the screen **pages**:
+each fills to the cap and hands the rest to another copy of itself behind a row saying
+how many are behind it. Truncating with a "+N not shown" note was the old behavior, and
+a count of things you cannot reach is not a list.
+
+**Opening the app on the head unit shows the backlog as notifications too.** Connecting
+stays quiet — projecting is not a request — but opening Persistent in the car is an
+explicit one, so every unconfirmed nag gains its car form at that moment and lands in
+the car's own notification list, where it can be read aloud and answered by voice (§5).
+The request expires with the drive: a later connection is quiet again.
 
 Opening a reminder there shows its full body (its **unticked** items, as everywhere)
 and offers **Done** and **Snooze**, plus **De-escalate** when an escalation is actually
@@ -274,8 +290,9 @@ deliberateness the phone gets from its two-tap confirm, without asking a driver 
 read a confirmation. A reminder that has not fired yet offers no actions, exactly as
 it has no notification to act on.
 
-The Play build does not ship this screen (Android Auto has no app category a reminder
-app can honestly claim); the notification mirror above is in both builds.
+The Play build ships neither this screen (Android Auto has no app category a reminder app
+can honestly claim) nor the notification mirror of §5 — it carries no Android Auto
+integration at all.
 
 ## 5a. Windows tray app — the same actions, on a toast
 

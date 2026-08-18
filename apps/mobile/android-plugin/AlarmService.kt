@@ -47,6 +47,16 @@ class AlarmService : Service() {
     // [mirrorsToCar]. In-memory on purpose: a fresh process has genuinely alerted for
     // nothing yet, so an empty map is the correct answer after a cold start.
     private val alertedAt = HashMap<String, Long>()
+    // Occurrences the user has ASKED to see in the car, by opening the app on the head
+    // unit (see ACTION_MIRROR_CAR_ALL). Held apart from [alertedAt] because it answers a
+    // different question: not "did this reminder happen since we connected" but "did the
+    // driver ask for the list".
+    private val carRequested = HashSet<String>()
+    // Which projection session those requests belong to (`CarProjection.projectingSince`,
+    // which is 0 off the car and a fresh instant on each connect). Stamped rather than
+    // cleared on a disconnect hook, so the request expires on its own: a *new* connection
+    // starts quiet, which is the whole point of not replaying the backlog.
+    private var carRequestedSince = 0L
     private val loops = HashMap<String, Runnable>()
     private var player: MediaPlayer? = null
     private var continuousAlarm = false
@@ -187,6 +197,23 @@ class AlarmService : Service() {
                     startForeground(SENTINEL_ID, placeholderNotification())
                     clearAll()
                 } else {
+                    mirrorEligibleToCar()
+                }
+            }
+            ACTION_MIRROR_CAR_ALL -> {
+                // The user opened the app ON the head unit, which is a request to see
+                // everything — so the whole standing backlog gets its car form, not just
+                // what happened to alert since the connection came up.
+                if (active.isEmpty()) {
+                    startForeground(SENTINEL_ID, placeholderNotification())
+                    clearAll()
+                } else {
+                    if (carRequestedSince != CarProjection.projectingSince) {
+                        carRequested.clear()
+                        carRequestedSince = CarProjection.projectingSince
+                    }
+                    carRequested.addAll(active.keys)
+                    android.util.Log.i("PersistAlarm", "car list opened: mirroring ${active.size} nag(s)")
                     mirrorEligibleToCar()
                 }
             }
@@ -644,9 +671,12 @@ class AlarmService : Service() {
      * where it can be read at leisure instead — the car app's own list
      * (`ReminderCarAppService`, direct flavor).
      *
-     * Two things ride along with "since":
+     * Three things ride along with "since":
      * - **A ringing alarm always mirrors.** It is sounding on the phone right now, so it
      *   is happening by any reading, and it's the one thing a driver must not miss.
+     * - **Opening the app on the head unit mirrors everything** (`carRequested`, set by
+     *   [mirrorBacklogToCar]). Connecting isn't a request for the backlog; opening the app
+     *   is, so that is where the backlog is allowed in — see that method.
      * - **[CONNECT_GRACE_MS] before the connect instant counts as after it.**
      *   `CarConnection` is observed asynchronously, so a fire that starts the process
      *   while the phone is *already* projecting can land a second or two before
@@ -660,6 +690,10 @@ class AlarmService : Service() {
     private fun mirrorsToCar(spec: AlarmSpec): Boolean {
         if (!CarProjection.projecting) return false
         if (spec.alarm) return true
+        // The driver opened the app on the head unit and asked for the list; once shown
+        // there, a nag stays mirrored for the rest of *this* drive rather than flickering
+        // back to its phone form on the next incidental re-post.
+        if (carRequestedSince == CarProjection.projectingSince && carRequested.contains(spec.occurrenceId)) return true
         val alerted = alertedAt[spec.occurrenceId] ?: return false
         return alerted >= CarProjection.projectingSince - CONNECT_GRACE_MS
     }
@@ -1224,6 +1258,7 @@ class AlarmService : Service() {
         const val ACTION_REFRESH = "ca.persistent.app.SERVICE_REFRESH"
         const val ACTION_ENSURE = "ca.persistent.app.SERVICE_ENSURE"
         const val ACTION_MIRROR_CAR = "ca.persistent.app.SERVICE_MIRROR_CAR"
+        const val ACTION_MIRROR_CAR_ALL = "ca.persistent.app.SERVICE_MIRROR_CAR_ALL"
         const val ACTION_SNOOZE_LOCAL = "ca.persistent.app.SERVICE_SNOOZE_LOCAL"
         const val EXTRA_SNOOZE_MINUTES = "snoozeMinutes"
         const val DEFAULT_SNOOZE_MINUTES = 10
@@ -1334,6 +1369,27 @@ class AlarmService : Service() {
         fun mirrorLiveToCar(context: Context) {
             if (activeIds.isNotEmpty()) {
                 context.startService(Intent(context, AlarmService::class.java).setAction(ACTION_MIRROR_CAR))
+            }
+        }
+
+        /**
+         * The user opened Persistent **on the head unit** — mirror the whole standing
+         * backlog into the car, not just what alerted since the connection came up.
+         *
+         * This is the other half of the connect rule, and it is what makes that rule
+         * liveable. Connecting stays quiet because projecting isn't a request; opening the
+         * app *is* one, and an explicit one, so everything unconfirmed becomes a car
+         * message the driver can have read out and answer by voice — the actions a nag
+         * only offers through its notification. The car app's list screen shows the same
+         * set silently at the same moment; this is what puts it within reach of a voice
+         * command instead of a tap.
+         *
+         * Called from the car app's session lifecycle (direct flavor). No-op with nothing
+         * showing, and self-expiring at the end of the drive (see `carRequestedSince`).
+         */
+        fun mirrorBacklogToCar(context: Context) {
+            if (activeIds.isNotEmpty()) {
+                context.startService(Intent(context, AlarmService::class.java).setAction(ACTION_MIRROR_CAR_ALL))
             }
         }
 

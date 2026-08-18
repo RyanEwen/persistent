@@ -11,7 +11,7 @@
  */
 import { App } from '@capacitor/app'
 import { PushNotifications } from '@capacitor/push-notifications'
-import { type Occurrence, type DeviceAlarm, ESC_SUFFIX } from '@persistent/shared'
+import { type DeviceAgendaEntry, type DeviceAlarm, type Occurrence, ESC_SUFFIX } from '@persistent/shared'
 import { apiFetch } from '../lib/apiClient.js'
 import { notify } from '../lib/toast.js'
 import { subscribeWs } from '../lib/wsClient.js'
@@ -25,6 +25,9 @@ interface SyncResponse {
   // The exact alarms to arm, expanded server-side (single source of truth); we
   // only fill in the device-local sound URI from local settings.
   alarms: DeviceAlarm[]
+  // The wider set the device may *list* without arming it — a week of firings plus
+  // notes, for the Android Auto screen. Nothing here can ring.
+  agenda: DeviceAgendaEntry[]
 }
 
 /** Read the user's chosen sound URIs from the persisted settings (no React here). */
@@ -137,6 +140,11 @@ export async function syncAlarms(): Promise<void> {
   await mirrorSyncConfig()
   const data = await apiFetch<SyncResponse>('/api/sync/occurrences')
   await AlarmPlugin.scheduleAll({ alarms: data.alarms.map(toScheduledAlarm) })
+  // After the alarms, and tolerant of failure: the agenda only feeds a list (the
+  // Android Auto screen), so a device that can't take it is stale in a screen rather
+  // than short an alarm. `?? []` because the field post-dates the first releases —
+  // a client can outlive the server it is talking to.
+  await AlarmPlugin.setAgenda({ entries: data.agenda ?? [] }).catch(() => {})
 }
 
 /** If the user tapped a notification, open the app to that reminder's detail view. */

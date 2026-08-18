@@ -387,6 +387,15 @@ for what is happening**, the **car screen is for everything else**.
   re-posts can't flip it either way. `alertedAt` is in-memory on purpose: a fresh
   process has genuinely alerted for nothing yet, which is the correct answer after a
   cold start (in particular after a silent `ensureNags` restore).
+- **Opening the app on the head unit mirrors the whole backlog** (`ACTION_MIRROR_CAR_ALL`
+  → `mirrorBacklogToCar`, called from `ReminderCarSession`'s lifecycle `onStart`). This is
+  the other half of the rule above, and what makes it liveable: connecting is not a
+  request, but opening Persistent in the car is an explicit one, so every unconfirmed nag
+  gains its car form then and becomes something the driver can have read out and answer by
+  voice. The ids are held in `carRequested`, stamped with `CarProjection.projectingSince`
+  so the request **expires with the drive** — a later connection starts quiet again. Hung
+  off the session lifecycle rather than screen construction, so a host that pre-warms a
+  session without showing it doesn't trip it.
 - **The two projection edges are asymmetric.** Connecting fires `ACTION_MIRROR_CAR`
   (`mirrorLiveToCar` → `mirrorEligibleToCar`), which re-posts *only* what qualifies —
   in place, since the car form never moves a notification between channels.
@@ -422,9 +431,11 @@ own pace instead of pushed at them all at once.
   on every release. The sideloaded build declares `SETTINGS`, the closest fit of a bad
   set. The **notification** mirror above needs no category and stays in *both* flavors.
   Sources are listed in `setup-android.mjs`'s `DIRECT_ONLY_KT`; the service is declared
-  in `flavor/direct/AndroidManifest.xml`. Seeing it needs AA's developer setting "Add
-  new apps to launcher", as any sideloaded car app does.
-- **Screens**: `ReminderListScreen` (root — "Needs attention" / "Coming up" sections) →
+  in `flavor/direct/AndroidManifest.xml`, which now also carries the notification
+  declaration. Seeing it needs AA's developer setting "Add new apps to launcher", as any
+  sideloaded car app does.
+- **Screens**: `ReminderListScreen` (root — "Needs attention" / "Coming up" / "Notes"
+  sections, paging behind a "N more reminders" row) →
   `ReminderDetailScreen` (body + Done / Snooze, De-escalate on the action strip when
   `AlarmService.isSilenceable`) → `CarSnoozeScreen` (fixed durations; typing a number
   is not a driving task, and the voice reply already parses an arbitrary one). Three
@@ -435,21 +446,40 @@ own pace instead of pushed at them all at once.
   without repeating the confirm dance on a surface where reading costs road attention.
   Actions appear only for a firing that has actually happened, matching the
   notification surface.
-- **Data**: `CarReminders` reads `AlarmStore` (everything due, plus the server's 48-hour
-  window) and `AlarmService`'s live sets, so the list works offline and with the WebView
-  dead, exactly as the alarms do — no car fetch, no new endpoint, and nothing that can
-  disagree with what the phone is about to ring. `::esc` twins are folded away (an
-  escalation upgrades the base occurrence in place). Acting routes through the same
+- **Data**: `CarReminders` reads three local sources, so the list works offline and with
+  the WebView dead exactly as the alarms do — no car fetch and no car endpoint:
+  `AlarmStore` (everything due plus the server's 48-hour window), `AlarmService`'s live
+  sets (showing / ringing / silenceable), and `AgendaStore`. `::esc` twins are folded away
+  (an escalation upgrades the base occurrence in place). Acting routes through the same
   `AlarmService` companion entry points the notification actions use, so a car Done
   reaches the server and re-arms locally with no separate path.
+- **The agenda is what the device may *show*, as against what it arms.** The armed set is
+  narrow by necessity — every entry is an exact alarm the OS holds — which makes it the
+  wrong answer to "show me my reminders". So `GET /api/sync/occurrences` returns a second,
+  read-only array (`agenda`, `deviceAgendaEntrySchema`): seven days of firings plus the
+  **notes**, which have no occurrence and so could never have come from the alarm set at
+  all. It is stored in its own `AgendaStore`, never `AlarmStore`, and that separation is
+  load-bearing: every path that arms an alarm, re-arms after boot or re-posts a nag
+  iterates the alarm store, so an agenda entry cannot ring, linger as a notification, or
+  be acked into existence. Where both describe one firing the **alarm set wins** — it is
+  what the phone is about to do. A note carries no `occurrenceId` at all and is flagged as
+  a note, so no surface can offer Done on one; `ReminderDetailScreen` takes it by
+  *reminder* id for the same reason. Both sync paths write it (`SyncClient` natively,
+  `AlarmPlugin.setAgenda` from the JS bridge), and `AgendaStore` is shared by both flavors
+  even though only `direct` reads it — the writer must not have to know whether a car
+  screen was compiled in.
 - **Redraw is pushed, not polled**: `CarListRefresh` (a package-scoped broadcast) is
   fired wherever the set changes — a fire, an ack, a de-escalation, a resync — and each
   screen listens for it on its own lifecycle. The sender is shared code, so in the
   `play` build it is a send with nobody home; that is deliberate, so no caller has to
   know whether a car screen was compiled in.
-- **Head units cap list length** (`ConstraintManager.CONTENT_LIMIT_TYPE_LIST`, lower
-  while driving). The list truncates to it and says so in the section header — a short
-  list must never be mistaken for a complete one.
+- **Head units cap list length** (`ConstraintManager.CONTENT_LIMIT_TYPE_LIST`, as low as
+  six while driving), so the list **pages**: each screen fills to the cap — one row short
+  of it when there is a next page, since the "N more reminders" row costs one — and pushes
+  another `ReminderListScreen` at the following offset. It used to truncate with a "+N not
+  shown" note in the section header, which is honest but leaves the rest unreachable; a
+  count of things you cannot get to is not a list. The row says how many are behind it, so
+  a driver can decide whether to look.
 
 The car dependency is minSdk 23 while the app floor is 22; `tools:overrideLibrary` in
 the manifest reconciles that (AA needs 23+ anyway, and `CarProjection.init` is

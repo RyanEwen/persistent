@@ -43,3 +43,37 @@ export const deviceAlarmSchema = z.object({
 })
 
 export type DeviceAlarm = z.infer<typeof deviceAlarmSchema>
+
+/**
+ * One entry in the device's **agenda**: what it can LIST, as against what it arms.
+ *
+ * The armed set is deliberately narrow — everything due plus the server's 48-hour
+ * window — because every entry in it is an exact alarm the OS has to hold. That makes
+ * it the wrong answer to "show me my reminders", which is what the Android Auto screen
+ * asks: a driver checking the list wants the week, and wants the notes they keep for
+ * reference, neither of which should arm anything.
+ *
+ * So the agenda is read-only by construction. It carries no sound, no persistence
+ * level and no escalation instant — nothing that could ring — and the device stores it
+ * apart from the alarm set (`AgendaStore`, never `AlarmStore`) so no code path that
+ * arms alarms can reach it. Where the two describe the same occurrence, the alarm set
+ * wins: it is what the phone is actually about to do.
+ */
+export const deviceAgendaEntrySchema = z.object({
+  /** The firing this entry is about — empty for a note, which never has one. */
+  occurrenceId: z.string(),
+  reminderId: z.string(),
+  title: z.string(),
+  /** The firing's *unticked* checklist items / description, cut server-side as everywhere. */
+  body: z.string(),
+  /** Epoch milliseconds it is due; 0 for a note, which is never due. */
+  fireAtMs: z.number(),
+  /**
+   * A note (schedule kind `never`): kept to be read, with no firing to act on. Flagged
+   * rather than inferred from an empty `occurrenceId`, so a surface can't accidentally
+   * offer Done on one and queue an ack against nothing.
+   */
+  note: z.boolean()
+})
+
+export type DeviceAgendaEntry = z.infer<typeof deviceAgendaEntrySchema>

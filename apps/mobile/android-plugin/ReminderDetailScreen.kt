@@ -21,11 +21,17 @@ import androidx.car.app.model.Template
  * anything is marked complete — so this offers Done outright rather than repeating the
  * confirm dance on a surface where reading takes attention off the road.
  *
- * Actions are offered only for a firing that has actually happened. A reminder that has
- * yet to fire has nothing to confirm or postpone, so it reads as detail only, matching
- * the notification surface, which likewise offers nothing before the fire.
+ * Actions are offered only for a firing that has actually happened
+ * ([CarReminder.actionable]). A reminder that has yet to fire has nothing to confirm or
+ * postpone, so it reads as detail only, matching the notification surface, which likewise
+ * offers nothing before the fire. A **note** never has a firing at all, and neither does a
+ * *projected* one from beyond the materialized horizon, so both are always detail only.
+ *
+ * Addressed by [CarReminder.key] rather than an occurrence id, because those two rows have
+ * no occurrence to name. The actions read `occurrenceId` off the row they found, so the
+ * only thing they can ever act on is a real firing.
  */
-class ReminderDetailScreen(carContext: CarContext, private val occurrenceId: String) : Screen(carContext) {
+class ReminderDetailScreen(carContext: CarContext, private val key: String) : Screen(carContext) {
 
     init {
         redrawOnReminderChanges()
@@ -33,8 +39,8 @@ class ReminderDetailScreen(carContext: CarContext, private val occurrenceId: Str
 
     override fun onGetTemplate(): Template {
         // Confirmed on another device, or the sync dropped it, while this screen was up.
-        val reminder = CarReminders.find(carContext, occurrenceId)
-            ?: return MessageTemplate.Builder("This reminder is no longer waiting on you.")
+        val reminder = CarReminders.find(carContext, key)
+            ?: return MessageTemplate.Builder("This reminder is no longer on this device.")
                 .setTitle("Reminders")
                 .setHeaderAction(Action.BACK)
                 .build()
@@ -47,13 +53,13 @@ class ReminderDetailScreen(carContext: CarContext, private val occurrenceId: Str
             .setTitle(reminder.title)
             .setHeaderAction(Action.BACK)
 
-        if (reminder.due) {
+        if (reminder.actionable) {
             template.addAction(
                 Action.Builder()
                     .setTitle("Done")
                     .setBackgroundColor(CarColor.GREEN)
                     .setOnClickListener {
-                        AlarmService.markDone(carContext, occurrenceId)
+                        AlarmService.markDone(carContext, reminder.occurrenceId)
                         toastAndReturn("Marked done")
                     }
                     .build()
@@ -61,7 +67,7 @@ class ReminderDetailScreen(carContext: CarContext, private val occurrenceId: Str
             template.addAction(
                 Action.Builder()
                     .setTitle("Snooze")
-                    .setOnClickListener { screenManager.push(CarSnoozeScreen(carContext, occurrenceId)) }
+                    .setOnClickListener { screenManager.push(CarSnoozeScreen(carContext, reminder.occurrenceId)) }
                     .build()
             )
         }
@@ -75,7 +81,7 @@ class ReminderDetailScreen(carContext: CarContext, private val occurrenceId: Str
                         Action.Builder()
                             .setTitle("De-escalate")
                             .setOnClickListener {
-                                AlarmService.silence(carContext, occurrenceId)
+                                AlarmService.silence(carContext, reminder.occurrenceId)
                                 CarToast.makeText(carContext, "Alarm stopped, still nagging", CarToast.LENGTH_LONG).show()
                                 invalidate()
                             }

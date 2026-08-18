@@ -178,6 +178,32 @@ leaves the column alone, and nothing clears it: the worst a leftover can do is
 collapse a list the user themselves collapsed, and only once something is ticked
 again.
 
+## What the device arms vs. what it lists
+
+`GET /api/sync/occurrences` answers two different questions in one round trip, and the
+difference is worth keeping straight:
+
+- **`alarms`** — what the device should *arm*: everything due plus the next 48 hours,
+  expanded server-side into concrete on-device alarms (`deviceAlarmSchema`,
+  `lib/device-alarms.ts`). Every entry is an exact alarm the OS has to hold, which is why
+  the window is narrow.
+- **`agenda`** — what it should be able to *list*: seven days of firings plus every
+  **note** (`deviceAgendaEntrySchema`). Read-only by construction — no sound, no
+  persistence level, no escalation instant, nothing that could ring — and stored on the
+  device in its own `AgendaStore`, never `AlarmStore`, so no code path that arms alarms
+  can reach it. Where both describe the same firing the alarm set wins: it is what the
+  phone is actually about to do.
+
+Only the Android Auto screen reads the agenda (`alarm-architecture.md`), but the server
+sends it to every native client and both sync paths store it — the JS bridge
+(`AlarmPlugin.setAgenda`) and the native `SyncClient` — so a foreground and a background
+sync leave the device holding the same list. A note appears there with **no**
+`occurrenceId` and `note: true`: it has no firing, so there is nothing to Done, and the
+flag is what stops a surface offering it anyway.
+
+The agenda is additive to an older client, which simply ignores it, and absent from an
+older *server*, which leaves a new client's list at whatever the alarm set covers.
+
 ## Native sync nudge
 
 Reminder create/update/delete has no self-contained fire/dismiss payload, but a

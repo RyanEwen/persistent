@@ -5,6 +5,7 @@
  * best-effort notifications there. See docs/alarm-architecture.md.
  */
 import { Capacitor, registerPlugin } from '@capacitor/core'
+import type { DeviceAgendaEntry } from '@persistent/shared'
 
 export interface ScheduledAlarm {
   /** Occurrence id — the alarm's stable key and what we ack against. */
@@ -47,6 +48,15 @@ export interface ScheduledAlarm {
 export interface AlarmPluginPlugin {
   schedule(options: ScheduledAlarm): Promise<void>
   scheduleAll(options: { alarms: ScheduledAlarm[] }): Promise<void>
+  /**
+   * Hand over the readable agenda — the wider set the device may *list* (a week of
+   * firings, plus notes) without arming any of it.
+   *
+   * Deliberately its own call rather than a second field on `scheduleAll`: that one
+   * arms exact alarms, and nothing about a list should be able to reach that code
+   * path. The native side stores the two apart for the same reason.
+   */
+  setAgenda(options: { entries: DeviceAgendaEntry[] }): Promise<void>
   cancel(options: { occurrenceId: string }): Promise<void>
   cancelAll(): Promise<void>
   /** Stop a ringing escalation alarm but leave its notification nagging (no ack). */

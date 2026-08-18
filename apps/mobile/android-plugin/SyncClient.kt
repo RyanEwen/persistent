@@ -49,13 +49,23 @@ object SyncClient {
             android.util.Log.i("PersistAlarm", "sync GET returned no body (auth/net failure)")
             return false
         }
-        val alarmsJson = JSONObject(body).optJSONArray("alarms") ?: JSONArray()
+        val parsed = JSONObject(body)
+        val alarmsJson = parsed.optJSONArray("alarms") ?: JSONArray()
         val specs = mutableListOf<AlarmSpec>()
         for (i in 0 until alarmsJson.length()) {
             parseAlarm(context, alarmsJson.optJSONObject(i))?.let { specs.add(it) }
         }
-        android.util.Log.i("PersistAlarm", "sync ok alarms=${specs.size}")
+        // The readable agenda rides the same response (see AgendaStore): the wider set
+        // the car screen lists, none of it armed. Absent from an older server, which
+        // simply leaves the list at what the alarm set covers.
+        val agendaJson = parsed.optJSONArray("agenda") ?: JSONArray()
+        val agenda = mutableListOf<AgendaEntry>()
+        for (i in 0 until agendaJson.length()) {
+            AgendaEntry.fromJson(agendaJson.optJSONObject(i))?.let { agenda.add(it) }
+        }
+        android.util.Log.i("PersistAlarm", "sync ok alarms=${specs.size} agenda=${agenda.size}")
         AlarmPlugin.scheduleAll(context, specs)
+        AlarmPlugin.setAgenda(context, agenda)
         return true
     }
 

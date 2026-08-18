@@ -26,7 +26,11 @@ GitHub releases. Two things live in `direct` only, each because Play would objec
 - **the Android Auto car screen** (`ReminderCarAppService` + its screens) — a
   templated car app must declare one of Auto's approved categories and a reminder app
   is none of them, so it stays out of the reviewed build rather than putting every
-  release at risk. The Auto *notification* mirror needs no category and is shared.
+  release at risk. The Auto *notification* mirror needs no category and is shared, as
+  is `AgendaStore` (the week-plus-notes list the car screen reads): the sync that
+  writes it is shared code, and a writer must not have to know whether a reader was
+  compiled into this flavor — the same reason `CarListRefresh` broadcasts to nobody in
+  the `play` build.
 
 Direct-only Kotlin sources are listed in `scripts/setup-android.mjs`
 (`DIRECT_ONLY_KT`) and their manifest entries in `flavor/direct/AndroidManifest.xml`.

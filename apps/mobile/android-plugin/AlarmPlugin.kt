@@ -65,6 +65,21 @@ class AlarmPlugin : Plugin() {
         call.resolve()
     }
 
+    /**
+     * Store the readable agenda — the wider set the car screen lists (see [AgendaStore]).
+     * Separate from [scheduleAll] because nothing here is armed; it only redraws a list.
+     */
+    @PluginMethod
+    fun setAgenda(call: PluginCall) {
+        val array: JSONArray = call.getArray("entries") ?: JSONArray()
+        val entries = mutableListOf<AgendaEntry>()
+        for (i in 0 until array.length()) {
+            AgendaEntry.fromJson(array.optJSONObject(i))?.let { entries.add(it) }
+        }
+        setAgenda(context, entries)
+        call.resolve()
+    }
+
     /** Mirror the config the background [SyncWorker] needs but can't read from the WebView. */
     @PluginMethod
     fun setSyncConfig(call: PluginCall) {
@@ -368,6 +383,19 @@ class AlarmPlugin : Plugin() {
             // The armed set IS what the Android Auto screen lists (due now + the next 48
             // hours), so a resync is the one change to it that no notification reflects —
             // an added, retimed or deleted future reminder never touches the shade.
+            CarListRefresh.notifyChanged(context)
+        }
+
+        /**
+         * Replace the stored agenda and redraw the car list. Shared by the JS bridge and
+         * the native [SyncWorker], exactly as [scheduleAll] is, so a foreground and a
+         * background sync leave the device holding the same list.
+         *
+         * No alarm is touched: the agenda is what the car screen may *show*, and the
+         * armed set it merges with is written only by [scheduleAll].
+         */
+        fun setAgenda(context: Context, entries: List<AgendaEntry>) {
+            AgendaStore.replaceAll(context, entries)
             CarListRefresh.notifyChanged(context)
         }
 
