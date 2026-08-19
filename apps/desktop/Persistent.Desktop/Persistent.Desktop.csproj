@@ -58,10 +58,14 @@
        package family name. No runtime networking - clicking a card hands a
        ms-windows-store:// URI to the Store app.
 
-       Imported unconditionally, so a clone that skipped `--recurse-submodules`
-       fails here naming the missing file. Guarding it with Exists() would let the
-       build get as far as the settings window and die on "the namespace 'Promo'
-       does not exist", which says nothing about submodules. -->
+       Imported unconditionally, so a clone that skipped the recursive-submodule
+       flag fails here naming the missing file. Guarding it with Exists() would let
+       the build get as far as the settings window and die on "the namespace
+       'Promo' does not exist", which says nothing about submodules.
+
+       (Spelling that git flag out would be clearer, but an XML comment cannot
+       contain a double hyphen, and MSBuild rejects the whole project file for it
+       before reading a single property.) -->
   <Import Project="..\external\promo\PromotedApps.projitems" Label="Shared" />
 
   <!-- Content files to copy to output ────────────────────────────── -->
