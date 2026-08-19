@@ -115,18 +115,6 @@ jobs:
           path: apps/desktop/Persistent.DesktopMSIX/*.msix
           if-no-files-found: error
 
-      # Non-blocking on purpose. The portable zip is the build people actually use
-      # (and the only one the Linux devcontainer's authors can reason about end to
-      # end); MSIX packaging runs Windows-only tooling that cannot be exercised
-      # before a tag, and the first tag ever cut proved it: a bad publish flag took
-      # the whole release down with it. A packaging failure now shows as a failed
-      # step on a run that still publishes the portable builds.
-      - name: Package MSIX
-        if: startsWith(github.ref, 'refs/tags/desktop-v')
-        continue-on-error: true
-        shell: pwsh
-        run: .\Persistent.DesktopMSIX\build-msix.ps1 -Platform ${{ matrix.platform }}
-
       # Release assets are attached as-is, so the portable build needs a real zip
       # here — unlike the artifact above, which GitHub archives on download.
       - name: Zip portable for the release
@@ -143,11 +131,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: release-assets-${{ matrix.platform }}
-          path: |
-            apps/desktop/release/*.zip
-            apps/desktop/Persistent.DesktopMSIX/*.msix
-          # `error` still fires if BOTH are missing, which is the case worth
-          # failing on; a missing .msix alone leaves the zip and is tolerated.
+          path: apps/desktop/release/*.zip
           if-no-files-found: error
 
   release:
@@ -167,16 +151,20 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          # Both forms: the MSIX for a real install, the portable zip for anyone
-          # who doesn't want to trust the sideload certificate.
+          # The portable zip and nothing else. An MSIX belongs to the Store,
+          # which needs a different package entirely: unsigned, carrying the real
+          # Partner Center identity (`store-publish.yml` builds that one). The MSIX
+          # this job used to attach was the *sideload* build, signed with a
+          # self-signed `CN=Persistent Dev` certificate, so installing it meant
+          # trusting that certificate first. That is a bad thing to hand a stranger
+          # and it was never the Store package either, so it served neither
+          # audience.
           #
           # `**` is load-bearing. upload-artifact roots each artifact at the least
           # common ancestor of its paths - here `apps/desktop` - so the files come
-          # back down a level, as `release/*.zip` and `Persistent.DesktopMSIX/*.msix`.
-          # A flat `artifacts/*.zip` matches nothing.
-          files: |
-            artifacts/**/*.msix
-            artifacts/**/*.zip
+          # back down a level, as `release/*.zip`. A flat `artifacts/*.zip` matches
+          # nothing.
+          files: artifacts/**/*.zip
           # Without this the action only *warns* on an unmatched pattern and still
           # publishes - which is exactly how desktop-v0.2.0 first went out with zero
           # assets while the job reported success.

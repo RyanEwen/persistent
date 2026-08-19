@@ -82,7 +82,7 @@ is where the unmissable alarm guarantees live, and it updates itself.
 **Windows:** a tray app that keeps Persistent one click from the notification
 area. Grab the portable zip for your architecture (x64 or ARM64) from the
 [latest `desktop-v*` release](https://github.com/RyanEwen/persistent/releases?q=desktop&expanded=true) — unzip
-and run, nothing to install — or the MSIX if you'd rather have a proper install.
+and run, nothing to install. Or install it from the Microsoft Store.
 It's for seeing and confirming reminders at your desk, and it can show optional
 Windows notifications with Done and Snooze on them — but it never rings an alarm
 and can't reach you when it's closed or the PC is asleep.

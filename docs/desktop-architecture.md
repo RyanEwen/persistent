@@ -524,22 +524,26 @@ copy you last opened is the one that starts at sign-in.
   warns about an unknown publisher (the bundled `READ ME FIRST.txt` says so in
   plain language). Every CI run uploads this zip as an artifact for both
   architectures, so any commit can be tried without tagging a release.
-- **MSIX packaging is the least-proven path here, and CI no longer lets it block a
-  release.** It only runs on a `desktop-v*` tag, so nothing exercises it until the
-  moment it matters — and the first tag ever cut (`desktop-v0.2.0`) failed on it
-  while the portable build was fine. The cause: `build-msix.ps1` passed
-  `-p:WindowsPackageType=MSIX`, which the SDK rejects unless the *project* declares
+- **A GitHub release carries the portable zip and nothing else. MSIX is for the
+  Store.** The two packages are not interchangeable: the Store wants an *unsigned*
+  one carrying the real Partner Center identity (`build-msix.ps1 -Upload`, driven
+  by `store-publish.yml`), while `build-msix.ps1` without `-Store` rewrites the
+  identity and signs with a self-signed `CN=Persistent Dev` certificate. A release
+  used to attach that second one, which asked anyone downloading it to trust a
+  certificate off the internet and was not the Store package either, so it served
+  neither audience. Nothing builds a sideload MSIX in CI now; `npm run
+  install:desktop` exercises that path constantly during development instead.
+- **`build-msix.ps1` packages externally**, which is why it must not pass
+  `-p:WindowsPackageType=MSIX`. The SDK rejects that unless the *project* declares
   an `<AppxManifest>` item
   (`Microsoft.Windows.SDK.BuildTools.MSIX.Packaging.targets`, whose error message
-  reads backwards). This script packages **externally** — publish a plain layout,
-  write the manifest into it, then `makeappx` — so the project must stay unpackaged
-  during publish and that flag never belonged. The step is now
-  `continue-on-error`: a packaging failure costs the `.msix` asset, not the whole
-  release, and the portable zip always ships.
+  reads backwards), and this script publishes a plain layout, writes the manifest
+  into it, then runs `makeappx`, so the project stays unpackaged during publish.
+  The first tag ever cut (`desktop-v0.2.0`) failed on exactly that flag.
 - **The release job's `files:` globs must be recursive.** `upload-artifact` roots
   each artifact at the least common ancestor of its paths — `apps/desktop` here —
-  so the assets come back one level down (`release/*.zip`,
-  `Persistent.DesktopMSIX/*.msix`) and a flat `artifacts/*.zip` matches nothing.
+  so the assets come back one level down (`release/*.zip`) and a flat
+  `artifacts/*.zip` matches nothing.
   That is not hypothetical: `desktop-v0.2.0` first published with **zero assets**
   while the job reported success, because `action-gh-release` only warns on an
   unmatched pattern. `fail_on_unmatched_files: true` now makes that fatal — an
