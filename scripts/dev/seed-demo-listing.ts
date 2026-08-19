@@ -110,9 +110,10 @@ function lastPassedOnDay(dom: number, hhmm: string): Date {
  * Every seeded instant, named. Each is derived from the reminder's own schedule
  * so the firing and the schedule beside it agree.
  */
-const puppyDue = lastPassed('14:00')
-const puppyDone = lastPassed('08:00')
+const puppyDue = lastPassed('08:00')
+const puppyDone = lastPassed('18:00')
 const plantsDue = lastPassed('09:00')
+const outTheDoorDue = lastPassed('08:15')
 const binsDue = lastPassedOn(1, '18:30')
 const timesheetNext = nextOn(5, '16:00')
 const timesheetDone = lastPassedOn(5, '16:00')
@@ -143,15 +144,21 @@ const trip = [
   { id: 'tr-2', text: 'Chargers' },
   { id: 'tr-3', text: 'Hold the mail' }
 ]
+const outTheDoor = [
+  { id: 'go-1', text: 'Lunches packed' },
+  { id: 'go-2', text: 'Water bottles filled' },
+  { id: 'go-3', text: 'Homework in bags' },
+  { id: 'go-4', text: 'Bus passes' }
+]
 
 const seeds: Seed[] = [
   {
-    note: 'due — the hero; 3x daily is what a "must not miss" routine looks like',
+    note: 'due — the hero; twice daily is what a "must not miss" routine looks like',
     reminder: {
       title: 'Feed the puppy',
       details: 'Half a cup of kibble, and fresh water.',
       type: 'NONE',
-      schedule: { kind: 'daily', timesOfDay: ['08:00', '14:00', '20:00'], skipWeekends: false },
+      schedule: { kind: 'daily', timesOfDay: ['08:00', '18:00'], skipWeekends: false },
       persistence: 'PERSISTENT',
       // No escalation on anything with a live firing: the sweep would flip it to
       // ESCALATED within a minute and the card would read "Escalated", not "Due".
@@ -178,6 +185,24 @@ const seeds: Seed[] = [
       startDate: isoDay(-6)
     },
     occurrences: [{ scheduledFor: plantsDue, status: 'FIRED', firedAt: plantsDue }]
+  },
+  {
+    // The one live checklist. `checkedItems` sits on the occurrence, not the
+    // reminder, so a part-ticked card is a firing's own state and a repeat starts
+    // blank; leaving two ticked is what shows that a nag is about what is *left*.
+    note: 'due — a part-ticked checklist, the only live one',
+    reminder: {
+      title: 'Get out the door',
+      details: 'The 8:20 bus waits for nobody.',
+      type: 'TODO',
+      typeData: { items: outTheDoor },
+      schedule: { kind: 'daily', timesOfDay: ['08:15'], skipWeekends: true },
+      persistence: 'PERSISTENT',
+      startDate: isoDay(-14)
+    },
+    occurrences: [
+      { scheduledFor: outTheDoorDue, status: 'FIRED', firedAt: outTheDoorDue, checkedItems: ['go-1', 'go-2'] }
+    ]
   },
   {
     note: 'due — third distinct card, and the reminder the alarm shot uses',
@@ -313,9 +338,10 @@ async function main(): Promise<void> {
   }
 
   console.log(`\nSeeded ${seeds.length} reminders for ${user.email}.`)
-  console.log('Due cards (three distinct reminders, none repeated):')
+  console.log('Due cards (four distinct reminders, none repeated):')
   for (const [label, when] of [
     ['Feed the puppy', puppyDue],
+    ['Get out the door', outTheDoorDue],
     ['Water the plants', plantsDue],
     ['Take the bins out', binsDue]
   ] as const) {
