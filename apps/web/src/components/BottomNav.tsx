@@ -45,11 +45,32 @@ const ITEMS: NavItem[] = [
   { to: '/settings', label: 'Settings', icon: SettingsIcon }
 ]
 
+/** An on-screen keyboard can only be up if something typeable has focus. */
+function isEditableFocused(): boolean {
+  const el = document.activeElement as HTMLElement | null
+  if (!el) return false
+  return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable
+}
+
 /**
- * True while the on-screen keyboard is up. Detected from the viewport shrinking
- * rather than focus, so the nav reliably reappears when the keyboard closes even
- * if the input keeps focus. Uses visualViewport when available, else innerHeight
- * vs a running max baseline.
+ * True while the on-screen keyboard is up. The bar hides then, so the keyboard
+ * doesn't push it up over the content.
+ *
+ * Height is compared against a running maximum rather than a fixed number, since
+ * there is no portable way to ask how tall the viewport "should" be. That baseline
+ * only ever grew, which is correct on a phone (the viewport has one full height)
+ * and wrong everywhere else: **the Windows flyout can be dragged to resize**, and
+ * its WebView is suspended and resumed rather than reloaded. Shrink the window by
+ * more than the threshold, or catch one odd measurement while it is being sized,
+ * and the bar was hidden for the life of the page with no keyboard anywhere near
+ * it. That is the "no tab bar at the bottom" state, and it stuck because nothing
+ * ever lowered the baseline.
+ *
+ * The focus check is what bounds it: with nothing typeable focused there is no
+ * keyboard, so treat the current height as the new truth instead of evidence of
+ * one. It stays a *guard* on the viewport measurement rather than replacing it,
+ * because the original reason for measuring still holds — the keyboard can close
+ * while the input keeps focus, and the bar has to come back for that too.
  */
 function useKeyboardOpen(): boolean {
   const [open, setOpen] = useState(false)
@@ -58,6 +79,12 @@ function useKeyboardOpen(): boolean {
     let baseline = vv?.height ?? window.innerHeight
     const measure = () => {
       const h = vv?.height ?? window.innerHeight
+      if (!isEditableFocused()) {
+        // Re-baseline: this height is the window's real size, not a keyboard.
+        baseline = h
+        setOpen(false)
+        return
+      }
       baseline = Math.max(baseline, h)
       setOpen(baseline - h > 150)
     }
@@ -65,10 +92,16 @@ function useKeyboardOpen(): boolean {
     vv?.addEventListener('resize', measure)
     window.addEventListener('resize', measure)
     window.addEventListener('orientationchange', measure)
+    // Focus changes decide which branch above applies, so they have to re-measure
+    // too — otherwise blurring an input leaves the bar hidden until the next resize.
+    document.addEventListener('focusin', measure)
+    document.addEventListener('focusout', measure)
     return () => {
       vv?.removeEventListener('resize', measure)
       window.removeEventListener('resize', measure)
       window.removeEventListener('orientationchange', measure)
+      document.removeEventListener('focusin', measure)
+      document.removeEventListener('focusout', measure)
     }
   }, [])
   return open
