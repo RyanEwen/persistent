@@ -156,7 +156,7 @@ ringing alarm collapsed to a heads-up banner **whenever the phone was unlocked**
 `SYSTEM_ALERT_WINDOW` — see #5 and `docs/alarm-architecture.md`. Re-tested with the
 phone unlocked: full-screen surface restored, zero BAL blocks in logcat.
 
-## 2a. targetSdk 36 ⚠️ SHIPPED, DEVICE CHECK OUTSTANDING
+## 2a. targetSdk 36 ✅ DONE
 
 Play requires updates to target the API level of the last Android release: from
 2026-08-30 that is **Android 16 (API 36)**, and the console flagged the app on
@@ -195,15 +195,41 @@ intent), and ordered-broadcast priority scoping (the app is single-process). Edg
 needs nothing new: the opt-out attribute API 36 removes was never used, and the insets
 added in #2 already handle it.
 
-**The device check is outstanding, and #2 is the reason to take that seriously.** That
-bump compiled clean and still broke the alarm on real hardware — `BAL_BLOCK` collapsed
-the full-screen surface whenever the phone was unlocked, which no build could have
-shown. On a device, re-check in this order: a ringing alarm still takes over the screen
-unlocked *and* locked; **Back does nothing on the alarm surface**; Back inside the
-snooze picker's custom view returns to the list rather than closing it; Back in the app
-walks the screen hierarchy as before; and the WorkManager sync still runs (API 36
-tightens JobScheduler quotas — the sync is a backstop, not the guarantee, but a
-throttled one means slower catch-up on a closed device).
+**Verified on a Pixel 9 Pro (Android 17 / SDK 37) running versionCode 45**, against the
+production account, because #2 is the reason to take a device check seriously: that bump
+compiled clean and still broke the alarm on real hardware, which no build could have
+shown. Each check below is what the API 35 bump would have failed.
+
+- **A ringing alarm takes over the screen unlocked.** The alarm was armed from a
+  snooze, the app pushed fully to the background behind the launcher, and the
+  full-screen surface came up on time with **zero `BAL_BLOCK`** entries in logcat. This
+  is the exact path #2 broke.
+- **And locked.** `mKeyguardOccluded=true` with the surface on top, and on the run
+  where the phone was left alone the device went `Dozing` to `Awake` as it fired, so
+  `setTurnScreenOn` still works.
+- **Back does nothing on the alarm surface**: the key event, a left-edge gesture and a
+  right-edge gesture all left `AlarmActivity` top-resumed. This is what
+  `enableOnBackInvokedCallback="false"` is buying.
+- **Back inside the snooze picker's custom view returns to the presets.** Back at the
+  presets root closes the picker, which is `SnoozePickerActivity.onBackPressed` behaving
+  as written; the alarm keeps ringing behind it, since opening the picker deliberately
+  finishes the alarm surface.
+- **Back in the app walks the hierarchy**: a non-first tab goes to the first tab, and
+  the first tab leaves the app, matching `useNativeBack.ts` exactly.
+- **The WorkManager sync still runs** under API 36's tighter quotas. The job reports
+  `WITHIN_QUOTA` satisfied and `Doze whitelisted: true`; a `syncNow` worker ran within
+  130 ms of each native snooze/Done, and the 15-minute periodic worker fired on its own
+  with the app closed.
+
+Also confirmed while there: `USE_FULL_SCREEN_INTENT` and `USE_EXACT_ALARM` are granted,
+alarms are armed as exact `RTC_WAKEUP` with `exactAllowReason=policy_permission`, and
+Android 16's audio hardening does **not** mute the alarm: the player logs
+`muted ... source:none` while the app is in the background.
+
+Home still leaves an alarm ringing rather than dismissing it (foreground service and
+ongoing notification both survive, and tapping the notification reopens the surface).
+That is deliberate and matches the system clock; no app can intercept Home outside
+device-owner lock-task mode.
 
 ## 2b. App access for reviewers ✅ DONE
 

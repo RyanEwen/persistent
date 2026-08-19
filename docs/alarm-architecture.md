@@ -202,7 +202,7 @@ banner that collapses instead of the full-screen alarm. The alarm notification i
 `VISIBILITY_PUBLIC` so its content shows on the lock screen (the user can see
 which reminder is firing).
 
-### "Display over other apps" is load-bearing on Android 15
+### "Display over other apps" is load-bearing from Android 15 on
 
 `SYSTEM_ALERT_WINDOW` is not used to draw an overlay. Holding it is what exempts
 the app from Android 15's **background-activity-launch (BAL)** rules.
@@ -224,6 +224,12 @@ it only shows up when one fires while the phone is in use — exactly when the u
 is least likely to report it as broken. `presentAlarmSurface` therefore checks
 `Settings.canDrawOverlays` first and logs (tag `PersistAlarm`) rather than
 attempting a launch that will be refused.
+
+The rule did not relax at `targetSdk 36`, and the exemption still holds: a device
+pass on API 36 fired an alarm with the app fully backgrounded and got the
+full-screen surface with no BAL block at all (`store/play-readiness.md` #2a). Treat
+this permission as part of the guarantee rather than a nicety, and re-check it on
+every target-SDK bump.
 
 **The surface must be recoverable, always.** Locking the phone mid-alarm used to
 lose it: the activity is no longer top when the keyguard appears, and a
