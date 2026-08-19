@@ -94,7 +94,17 @@ jobs:
           # app) landed a dozen commits that matched no term, and v0.19.0 shipped
           # "Fix an illegal '--' in the csproj comment" to Google Play as a
           # user-facing change. A commit touching both still appears, correctly.
+          #
+          # The exclusions are the same rule applied one level down, and they are
+          # here because "under apps/mobile" is not the same as "code Android runs".
+          # scripts/ is the build tooling and store/ is the Play listing; both sit
+          # inside a runtime path and neither ships behaviour. Markdown never does
+          # either, and a *.test.ts change is by definition not user-visible. v0.22.0
+          # went out with "Explain Play's bare precondition failed on a track write"
+          # and three more like it at the top of the testers' what's-new.
           PATHS='apps/web apps/mobile apps/api packages/shared'
+          PATHS="$PATHS :(exclude)apps/mobile/scripts :(exclude)apps/mobile/store"
+          PATHS="$PATHS :(exclude)*.test.ts :(exclude)*.md"
           CHANGES=$(git log --no-merges --pretty=format:'- %s' "$RANGE" -- $PATHS | grep -viE "$EXCLUDE" || true)
           [ -z "$CHANGES" ] && CHANGES="- Maintenance and behind-the-scenes improvements"
           {
