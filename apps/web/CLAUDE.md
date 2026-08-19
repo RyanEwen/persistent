@@ -130,6 +130,15 @@
   what makes it confusing to debug. Such a control also has to clear `BottomNav`
   **and** `env(safe-area-inset-bottom)`, and anchor to the 640px centred column
   rather than the viewport.
+- **The viewport is not always phone-shaped — the Windows flyout is a window the
+  user can drag to resize**, and its WebView is suspended and resumed rather than
+  reloaded. So a heuristic that reads "the viewport got shorter" as a phone event
+  is wrong there, and wrong in a desktop browser too. `BottomNav`'s keyboard
+  detection is the cautionary case: it compared height against a running maximum
+  that only ever grew, so one resize left the tab bar hidden for the life of the
+  page with no keyboard involved. It is now guarded on whether anything typeable
+  has focus. Anything new that measures the viewport needs the same question asked
+  of it: what does this do when the window simply gets smaller?
 - **No native dialogs:** don't use `alert`/`confirm`/`prompt` (eslint enforces).
 - **A new screen starts at the top.** `lib/useScrollReset.ts` (called once in
   `App.tsx`) scrolls to 0 on route change, because the app is one scrolling
