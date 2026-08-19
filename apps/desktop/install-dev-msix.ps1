@@ -171,9 +171,20 @@ Get-Process -Name 'Persistent.Desktop' -ErrorAction SilentlyContinue | ForEach-O
     Stop-Process -Id $_.Id -Force
 }
 
-$stale = @(Get-AppxPackage -Name 'Persistent.Desktop' |
-           Where-Object { $_.Publisher -ne $cert.Subject })
-foreach ($old in $stale) {
+# Removed and re-added rather than installed over, every time.
+#
+# An MSIX refuses a package whose identity matches an install but whose contents
+# differ (0x80073CFB, "increment the version number ... or remove the old package"),
+# and a dev loop rebuilds the same version constantly, so installing over the top
+# works exactly once and then fails forever. Bumping <Version> per build would mean
+# writing to a tracked file for every test, so removal is the cheaper answer: this
+# app keeps settings, logs and the WebView2 profile in the real %AppData%\Persistent
+# rather than the package store, so nothing is lost and the sign-in survives.
+#
+# This also clears a package from a different publisher, which is a different family
+# entirely (a Visual Studio build signs CN=<username>) and would otherwise leave two
+# copies of the app installed.
+foreach ($old in @(Get-AppxPackage -Name 'Persistent.Desktop')) {
     Write-Step "Removing $($old.PackageFullName) (publisher $($old.Publisher))"
     Remove-AppxPackage -Package $old.PackageFullName
 }
@@ -208,6 +219,15 @@ try {
 } finally {
     & schtasks /delete /tn $taskName /f 2>&1 | Out-Null
 }
+
+# The log is the only place the task's outcome exists: it ran in another session,
+# so its exit code never reaches here. Checked for the failure line FIRST, because
+# "a package is installed" is not proof this install worked - a failed update
+# leaves the previous one in place and reads as success, which is exactly how this
+# script once reported Done on an install that had thrown 0x80073CFB.
+$log = @(Get-Content $logPath -ErrorAction SilentlyContinue)
+$failure = $log | Where-Object { $_ -like 'FAILED *' } | Select-Object -First 1
+if ($failure) { throw "Install failed: $failure" }
 
 $installed = Get-AppxPackage -Name 'Persistent.Desktop'
 if (-not $installed) { throw "Install did not complete. See $logPath" }
