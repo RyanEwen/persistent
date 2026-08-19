@@ -72,3 +72,12 @@ both are pushed to Play by the manual `play-listing` workflow
 (`scripts/play-publish.mjs --listing`). See `store/play-readiness.md`, and keep
 the listing free of health framing while `MEDICATION` is withheld from the picker
 (root `CLAUDE.md`).
+
+## Reaching a wider Play track
+
+**A tag publishes to internal + alpha; nothing reaches production on its own.**
+Promoting is the manual `play-promote` workflow (`scripts/play-publish.mjs
+--promote`), which moves a versionCode already on Play onto another track without
+rebuilding or re-uploading, since Play rejects a second upload of a code it has
+seen. Don't add production to a tag's tracks to skip this: the split is what keeps
+"published so it can be tested" separate from "judged good enough for everyone".

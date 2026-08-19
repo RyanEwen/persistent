@@ -1,0 +1,67 @@
+name: play-promote
+
+# Move a build that is already on Google Play onto another track, most often
+# alpha to production. No build and no upload: the AAB exists, and Play rejects a
+# second upload of a versionCode it has already seen, so a promotion is the only
+# way a tested build reaches a wider track.
+#
+# Manual dispatch only, and deliberately not part of `release`. Cutting a version
+# publishes to internal + alpha so it can be tested; deciding that it is good
+# enough for everyone is a separate judgement made later, by a person.
+#
+# The release name and "what's new" are carried over from the source track rather
+# than retyped, so production shows the same notes the testers saw. See
+# apps/mobile/scripts/play-publish.mjs (--promote).
+#
+# Run `play-check` first if you are unsure which versionCode is where; it prints
+# every track's releases.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_code:
+        description: 'versionCode to promote (must already be on a Play track)'
+        required: true
+        type: string
+      track:
+        description: 'Destination track'
+        required: true
+        default: production
+        type: choice
+        options: [production, beta, alpha]
+      from:
+        description: 'Track to copy the release name and notes from'
+        required: true
+        default: alpha
+        type: choice
+        options: [alpha, internal, beta]
+      rollout:
+        description: 'Staged rollout fraction, e.g. 0.2 for 20%. Leave empty to release to everyone.'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      # No `npm ci`: the script is dependency-free by design (Node 20 has fetch
+      # and RS256 signing built in), so this needs nothing from the workspace.
+      - name: Promote versionCode ${{ inputs.version_code }} to ${{ inputs.track }}
+        working-directory: apps/mobile
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          node scripts/play-publish.mjs --promote \
+            --version-code '${{ inputs.version_code }}' \
+            --tracks '${{ inputs.track }}' \
+            --from '${{ inputs.from }}' \
+            ${{ inputs.rollout && format('--rollout ''{0}''', inputs.rollout) || '' }}

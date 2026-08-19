@@ -129,6 +129,11 @@ the commits since the previous tag, and ships each to its channel:
   on a `versionCode` that Play already has. Publishing internals are in
   `apps/mobile/scripts/play-publish.mjs`; Console setup is in
   `apps/mobile/store/play-readiness.md` §6b.
+- **Reaching `beta` or `production`** is never part of a tag. It is the manual
+  `play-promote` workflow, which moves a versionCode already on Play onto another
+  track with no rebuild and no re-upload, so what ships is byte-for-byte what was
+  tested. It can stage the rollout to a fraction of users, and it refuses both a
+  code that is on no track and one older than the destination already serves.
 
 Because the app loads the UI from production, web-only changes ship via a deploy
 with no new build — cut a release only for native changes (alarm/update/passkey/

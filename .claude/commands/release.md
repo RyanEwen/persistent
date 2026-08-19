@@ -20,7 +20,9 @@ end-user-facing changes only — internal/docs/tooling commits are excluded; see
   `apps/mobile/scripts/play-publish.mjs`), reusing the same notes truncated to
   Play's 500-character "what's new" limit. Skipped entirely unless the
   `PLAY_SERVICE_ACCOUNT_JSON` secret exists, so tagging still works on forks.
-  Promotion beyond alpha is a deliberate Play Console action, not part of a tag.
+  Promotion beyond alpha is deliberately not part of a tag: it is the separate
+  manual `play-promote` workflow, which moves an existing versionCode to another
+  track without rebuilding or re-uploading.
 
 Never publish the `direct` APK to Play — it carries two things the `play` flavor
 deliberately omits: the in-app updater with `REQUEST_INSTALL_PACKAGES`, which Play

@@ -324,7 +324,20 @@ using the same release notes as the GitHub Release truncated to Play's
 `PLAY_SERVICE_ACCOUNT_JSON` is set, so tags publish without a Console visit.
 
 **A tag goes to `internal` *and* `alpha`** — one build, one versionCode, both
-tracks. Promotion to beta/production stays a deliberate Console action.
+tracks. Promotion to beta/production stays a deliberate, separate decision: a tag
+publishes something so it can be tested, and judging it good enough for everyone
+happens later and by a person.
+
+That promotion runs through `.github/workflows/play-promote.yml`
+(`workflow_dispatch`, never on a tag), which calls `play-publish.mjs --promote`.
+It uploads nothing, because the build is already on Play and a second upload of a
+known versionCode is rejected outright; it copies the release onto the destination
+track, carrying the source track's name and "what's new" so production shows the
+notes the testers saw rather than a placeholder. `--rollout 0.2` starts a staged
+rollout instead of releasing to everyone at once. It refuses two things Play
+itself accepts silently: a versionCode that is on no track at all, and one lower
+than the destination already serves, which would un-ship the newer build with no
+error to notice.
 
 That "both tracks" requirement is why publishing is a script
 (`apps/mobile/scripts/play-publish.mjs`) rather than an off-the-shelf upload

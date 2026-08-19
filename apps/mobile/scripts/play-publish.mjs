@@ -27,6 +27,12 @@
  *                   Deliberately not part of a release: the copy changes on its
  *                   own schedule, so it rides a manual workflow_dispatch
  *                   (.github/workflows/play-listing.yml) instead.
+ *   --promote       Move a versionCode that is already on Play onto one more
+ *                   track, with no upload and no build. Needs --version-code and
+ *                   a single --tracks destination; --from picks which track's
+ *                   release name and notes to carry forward when the build sits
+ *                   on several. --rollout <0..1> starts a staged rollout instead
+ *                   of releasing to everyone at once.
  *   (default)       Upload --aab and release it to --tracks.
  *
  * Usage:
@@ -34,6 +40,8 @@
  *   node scripts/play-publish.mjs --listing store/listing.md [--check] [--no-screenshots]
  *   node scripts/play-publish.mjs --aab app.aab --tracks internal,alpha \
  *     --version-name 0.17.0 --notes RELEASE_NOTES.md [--status completed|draft]
+ *   node scripts/play-publish.mjs --promote --version-code 45 --tracks production \
+ *     [--from alpha] [--rollout 0.2]
  */
 import { readFileSync, readdirSync } from 'node:fs'
 import { createSign } from 'node:crypto'
@@ -295,6 +303,53 @@ export function highestVersionCode(tracks) {
   return highest
 }
 
+/**
+ * The release carrying [versionCode], and the track it was found on.
+ *
+ * A promotion copies a build that is already on Play onto another track, so the
+ * name and "what's new" have to come from somewhere: taking them from the source
+ * release is what makes production show testers' notes rather than a placeholder,
+ * and it is why this returns the whole release rather than just a boolean.
+ *
+ * `preferred` is searched first so a build sitting on several tracks resolves to
+ * the one being promoted from, which is the one whose notes are current.
+ */
+export function findRelease(tracks, versionCode, preferred) {
+  const wanted = String(versionCode)
+  const order = [...(tracks ?? [])].sort((a, b) => {
+    if (a.track === preferred) return -1
+    if (b.track === preferred) return 1
+    return 0
+  })
+  for (const track of order) {
+    for (const release of track.releases ?? []) {
+      if ((release.versionCodes ?? []).map(String).includes(wanted)) {
+        return { track: track.track, release }
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * Why [versionCode] must not go onto [target], or null when it may.
+ *
+ * Play accepts a promotion that moves a track *backwards*, which would hand
+ * production an older build than it already serves and, with no error to notice,
+ * quietly un-ship whatever was there. Refusing here is the only guard, since a
+ * promotion has no build step to catch it the way an upload's versionCode check
+ * does.
+ */
+export function promotionBlocker(tracks, versionCode, target) {
+  const existing = (tracks ?? []).find((track) => track.track === target)
+  if (!existing) return null
+  const highest = highestVersionCode([existing])
+  if (highest && Number(versionCode) < highest) {
+    return `${target} already serves versionCode ${highest}; promoting ${versionCode} would move it backwards.`
+  }
+  return null
+}
+
 /** One `track: versionCodes (status)` line per release, for the CI log. */
 export function describeTracks(tracks) {
   if (!tracks?.length) return '  (no tracks have releases yet)'
@@ -414,11 +469,24 @@ async function main() {
   // Validate the invocation before authenticating: a missing flag should fail
   // instantly and unmistakably, not after a token round-trip.
   const listingMode = Boolean(args.listing)
-  const publishing = !args.check && !listingMode
+  const promoteMode = Boolean(args.promote)
+  const publishing = !args.check && !listingMode && !promoteMode
   const aab = args.aab
   const tracks = parseTracks(args.tracks)
   const versionName = args['version-name']
   const status = args.status || 'completed'
+  const rollout = args.rollout === undefined ? null : Number(args.rollout)
+  if (promoteMode) {
+    if (!Number.isFinite(Number(args['version-code']))) {
+      fail('--promote needs --version-code <n>: the build already on Play to move.')
+    }
+    if (tracks.length !== 1) {
+      fail('--promote takes exactly one --tracks value, the destination.')
+    }
+    if (rollout !== null && !(rollout > 0 && rollout < 1)) {
+      fail(`--rollout must be between 0 and 1 exclusive, got '${args.rollout}'.`)
+    }
+  }
   if (publishing) {
     if (!aab) fail('--aab <path> is required.')
     if (!tracks.length) fail('--tracks <internal[,alpha,...]> is required.')
@@ -541,6 +609,62 @@ async function main() {
     console.log(`[play-publish] committed. ${LISTING_LANGUAGE} listing updated from ${listingFile}`)
     if (withShots) console.log(`[play-publish] ${shots.length} screenshots replaced from ${shotsDir}`)
     console.log('[play-publish] Play reviews listing changes before they go live.')
+    return
+  }
+
+  // --- --promote: move a build already on Play onto another track -----------
+  //
+  // No upload: the AAB exists on Play already, and re-uploading it is impossible
+  // anyway (Play rejects a versionCode it has seen). The whole operation is
+  // "read the release, write it to another track", inside one edit so a failure
+  // part-way leaves the destination untouched.
+  if (promoteMode) {
+    const target = tracks[0]
+    const versionCode = Number(args['version-code'])
+    const edit = await playFetch(token, editsPath(packageName), { method: 'POST', body: {} })
+    const { tracks: current } = await playFetch(token, `${editsPath(packageName, edit.id)}/tracks`)
+    console.log('[play-publish] current Play tracks:')
+    console.log(describeTracks(current))
+
+    const found = findRelease(current, versionCode, args.from)
+    if (!found) {
+      await playFetch(token, editsPath(packageName, edit.id), { method: 'DELETE' })
+      fail(
+        `versionCode ${versionCode} is not on any track, so there is nothing to promote.\n` +
+          'Release it to a testing track first (the release workflow does internal + alpha).'
+      )
+    }
+    const blocker = promotionBlocker(current, versionCode, target)
+    if (blocker) {
+      await playFetch(token, editsPath(packageName, edit.id), { method: 'DELETE' })
+      fail(blocker)
+    }
+
+    // Carry the source release's name and notes forward: promoting is the same
+    // build reaching more people, so it should say the same thing to them.
+    const source = found.release
+    const release = {
+      name: versionName || source.name,
+      versionCodes: [String(versionCode)],
+      status: rollout === null ? 'completed' : 'inProgress'
+    }
+    if (rollout !== null) release.userFraction = rollout
+    if (source.releaseNotes?.length) release.releaseNotes = source.releaseNotes
+
+    await playFetch(token, `${editsPath(packageName, edit.id)}/tracks/${target}`, {
+      method: 'PUT',
+      body: { track: target, releases: [release] }
+    })
+    await commitEdit(token, packageName, edit.id)
+
+    const reach = rollout === null ? 'all users' : `${(rollout * 100).toFixed(0)}% of users`
+    console.log(
+      `[play-publish] committed. versionCode ${versionCode} promoted from ${found.track} ` +
+        `to ${target} (${release.name}) for ${reach}`
+    )
+    if (!source.releaseNotes?.length) {
+      console.log('[play-publish] the source release carried no notes, so none were set.')
+    }
     return
   }
 

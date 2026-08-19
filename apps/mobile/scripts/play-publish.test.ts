@@ -19,7 +19,9 @@ import {
   LISTING_LIMITS,
   pngSize,
   pngHasAlpha,
-  screenshotProblems
+  screenshotProblems,
+  findRelease,
+  promotionBlocker
   // @ts-expect-error - plain .mjs script, no type declarations
 } from './play-publish.mjs'
 
@@ -278,6 +280,52 @@ describe('screenshot checks', () => {
  * a third-party publish action, and the part unit tests of pure helpers cannot
  * reach. A local mock stands in for both the OAuth endpoint and the Play API.
  */
+describe('findRelease', () => {
+  const tracks = [
+    { track: 'internal', releases: [{ name: '0.21.1', versionCodes: ['45'], releaseNotes: [{ language: 'en-US', text: 'internal notes' }] }] },
+    { track: 'alpha', releases: [{ name: '0.21.1 alpha', versionCodes: ['45'], releaseNotes: [{ language: 'en-US', text: 'alpha notes' }] }] }
+  ]
+
+  it('finds the release carrying a versionCode', () => {
+    assert.equal(findRelease(tracks, 45)?.release.name, '0.21.1')
+  })
+
+  it('prefers the named track when the build sits on several', () => {
+    // The notes differ per track, and a promotion carries them forward, so which
+    // copy wins is a visible difference rather than a tie-break detail.
+    const found = findRelease(tracks, 45, 'alpha')
+    assert.equal(found?.track, 'alpha')
+    assert.equal(found?.release.releaseNotes[0].text, 'alpha notes')
+  })
+
+  it('returns null for a code Play has never seen', () => {
+    assert.equal(findRelease(tracks, 99), null)
+  })
+
+  it('compares codes as strings and numbers alike', () => {
+    assert.equal(findRelease(tracks, '45')?.track, 'internal')
+  })
+})
+
+describe('promotionBlocker', () => {
+  it('allows a first release to an empty track', () => {
+    assert.equal(promotionBlocker([{ track: 'alpha', releases: [{ versionCodes: ['45'] }] }], 45, 'production'), null)
+  })
+
+  it('allows promoting the same code the track already serves', () => {
+    // Re-running a promotion should be harmless, not an error: it is how a
+    // half-finished rollout gets finished.
+    const tracks = [{ track: 'production', releases: [{ versionCodes: ['45'] }] }]
+    assert.equal(promotionBlocker(tracks, 45, 'production'), null)
+  })
+
+  it('refuses to move a track backwards', () => {
+    // Play accepts this silently, and it would un-ship whatever production served.
+    const tracks = [{ track: 'production', releases: [{ versionCodes: ['46'] }] }]
+    assert.match(String(promotionBlocker(tracks, 45, 'production')), /would move it backwards/)
+  })
+})
+
 describe('publish request sequence', () => {
   type Call = { method: string; path: string; body: string }
 
@@ -475,6 +523,76 @@ describe('publish request sequence', () => {
     assert.equal(code, 0, stdout)
     assert.equal(calls.filter((c) => c.path.includes('/bundles')).length, 0)
     assert.match(stdout, /highest versionCode on Play: 41/)
+  })
+
+  it('--promote writes the destination track without uploading, carrying the notes over', async () => {
+    const { calls, code, stdout } = await runPublish(
+      ['--promote', '--version-code', '45', '--tracks', 'production', '--from', 'alpha'],
+      {
+        existingTracks: [
+          { track: 'internal', releases: [{ name: '0.21.1', versionCodes: ['45'], status: 'completed' }] },
+          {
+            track: 'alpha',
+            releases: [
+              {
+                name: '0.21.1',
+                versionCodes: ['45'],
+                status: 'completed',
+                releaseNotes: [{ language: 'en-US', text: 'Alarms survive a reboot' }]
+              }
+            ]
+          }
+        ]
+      }
+    )
+    assert.equal(code, 0, stdout)
+    // The build is already on Play; re-uploading it is both pointless and rejected.
+    assert.equal(calls.filter((c) => c.path.includes('/bundles')).length, 0)
+
+    const puts = calls.filter((c) => c.method === 'PUT' && c.path.includes('/tracks/production'))
+    assert.equal(puts.length, 1, 'exactly one track write')
+    const body = JSON.parse(puts[0].body)
+    assert.deepEqual(body.releases[0].versionCodes, ['45'])
+    assert.equal(body.releases[0].status, 'completed')
+    assert.equal(body.releases[0].releaseNotes[0].text, 'Alarms survive a reboot')
+    assert.ok(calls.some((c) => c.path.includes(':commit')))
+  })
+
+  it('--promote with --rollout starts a staged release instead of a full one', async () => {
+    const { calls, code, stdout } = await runPublish(
+      ['--promote', '--version-code', '45', '--tracks', 'production', '--rollout', '0.2'],
+      { existingTracks: [{ track: 'alpha', releases: [{ name: '0.21.1', versionCodes: ['45'] }] }] }
+    )
+    assert.equal(code, 0, stdout)
+    const body = JSON.parse(calls.find((c) => c.method === 'PUT' && c.path.includes('/tracks/production'))!.body)
+    assert.equal(body.releases[0].status, 'inProgress')
+    assert.equal(body.releases[0].userFraction, 0.2)
+  })
+
+  it('--promote refuses a versionCode that is not on Play, leaving no edit behind', async () => {
+    const { calls, code, stderr } = await runPublish(
+      ['--promote', '--version-code', '99', '--tracks', 'production'],
+      { existingTracks: [{ track: 'alpha', releases: [{ versionCodes: ['45'] }] }] }
+    )
+    assert.equal(code, 1)
+    assert.match(stderr, /not on any track/)
+    assert.equal(calls.filter((c) => c.method === 'PUT').length, 0)
+    assert.ok(calls.some((c) => c.method === 'DELETE' && c.path.includes('/edits/edit-1')))
+  })
+
+  it('--promote refuses to move a track backwards', async () => {
+    const { calls, code, stderr } = await runPublish(
+      ['--promote', '--version-code', '45', '--tracks', 'production'],
+      {
+        existingTracks: [
+          { track: 'alpha', releases: [{ versionCodes: ['45'] }] },
+          { track: 'production', releases: [{ versionCodes: ['46'] }] }
+        ]
+      }
+    )
+    assert.equal(code, 1)
+    assert.match(stderr, /would move it backwards/)
+    assert.equal(calls.filter((c) => c.method === 'PUT').length, 0)
   })
 
   it('--listing patches only the descriptions, then commits', async () => {

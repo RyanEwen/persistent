@@ -213,6 +213,12 @@ the manual `play-listing` GitHub workflow. Regenerate the scripted screenshots w
 `npm run db:seed:demo` + `npm run shots` from the repo root; only the full-screen
 alarm and the notification shade still need a device.
 
+Tagging a version publishes it to the `internal` and `alpha` tracks. Getting that
+same build to `beta` or `production` is the separate manual `play-promote` GitHub
+workflow: give it the versionCode and a destination, optionally a `rollout`
+fraction for a staged release. It neither rebuilds nor re-uploads, so what reaches
+production is byte-for-byte the build that was tested.
+
 To build a signed release locally, set the `ANDROID_*` vars (see `.env.example`)
 in the workspace `.env`, then:
 
