@@ -73,49 +73,15 @@ jobs:
           echo "tracks=${{ github.event.inputs.play_tracks || 'internal,alpha' }}" >> "$GITHUB_OUTPUT"
           echo "status=${{ github.event.inputs.play_status || 'completed' }}" >> "$GITHUB_OUTPUT"
 
+      # The filter itself lives in apps/mobile/scripts/release-notes.mjs, with
+      # tests, because play-notes.yml has to produce the identical answer when a
+      # published release's notes turn out to be wrong. Two copies would drift, and
+      # the drift would only be visible after it shipped to testers.
       - name: Generate release notes
         run: |
-          TAG="${{ steps.ver.outputs.tag }}"
-          PREV=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)
-          RANGE="${TAG}"
-          [ -n "$PREV" ] && RANGE="${PREV}..${TAG}"
-          # These notes are shown verbatim in the in-app update prompt and, trimmed
-          # to Play's 500-character cap, as the Play release's "what's new". List
-          # only changes an end user cares about. Drop internal-only commits:
-          # version bumps/merges, docs, chores/tooling/CI, deps, refactors/tests,
-          # and security-header plumbing. Tune EXCLUDE if a category should
-          # resurface. A commit that mixes user-facing + internal work is dropped
-          # if it matches any term, so prefer splitting such commits.
-          EXCLUDE='^- (bump version|merge )|\b(docs?|documentation|readme|changelog|jsdoc|chore|ci|workflow|lint|eslint|prettier|typecheck|tsconfig|devcontainer|dockerfile|compose|gitignore|deps?|dependency|dependencies|refactor|rename|cleanup|clean up|tidy|reorganize|restructure|test|tests|spec|csp|coop|coep|cors|co-?authored?)\b'
-          # Scoped by PATH as well as by keyword. These notes ship to the Play
-          # listing and the in-app update prompt for *Android*, so a commit that
-          # touched none of the code Android runs has no business in them. The
-          # keyword list alone could not know that: apps/desktop (the Windows tray
-          # app) landed a dozen commits that matched no term, and v0.19.0 shipped
-          # "Fix an illegal '--' in the csproj comment" to Google Play as a
-          # user-facing change. A commit touching both still appears, correctly.
-          #
-          # The exclusions are the same rule applied one level down, and they are
-          # here because "under apps/mobile" is not the same as "code Android runs".
-          # scripts/ is the build tooling and store/ is the Play listing; both sit
-          # inside a runtime path and neither ships behaviour. Markdown never does
-          # either, and a *.test.ts change is by definition not user-visible. v0.22.0
-          # went out with "Explain Play's bare precondition failed on a track write"
-          # and three more like it at the top of the testers' what's-new.
-          PATHS='apps/web apps/mobile apps/api packages/shared'
-          PATHS="$PATHS :(exclude)apps/mobile/scripts :(exclude)apps/mobile/store"
-          PATHS="$PATHS :(exclude)*.test.ts :(exclude)*.md"
-          CHANGES=$(git log --no-merges --pretty=format:'- %s' "$RANGE" -- $PATHS | grep -viE "$EXCLUDE" || true)
-          [ -z "$CHANGES" ] && CHANGES="- Maintenance and behind-the-scenes improvements"
-          {
-            echo "## What's changed"
-            echo
-            echo "$CHANGES"
-            if [ -n "$PREV" ]; then
-              echo
-              echo "**Full changelog**: https://github.com/${{ github.repository }}/compare/${PREV}...${TAG}"
-            fi
-          } > RELEASE_NOTES.md
+          node apps/mobile/scripts/release-notes.mjs \
+            --tag "${{ steps.ver.outputs.tag }}" \
+            --repo "${{ github.repository }}" > RELEASE_NOTES.md
           cat RELEASE_NOTES.md
 
       - uses: actions/setup-node@v6

@@ -22,7 +22,8 @@ import {
   screenshotProblems,
   findRelease,
   promotionBlocker,
-  trackPreconditionHelp
+  trackPreconditionHelp,
+  withReleaseNotes
   // @ts-expect-error - plain .mjs script, no type declarations
 } from './play-publish.mjs'
 
@@ -327,6 +328,31 @@ describe('promotionBlocker', () => {
   })
 })
 
+describe('withReleaseNotes', () => {
+  it('replaces the notes and keeps the rest of the release', () => {
+    const next = withReleaseNotes(
+      { name: '0.22.0', versionCodes: ['46'], status: 'completed', releaseNotes: [{ language: 'en-US', text: 'old' }] },
+      'new'
+    )
+    assert.deepEqual(next.versionCodes, ['46'])
+    assert.equal(next.name, '0.22.0')
+    assert.equal(next.status, 'completed')
+    assert.deepEqual(next.releaseNotes, [{ language: 'en-US', text: 'new' }])
+  })
+
+  it('preserves a staged rollout rather than completing it', () => {
+    // The write is a whole-release replace, so dropping userFraction/status here
+    // would push a deliberately-held rollout out to everyone.
+    const next = withReleaseNotes({ versionCodes: ['46'], status: 'inProgress', userFraction: 0.2 }, 'new')
+    assert.equal(next.status, 'inProgress')
+    assert.equal(next.userFraction, 0.2)
+  })
+
+  it('does not invent a userFraction on a full release', () => {
+    assert.equal('userFraction' in withReleaseNotes({ versionCodes: ['46'], status: 'completed' }, 'new'), false)
+  })
+})
+
 describe('trackPreconditionHelp', () => {
   it('explains an ineligible track, naming the closed-testing rule first', () => {
     const help = String(trackPreconditionHelp('production', 'FAILED_PRECONDITION'))
@@ -602,6 +628,43 @@ describe('publish request sequence', () => {
     assert.match(stderr, /not on any track/)
     assert.equal(calls.filter((c) => c.method === 'PUT').length, 0)
     assert.ok(calls.some((c) => c.method === 'DELETE' && c.path.includes('/edits/edit-1')))
+  })
+
+  it('--set-notes rewrites every named track and uploads nothing', async () => {
+    const { calls, code, stdout } = await runPublish(
+      ['--set-notes', '--version-code', '46', '--tracks', 'internal,alpha', '--notes', '{notes}'],
+      {
+        existingTracks: [
+          { track: 'internal', releases: [{ name: '0.22.0', versionCodes: ['46'], status: 'completed' }] },
+          { track: 'alpha', releases: [{ name: '0.22.0', versionCodes: ['46'], status: 'completed' }] }
+        ]
+      }
+    )
+    assert.equal(code, 0, stdout)
+    assert.equal(calls.filter((c) => c.path.includes('/bundles')).length, 0)
+
+    const puts = calls.filter((c) => c.method === 'PUT' && c.path.includes('/tracks/'))
+    assert.equal(puts.length, 2, 'one write per track')
+    for (const put of puts) {
+      const body = JSON.parse(put.body)
+      assert.deepEqual(body.releases[0].versionCodes, ['46'])
+      assert.equal(body.releases[0].name, '0.22.0', 'the release name is left alone')
+      assert.match(body.releases[0].releaseNotes[0].text, /Alarms survive a reboot/)
+    }
+    assert.ok(calls.some((c) => c.path.includes(':commit')))
+  })
+
+  it('--set-notes writes nothing when one named track lacks that build', async () => {
+    // Resolved up front on purpose: a partial rewrite would leave two tracks
+    // disagreeing about what the same versionCode changed.
+    const { calls, code, stderr } = await runPublish(
+      ['--set-notes', '--version-code', '46', '--tracks', 'internal,alpha', '--notes', '{notes}'],
+      { existingTracks: [{ track: 'internal', releases: [{ name: '0.22.0', versionCodes: ['46'] }] }] }
+    )
+    assert.equal(code, 1)
+    assert.match(stderr, /not on 'alpha'/)
+    assert.equal(calls.filter((c) => c.method === 'PUT').length, 0)
+    assert.equal(calls.filter((c) => c.path.includes(':commit')).length, 0)
   })
 
   it('--promote turns Play\'s bare precondition refusal into the actual checklist', async () => {

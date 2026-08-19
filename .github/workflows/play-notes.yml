@@ -1,0 +1,68 @@
+name: play-notes
+
+# Rewrite the "what's new" of a release already on Google Play.
+#
+# The notes are generated from commit subjects, so a filter that is too permissive
+# ships prose no user can act on, and it is only visible once it is public: v0.22.0
+# reached testers led by "Explain Play's bare precondition failed on a track write".
+# Fixing that in the Console leaves no record of what changed or why, and no way to
+# tell whether it matches what the release workflow would produce today.
+#
+# So this regenerates the notes with the same script `release.yml` uses, against the
+# same tag, and writes them to the tracks that carry that build. Nothing else about
+# the release is touched, including a staged rollout's fraction.
+#
+# Run `play-check` first if you need to know which versionCode is on which track.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag whose notes to regenerate, e.g. v0.22.0'
+        required: true
+        type: string
+      version_code:
+        description: 'versionCode of that release on Play (play-check prints these)'
+        required: true
+        type: string
+      tracks:
+        description: 'Comma-separated tracks to rewrite'
+        required: true
+        default: internal,alpha
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  notes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Full history + tags: the notes come from the commit range ending at the
+          # tag, which a shallow clone cannot see.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      - name: Regenerate the notes for ${{ inputs.tag }}
+        run: |
+          node apps/mobile/scripts/release-notes.mjs \
+            --tag "${{ inputs.tag }}" \
+            --repo "${{ github.repository }}" > RELEASE_NOTES.md
+          cat RELEASE_NOTES.md
+
+      # No `npm ci`: play-publish.mjs is dependency-free by design (Node 20 has
+      # fetch and RS256 signing built in), so this needs nothing from the workspace.
+      - name: Write them to ${{ inputs.tracks }}
+        working-directory: apps/mobile
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          node scripts/play-publish.mjs --set-notes \
+            --version-code '${{ inputs.version_code }}' \
+            --tracks '${{ inputs.tracks }}' \
+            --notes ../../RELEASE_NOTES.md

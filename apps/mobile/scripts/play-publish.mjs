@@ -33,6 +33,11 @@
  *                   release name and notes to carry forward when the build sits
  *                   on several. --rollout <0..1> starts a staged rollout instead
  *                   of releasing to everyone at once.
+ *   --set-notes     Rewrite the "what's new" of a versionCode already on Play,
+ *                   on every --tracks track, changing nothing else about the
+ *                   release. Needs --version-code, --tracks and --notes <file>.
+ *                   For when the generated notes turn out to be wrong after they
+ *                   are already public.
  *   (default)       Upload --aab and release it to --tracks.
  *
  * Usage:
@@ -42,6 +47,8 @@
  *     --version-name 0.17.0 --notes RELEASE_NOTES.md [--status completed|draft]
  *   node scripts/play-publish.mjs --promote --version-code 45 --tracks production \
  *     [--from alpha] [--rollout 0.2]
+ *   node scripts/play-publish.mjs --set-notes --version-code 46 \
+ *     --tracks internal,alpha --notes RELEASE_NOTES.md
  */
 import { readFileSync, readdirSync } from 'node:fs'
 import { createSign } from 'node:crypto'
@@ -304,6 +311,22 @@ export function highestVersionCode(tracks) {
 }
 
 /**
+ * [release] with its "what's new" replaced, and everything else left alone.
+ *
+ * Play has no way to edit release notes on their own: the only write is a PUT
+ * that replaces the track's whole release. So every other field has to be carried
+ * across by hand, and the ones that matter are easy to drop. `status` and
+ * `userFraction` in particular describe a rollout in progress, and rebuilding a
+ * release without them would quietly finish a staged rollout that was deliberately
+ * held at a fraction of users.
+ */
+export function withReleaseNotes(release, text, language = NOTE_LANGUAGE) {
+  const next = { ...release, releaseNotes: [{ language, text }] }
+  if (next.userFraction === undefined) delete next.userFraction
+  return next
+}
+
+/**
  * What Play's unhelpfully generic track-write refusal probably means, or null.
  *
  * Writing a release to a track the app is not yet eligible for answers
@@ -501,12 +524,20 @@ async function main() {
   // instantly and unmistakably, not after a token round-trip.
   const listingMode = Boolean(args.listing)
   const promoteMode = Boolean(args.promote)
-  const publishing = !args.check && !listingMode && !promoteMode
+  const setNotesMode = Boolean(args['set-notes'])
+  const publishing = !args.check && !listingMode && !promoteMode && !setNotesMode
   const aab = args.aab
   const tracks = parseTracks(args.tracks)
   const versionName = args['version-name']
   const status = args.status || 'completed'
   const rollout = args.rollout === undefined ? null : Number(args.rollout)
+  if (setNotesMode) {
+    if (!Number.isFinite(Number(args['version-code']))) {
+      fail('--set-notes needs --version-code <n>: the release already on Play to rewrite.')
+    }
+    if (!tracks.length) fail('--set-notes needs --tracks <internal[,alpha,...]>.')
+    if (!args.notes) fail('--set-notes needs --notes <file>.')
+  }
   if (promoteMode) {
     if (!Number.isFinite(Number(args['version-code']))) {
       fail('--promote needs --version-code <n>: the build already on Play to move.')
@@ -528,7 +559,10 @@ async function main() {
   }
   // Read the AAB and notes up front too — a bad path is a caller error, and
   // finding it now avoids leaving an uncommitted edit behind on Play.
-  const notes = publishing && args.notes ? playNotesFrom(read(args.notes, 'notes', 'utf8')) : NOTE_FALLBACK
+  const notes =
+    (publishing || setNotesMode) && args.notes
+      ? playNotesFrom(read(args.notes, 'notes', 'utf8'))
+      : NOTE_FALLBACK
   const bundle = publishing ? read(aab, 'AAB') : null
 
   // Same reasoning for the listing: parse and length-check the copy before
@@ -640,6 +674,43 @@ async function main() {
     console.log(`[play-publish] committed. ${LISTING_LANGUAGE} listing updated from ${listingFile}`)
     if (withShots) console.log(`[play-publish] ${shots.length} screenshots replaced from ${shotsDir}`)
     console.log('[play-publish] Play reviews listing changes before they go live.')
+    return
+  }
+
+  // --- --set-notes: rewrite an existing release's "what's new" --------------
+  //
+  // The notes are generated from commit subjects, so a bad filter ships prose no
+  // user can act on, and the mistake is only visible after it is public. Fixing it
+  // by hand in the Console leaves no record of what changed or why; this does the
+  // same edit from the same generated file the release used.
+  if (setNotesMode) {
+    const versionCode = Number(args['version-code'])
+    const edit = await playFetch(token, editsPath(packageName), { method: 'POST', body: {} })
+    const { tracks: current } = await playFetch(token, `${editsPath(packageName, edit.id)}/tracks`)
+
+    // Resolve every track before writing any: a partial rewrite would leave the
+    // tracks disagreeing about what the same build changed.
+    const targets = []
+    for (const track of tracks) {
+      const found = findRelease(current, versionCode, track)
+      if (!found || found.track !== track) {
+        await playFetch(token, editsPath(packageName, edit.id), { method: 'DELETE', bestEffort: true })
+        fail(`versionCode ${versionCode} is not on '${track}', so it has no notes there to rewrite.`)
+      }
+      targets.push({ track, release: found.release })
+    }
+
+    for (const { track, release } of targets) {
+      await playFetch(token, `${editsPath(packageName, edit.id)}/tracks/${track}`, {
+        method: 'PUT',
+        body: { track, releases: [withReleaseNotes(release, notes)] }
+      })
+      console.log(`[play-publish] track ${track} <- new notes for versionCode ${versionCode}`)
+    }
+    await commitEdit(token, packageName, edit.id)
+    console.log(`[play-publish] committed. notes rewritten on ${tracks.join(', ')}`)
+    console.log('--- what\'s new ---')
+    console.log(notes)
     return
   }
 
