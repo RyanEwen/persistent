@@ -497,6 +497,28 @@ character:
   redundancy: the Partner Center web UI wants the loose files (the container does
   not upload reliably through it), and `msstore publish` wants the container.
 
+**Two things the packaged build needs that `dotnet publish` will not do for you.**
+Both were found by installing a package for the first time on 2026-08-19; until
+then every MSIX this repo had ever produced started and exited in under a second,
+and CI could not tell because its packaging step is `continue-on-error` and nobody
+installed the artifact.
+
+- **Compiled XAML (`.xbf`) has to be copied into the layout by hand.** `dotnet
+  publish` emits it into the RID *build* directory and leaves it out of the
+  publish output. Without it the process dies in the `App` constructor, where
+  `InitializeComponent` cannot find its markup — which is before `OnLaunched`, so
+  before NLog and before `StartupDiagnostics`. The symptom is nothing at all: no
+  dialog, no Application event, no `startup.log`, just an AppX container created
+  and destroyed in the same second. `build-msix.ps1` now throws if it finds no
+  `.xbf` to copy, because a silent version of this bug already cost one release.
+- **The Windows App SDK auto-initializer has to be suppressed**
+  (`-p:WindowsAppSdkBootstrapInitialize=false`). The project is
+  `WindowsPackageType=None`, which injects a bootstrapper whose job is locating the
+  framework for an *unpackaged* process; a packaged app must not run it. The
+  sibling apps suppress it by publishing with `WindowsPackageType=MSIX`, which is
+  not available here — `EnableMsixTooling` is on, and that makes the SDK demand an
+  `<AppxManifest>` item the project deliberately does not have.
+
 **The packaged build declares a dependency on the Windows App Runtime**, unlike
 the portable build which carries its own copy. `build-msix.ps1` publishes with
 `SelfContained` but not `WindowsAppSDKSelfContained`, so without the

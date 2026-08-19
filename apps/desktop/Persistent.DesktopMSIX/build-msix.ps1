@@ -148,15 +148,55 @@ New-Item -ItemType Directory -Force -Path $layout | Out-Null
 # manifest in below, then makeappx - so the project stays unpackaged here and the
 # flag only broke the publish.
 Write-Host "Publishing $rid..."
+# WindowsAppSdkBootstrapInitialize=false is required and not cosmetic. The project
+# is WindowsPackageType=None (it has to be - see the note above), which injects the
+# Windows App SDK auto-initializer: a bootstrapper whose whole job is finding the
+# framework for an UNPACKAGED process. Inside a packaged app it has no business
+# running, and the package carries Microsoft.WindowsAppRuntime.Bootstrap.dll with
+# nothing legitimate to do. The sibling apps suppress it by publishing with
+# WindowsPackageType=MSIX; that route is closed here because EnableMsixTooling is
+# on, which makes the SDK demand an <AppxManifest> item the project deliberately
+# does not have. This property is the same suppression without the conflict.
 & dotnet publish $project `
     -c Release `
     -r $rid `
     -p:Platform=$Platform `
     -p:SelfContained=true `
+    -p:WindowsAppSdkBootstrapInitialize=false `
     -o $layout
 if ($LASTEXITCODE -ne 0) { throw 'dotnet publish failed' }
 
 # --- Assemble the layout --------------------------------------------------
+
+# Compiled XAML, copied by hand because `dotnet publish` does not emit it.
+#
+# This is the bug that made every MSIX this script has ever produced unusable, and
+# it is invisible until you install one: the package builds, signs and installs
+# perfectly, then the process dies in the App constructor when InitializeComponent
+# cannot find its .xbf. That is before OnLaunched, so before NLog and before
+# StartupDiagnostics - no crash dialog, no event log entry, no startup.log, just a
+# process that exits in under a second. It went unnoticed because CI's packaging
+# step is continue-on-error and nobody had installed the result.
+#
+# The .xbf files exist in the RID build directory; only the publish output lacks
+# them. Their layout under bin/ mirrors the package, so the relative paths carry
+# over as-is. The RID folder is located by search rather than by a composed path,
+# so a target-framework bump does not silently break the copy.
+$releaseDir = Join-Path (Split-Path -Parent $project) "bin\$Platform\Release"
+$buildDir = (Get-ChildItem $releaseDir -Directory -Recurse -Filter $rid -ErrorAction SilentlyContinue |
+             Select-Object -First 1).FullName
+if (-not $buildDir) { throw "Build output not found for the XAML copy: no '$rid' folder under $releaseDir" }
+
+$xbf = @(Get-ChildItem $buildDir -Filter *.xbf -Recurse)
+if ($xbf.Count -eq 0) { throw "No compiled XAML (.xbf) under $buildDir - the package would not start." }
+foreach ($file in $xbf) {
+    $relative = $file.FullName.Substring($buildDir.Length).TrimStart('\')
+    $target = Join-Path $layout $relative
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $target) | Out-Null
+    Copy-Item $file.FullName $target -Force
+}
+Write-Host "Copied $($xbf.Count) compiled XAML file(s) into the layout."
+
 Copy-Item $imagesDir (Join-Path $layout 'Images') -Recurse -Force
 
 $manifestOut = Join-Path $layout 'AppxManifest.xml'
