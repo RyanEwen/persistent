@@ -23,6 +23,12 @@
  * already-fired, still-unconfirmed 8:00 a.m. is not a state you can reach by
  * waiting, and the alternative is the back-fill dance this replaces.
  *
+ * **Runs at any hour.** Every seeded instant is derived from its own reminder's
+ * schedule (see `lastPassed` and friends) rather than from one shared "due day",
+ * so a fired occurrence is always in the past and a weekly one always lands on the
+ * weekday its schedule names. Materialization will not disturb them: it back-fills
+ * only `once` schedules, and repeating ones expand forward from now.
+ *
  * `--email` is required and there is no "first user" fallback: this is pointed at
  * production to set up the demo account, and a wrong guess there would delete a
  * real person's reminders.
@@ -35,6 +41,8 @@ const prisma = new PrismaClient()
 const args = process.argv.slice(2)
 const emailArg = args.find((a) => a.startsWith('--email='))?.split('=')[1]
 const keep = args.includes('--keep')
+/** Resolve the account and print what would be written, then stop. Writes nothing. */
+const dryRun = args.includes('--dry-run')
 
 /**
  * The demo account's zone. It must match the *phone's* zone, not just be
@@ -55,17 +63,60 @@ function at(day: DateTime, hhmm: string): Date {
 
 const now = DateTime.now().setZone(ZONE)
 
-/**
- * The most recent day whose firing times have all passed, so every "Due" card
- * reads "Today". Run after 6:30 p.m. local (the latest seeded firing) or the
- * cards fall back to yesterday and say so.
- */
-const LATEST_FIRING_HOUR = 18.5
-const dueDay = now.hour + now.minute / 60 >= LATEST_FIRING_HOUR ? now.startOf('day') : now.minus({ days: 1 }).startOf('day')
-const dueIsToday = dueDay.hasSame(now, 'day')
-
 const day = (offset: number) => now.plus({ days: offset }).startOf('day')
 const isoDay = (offset = 0) => day(offset).toFormat('yyyy-MM-dd')
+
+/**
+ * The most recent instant at `hhmm` that has already passed.
+ *
+ * Each already-fired occurrence is anchored on its own rather than to one shared
+ * "due day", which is what lets this run at any hour. The previous version picked
+ * a single day for all of them, so it had to be run after 6:30 p.m. (the latest
+ * seeded firing) or every Due card dated itself yesterday and said so.
+ */
+function lastPassed(hhmm: string): Date {
+  const today = at(now.startOf('day'), hhmm)
+  return today.getTime() <= now.toMillis() ? today : at(day(-1), hhmm)
+}
+
+/**
+ * The most recent `weekday` at `hhmm` that has already passed (Luxon numbering,
+ * 1 = Monday), and its counterpart still to come.
+ *
+ * A weekly reminder's firings have to land on the day its own schedule names, or
+ * the card contradicts the schedule the editor shows beside it. Fixed day-offsets
+ * did not: seeded on a Wednesday, a Monday reminder produced a Wednesday firing.
+ */
+function lastPassedOn(weekday: number, hhmm: string): Date {
+  let candidate = now.minus({ days: (now.weekday - weekday + 7) % 7 }).startOf('day')
+  if (at(candidate, hhmm).getTime() > now.toMillis()) candidate = candidate.minus({ weeks: 1 })
+  return at(candidate, hhmm)
+}
+
+function nextOn(weekday: number, hhmm: string): Date {
+  let candidate = now.plus({ days: (weekday - now.weekday + 7) % 7 }).startOf('day')
+  if (at(candidate, hhmm).getTime() <= now.toMillis()) candidate = candidate.plus({ weeks: 1 })
+  return at(candidate, hhmm)
+}
+
+/** The same idea for a monthly reminder: the last day-of-month `dom` at `hhmm`. */
+function lastPassedOnDay(dom: number, hhmm: string): Date {
+  let candidate = now.set({ day: dom }).startOf('day')
+  if (at(candidate, hhmm).getTime() > now.toMillis()) candidate = candidate.minus({ months: 1 })
+  return at(candidate, hhmm)
+}
+
+/**
+ * Every seeded instant, named. Each is derived from the reminder's own schedule
+ * so the firing and the schedule beside it agree.
+ */
+const puppyDue = lastPassed('14:00')
+const puppyDone = lastPassed('08:00')
+const plantsDue = lastPassed('09:00')
+const binsDue = lastPassedOn(1, '18:30')
+const timesheetNext = nextOn(5, '16:00')
+const timesheetDone = lastPassedOn(5, '16:00')
+const filterDone = lastPassedOnDay(1, '10:00')
 
 interface SeedOccurrence {
   scheduledFor: Date
@@ -107,12 +158,12 @@ const seeds: Seed[] = [
       startDate: isoDay(-6)
     },
     occurrences: [
-      { scheduledFor: at(dueDay, '14:00'), status: 'FIRED', firedAt: at(dueDay, '14:00') },
+      { scheduledFor: puppyDue, status: 'FIRED', firedAt: puppyDue },
       {
-        scheduledFor: at(dueDay, '08:00'),
+        scheduledFor: puppyDone,
         status: 'ACKNOWLEDGED',
-        firedAt: at(dueDay, '08:00'),
-        acknowledgedAt: new Date(at(dueDay, '08:00').getTime() + 6 * MINUTE)
+        firedAt: puppyDone,
+        acknowledgedAt: new Date(puppyDone.getTime() + 6 * MINUTE)
       }
     ]
   },
@@ -126,7 +177,7 @@ const seeds: Seed[] = [
       persistence: 'PERSISTENT',
       startDate: isoDay(-6)
     },
-    occurrences: [{ scheduledFor: at(dueDay, '09:00'), status: 'FIRED', firedAt: at(dueDay, '09:00') }]
+    occurrences: [{ scheduledFor: plantsDue, status: 'FIRED', firedAt: plantsDue }]
   },
   {
     note: 'due — third distinct card, and the reminder the alarm shot uses',
@@ -140,7 +191,7 @@ const seeds: Seed[] = [
       persistence: 'PERSISTENT',
       startDate: isoDay(-21)
     },
-    occurrences: [{ scheduledFor: at(dueDay, '18:30'), status: 'FIRED', firedAt: at(dueDay, '18:30') }]
+    occurrences: [{ scheduledFor: binsDue, status: 'FIRED', firedAt: binsDue }]
   },
   {
     note: 'escalation configured, nothing live — the Escalation tab shot opens this',
@@ -154,12 +205,12 @@ const seeds: Seed[] = [
       startDate: isoDay(-28)
     },
     occurrences: [
-      { scheduledFor: at(day(4), '16:00'), status: 'PENDING' },
+      { scheduledFor: timesheetNext, status: 'PENDING' },
       {
-        scheduledFor: at(day(-3), '16:00'),
+        scheduledFor: timesheetDone,
         status: 'ACKNOWLEDGED',
-        firedAt: at(day(-3), '16:00'),
-        acknowledgedAt: new Date(at(day(-3), '16:00').getTime() + 21 * MINUTE)
+        firedAt: timesheetDone,
+        acknowledgedAt: new Date(timesheetDone.getTime() + 21 * MINUTE)
       }
     ]
   },
@@ -197,10 +248,10 @@ const seeds: Seed[] = [
     },
     occurrences: [
       {
-        scheduledFor: at(day(-2), '10:00'),
+        scheduledFor: filterDone,
         status: 'ACKNOWLEDGED',
-        firedAt: at(day(-2), '10:00'),
-        acknowledgedAt: new Date(at(day(-2), '10:00').getTime() + 2 * HOUR)
+        firedAt: filterDone,
+        acknowledgedAt: new Date(filterDone.getTime() + 2 * HOUR)
       }
     ]
   }
@@ -217,6 +268,21 @@ async function main(): Promise<void> {
   if (!user) throw new Error(`No user with email ${emailArg}.`)
 
   console.log(`Target: ${user.email} (${user.id})`)
+
+  if (dryRun) {
+    const fmt = (d: Date) => DateTime.fromJSDate(d).setZone(ZONE).toFormat('ccc d LLL yyyy, h:mm a')
+    console.log(`Dry run: nothing written. Zone ${user.timeZone}${user.timeZone === ZONE ? '' : ` -> ${ZONE}`}.`)
+    const existing = await prisma.reminder.count({ where: { userId: user.id } })
+    console.log(`Would remove ${keep ? 0 : existing} reminder(s), then write ${seeds.length}:`)
+    for (const seed of seeds) {
+      console.log(`  ${String(seed.reminder.title).padEnd(26)} ${seed.note}`)
+      for (const occurrence of seed.occurrences ?? []) {
+        console.log(`      ${occurrence.status.padEnd(13)} ${fmt(occurrence.scheduledFor)}`)
+      }
+    }
+    return
+  }
+
   if (user.timeZone !== ZONE) {
     await prisma.user.update({ where: { id: user.id }, data: { timeZone: ZONE } })
     console.log(`Time zone: ${user.timeZone} -> ${ZONE} (must match the phone, or the times render shifted)`)
@@ -247,12 +313,13 @@ async function main(): Promise<void> {
   }
 
   console.log(`\nSeeded ${seeds.length} reminders for ${user.email}.`)
-  console.log(`Due cards dated ${dueDay.toFormat('ccc d LLL')}: three distinct reminders, none repeated.`)
-  if (!dueIsToday) {
-    console.log(
-      'NOTE: run after 6:30 p.m. local for those to read "Today" — before then the\n' +
-        'most recent day with every firing time passed is yesterday, and the cards say so.'
-    )
+  console.log('Due cards (three distinct reminders, none repeated):')
+  for (const [label, when] of [
+    ['Feed the puppy', puppyDue],
+    ['Water the plants', plantsDue],
+    ['Take the bins out', binsDue]
+  ] as const) {
+    console.log(`  ${label.padEnd(20)} ${DateTime.fromJSDate(when).setZone(ZONE).toFormat('ccc d LLL, h:mm a')}`)
   }
 }
 

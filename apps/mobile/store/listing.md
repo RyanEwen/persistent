@@ -278,7 +278,8 @@ npm run db:seed:demo -- --email=<demo account>     # the reminders the shots nee
 npm run shots -- --email=<demo account>            # renders 01/02/03/05
 ```
 
-Seed after 6:30 p.m. local or the "Due" cards date themselves yesterday and say so.
+Seed at any hour: each firing is anchored to its own reminder's schedule, so a Due
+card is always already past and a weekly one lands on the weekday it names.
 
 **`00` and `04` need a real device** — the full-screen alarm is a native Kotlin
 activity (`AlarmActivity.kt`) and the shade is Android's own chrome, so no browser
