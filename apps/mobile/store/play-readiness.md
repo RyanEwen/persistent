@@ -328,6 +328,19 @@ tracks. Promotion to beta/production stays a deliberate, separate decision: a ta
 publishes something so it can be tested, and judging it good enough for everyone
 happens later and by a person.
 
+**Production is not open yet.** A first promotion of versionCode 45 was attempted on
+2026-08-18 and Play refused the track write with `FAILED_PRECONDITION` and the single
+sentence "Precondition check failed", which is the same answer it gives for every way an
+app can be ineligible for a track. Nothing was written; the edit was dropped
+uncommitted, and `internal`/`alpha` were untouched. The likeliest cause by far is
+Google's closed-testing rule for personal developer accounts: at least 12 testers opted
+in for 14 continuous days before production unlocks. That fits this account, which is
+mid-transfer from individual to organization (root `CLAUDE.md`), and it cannot be
+waived or worked around from the API. The other candidates, all Console-side, are
+incomplete App content declarations (privacy policy, data safety, content rating, target
+audience) and the countries the release would go to. `--promote` now prints this
+checklist itself rather than passing Play's bare message through.
+
 That promotion runs through `.github/workflows/play-promote.yml`
 (`workflow_dispatch`, never on a tag), which calls `play-publish.mjs --promote`.
 It uploads nothing, because the build is already on Play and a second upload of a

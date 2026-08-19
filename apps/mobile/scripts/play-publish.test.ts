@@ -21,7 +21,8 @@ import {
   pngHasAlpha,
   screenshotProblems,
   findRelease,
-  promotionBlocker
+  promotionBlocker,
+  trackPreconditionHelp
   // @ts-expect-error - plain .mjs script, no type declarations
 } from './play-publish.mjs'
 
@@ -326,12 +327,32 @@ describe('promotionBlocker', () => {
   })
 })
 
+describe('trackPreconditionHelp', () => {
+  it('explains an ineligible track, naming the closed-testing rule first', () => {
+    const help = String(trackPreconditionHelp('production', 'FAILED_PRECONDITION'))
+    assert.match(help, /production/)
+    assert.match(help, /12 testers/)
+    assert.match(help, /14 continuous days/)
+    // The reader's first question after a failed write is what it broke.
+    assert.match(help, /the track is untouched/)
+  })
+
+  it('says nothing about unrelated failures', () => {
+    assert.equal(trackPreconditionHelp('production', 'PERMISSION_DENIED'), null)
+  })
+})
+
 describe('publish request sequence', () => {
   type Call = { method: string; path: string; body: string }
 
   async function runPublish(
     args: string[],
-    opts: { commitFailsForReview?: boolean; existingTracks?: unknown[]; existingListing?: unknown } = {}
+    opts: {
+      commitFailsForReview?: boolean
+      existingTracks?: unknown[]
+      existingListing?: unknown
+      trackWriteFails?: string
+    } = {}
   ): Promise<{ calls: Call[]; stdout: string; stderr: string; code: number | null }> {
     const http = await import('node:http')
     const { generateKeyPairSync } = await import('node:crypto')
@@ -359,6 +380,9 @@ describe('publish request sequence', () => {
         if (path.endsWith('/token')) return json({ access_token: 'test-token' })
         if (path.endsWith('/bundles?uploadType=media')) return json({ versionCode: 40 })
         if (path.endsWith('/tracks') && req.method === 'GET') return json({ tracks: opts.existingTracks ?? [] })
+        if (opts.trackWriteFails && path.includes('/tracks/') && req.method === 'PUT') {
+          return json({ error: { code: 400, message: 'Precondition check failed.', status: opts.trackWriteFails } }, 400)
+        }
         if (path.includes(`/${'phoneScreenshots'}`)) {
           if (req.method === 'GET') return json({ images: [{ id: 'old-1' }, { id: 'old-2' }] })
           if (req.method === 'DELETE') return json({})
@@ -578,6 +602,22 @@ describe('publish request sequence', () => {
     assert.match(stderr, /not on any track/)
     assert.equal(calls.filter((c) => c.method === 'PUT').length, 0)
     assert.ok(calls.some((c) => c.method === 'DELETE' && c.path.includes('/edits/edit-1')))
+  })
+
+  it('--promote turns Play\'s bare precondition refusal into the actual checklist', async () => {
+    const { calls, code, stderr } = await runPublish(
+      ['--promote', '--version-code', '45', '--tracks', 'production'],
+      {
+        existingTracks: [{ track: 'alpha', releases: [{ name: '0.21.1', versionCodes: ['45'] }] }],
+        trackWriteFails: 'FAILED_PRECONDITION'
+      }
+    )
+    assert.equal(code, 1)
+    assert.match(stderr, /12 testers/)
+    assert.match(stderr, /the track is untouched/)
+    // The refused edit is dropped rather than left dangling, and never committed.
+    assert.ok(calls.some((c) => c.method === 'DELETE' && c.path.includes('/edits/edit-1')))
+    assert.equal(calls.filter((c) => c.path.includes(':commit')).length, 0)
   })
 
   it('--promote refuses to move a track backwards', async () => {

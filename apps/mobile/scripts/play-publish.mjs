@@ -304,6 +304,34 @@ export function highestVersionCode(tracks) {
 }
 
 /**
+ * What Play's unhelpfully generic track-write refusal probably means, or null.
+ *
+ * Writing a release to a track the app is not yet eligible for answers
+ * `FAILED_PRECONDITION` with the message "Precondition check failed." and nothing
+ * else: no field, no reason, no link. It is the same answer for every unmet
+ * requirement, and it is the first thing anyone promoting to production for the
+ * first time will hit, so the checklist belongs here rather than in someone's
+ * memory.
+ */
+export function trackPreconditionHelp(track, status) {
+  if (status !== 'FAILED_PRECONDITION') return null
+  return (
+    `Play refused to put a release on '${track}' and gave no reason beyond "precondition failed".\n` +
+    'That single error covers every way an app can be ineligible for a track. For a first\n' +
+    `release to '${track}', check in the Play Console, in this order:\n` +
+    '  1. Closed testing requirement. A personal (non-organization) developer account has to\n' +
+    '     run a closed test with at least 12 testers opted in for 14 continuous days before\n' +
+    '     production unlocks. This is the usual answer, it cannot be waived, and no API call\n' +
+    '     will succeed until it is satisfied.\n' +
+    '  2. App content declarations: privacy policy, data safety, content rating, target\n' +
+    '     audience, ads, and any of the "is your app a ..." questions. All must be complete,\n' +
+    '     not merely started.\n' +
+    '  3. Store listing and the countries/regions the release goes to.\n' +
+    'Nothing was written: the edit was never committed, so the track is untouched.'
+  )
+}
+
+/**
  * The release carrying [versionCode], and the track it was found on.
  *
  * A promotion copies a build that is already on Play onto another track, so the
@@ -422,7 +450,7 @@ async function getAccessToken(serviceAccount) {
  * otherwise the body is JSON. Returns the parsed response, or the error text
  * when `tolerate` matches so the caller can react to a specific failure.
  */
-async function playFetch(token, path, { method = 'GET', body, raw, rawType, tolerate } = {}) {
+async function playFetch(token, path, { method = 'GET', body, raw, rawType, tolerate, bestEffort } = {}) {
   const headers = { Authorization: `Bearer ${token}` }
   let payload
   if (raw) {
@@ -439,6 +467,9 @@ async function playFetch(token, path, { method = 'GET', body, raw, rawType, tole
   const text = await response.text()
   if (!response.ok) {
     if (tolerate && text.includes(tolerate)) return { error: text }
+    // Cleanup calls on a failure path: the real error is the one already being
+    // reported, and dying inside the tidy-up would hide it.
+    if (bestEffort) return { error: text }
     fail(`${method} ${path} failed (HTTP ${response.status}): ${text}`)
   }
   return text ? JSON.parse(text) : {}
@@ -651,10 +682,18 @@ async function main() {
     if (rollout !== null) release.userFraction = rollout
     if (source.releaseNotes?.length) release.releaseNotes = source.releaseNotes
 
-    await playFetch(token, `${editsPath(packageName, edit.id)}/tracks/${target}`, {
+    // `tolerate` rather than a bare call: Play answers an ineligible track with a
+    // bare "Precondition check failed", and passing that through verbatim is the
+    // difference between a two-minute answer and an afternoon.
+    const written = await playFetch(token, `${editsPath(packageName, edit.id)}/tracks/${target}`, {
       method: 'PUT',
-      body: { track: target, releases: [release] }
+      body: { track: target, releases: [release] },
+      tolerate: 'FAILED_PRECONDITION'
     })
+    if (written?.error) {
+      await playFetch(token, editsPath(packageName, edit.id), { method: 'DELETE', bestEffort: true })
+      fail(trackPreconditionHelp(target, 'FAILED_PRECONDITION'))
+    }
     await commitEdit(token, packageName, edit.id)
 
     const reach = rollout === null ? 'all users' : `${(rollout * 100).toFixed(0)}% of users`
