@@ -40,9 +40,13 @@ public partial class UserSettings : ObservableObject
     /// only; the PWA inside the WebView has its own theme setting.</summary>
     [ObservableProperty] public partial int AppTheme { get; set; }
 
-    /// <summary>Launch at sign-in. On by default: a tray app the user has to start
-    /// by hand is a tray app that is not running when a reminder fires.</summary>
-    [ObservableProperty] public partial bool Startup { get; set; } = true;
+    // No "start at sign-in" here, deliberately. Windows owns it (the MSIX startup
+    // task, or the Run key unpackaged), the user can change it from Task Manager
+    // behind our back, and <see cref="Classes.StartupManager"/> can read it whenever
+    // it is needed. A stored copy would be a second answer that is wrong whenever
+    // those two disagree. There *was* one, unread by anything and unable to survive
+    // a round-trip: `WhenWritingDefault` omits a false from the file, so it read
+    // back as the `true` initializer.
 
     [ObservableProperty] public partial string LastKnownVersion { get; set; } = "";
 
@@ -82,12 +86,6 @@ public partial class UserSettings : ObservableObject
     {
         if (_initializing) return;
         Classes.ThemeManager.ApplyAndSaveTheme(value);
-    }
-
-    partial void OnStartupChanged(bool value)
-    {
-        if (_initializing) return;
-        Classes.StartupManager.SetRunAtStartup(value);
     }
 
     partial void OnDesktopNotificationsChanged(bool value)

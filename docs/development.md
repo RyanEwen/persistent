@@ -63,10 +63,17 @@ compile-check it with `npm run verify:android` (from `apps/mobile`) — see
 
 It doesn't cover `apps/desktop` (C#) either, and the app can't be *built* here:
 the Windows App SDK's XAML compiler and `MakePri.exe` are Windows-only binaries,
-so the build dies before it reaches any C#. Its only complete check is
-`.github/workflows/build-desktop-msix.yml`, which compiles both platforms on
-`windows-2025` for every push/PR touching that directory; treat a red run there as
-a failed validate.
+so the build dies before it reaches any C#. `.github/workflows/build-desktop-msix.yml`
+compiles both platforms on `windows-2025` for every push/PR touching that
+directory; treat a red run there as a failed validate.
+
+Compiling is not the same as working, though, and for this app the gap is where
+the bugs live: a missing `resources.pri`, a 3px window frame and a package whose
+compiled XAML was never copied all passed CI and were only ever found by running
+it. So **`npm run install:desktop` is the real check** — it syncs the working tree
+to the Windows machine over SSH, builds a dev-signed MSIX there and installs it
+into the logged-on session. The working tree rather than a commit, deliberately, so
+a desktop change is tried before it is committed. See `apps/desktop/CLAUDE.md`.
 
 The image does ship the .NET SDK, so `npm run verify:desktop` compiles the
 **non-XAML** C# against the real Windows App SDK reference assemblies. Run it

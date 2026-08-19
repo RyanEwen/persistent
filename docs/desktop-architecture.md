@@ -131,6 +131,15 @@ detection — the same rule that already governs `hasNativeUpdater()`.
   caller either.
 - `checkForUpdate` (host -> page) says the flyout was just resumed, so the page
   should look for a new build (`lib/swUpdate.ts`).
+- `getHostSettings` / `setHostSettings` / `openHostSettings` (page -> host) and
+  `hostSettings` (host -> page) are the tray app's own settings, shown on the
+  page's Settings screen. See [Settings](#settings) below.
+- `pageReady` (page -> host) says the page's host-message listener is attached.
+  **`_webViewReady` is not that moment** — it is set as soon as the control is
+  built, before the page has navigated, let alone mounted — so a `navigate` posted
+  then is simply lost. The host holds the latest requested path and flushes it on
+  `pageReady`, which is what makes a toast click during startup, and the settings
+  window's "Open Persistent settings", land where they say they will.
 - **Handle host messages with an explicit switch and a `default: return`.** Adding
   `checkForUpdate` to a handler that fell through to "treat it as Back" is what
   made the flyout close itself on every open — see the light-dismiss section.
@@ -141,6 +150,70 @@ detection — the same rule that already governs `hasNativeUpdater()`.
 
 Host-side, `AppFlyout.OnWebMessageReceived` ignores any message whose source is
 not the app origin. Web content is not a privileged caller.
+
+## Settings
+
+**There is one Settings screen, and it is the page's.** Windows notifications and
+their default snooze, start-at-sign-in, the flyout size and the pin are all shown
+by `apps/web/src/native/desktop-settings/`, alongside the theme, sounds and time
+format the user already goes there for. They remain **host** settings in every
+other respect: the host owns `settings.json`, applies them, and is the only writer.
+The page renders what it is handed and posts back what the user changed.
+
+The split is by which surface a setting describes, not by who stores it:
+
+| Setting | Where | Why |
+|---|---|---|
+| Windows notifications, snooze default | Page | It is a notification setting, and the user is already on the notification screen |
+| Start at sign-in, flyout size, pin | Page | They describe what the app does for the user |
+| Server address, "Clear saved sign-in" | Native (`ConnectionPage`) | A control for the setting that decides whether the page loads is no use inside the page |
+| Version, update check, log folder | Native (`AboutPage`) | Both are needed precisely when the page is not working |
+| App theme | Native (`AppSettingsPage`) | It themes the native window, which the page cannot see |
+
+Consequences worth knowing before changing this:
+
+- **A patch is validated, never trusted** (`HostSettings.ApplyAsync`). The page is
+  our own origin but still web content, and an unknown or out-of-range value is
+  dropped rather than stored.
+- **The host echoes the settings it holds after every write**, including after a
+  failure, and the page treats that reply as authoritative over its own optimistic
+  update. This is not ceremony: `RequestEnableAsync` can refuse a startup enable
+  outright when the user has disabled the app in Task Manager, and without the echo
+  the toggle would sit there claiming something Windows is not doing. **Start at
+  sign-in is not stored at all** — it is asked of Windows on every send, because the
+  user can change it from Task Manager and a stored copy would be a second answer
+  that disagrees. (There was one, unread and unable to round-trip:
+  `WhenWritingDefault` dropped a `false` from the file, which then read back as the
+  `true` initializer.) `notifications` holds the same promise from the other end:
+  `NotificationService.Sync` turns the setting back off when toast registration
+  fails, so the echo cannot report notifications that could never arrive.
+- **The snooze picker's options come from the host**, not from the web's
+  `SNOOZE_PRESETS`. Windows allows a toast combo box five items and throws on the
+  sixth, killing the whole toast, so `ToastNotifier` carries a five-item subset and
+  is the only thing that knows that limit. A settings picker offering the full seven
+  let the user choose two the notification could never start on, and
+  `NearestChoice` then silently corrected them — with the shipped default of 10
+  minutes being one of the two, so the setting read "10 min" while every toast
+  opened on "5 min". Same argument as `flyoutSizes`: the host owns the list, the
+  page renders it.
+- **The page ships ahead of the host.** The bundle is hosted and updates itself,
+  while the `.exe` may be an older portable build or a pending Store update. A host
+  that does not answer `getHostSettings` simply never sends `hostSettings`, and the
+  page renders no card at all. That silence *is* the version check; don't replace
+  it with a hardcoded version compare.
+- **The pin has two controls** (title bar and Settings), so each pushes to the
+  other. It is the only setting that does.
+- **Changing the size resizes the open flyout** (`ApplyFlyoutSize`). The control
+  now lives inside the window it resizes, so deferring to the next open would look
+  like it did nothing.
+- **There is no settings cog in the flyout title bar.** A cog next to the page's
+  own Settings tab, opening a second and differently-styled settings screen, is
+  what this arrangement exists to remove. The native window is reachable from the
+  tray menu, from "More Windows app settings" on the page, and from a **Settings
+  button on the flyout's error panel** — that last one is not optional. Removing
+  the cog otherwise left the failed-to-load state with no route to the server
+  address, which is the setting whose entire justification for staying native is
+  that you need it when the page will not load.
 
 ## Navigation containment
 
@@ -245,9 +318,9 @@ running** instance and exits — so starting a newly downloaded copy while an ol
 is running silently keeps you on the old binary. The About page reports the version
 actually running; check it before concluding a desktop fix did nothing.
 
-A **pin** toggle (flyout header, mirrored in Settings) suppresses dismissal
-entirely, because a flyout you are typing a reminder into should not vanish on a
-stray click.
+A **pin** toggle (flyout header, and on the page's Settings screen, each pushing to
+the other) suppresses dismissal entirely, because a flyout you are typing a
+reminder into should not vanish on a stray click.
 
 ## The flyout is dark, opaque, and frameless
 
@@ -294,10 +367,10 @@ outlines a dark window in the system's light border.
 
 ## Notifications
 
-**Off by default, per machine, and not the persistence guarantee.** The setting
-lives in the tray app's own settings (App settings → Windows notifications), and
-its copy says plainly that it only works while the PC is awake with Persistent
-running, never rings an alarm and never wakes the machine.
+**Off by default, per machine, and not the persistence guarantee.** The setting is
+on the page's Settings screen ([Settings](#settings)), and its copy says plainly
+that it only works while the PC is awake with Persistent running, never rings an
+alarm and never wakes the machine.
 
 `Persistent.Desktop/Notifications/` is the whole feature:
 
@@ -382,7 +455,8 @@ sitting in the Action Center back to this app.
 ## Storage
 
 - `%AppData%\Persistent\settings.json` — host settings only (server URL, theme,
-  startup, flyout geometry, pin). No credentials.
+  flyout geometry, pin, notification toggle + snooze default). No credentials, and
+  **no start-at-sign-in** — Windows owns that one, and it is read from the OS.
 - `%AppData%\Persistent\WebView2\` — the WebView2 profile. This is what keeps the
   user signed in across restarts (the session cookie lives there, in the browser's
   own store) and what lets the service worker render offline. **Never point it at
@@ -656,3 +730,9 @@ for `resources.pri` beside the exe before looking at the markup.
 - **Untested at runtime.** Everything here was authored in a Linux devcontainer
   and compiled only by CI. The focus/light-dismiss interaction and the Google
   sign-in popup path in particular want a real machine before they are trusted.
+- **A failed toast registration now turns the setting off.** `NotificationService.Sync`
+  corrects `DesktopNotifications` when `Enable()` cannot register, so the toggle
+  never reads "on" while nothing can be delivered. That write re-enters `Sync`
+  through the property's own change side-effect; it terminates because the second
+  pass reads the value just written and takes the `Disable` branch. The breadcrumb
+  is still in startup.log ("notifications: toast registration FAILED").

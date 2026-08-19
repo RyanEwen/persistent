@@ -114,6 +114,13 @@
   Back", and Back from the root screen closes the flyout — so the first new message
   type added made the tray app close itself the instant it opened. Unknown messages
   must do nothing.
+- **The Windows tray app's own settings render on this Settings page**
+  (`native/desktop-settings/`), so there is one Settings screen per product
+  rather than one per host. They are a *third* storage category, distinct from both
+  above: the host owns them, per machine, and this page holds no copy. It renders
+  what the host sends and posts back changes (`native/useHostSettings.ts`). Don't
+  put them in `useSettings`, and don't cache them. The cards render nothing until
+  the host answers, which is also how it stays quiet on an older desktop build.
 - **Anything `position: fixed` on a list screen must be portalled to `document.body`**
   (`components/NewReminderFab.tsx`). `PullToRefresh` wraps those pages and sets
   `transform: translateY(...)`, and *any* transform other than `none` makes that

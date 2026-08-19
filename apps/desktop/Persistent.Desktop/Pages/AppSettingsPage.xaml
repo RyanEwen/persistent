@@ -7,7 +7,10 @@
         <StackPanel Spacing="8" MaxWidth="760" HorizontalAlignment="Left">
             <TextBlock Text="Settings" Style="{StaticResource TitleTextBlockStyle}" Margin="0,0,0,8" />
 
-            <!-- Theme -->
+            <!-- Theme. The last setting still here, and it belongs here: it themes
+                 this window, which is chrome the page cannot see. Everything about
+                 what the app DOES for the user moved onto the page's own Settings
+                 screen, so there is one Settings screen rather than two. -->
             <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                     CornerRadius="8" Padding="16,12">
@@ -19,7 +22,7 @@
                     <StackPanel Grid.Column="0" VerticalAlignment="Center">
                         <TextBlock Text="App theme" FontWeight="SemiBold" />
                         <TextBlock Opacity="0.7" TextWrapping="Wrap"
-                                   Text="Appearance of this app's own windows. Persistent itself has its own theme, set inside the app." />
+                                   Text="Appearance of this window. Persistent itself has its own theme, set inside the app." />
                     </StackPanel>
                     <ComboBox Grid.Column="1" x:Name="ThemeCombo" VerticalAlignment="Center" MinWidth="160"
                               SelectionChanged="ThemeCombo_SelectionChanged">
@@ -30,105 +33,21 @@
                 </Grid>
             </Border>
 
-            <!-- Startup -->
+            <!-- Where the rest went. Anyone who used to change notifications here
+                 will come back here to look for them, so say so and take them
+                 there rather than leaving them to search. -->
             <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                     CornerRadius="8" Padding="16,12">
-                <Grid ColumnSpacing="16">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                        <TextBlock Text="Start at sign-in" FontWeight="SemiBold" />
+                <StackPanel Spacing="10">
+                    <StackPanel>
+                        <TextBlock Text="Notifications, startup and the flyout" FontWeight="SemiBold" />
                         <TextBlock Opacity="0.7" TextWrapping="Wrap"
-                                   Text="Keep Persistent in the notification area so the due count stays current. Off means no tray icon until you launch it." />
+                                   Text="These are in Persistent itself now, on its Settings screen, alongside its theme, sounds and time format." />
                     </StackPanel>
-                    <ToggleSwitch Grid.Column="1" x:Name="StartupToggle" VerticalAlignment="Center" MinWidth="0"
-                                  Toggled="StartupToggle_Toggled" />
-                </Grid>
-            </Border>
-
-            <!-- Notifications. Off by default and stated plainly: this app is not the
-                 persistence guarantee, and a toggle that let someone assume it was
-                 would be worse than no toggle. -->
-            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
-                    CornerRadius="8" Padding="16,12">
-                <StackPanel Spacing="8">
-                    <Grid ColumnSpacing="16">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                            <TextBlock Text="Windows notifications" FontWeight="SemiBold" />
-                            <TextBlock Opacity="0.7" TextWrapping="Wrap"
-                                       Text="Show a Windows notification when a reminder is due, with Done and Snooze on it. Only while this PC is awake and Persistent is running - it never rings an alarm and never wakes the machine, so don't rely on it alone. The Android app is the one that guarantees you'll be told." />
-                        </StackPanel>
-                        <ToggleSwitch Grid.Column="1" x:Name="NotificationsToggle" VerticalAlignment="Center" MinWidth="0"
-                                      Toggled="NotificationsToggle_Toggled" />
-                    </Grid>
-                    <Grid ColumnSpacing="16" x:Name="SnoozeRow">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" VerticalAlignment="Center" Opacity="0.7" TextWrapping="Wrap"
-                                   Text="Which snooze duration the notification starts on. The notification itself offers the full list, the same one the app and the phone do." />
-                        <ComboBox Grid.Column="1" x:Name="SnoozeCombo" VerticalAlignment="Center" MinWidth="160"
-                                  SelectionChanged="SnoozeCombo_SelectionChanged">
-                            <ComboBoxItem Content="5 minutes" />
-                            <ComboBoxItem Content="10 minutes" />
-                            <ComboBoxItem Content="15 minutes" />
-                            <ComboBoxItem Content="30 minutes" />
-                            <ComboBoxItem Content="1 hour" />
-                            <ComboBoxItem Content="3 hours" />
-                            <ComboBoxItem Content="1 day" />
-                        </ComboBox>
-                    </Grid>
+                    <Button x:Name="OpenAppSettingsButton" Click="OpenAppSettingsButton_Click"
+                            Content="Open Persistent settings" HorizontalAlignment="Left" />
                 </StackPanel>
-            </Border>
-
-            <!-- Pin -->
-            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
-                    CornerRadius="8" Padding="16,12">
-                <Grid ColumnSpacing="16">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                        <TextBlock Text="Keep the flyout open" FontWeight="SemiBold" />
-                        <TextBlock Opacity="0.7" TextWrapping="Wrap"
-                                   Text="Normally the flyout closes when you click elsewhere. Pin it while you're writing a reminder so a stray click doesn't lose your work." />
-                    </StackPanel>
-                    <ToggleSwitch Grid.Column="1" x:Name="PinToggle" VerticalAlignment="Center" MinWidth="0"
-                                  Toggled="PinToggle_Toggled" />
-                </Grid>
-            </Border>
-
-            <!-- Flyout size -->
-            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
-                    CornerRadius="8" Padding="16,12">
-                <Grid ColumnSpacing="16">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                        <TextBlock Text="Flyout size" FontWeight="SemiBold" />
-                        <TextBlock x:Name="SizeSummary" Opacity="0.7" TextWrapping="Wrap" />
-                    </StackPanel>
-                    <ComboBox Grid.Column="1" x:Name="SizeCombo" VerticalAlignment="Center" MinWidth="160"
-                              SelectionChanged="SizeCombo_SelectionChanged">
-                        <ComboBoxItem Content="Compact" />
-                        <ComboBoxItem Content="Standard" />
-                        <ComboBoxItem Content="Tall" />
-                    </ComboBox>
-                </Grid>
             </Border>
         </StackPanel>
     </ScrollViewer>

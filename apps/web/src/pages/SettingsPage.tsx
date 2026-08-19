@@ -1,6 +1,11 @@
 /**
  * Settings: enable browser notifications (Web Push), show account + time zone,
  * and sign out. The native Android app handles its own alarm permissions.
+ *
+ * Every host adds its own cards here rather than putting them somewhere of its
+ * own: Android's sounds and shade prominence, and the Windows tray app's
+ * notifications, startup and window settings (`native/desktop-settings/`). One
+ * Settings screen per product, whichever host is showing it.
  */
 import { useEffect, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
@@ -24,6 +29,7 @@ import { formatDateTime } from '../lib/datetime.js'
 import { SectionHeading } from '../components/SectionHeading.js'
 import { AlarmPlugin, isNative } from '../native/alarmBridge.js'
 import { hostSupportsPush } from '../native/desktopBridge.js'
+import { DesktopSettings } from '../native/desktop-settings/DesktopSettings.js'
 import { UpdateSettings } from '../native/UpdateSettings.js'
 import { PasskeysCard } from '../components/PasskeysCard.js'
 import { DeleteAccountCard } from '../components/DeleteAccountCard.js'
@@ -193,8 +199,9 @@ export function SettingsPage() {
       {/* Web Push is best-effort and only relevant on the web; the native app uses
           on-device alarms, so this section is hidden there. It is hidden in the
           Windows tray app too — `hostSupportsPush()` says why the subscription can
-          never work in a WebView2, and that host has its own notification setting.
-          Without this the card showed and its button just failed. */}
+          never work in a WebView2, and that host's own notification setting is the
+          `DesktopSettings` card directly below. Without this the card showed and
+          its button just failed. */}
       {!isNative() && hostSupportsPush() && (
         <Card variant="outlined">
           <Typography level="title-sm">Browser notifications</Typography>
@@ -215,6 +222,11 @@ export function SettingsPage() {
           )}
         </Card>
       )}
+
+      {/* The Windows tray app's own settings: two cards, the first sitting in the
+          notification slot the card above leaves empty on that host. Renders
+          nothing anywhere else. */}
+      <DesktopSettings />
 
       <Card variant="outlined">
         <Typography level="title-sm">Date &amp; time</Typography>

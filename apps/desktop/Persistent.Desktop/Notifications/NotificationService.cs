@@ -51,16 +51,38 @@ internal static class NotificationService
     /// <summary>
     /// Bring the service in line with the current setting. Safe to call repeatedly —
     /// from startup, and from the settings toggle.
+    ///
+    /// <para>Turning it on can fail, and when it does <b>the setting is corrected
+    /// rather than left claiming otherwise</b>. The settings screen is the page's
+    /// now (<see cref="Classes.Settings.HostSettings"/>), and it reports this stored
+    /// value back to the user; a toggle reading "on" while toast registration failed
+    /// would be promising notifications that can never arrive. Correcting it here
+    /// also means the failure survives a restart instead of being retried silently
+    /// on every launch.</para>
     /// </summary>
     public static void Sync()
     {
-        if (SettingsManager.Current.DesktopNotifications) Enable();
-        else Disable();
+        if (!SettingsManager.Current.DesktopNotifications)
+        {
+            Disable();
+            return;
+        }
+        if (Enable()) return;
+
+        // Re-entrant, and deliberately so rather than guarded with a flag: assigning
+        // this fires UserSettings.OnDesktopNotificationsChanged, which calls straight
+        // back into Sync. That pass reads the value we just wrote, takes the Disable
+        // branch above, and returns — one level deep, always terminating, and it
+        // leaves the teardown to the one place that owns it. Disable is safe with
+        // nothing to tear down; it is already the path a never-enabled service takes.
+        SettingsManager.Current.DesktopNotifications = false;
+        SettingsManager.SaveSettings();
     }
 
-    private static void Enable()
+    /// <summary>Connect and register, reporting whether notifications can now arrive.</summary>
+    private static bool Enable()
     {
-        if (_realtime is { IsRunning: true }) return;
+        if (_realtime is { IsRunning: true }) return true;
 
         if (!Toasts.Register(OnInvoked))
         {
@@ -68,7 +90,7 @@ internal static class NotificationService
             // toast would appear and then do nothing, which is worse than none.
             Logger.Warn("Notifications enabled but toast registration failed; not connecting");
             Classes.StartupDiagnostics.Mark("notifications: toast registration FAILED");
-            return;
+            return false;
         }
 
         // Recorded in startup.log as well as the NLog file: this is the breadcrumb
@@ -81,6 +103,7 @@ internal static class NotificationService
         _realtime.EventReceived -= OnRealtimeEvent;
         _realtime.EventReceived += OnRealtimeEvent;
         _realtime.Start();
+        return true;
     }
 
     private static void Disable()

@@ -71,6 +71,25 @@ internal sealed class ToastNotifier
         (1440, "1 day")
     ];
 
+    /// <summary>
+    /// The choices a toast will actually carry, truncation included.
+    ///
+    /// Exposed so the settings picker can offer exactly these and no more
+    /// (<see cref="Classes.Settings.HostSettings"/>). It previously offered the
+    /// full seven from `SNOOZE_PRESETS`, which meant two of them could never become
+    /// the toast's selection: the setting's whole job is to choose which of *these*
+    /// starts selected, so <see cref="NearestOffered"/> silently corrected them. The
+    /// shipped default of 10 minutes was one of the two, so the settings screen read
+    /// "10 min" while every toast opened on "5 min".
+    /// </summary>
+    public static (int Minutes, string Label)[] OfferedSnoozeChoices => SnoozeChoices.Take(MaxComboItems).ToArray();
+
+    /// <summary>
+    /// The offered duration closest to <paramref name="minutes"/>, for a caller that
+    /// has a stored value and needs one the picker can actually show.
+    /// </summary>
+    public static int NearestOffered(int minutes) => NearestChoice(OfferedSnoozeChoices, minutes);
+
     private bool _registered;
 
     /// <summary>

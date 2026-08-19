@@ -60,6 +60,10 @@
          in. Adding a file here is a deliberate act. -->
     <Compile Include="../../Persistent.Desktop/ViewModels/UserSettings.cs" />
     <Compile Include="../../Persistent.Desktop/Classes/Settings/SettingsManager.cs" />
+    <!-- The settings the PWA's own Settings screen shows. Non-XAML by design (it
+         reports what changed rather than touching a window), and the half of it
+         that parses a patch from web content is worth type-checking here. -->
+    <Compile Include="../../Persistent.Desktop/Classes/Settings/HostSettings.cs" />
     <Compile Include="../../Persistent.Desktop/Classes/StartupManager.cs" />
     <Compile Include="../../Persistent.Desktop/Classes/StartupDiagnostics.cs" />
     <Compile Include="../../Persistent.Desktop/Classes/NativeMethods.cs" />

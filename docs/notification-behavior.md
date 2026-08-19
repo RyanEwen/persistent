@@ -349,10 +349,14 @@ Within that limit it holds the contract:
   so the first Done replaces the toast with a "Mark this done?" variant carrying
   Confirm / Not yet; only Confirm acknowledges, and Not yet restores the original
   and changes nothing. This is the *mechanism* differing, not the rule.
-- **Snooze** offers the same durations as every other surface (5 min → 1 day,
-  mirroring `SNOOZE_PRESETS`) in a picker on the toast itself; the app setting only
-  chooses which one starts selected. A single fixed duration hidden in settings is
-  not the same feature — snoozing is a choice about when to be asked again.
+- **Snooze** is a picker on the toast itself, spanning the same range as every
+  other surface (5 min → 1 day); the app setting only chooses which one starts
+  selected. A single fixed duration hidden in settings is not the same feature —
+  snoozing is a choice about when to be asked again. It is a **five-item subset**
+  of `SNOOZE_PRESETS`, not the whole list, because Windows allows a toast combo box
+  five items and throws on the sixth; the app's own Snooze offers all seven, one
+  click away. The settings picker offers exactly the five, so it can never start a
+  toast on a duration the toast does not carry.
 - **Body tap opens the reminder**, as on every other soft-nag surface.
 - **A `dismiss` from any device clears it**, so confirming on the phone removes the
   desktop toast.

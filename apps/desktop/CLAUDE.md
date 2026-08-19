@@ -11,6 +11,15 @@ both platforms on `windows-2025` for every push/PR under this directory, and is
 the only complete check — treat a red run there the way you would a failed
 `npm run validate`.
 
+**Before you commit anything that touches XAML, code-behind or packaging, install
+it: `npm run install:desktop`.** It syncs the *working tree* to the Windows
+machine, builds a dev-signed MSIX there and installs it into the logged-on
+session. That is the only check that covers the three things nothing else can see,
+and each has shipped broken at least once: XAML that compiles, a package that
+starts, and an app that still works. Add `-- --skip-build` to reinstall without
+rebuilding. Details, including why the install has to run as an interactive
+scheduled task, are in the script's own header.
+
 **Before you push, run `npm run verify:desktop`.** It compiles the non-XAML
 sources here against the real Windows App SDK reference assemblies, so a
 misremembered WinRT API fails in seconds instead of after a CI round-trip. What it
@@ -50,6 +59,12 @@ toast buttons. What keeps it from becoming the mistake:
 
 Do not widen it. Anything else about a reminder still belongs in the PWA.
 
+**Host settings rendered by the page are not an exception to this rule, they are
+the same rule pointed the other way.** `HostSettings` sends this app's own
+settings to the PWA to display, and takes back what the user changed. Nothing
+about a reminder crosses that channel, and the host stays the only owner and
+writer of `settings.json`; the page holds no copy and persists nothing.
+
 ## Layout
 
 | Path | Role |
@@ -60,9 +75,11 @@ Do not widen it. Anything else about a reminder still belongs in the PWA.
 | `Persistent.Desktop/Windows/AppFlyout.xaml.cs` | The flyout + the warm WebView2 (the actual product) |
 | `Persistent.Desktop/SettingsWindow.xaml.cs` | On-demand `NavigationView` + `Frame` |
 | `Persistent.Desktop/Pages/` | `ConnectionPage`, `AppSettingsPage` (the nav cog), `AboutPage` |
+| `Persistent.Desktop/Classes/Settings/HostSettings.cs` | The settings the PWA's own Settings screen shows and writes |
 | `Persistent.Desktop/Notifications/` | Optional Windows toasts: `/ws` client, toast builder, ack/snooze calls |
 | `Persistent.Desktop/Classes/NativeMethods.cs` | **All** Win32 P/Invoke |
 | `verify-csharp.sh` | Linux compile-check of the non-XAML C# (`npm run verify:desktop`) |
+| `install-dev-msix.sh` / `install-dev-msix.ps1` | Build + install a dev-signed MSIX on the Windows machine (`npm run install:desktop`) |
 | `set-ci-secrets.sh` | Sets the Store + submodule GitHub secrets (run from the devcontainer) |
 | `tools/csharp-check/` | The project + XAML stubs that check drives; not in the .slnx, not built by CI |
 | `Persistent.Desktop/Services/UpdateService.cs` | Update check; GitHub when unpackaged, `StoreContext` when packaged |
@@ -81,6 +98,15 @@ Do not widen it. Anything else about a reminder still belongs in the PWA.
   partial `On<Name>Changed` guarded by `if (_initializing) return;`.
   `SettingsManager` serializes to `%AppData%\Persistent\settings.json`. Keep this
   file free of credentials — the session lives in the WebView2 profile.
+- **A setting the user came to Settings for is shown by the PWA, not by a native
+  page.** Notifications, start-at-sign-in, the flyout size and the pin go through
+  `HostSettings` and render in `apps/web/src/native/desktop-settings/`; the
+  native window keeps only what has to survive the page not loading (the server
+  address, About) and what the page cannot see (this window's theme). Adding a
+  setting means a field in `HostSettings.BuildMessageJsonAsync`, a validated branch
+  in `ApplyAsync`, and a control in the web card, not a new native page. Full
+  reasoning, including why the host always echoes what it holds, is in
+  `docs/desktop-architecture.md`.
 - **P/Invoke** lives only in `Classes/NativeMethods.cs`, grouped by DLL with a
   header comment. Prefer `[LibraryImport]` for new declarations (the class must
   then be `partial`). Always `DestroyIcon` an HICON you create.
@@ -123,3 +149,10 @@ Host behavior that depends on the page lives in
 bundle, so it is runtime feature detection, never a build flag — and
 `isDesktopHost()` must stay distinct from `isNative()` (Capacitor is absent here,
 so `isNative()` is false in this host).
+
+**The page ships ahead of this app.** The bundle is hosted and updates itself,
+while the running `.exe` may be an older portable build or a Store update the user
+hasn't taken. So the page must degrade when the host doesn't answer, rather than
+assume it will: a host too old to know `getHostSettings` never replies, and the
+Settings card hides itself (`useHostSettings.ts`). Any new page->host request needs
+the same shape. Never write a version compare instead.

@@ -45,6 +45,17 @@ public sealed partial class AppFlyout : Window
     /// <summary>The page is suspended while hidden; see <see cref="SetWebViewIdle"/>.</summary>
     private bool _suspended;
 
+    /// <summary>
+    /// Set when the page announces itself (`pageReady`), meaning its host-message
+    /// listener is attached and a posted message will be acted on. Distinct from
+    /// <see cref="_webViewReady"/>, which only says the control exists. Reset on
+    /// every navigation, since a reload starts a page that has not subscribed yet.
+    /// </summary>
+    private bool _pageListening;
+
+    /// <summary>A screen requested before the page was listening; see <see cref="NavigateTo"/>.</summary>
+    private string? _pendingPath;
+
     /// <summary>When the flyout was last hidden, for the tray-click toggle below.</summary>
     private long _hiddenAtTicks;
 
@@ -130,14 +141,13 @@ public sealed partial class AppFlyout : Window
 
     public static void Reload() => _instance?.NavigateToApp();
 
-    /// <summary>Re-read the pin setting after it was changed from the settings window.</summary>
-    public static void SyncPinState()
-    {
-        var instance = _instance;
-        if (instance == null) return;
-        instance.DispatcherQueue.TryEnqueue(() =>
-            instance.PinButton.IsChecked = SettingsManager.Current.PinFlyout);
-    }
+    /// <summary>
+    /// Re-read the pin setting after the page changed it. The pin is the one
+    /// setting with two controls (this title-bar toggle and the one on the page's
+    /// Settings screen), so each has to answer the other, or the flyout ends up
+    /// showing a pin state it is not honoring.
+    /// </summary>
+    private void SyncPinState() => PinButton.IsChecked = SettingsManager.Current.PinFlyout;
 
     /// <summary>
     /// Forget this PC's session: clears the WebView2 profile (cookies, storage, the
@@ -218,25 +228,47 @@ public sealed partial class AppFlyout : Window
     /// state and the user's place in it. The page decides what the path means
     /// (`apps/web/src/native/desktopBridge.ts`), the same way it already owns Back.</para>
     /// </summary>
-    public static void NavigateToReminder(string reminderId)
-    {
-        var instance = _instance;
-        if (instance is not { _webViewReady: true }) return;
+    public static void NavigateToReminder(string reminderId) =>
         // Ids are server-minted cuids, but this string ends up inside JSON that the
         // page will act on, so it is escaped rather than trusted.
-        string path = "/reminders/" + Uri.EscapeDataString(reminderId);
-        instance.DispatcherQueue.TryEnqueue(() =>
+        NavigateTo("/reminders/" + Uri.EscapeDataString(reminderId));
+
+    /// <summary>
+    /// Ask the page to show one of its own screens.
+    ///
+    /// Held until the page says it is listening, rather than posted and lost.
+    /// `_webViewReady` is not that moment: it is set the instant the control is
+    /// built, before the page has even navigated, let alone mounted and subscribed.
+    /// Both callers are explicit user requests — a toast click, and the settings
+    /// window's "Open Persistent settings" — and a message posted into a page with
+    /// no listener leaves the user on whatever screen they were last on, with
+    /// nothing to say the button did anything. Only the latest is kept: two requests
+    /// inside that window still mean one destination.
+    /// </summary>
+    public static void NavigateTo(string path)
+    {
+        var instance = _instance;
+        if (instance == null) return;
+        if (!instance._pageListening)
         {
-            try
-            {
-                instance.WebView.CoreWebView2.PostWebMessageAsJson(
-                    JsonSerializer.Serialize(new { type = "navigate", path }));
-            }
-            catch (Exception ex)
-            {
-                Logger.Warn(ex, "Could not ask the page to open reminder {0}", reminderId);
-            }
-        });
+            instance._pendingPath = path;
+            return;
+        }
+        instance.DispatcherQueue.TryEnqueue(() => instance.PostNavigate(path));
+    }
+
+    private void PostNavigate(string path)
+    {
+        if (!_webViewReady) return;
+        try
+        {
+            WebView.CoreWebView2.PostWebMessageAsJson(
+                JsonSerializer.Serialize(new { type = "navigate", path }));
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn(ex, "Could not ask the page to open {0}", path);
+        }
     }
 
     private AppFlyout()
@@ -367,6 +399,9 @@ public sealed partial class AppFlyout : Window
     {
         if (!_webViewReady) return;
         HideError();
+        // The page about to be replaced is the one that was listening; the next one
+        // has not subscribed yet and says so itself when it has.
+        _pageListening = false;
         try
         {
             WebView.CoreWebView2.Navigate(SettingsManager.Current.EffectiveServerUrl);
@@ -394,29 +429,71 @@ public sealed partial class AppFlyout : Window
             var root = document.RootElement;
             if (!root.TryGetProperty("type", out var type)) return;
 
-            // Back ran out of hierarchy to walk — the flyout's equivalent of Back
-            // leaving the app on Android.
-            // A close arriving in the first moments of opening is not the user
-            // pressing Back to leave — it is the page reacting to the open itself.
-            // That happened for real: a bundle whose host-message handler fell
-            // through treated the host's `checkForUpdate` (posted on every resume)
-            // as a Back press, and Back from the root screen asks the host to close.
-            // The flyout then shut instantly on every open, which also stopped the
-            // page ever staying up long enough to fetch the fixed bundle — the app
-            // wedged itself. The host refusing an instant close breaks that loop,
-            // whatever the page happens to be running.
-            if (type.GetString() == "close")
+            switch (type.GetString())
             {
-                DispatcherQueue.TryEnqueue(() =>
-                {
-                    if (Environment.TickCount64 - _shownAtTicks < SettleMs)
+                // Back ran out of hierarchy to walk — the flyout's equivalent of
+                // Back leaving the app on Android.
+                // A close arriving in the first moments of opening is not the user
+                // pressing Back to leave — it is the page reacting to the open
+                // itself. That happened for real: a bundle whose host-message
+                // handler fell through treated the host's `checkForUpdate` (posted
+                // on every resume) as a Back press, and Back from the root screen
+                // asks the host to close. The flyout then shut instantly on every
+                // open, which also stopped the page ever staying up long enough to
+                // fetch the fixed bundle — the app wedged itself. The host refusing
+                // an instant close breaks that loop, whatever the page happens to
+                // be running.
+                case "close":
+                    DispatcherQueue.TryEnqueue(() =>
                     {
-                        Logger.Warn("Ignoring a close request {0}ms after opening - the page may be a stale build",
-                            Environment.TickCount64 - _shownAtTicks);
-                        return;
-                    }
-                    HideFlyout("page requested close");
-                });
+                        if (Environment.TickCount64 - _shownAtTicks < SettleMs)
+                        {
+                            Logger.Warn("Ignoring a close request {0}ms after opening - the page may be a stale build",
+                                Environment.TickCount64 - _shownAtTicks);
+                            return;
+                        }
+                        HideFlyout("page requested close");
+                    });
+                    break;
+
+                // The page's host-message listener is attached, so anything held
+                // back for it can go now. Posted on every mount, including after a
+                // reload, which is why the pending path is cleared as it is sent.
+                case "pageReady":
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        _pageListening = true;
+                        string? pending = _pendingPath;
+                        _pendingPath = null;
+                        if (pending != null) PostNavigate(pending);
+                    });
+                    break;
+
+                // The page's Settings screen showing this app's own settings; see
+                // `Classes/Settings/HostSettings.cs`.
+                case "getHostSettings":
+                    DispatcherQueue.TryEnqueue(() => _ = PostHostSettingsAsync());
+                    break;
+
+                case "setHostSettings":
+                    if (!root.TryGetProperty("settings", out var patch)) break;
+                    // Cloned, because `document` is disposed the moment this handler
+                    // returns, long before the apply below gets to read it.
+                    var settings = patch.Clone();
+                    DispatcherQueue.TryEnqueue(() => _ = ApplyHostSettingsAsync(settings));
+                    break;
+
+                // The page asking for the native window, which still owns the server
+                // address and About. Hidden afterwards for the same reason the old
+                // cog did it: the window would otherwise open behind a flyout that
+                // is always on top.
+                case "openHostSettings":
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        MainWindow.ShowSettings();
+                        HideFlyout("page asked for the settings window");
+                    });
+                    break;
             }
         }
         catch (Exception ex)
@@ -516,6 +593,27 @@ public sealed partial class AppFlyout : Window
     // ── Show / hide ─────────────────────────────────────────────────
     private void ShowNearTray()
     {
+        // Anchored on the cursor: the monitor it is on is the one whose tray was
+        // just clicked.
+        GetCursorPos(out var cursor);
+        _appWindow.MoveAndResize(TrayRect(cursor));
+        _visible = true;
+        _shownAtTicks = Environment.TickCount64;
+        SetWebViewIdle(false);
+        Activate();
+        TakeForeground();
+        WebView.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        Logger.Info("Flyout shown");
+        LogChromeMetrics();
+    }
+
+    /// <summary>
+    /// Where the flyout goes: the configured size in physical pixels, clamped to the
+    /// work area, tucked into the bottom-right corner of the monitor
+    /// <paramref name="anchor"/> is on and inset so it clears the taskbar.
+    /// </summary>
+    private global::Windows.Graphics.RectInt32 TrayRect(POINT anchor)
+    {
         var settings = SettingsManager.Current;
         uint dpi = GetDpiForWindow(_hwnd);
         double scale = dpi / 96.0;
@@ -523,12 +621,9 @@ public sealed partial class AppFlyout : Window
         int w = (int)Math.Ceiling(settings.FlyoutWidth * scale);
         int h = (int)Math.Ceiling(settings.FlyoutHeight * scale);
 
-        // Anchor to the work area of the monitor the cursor is on — i.e. the one
-        // whose tray was just clicked — and inset so it clears the taskbar.
-        GetCursorPos(out var pt);
         var mi = new MONITORINFOEX { cbSize = System.Runtime.InteropServices.Marshal.SizeOf<MONITORINFOEX>() };
-        int x = pt.X, y = pt.Y;
-        if (GetMonitorInfo(MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST), ref mi))
+        int x = anchor.X, y = anchor.Y;
+        if (GetMonitorInfo(MonitorFromPoint(anchor, MONITOR_DEFAULTTONEAREST), ref mi))
         {
             int margin = (int)(12 * scale);
             int workWidth = mi.rcWork.Right - mi.rcWork.Left;
@@ -541,15 +636,72 @@ public sealed partial class AppFlyout : Window
             y = mi.rcWork.Bottom - h - margin;
         }
 
-        _appWindow.MoveAndResize(new global::Windows.Graphics.RectInt32(x, y, w, h));
-        _visible = true;
-        _shownAtTicks = Environment.TickCount64;
-        SetWebViewIdle(false);
-        Activate();
-        TakeForeground();
-        WebView.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
-        Logger.Info("Flyout shown");
-        LogChromeMetrics();
+        return new global::Windows.Graphics.RectInt32(x, y, w, h);
+    }
+
+    /// <summary>
+    /// Re-apply the size while the flyout is open, so changing it from the page
+    /// takes effect in front of the user. The control now lives inside the very
+    /// window it resizes: without this it would look like it did nothing until the
+    /// next open.
+    ///
+    /// Anchored on the flyout's own centre rather than the cursor, unlike an open:
+    /// nothing says the pointer is over this window when the setting changes, and
+    /// the flyout should not hop monitors because the mouse was parked elsewhere.
+    /// </summary>
+    private void ApplyFlyoutSize()
+    {
+        if (!_visible) return;
+        var here = new POINT
+        {
+            X = _appWindow.Position.X + _appWindow.Size.Width / 2,
+            Y = _appWindow.Position.Y + _appWindow.Size.Height / 2
+        };
+        _appWindow.MoveAndResize(TrayRect(here));
+    }
+
+    // ── Host settings, shown on the page's own Settings screen ──────
+    /// <summary>
+    /// Send the page this app's settings. Posted in reply to its request, after
+    /// every write, and whenever the host changes one of them itself, so the
+    /// Settings screen can never show a value the host is not using.
+    ///
+    /// Silent when the WebView isn't up: the page asks again on mount, and a page
+    /// that never hears back hides the section rather than showing dead controls.
+    /// </summary>
+    private async Task PostHostSettingsAsync()
+    {
+        if (!_webViewReady) return;
+        try
+        {
+            string json = await HostSettings.BuildMessageJsonAsync();
+            WebView.CoreWebView2.PostWebMessageAsJson(json);
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn(ex, "Could not send the host settings to the page");
+        }
+    }
+
+    /// <summary>
+    /// Apply a settings patch from the page, act on the parts that need this window,
+    /// then echo what the host actually holds.
+    /// </summary>
+    private async Task ApplyHostSettingsAsync(JsonElement patch)
+    {
+        try
+        {
+            var applied = await HostSettings.ApplyAsync(patch);
+            if (applied.PinChanged) SyncPinState();
+            if (applied.FlyoutSizeChanged) ApplyFlyoutSize();
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn(ex, "Could not apply the host settings the page sent");
+        }
+        // Echoed even after a failure, so the page shows what the host holds rather
+        // than assuming its write landed.
+        await PostHostSettingsAsync();
     }
 
     /// <summary>
@@ -794,6 +946,8 @@ public sealed partial class AppFlyout : Window
     {
         SettingsManager.Current.PinFlyout = PinButton.IsChecked == true;
         SettingsManager.SaveSettings();
+        // The page's Settings screen offers the same pin, so tell it what happened.
+        _ = PostHostSettingsAsync();
     }
 
     private void BrowserButton_Click(object sender, RoutedEventArgs e)
@@ -802,10 +956,15 @@ public sealed partial class AppFlyout : Window
         HideFlyout("opened in browser");
     }
 
-    private void SettingsButton_Click(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// The error panel's way into the native settings window. Same sequence as the
+    /// page's own "More Windows app settings" button, and the only one available
+    /// when the page is the thing that is broken.
+    /// </summary>
+    private void ErrorSettingsButton_Click(object sender, RoutedEventArgs e)
     {
         MainWindow.ShowSettings();
-        HideFlyout("opened settings");
+        HideFlyout("error panel asked for the settings window");
     }
 
     private void RetryButton_Click(object sender, RoutedEventArgs e) => NavigateToApp();

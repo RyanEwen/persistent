@@ -31,7 +31,7 @@ import { useEffect, useRef } from 'react'
 import { useLocation, useNavigate, type NavigateFunction } from 'react-router-dom'
 import { App } from '@capacitor/app'
 import { isNative } from './alarmBridge.js'
-import { onHostMessage, requestClose } from './desktopBridge.js'
+import { announcePageReady, onHostMessage, requestClose } from './desktopBridge.js'
 import { hasOpenBackAwareDialog } from '../components/backAwareDialogStack.js'
 import { runBackInterceptor } from './backInterceptor.js'
 
@@ -153,7 +153,7 @@ export function useNativeBack(): void {
   // landing on that reminder's detail view exactly as a notification tap does on
   // every other surface (notification-behavior.md).
   useEffect(() => {
-    return onHostMessage((message) => {
+    const unsubscribe = onHostMessage((message) => {
       const { pathname: here, navigate: go } = current.current
       switch (message.type) {
         case 'navigate':
@@ -163,10 +163,15 @@ export function useNativeBack(): void {
           if (performBack(here, go) === 'exhausted') requestClose()
           return
         default:
-          // Anything else (checkForUpdate, and whatever comes next) is not this
-          // hook's business. Doing nothing is the only safe default here.
+          // Anything else (checkForUpdate, hostSettings, and whatever comes next)
+          // is not this hook's business. Doing nothing is the only safe default.
           return
       }
     })
+    // Only now can a `navigate` be acted on, so this is the moment to say so. The
+    // host holds a toast click made during startup until it hears this; posted
+    // after the subscription, never before, or the reply races the listener.
+    announcePageReady()
+    return unsubscribe
   }, [])
 }

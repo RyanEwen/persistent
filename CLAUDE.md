@@ -203,9 +203,12 @@ directory guide `apps/api/CLAUDE.md`.
   (`scripts/dev/workspace-versions.test.ts`), since a version bump doesn't
   regenerate the lockfile on its own. Fix with `npm install --package-lock-only`.
 - **`npm run validate` covers neither native surface.** Kotlin/Java changes have
-  their own compile check (`apps/mobile/CLAUDE.md`) and the C# desktop app has
-  its own too, plus a CI job that is its only complete check
-  (`apps/desktop/CLAUDE.md`). Neither is optional before finishing.
+  their own compile check (`apps/mobile/CLAUDE.md`) and the C# desktop app has its
+  own too, plus a CI job (`apps/desktop/CLAUDE.md`). Neither is optional before
+  finishing. For the desktop app, **compiling is not the check that matters** —
+  `npm run install:desktop` builds the working tree into a dev-signed MSIX on the
+  Windows machine and installs it, which is the only thing that sees XAML, packaging
+  and whether the app still starts.
 
 ## How guidance is organized
 

@@ -53,11 +53,13 @@
                         ToolTipService.ToolTip="Open in browser">
                     <FontIcon Glyph="&#xE8A7;" FontSize="14" />
                 </Button>
-                <Button x:Name="SettingsButton" Click="SettingsButton_Click"
-                        Padding="6" MinWidth="0" Background="Transparent" BorderBrush="Transparent"
-                        ToolTipService.ToolTip="Settings">
-                    <FontIcon Glyph="&#xE713;" FontSize="14" />
-                </Button>
+                <!-- No settings cog here. This app's settings are on the page's own
+                     Settings screen, which is where the user already goes for theme,
+                     sounds and time format; a cog beside them opening a second,
+                     native settings screen made one product look like two. The
+                     native window still exists for the server address and About,
+                     and the page links to it. -->
+
             </StackPanel>
         </Grid>
 
@@ -74,8 +76,15 @@
                        HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
             <TextBlock x:Name="ErrorDetail" Opacity="0.75" HorizontalAlignment="Center"
                        TextAlignment="Center" TextWrapping="Wrap" />
-            <Button x:Name="RetryButton" Click="RetryButton_Click" Content="Try again"
-                    HorizontalAlignment="Center" Style="{StaticResource AccentButtonStyle}" />
+            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                <Button x:Name="RetryButton" Click="RetryButton_Click" Content="Try again"
+                        Style="{StaticResource AccentButtonStyle}" />
+                <!-- The only route to the server address while the page is down, and
+                     the reason this is here at all: the settings that stayed native
+                     did so because they are needed exactly when the page will not
+                     load, and the title bar no longer has a cog to reach them by. -->
+                <Button x:Name="ErrorSettingsButton" Click="ErrorSettingsButton_Click" Content="Settings" />
+            </StackPanel>
         </StackPanel>
     </Grid>
 </Window>

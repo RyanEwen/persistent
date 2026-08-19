@@ -8,9 +8,13 @@ namespace Persistent.Desktop.Classes;
 /// <c>windows.startupTask</c> (declared in the manifest, enabled by default);
 /// unpackaged dev builds fall back to the per-user Run key.
 ///
-/// This matters more here than in a typical tray app: the flyout's badge and the
-/// PWA's live WebSocket only exist while the process is running, so an app that
-/// isn't started is an app showing nothing.
+/// This matters more here than in a typical tray app: optional Windows toasts are
+/// raised by this process from its own `/ws` connection, so an app that was never
+/// started is an app that cannot notify at all.
+///
+/// Windows is the only store for this. Nothing mirrors it into settings.json,
+/// because the user can change it from Task Manager and a stored copy would then
+/// be a second answer that disagrees.
 /// </summary>
 internal static class StartupManager
 {
@@ -18,22 +22,31 @@ internal static class StartupManager
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string ValueName = "PersistentDesktop";
 
-    public static void SetRunAtStartup(bool enabled)
+    /// <summary>
+    /// Apply "run at sign-in" and report what Windows actually did, which is not
+    /// always what was asked. A user who turns the app off in Task Manager leaves
+    /// the startup task in <c>DisabledByUser</c>, and <c>RequestEnableAsync</c>
+    /// cannot override that, so a caller reporting the request rather than the
+    /// result would leave a toggle claiming something Windows is not honoring.
+    /// </summary>
+    public static async Task<bool> SetRunAtStartupAsync(bool enabled)
     {
-        // Fire-and-forget on a background thread so we never block the UI thread on a WinRT async.
-        _ = Task.Run(async () =>
+        try
         {
-            try
+            var task = await StartupTask.GetAsync(TaskId);
+            if (!enabled)
             {
-                var task = await StartupTask.GetAsync(TaskId);
-                if (enabled) await task.RequestEnableAsync();
-                else task.Disable();
+                task.Disable();
+                return false;
             }
-            catch
-            {
-                SetRunKey(enabled); // unpackaged / API unavailable
-            }
-        });
+            var state = await task.RequestEnableAsync();
+            return state is StartupTaskState.Enabled or StartupTaskState.EnabledByPolicy;
+        }
+        catch
+        {
+            SetRunKey(enabled); // unpackaged / API unavailable
+            return IsRunKeyEnabled();
+        }
     }
 
     /// <summary>
@@ -72,11 +85,16 @@ internal static class StartupManager
         }
     }
 
-    public static bool IsEnabled()
+    /// <summary>
+    /// Whether Windows will actually start the app, asked of the OS rather than of
+    /// the stored flag. Async so the caller never blocks the UI thread on a WinRT
+    /// operation to answer it.
+    /// </summary>
+    public static async Task<bool> IsEnabledAsync()
     {
         try
         {
-            var task = Task.Run(async () => await StartupTask.GetAsync(TaskId)).GetAwaiter().GetResult();
+            var task = await StartupTask.GetAsync(TaskId);
             return task.State is StartupTaskState.Enabled or StartupTaskState.EnabledByPolicy;
         }
         catch
