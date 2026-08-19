@@ -42,6 +42,12 @@ class SnoozePickerActivity : Activity() {
     private var occurrenceId: String? = null
     private var showingCustom = false
 
+    // Claimed only while the custom view is up, so Back steps back to the presets.
+    // At the presets it stays unclaimed on purpose: the system then finishes the
+    // activity itself, with the predictive-back animation an interception would
+    // have replaced with a jump cut. See BackInterception.
+    private val back = BackInterception(this) { renderMain() }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         showOverLockScreen()
@@ -62,6 +68,7 @@ class SnoozePickerActivity : Activity() {
     /** The preset list plus entry points to the custom + until-a-time flows. */
     private fun renderMain() {
         showingCustom = false
+        back.disable()
         content.removeAllViews()
         content.addStacked(AlarmUi.kicker(this, "SNOOZE"))
         content.addStacked(AlarmUi.title(this, "Snooze for…"), topMarginDp = 6f)
@@ -115,6 +122,7 @@ class SnoozePickerActivity : Activity() {
     /** A dedicated view (replacing the list) for entering a custom number + unit. */
     private fun renderCustom() {
         showingCustom = true
+        back.enable()
         content.removeAllViews()
         var unitMinutes = customUnits[0].second
         val field = AlarmUi.numberField(this, "45", topMarginDp = 0f)
@@ -135,7 +143,10 @@ class SnoozePickerActivity : Activity() {
 
     @Deprecated("Back steps out of the custom view to the list before leaving the surface.")
     override fun onBackPressed() {
-        if (showingCustom) renderMain() else @Suppress("DEPRECATION") super.onBackPressed()
+        // API 22 to 32 only; on API 33+ the registered callback handles it instead
+        // and this is never called. `handleLegacyBack` returns false at the presets,
+        // which is where Back should close the surface as usual.
+        if (!back.handleLegacyBack()) @Suppress("DEPRECATION") super.onBackPressed()
     }
 
     /**

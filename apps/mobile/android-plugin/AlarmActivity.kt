@@ -22,6 +22,12 @@ class AlarmActivity : Activity() {
 
     private var occurrenceId: String? = null
 
+    // Back is inert here, and stays inert on both of Android's back mechanisms: a
+    // registered callback that does nothing swallows the gesture. Enabled for the
+    // whole life of the surface, since there is no state in which Back should leave
+    // a ringing alarm. See BackInterception.
+    private val back = BackInterception(this) {}
+
     // Finish this surface when its occurrence is silenced/acked/snoozed/cleared from
     // anywhere else (the shade action, another device's WS event, the in-app button).
     // Without this the full-screen alarm would linger after the alarm is handled
@@ -36,6 +42,7 @@ class AlarmActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         showOverLockScreen()
+        back.enable()
 
         occurrenceId = intent.getStringExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID)
         ContextCompat.registerReceiver(
@@ -118,6 +125,7 @@ class AlarmActivity : Activity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        back.disable()
         runCatching { unregisterReceiver(dismissReceiver) }
     }
 
@@ -126,6 +134,11 @@ class AlarmActivity : Activity() {
         // Match the system clock's alarm: Back does not dismiss a ringing alarm.
         // Done and Snooze are the only ways out (Home still leaves it ringing, with
         // the ongoing notification whose tap reopens this surface).
+        //
+        // API 22 to 32 only. On API 33+ the platform stops calling this once the
+        // BackInterception callback is registered, which is why the empty body is not
+        // enough on its own any more.
+        back.handleLegacyBack()
     }
 
     private fun sendAction(action: String) {

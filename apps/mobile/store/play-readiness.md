@@ -176,17 +176,17 @@ JDK 17 is unchanged (AGP 8.13's minimum is still 17). Both flavors compile, both
 built APKs report `targetSdkVersion:'36'`, and the Play one still carries no
 direct-only component.
 
-**Predictive back is explicitly opted out** (`android:enableOnBackInvokedCallback="false"`,
-applied by `setup-android.mjs`). Targeting 36 turns it on by default, and an app that
-opts in stops receiving `onBackPressed()` and `KEYCODE_BACK` — which is where three of
-this app's back behaviours live: `AlarmActivity` overrides `onBackPressed` to do
-nothing (that is what stops Back dismissing a **ringing alarm**), `SnoozePickerActivity`
-steps out of its custom view with it, and Capacitor 6's `App.backButton` — the whole
-web hierarchy in `native/useNativeBack.ts` — is dispatched from it. Opting in without
-migrating all three would have turned Back into "finish the activity", i.e. Back would
-kill a ringing alarm. Migrating to `OnBackInvokedCallback` is real work that needs a
-device to verify the alarm surface, so it is tracked as its own change rather than
-smuggled into a compliance bump.
+**Predictive back was opted out for this release only**
+(`android:enableOnBackInvokedCallback="false"`, applied by `setup-android.mjs`).
+Targeting 36 turns it on by default, and an app that opts in stops receiving
+`onBackPressed()` and `KEYCODE_BACK`, which is where this app's back behaviours lived:
+`AlarmActivity` overrode `onBackPressed` to do nothing (that is what stops Back
+dismissing a **ringing alarm**) and `SnoozePickerActivity` stepped out of its custom
+view with it. Opting in without migrating them would have turned Back into "finish the
+activity", i.e. Back would kill a ringing alarm, so the opt-out kept the behaviour
+still while the API level moved. The migration landed straight after this device pass
+and flipped the flag to `"true"`; see `docs/alarm-architecture.md` (Predictive back)
+and the results below.
 
 **Checked and not applicable:** the 16 KB page-size requirement (the app ships no
 `.so` — nothing to re-align), intent-redirection hardening (the only
@@ -208,8 +208,7 @@ shown. Each check below is what the API 35 bump would have failed.
   where the phone was left alone the device went `Dozing` to `Awake` as it fired, so
   `setTurnScreenOn` still works.
 - **Back does nothing on the alarm surface**: the key event, a left-edge gesture and a
-  right-edge gesture all left `AlarmActivity` top-resumed. This is what
-  `enableOnBackInvokedCallback="false"` is buying.
+  right-edge gesture all left `AlarmActivity` top-resumed.
 - **Back inside the snooze picker's custom view returns to the presets.** Back at the
   presets root closes the picker, which is `SnoozePickerActivity.onBackPressed` behaving
   as written; the alarm keeps ringing behind it, since opening the picker deliberately
@@ -230,6 +229,15 @@ Home still leaves an alarm ringing rather than dismissing it (foreground service
 ongoing notification both survive, and tapping the notification reopens the surface).
 That is deliberate and matches the system clock; no app can intercept Home outside
 device-owner lock-task mode.
+
+**Re-verified with predictive back turned on**, on the same device, once the migration
+described above landed. Every back check gave the same answer as it did with the flag
+off: inert on the alarm surface for the key and both edge gestures, the picker's custom
+view stepping back to the presets, the presets closing the picker while the alarm kept
+ringing, and the tab hierarchy walking to the first tab and then out of the app. The
+alarm's background launch was re-checked too, by backgrounding the app with an alarm
+ringing and turning the screen off and on so `AlarmService` force-presents the surface:
+it came up with zero BAL blocks.
 
 ## 2b. App access for reviewers ✅ DONE
 

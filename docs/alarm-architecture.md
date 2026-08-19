@@ -645,30 +645,50 @@ snooze. **Silence** is the one thing that ends the ring for good, and it outrank
 both. The device's own local snooze (`AlarmService.snoozeLocal`) already kept the
 spec's fidelity; this is what stopped the next sync from overwriting it.
 
-## Predictive back is off, on purpose
+## Predictive back is on, and Back is still inert on a ringing alarm
 
-Three back behaviours here are built on `onBackPressed()` / `KEYCODE_BACK`:
+An activity that gets predictive back stops receiving `onBackPressed()` and
+`KEYCODE_BACK` entirely. Two back behaviours here were built on exactly those, and both
+are load-bearing:
 
-- **`AlarmActivity` overrides `onBackPressed` to do nothing.** That is what stops Back
-  dismissing a ringing alarm's full-screen surface — Done and Snooze are the only ways
-  out (Home leaves it ringing, with the ongoing notification whose tap reopens it).
-- **`SnoozePickerActivity`** uses it to step out of the custom-duration view back to the
-  presets, rather than closing the picker outright.
-- **Capacitor's `App.backButton`** is dispatched from it, and the entire web screen
-  hierarchy (`apps/web/src/native/useNativeBack.ts`) rides on that event.
+- **Back does nothing on `AlarmActivity`.** That is what stops it dismissing a ringing
+  alarm's full-screen surface. Done and Snooze are the only ways out (Home leaves it
+  ringing, with the ongoing notification whose tap reopens it).
+- **`SnoozePickerActivity`** steps out of the custom-duration view back to the presets,
+  rather than closing the picker outright.
 
-Targeting **API 36 enables predictive back by default**, and an app that opts in stops
-receiving both `onBackPressed()` and `KEYCODE_BACK`. All three would fall back to the
-system default — finish the activity — so Back would kill a ringing alarm, which is the
-one thing this app must never let a stray gesture do.
+Left alone, both would have fallen back to the system default, finish the activity, so
+Back would have killed a ringing alarm: the one thing this app must never let a stray
+gesture do. Neither activity got the behaviour for free, because both are plain
+`android.app.Activity` subclasses with no `OnBackPressedDispatcher` to bridge the old
+API to the new one. They register with `OnBackInvokedDispatcher` directly, through
+`BackInterception`, which keeps `onBackPressed` for API 22 to 32.
 
-So the manifest carries Android's documented opt-out,
-`android:enableOnBackInvokedCallback="false"`, applied idempotently by
-`setup-android.mjs`. It is **temporary by intent**: migrating the three call sites to
-`OnBackInvokedCallback` is the real fix, and it needs a device to verify the alarm
-surface, so it is tracked separately from the API-level bump that forced the question.
-Don't flip the flag without doing that migration and testing a ringing alarm on
-hardware.
+**Registering a callback is what swallows the gesture.** `AlarmActivity` registers one
+with an empty body for the whole life of the surface, and that is the entire mechanism
+by which Back is inert. `SnoozePickerActivity` registers only while its custom view is
+up: at the presets it deliberately stays unregistered, so the system finishes the
+activity itself and draws the predictive animation an interception would have replaced
+with a jump cut.
+
+**The web hierarchy needed no migration.** Capacitor's `@capacitor/app` dispatches
+`backButton` from an `OnBackPressedCallback` on the activity's `OnBackPressedDispatcher`
+(`AppPlugin.java`), and `MainActivity` is a `BridgeActivity`, so AndroidX bridges it to
+the new dispatcher on its own. `apps/web/src/native/useNativeBack.ts` is untouched by
+this.
+
+Verified on a device with predictive back enabled: Back inert on the alarm surface for
+the key event and both edge gestures, the picker's two levels behaving as before, the
+tab hierarchy walking as before, and a background alarm launch with no BAL block
+(`store/play-readiness.md` #2a).
+
+The manifest carried Android's documented opt-out
+(`android:enableOnBackInvokedCallback="false"`) for one release, 0.21.1, so the API
+level could move to 36 without the behaviour moving with it. `setup-android.mjs` now
+writes `"true"` and rewrites a stale `"false"` in an already-generated project. Do not
+set it back without also reverting `BackInterception`: with callbacks registered *and*
+the attribute false, `onBackPressed` runs on old devices while nothing consumes the
+gesture on API 33+.
 
 ## Residual risk
 

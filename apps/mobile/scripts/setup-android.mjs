@@ -182,30 +182,41 @@ if (!manifest.includes('xmlns:tools=')) {
   manifest = manifest.replace(/<manifest\b/, '<manifest xmlns:tools="http://schemas.android.com/tools"')
 }
 
-// Predictive back stays OFF, deliberately, and this is a guarantee decision rather
-// than a styling one.
+// Predictive back is ON, and it is written here explicitly rather than left to the
+// targetSdk default, because this is a guarantee decision rather than a styling one.
 //
-// Targeting API 36 turns predictive back on by default, and an app that opts in stops
-// receiving `onBackPressed()` and `KEYCODE_BACK` entirely. Three of this app's back
-// behaviours are built on exactly those: `AlarmActivity` overrides `onBackPressed` to
-// do NOTHING, which is what stops Back dismissing a ringing alarm's full-screen
-// surface (only Done/Snooze leave it); `SnoozePickerActivity` uses it to step out of
-// the custom-duration view; and Capacitor 6's `App.backButton` — which the whole web
-// hierarchy in `native/useNativeBack.ts` rides on — is dispatched from it too. Opting
-// in without migrating all three would silently turn Back into "finish the activity",
-// i.e. Back would kill a ringing alarm.
+// An activity that gets predictive back stops receiving `onBackPressed()` and
+// `KEYCODE_BACK` entirely, and two of this app's back behaviours were built on exactly
+// those: `AlarmActivity` did nothing on Back, which is what stops it dismissing a
+// ringing alarm's full-screen surface (only Done/Snooze leave it), and
+// `SnoozePickerActivity` used it to step out of the custom-duration view. Both are
+// plain `android.app.Activity` subclasses, so nothing bridged the old API to the new
+// one for them; both now register with `OnBackInvokedDispatcher` through
+// `BackInterception`, keeping `onBackPressed` for API 22 to 32.
 //
-// `enableOnBackInvokedCallback="false"` is Android's own documented opt-out for
-// exactly this, and it keeps today's behaviour bit-for-bit while the API level moves.
-// Migrating to OnBackInvokedCallback is real work that needs a device to verify the
-// alarm surface, so it is tracked separately rather than smuggled into a compliance
-// bump. See docs/alarm-architecture.md (Predictive back).
+// The web hierarchy in `native/useNativeBack.ts` needed no migration: Capacitor's
+// `@capacitor/app` already dispatches `backButton` from an `OnBackPressedCallback` on
+// the activity's `OnBackPressedDispatcher`, which AndroidX bridges itself.
+//
+// This was `false` for one release (0.21.1, the targetSdk 36 compliance bump), so the
+// API level could move without the behaviour moving with it. Do not set it back
+// without also reverting `BackInterception`: with the callbacks registered and the
+// attribute false, `onBackPressed` runs AND nothing consumes the gesture on 33+.
+// See docs/alarm-architecture.md (Predictive back).
 if (!manifest.includes('android:enableOnBackInvokedCallback')) {
   manifest = manifest.replace(
     /<application\b/,
-    '<application android:enableOnBackInvokedCallback="false"'
+    '<application android:enableOnBackInvokedCallback="true"'
   )
-  console.log('[setup-android] opted out of predictive back (see the note in this script)')
+  console.log('[setup-android] opted in to predictive back (see the note in this script)')
+} else {
+  // An earlier run of this script wrote the opt-out into a generated project that is
+  // gitignored and therefore long-lived. Move it forward rather than leaving a stale
+  // `false` to quietly disagree with the code.
+  manifest = manifest.replace(
+    /android:enableOnBackInvokedCallback="false"/,
+    'android:enableOnBackInvokedCallback="true"'
+  )
 }
 
 writeFileSync(manifestPath, manifest)
