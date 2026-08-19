@@ -1,0 +1,62 @@
+name: play-testers
+
+# Read or set the Google Groups that can test a closed/open track.
+#
+# Play's closed-testing requirement counts testers per app, so a second app has to
+# recruit its own. Reusing an existing app's group is the cheap way to do that, and
+# the reason this can point at another `package`: read the group off the app that
+# already has testers, then set the same one here.
+#
+# `read` is the default and writes nothing, not even an empty edit.
+#
+# Play's API knows only about Google Groups. A track whose testers were added as
+# individual email addresses reports none here, and those stay Console-only, so an
+# empty read does not necessarily mean an empty track.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'read = report the groups; set = write the groups given below'
+        required: true
+        default: read
+        type: choice
+        options: [read, set]
+      package:
+        description: 'Play package to act on (blank = this app)'
+        required: false
+        type: string
+      tracks:
+        description: 'Comma-separated tracks'
+        required: true
+        default: alpha
+        type: string
+      groups:
+        description: 'Comma-separated Google Group addresses (set mode only)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  testers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      # No `npm ci`: the script is dependency-free by design (Node 20 has fetch
+      # and RS256 signing built in), so this needs nothing from the workspace.
+      - name: ${{ inputs.mode == 'set' && 'Set testers' || 'Read testers' }}
+        working-directory: apps/mobile
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          node scripts/play-publish.mjs --testers \
+            --tracks '${{ inputs.tracks }}' \
+            ${{ inputs.package && format('--package ''{0}''', inputs.package) || '' }} \
+            ${{ inputs.mode == 'set' && format('--groups ''{0}''', inputs.groups) || '' }}

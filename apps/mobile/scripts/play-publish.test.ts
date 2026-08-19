@@ -9,7 +9,7 @@ import assert from 'node:assert/strict'
 
 import {
   parseArgs,
-  parseTracks,
+  parseList,
   playNotesFrom,
   highestVersionCode,
   describeTracks,
@@ -57,14 +57,14 @@ describe('parseArgs', () => {
   })
 })
 
-describe('parseTracks', () => {
+describe('parseList', () => {
   it('splits, trims and dedupes', () => {
-    assert.deepEqual(parseTracks(' internal, alpha ,internal'), ['internal', 'alpha'])
+    assert.deepEqual(parseList(' internal, alpha ,internal'), ['internal', 'alpha'])
   })
 
   it('returns nothing for empty input', () => {
-    assert.deepEqual(parseTracks(''), [])
-    assert.deepEqual(parseTracks(undefined), [])
+    assert.deepEqual(parseList(''), [])
+    assert.deepEqual(parseList(undefined), [])
   })
 })
 

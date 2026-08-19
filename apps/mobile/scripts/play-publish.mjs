@@ -33,6 +33,12 @@
  *                   release name and notes to carry forward when the build sits
  *                   on several. --rollout <0..1> starts a staged rollout instead
  *                   of releasing to everyone at once.
+ *   --testers       Report the Google Groups that can test each --tracks track,
+ *                   or set them with --groups a@x.com,b@y.com. Combine with
+ *                   --package to read another app's groups, which is how a second
+ *                   app reuses an existing tester list. Play's API knows only about
+ *                   groups: a track whose testers were added as individual email
+ *                   addresses reports none, and those stay Console-only.
  *   --set-notes     Rewrite the "what's new" of a versionCode already on Play,
  *                   on every --tracks track, changing nothing else about the
  *                   release. Needs --version-code, --tracks and --notes <file>.
@@ -121,13 +127,19 @@ export function parseArgs(argv) {
   return out
 }
 
-/** `"internal, alpha"` -> `['internal', 'alpha']`, deduped, order preserved. */
-export function parseTracks(value) {
-  const tracks = String(value ?? '')
+/**
+ * `"internal, alpha"` -> `['internal', 'alpha']`, deduped, order preserved.
+ *
+ * Named for the shape rather than for tracks: tester Google Groups arrive the same
+ * way, and a second copy of four lines of trimming would be the sort of thing that
+ * drifts on one side only.
+ */
+export function parseList(value) {
+  const items = String(value ?? '')
     .split(',')
-    .map((t) => t.trim())
+    .map((item) => item.trim())
     .filter(Boolean)
-  return [...new Set(tracks)]
+  return [...new Set(items)]
 }
 
 /**
@@ -525,12 +537,16 @@ async function main() {
   const listingMode = Boolean(args.listing)
   const promoteMode = Boolean(args.promote)
   const setNotesMode = Boolean(args['set-notes'])
-  const publishing = !args.check && !listingMode && !promoteMode && !setNotesMode
+  const testersMode = Boolean(args.testers)
+  const publishing = !args.check && !listingMode && !promoteMode && !setNotesMode && !testersMode
   const aab = args.aab
-  const tracks = parseTracks(args.tracks)
+  const tracks = parseList(args.tracks)
   const versionName = args['version-name']
   const status = args.status || 'completed'
   const rollout = args.rollout === undefined ? null : Number(args.rollout)
+  if (testersMode && !tracks.length) {
+    fail('--testers needs --tracks <alpha[,beta,...]>: testers are per closed/open track.')
+  }
   if (setNotesMode) {
     if (!Number.isFinite(Number(args['version-code']))) {
       fail('--set-notes needs --version-code <n>: the release already on Play to rewrite.')
@@ -674,6 +690,44 @@ async function main() {
     console.log(`[play-publish] committed. ${LISTING_LANGUAGE} listing updated from ${listingFile}`)
     if (withShots) console.log(`[play-publish] ${shots.length} screenshots replaced from ${shotsDir}`)
     console.log('[play-publish] Play reviews listing changes before they go live.')
+    return
+  }
+
+  // --- --testers: read or set a track's Google Groups -----------------------
+  //
+  // Reusing an existing app's tester list is the point: Play's closed-testing
+  // requirement counts testers per app, and re-recruiting the same people by hand
+  // for a second app is both slow and easy to get wrong by one address.
+  if (testersMode) {
+    const groups = args.groups === undefined ? null : parseList(args.groups)
+    const edit = await playFetch(token, editsPath(packageName), { method: 'POST', body: {} })
+
+    for (const track of tracks) {
+      const path = `${editsPath(packageName, edit.id)}/testers/${track}`
+      if (groups === null) {
+        const current = await playFetch(token, path)
+        const found = current.googleGroups ?? []
+        console.log(
+          `[play-publish] ${packageName} ${track}: ${found.length ? found.join(', ') : '(no Google Groups)'}`
+        )
+      } else {
+        await playFetch(token, path, { method: 'PUT', body: { googleGroups: groups } })
+        console.log(`[play-publish] ${packageName} ${track} <- ${groups.join(', ')}`)
+      }
+    }
+
+    if (groups === null) {
+      // A read must not commit: it would publish an empty edit, and the point of
+      // reading is to change nothing.
+      await playFetch(token, editsPath(packageName, edit.id), { method: 'DELETE', bestEffort: true })
+      console.log('[play-publish] read only, nothing written.')
+      console.log(
+        '[play-publish] Individually-listed tester emails are invisible here; Play\'s API knows only groups.'
+      )
+      return
+    }
+    await commitEdit(token, packageName, edit.id)
+    console.log(`[play-publish] committed. testers set on ${tracks.join(', ')}`)
     return
   }
 
