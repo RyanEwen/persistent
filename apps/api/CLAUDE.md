@@ -73,4 +73,13 @@
 - **Serialization:** convert Prisma rows to client DTOs via `lib/serializers.ts`
   so the JSON matches the shared Zod schemas (dates as ISO strings, etc.).
 - **Tests:** pure logic (schedule expansion, formatting) gets `*.test.ts` next to
-  the module, run by Node's test runner via `npm test`.
+  the module, run by Node's test runner via `npm test`. **A test that imports a
+  feature module needs a `DATABASE_URL` first.** Routers and most of `lib/` reach
+  `lib/env.ts`, which throws when it is missing, and that throw happens at *import*
+  time, so the test file fails before a single assertion runs. Set
+  `process.env.DATABASE_URL ??= 'postgresql://localhost:5432/test'` and then
+  `await import(...)` the module, as `lib/env.test.ts` and
+  `routes/reminders.routes.test.ts` do. A static import cannot work: it is hoisted
+  above the assignment. This is worth knowing because the failure looks like a
+  broken suite rather than a missing variable, and a guard test that never runs
+  protects nothing while still appearing in the file listing.

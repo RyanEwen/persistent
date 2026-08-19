@@ -14,7 +14,13 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { remindersRouter } from './reminders.js'
+
+// The router pulls in `lib/env.ts`, which refuses to load without a database URL.
+// Nothing here connects (only the layer stack is read), so a placeholder is
+// enough, and the import has to be dynamic to run after this line (env.test.ts
+// does the same).
+process.env.DATABASE_URL ??= 'postgresql://localhost:5432/test'
+const { remindersRouter } = await import('./reminders.js')
 
 interface Layer {
   route?: { path: string; methods: Record<string, boolean> }
