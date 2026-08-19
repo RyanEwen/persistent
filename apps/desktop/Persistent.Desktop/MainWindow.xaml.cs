@@ -37,9 +37,16 @@ public sealed partial class MainWindow : Window
     private bool _trayAdded;
     private Microsoft.UI.Windowing.AppWindow? _appWindow;
 
+    /// <summary>
+    /// The single host window, so code with no reference to it can still ask the
+    /// app to shut down properly (see <see cref="RequestExit"/>).
+    /// </summary>
+    private static MainWindow? instance;
+
     public MainWindow()
     {
         InitializeComponent();
+        instance = this;
         _hwnd = WindowNative.GetWindowHandle(this);
 
         // Make it a tool window (no taskbar button, no Alt+Tab) and keep it out of switchers.
@@ -225,6 +232,15 @@ public sealed partial class MainWindow : Window
         w.Activate();
         SetForegroundWindow(WindowNative.GetWindowHandle(w));
     }
+
+    /// <summary>
+    /// Shuts the app down the same way the tray menu's Exit does. Exists for the
+    /// Store update path, which has to leave the process before Windows can apply
+    /// a staged package - and has to do it through the real teardown, or a toast
+    /// left in the Action Center outlives the `/ws` connection it would activate.
+    /// A no-op if the host window was never built.
+    /// </summary>
+    public static void RequestExit() => instance?.ExitApp();
 
     private void ExitApp()
     {

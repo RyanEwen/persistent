@@ -49,6 +49,21 @@
     <PackageReference Include="NLog" Version="6.1.1" />
   </ItemGroup>
 
+  <!-- Shared "Our other apps" cross-promo page ───────────────────────
+       A git submodule (apps/desktop/external/promo) shared with the sibling
+       TechnicallyReal Store apps. It is the one place a reminder-shaped rule does
+       not apply, because it says nothing about reminders: it lists the
+       publisher's other Store apps from data baked in at dev time by the
+       submodule's refresh.ps1, and hides whichever app it is running inside by
+       package family name. No runtime networking - clicking a card hands a
+       ms-windows-store:// URI to the Store app.
+
+       Imported unconditionally, so a clone that skipped `--recurse-submodules`
+       fails here naming the missing file. Guarding it with Exists() would let the
+       build get as far as the settings window and die on "the namespace 'Promo'
+       does not exist", which says nothing about submodules. -->
+  <Import Project="..\external\promo\PromotedApps.projitems" Label="Shared" />
+
   <!-- Content files to copy to output ────────────────────────────── -->
   <ItemGroup>
     <None Remove="NLog.config" />

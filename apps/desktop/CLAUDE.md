@@ -63,9 +63,12 @@ Do not widen it. Anything else about a reminder still belongs in the PWA.
 | `Persistent.Desktop/Notifications/` | Optional Windows toasts: `/ws` client, toast builder, ack/snooze calls |
 | `Persistent.Desktop/Classes/NativeMethods.cs` | **All** Win32 P/Invoke |
 | `verify-csharp.sh` | Linux compile-check of the non-XAML C# (`npm run verify:desktop`) |
+| `set-ci-secrets.sh` | Sets the Store + submodule GitHub secrets (run from the devcontainer) |
 | `tools/csharp-check/` | The project + XAML stubs that check drives; not in the .slnx, not built by CI |
+| `Persistent.Desktop/Services/UpdateService.cs` | Update check; GitHub when unpackaged, `StoreContext` when packaged |
 | `publish-portable.ps1` | Self-contained unpackaged build (**the one to use for testing**) |
 | `Persistent.DesktopMSIX/` | Manifest + `build-msix.ps1` + `generate-msix-images.ps1` (for shipping) |
+| `external/promo/` | Private submodule: the shared "Our other apps" page |
 
 ## Conventions
 
@@ -96,6 +99,19 @@ Do not widen it. Anything else about a reminder still belongs in the PWA.
 - Bump `<Version>` in `Directory.Build.props` for every packaged build; MSIX
   refuses to reinstall the same version with different content. Releases are
   tagged `desktop-vX.Y.Z` so they don't collide with the Android `vX.Y.Z` tags.
+- **Store identity in `Package.appxmanifest` is the Partner Center identity** and
+  must not be "tidied". `build-msix.ps1` rewrites it for sideload builds; `-Store`
+  leaves it alone and skips signing. Full detail, including why the packaged build
+  needs a `<PackageDependency>` the portable one does not, is in
+  `docs/desktop-architecture.md`.
+- **This app is packaged as well as portable, so anything install-shaped has two
+  answers.** Startup registration, update checks and app data all branch on
+  whether `Package.Current` exists. When adding another, branch it too rather than
+  assuming the portable case — and put the packaged path behind the same
+  try/catch idiom the existing ones use.
+- **`external/promo` is a submodule and the csproj imports it unconditionally.**
+  Clone with `--recurse-submodules`, and keep `submodules: true` plus
+  `SUBMODULES_TOKEN` on any new workflow that builds this app.
 - Real builds are Windows-side:
   `dotnet build Persistent.Desktop/Persistent.Desktop.csproj -c Debug`, packaged
   with `Persistent.DesktopMSIX/build-msix.ps1`.

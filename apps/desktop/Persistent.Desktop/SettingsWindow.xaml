@@ -34,6 +34,12 @@
                 </NavigationViewItem>
             </NavigationView.MenuItems>
             <NavigationView.FooterMenuItems>
+                <!-- Shared cross-promo page from the external/promo submodule. Same
+                     wording, glyph and position as the sibling TechnicallyReal apps:
+                     footer, directly above About. -->
+                <NavigationViewItem Content="Our other apps" Tag="PromotedAppsPage">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE719;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
                 <NavigationViewItem Content="About" Tag="AboutPage">
                     <NavigationViewItem.Icon><FontIcon Glyph="&#xE946;" /></NavigationViewItem.Icon>
                 </NavigationViewItem>

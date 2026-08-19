@@ -106,6 +106,7 @@ public sealed partial class SettingsWindow : Window
     private static Type? GetPageTypeFromTag(string tag) => tag switch
     {
         "ConnectionPage" => typeof(ConnectionPage),
+        "PromotedAppsPage" => typeof(TechnicallyReal.Promo.PromotedAppsPage),
         "AboutPage" => typeof(AboutPage),
         _ => null
     };

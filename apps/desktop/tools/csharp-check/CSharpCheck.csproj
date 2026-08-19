@@ -28,6 +28,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>preview</LangVersion>
+    <!-- Also from Persistent.Desktop.csproj. [LibraryImport] generates a marshalling
+         stub containing unsafe code, so without this every LibraryImport in
+         NativeMethods.cs fails here while compiling fine in the real build. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Platforms>AnyCPU</Platforms>
     <!-- Lets a Windows TFM restore and compile on Linux. -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
@@ -59,6 +63,10 @@
     <Compile Include="../../Persistent.Desktop/Classes/StartupManager.cs" />
     <Compile Include="../../Persistent.Desktop/Classes/StartupDiagnostics.cs" />
     <Compile Include="../../Persistent.Desktop/Classes/NativeMethods.cs" />
+
+    <!-- The update service: non-XAML, and the half of it that talks to
+         Windows.Services.Store is the least forgiving WinRT surface in the app. -->
+    <Compile Include="../../Persistent.Desktop/Services/UpdateService.cs" />
 
     <Compile Include="HostStubs.cs" />
   </ItemGroup>

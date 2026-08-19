@@ -441,12 +441,12 @@ copy you last opened is the one that starts at sign-in.
   unmatched pattern. `fail_on_unmatched_files: true` now makes that fatal — an
   empty release is worse than a failed run, since the in-app update check would
   offer it.
-- Package: `.\Persistent.DesktopMSIX\build-msix.ps1` (`-NoSign` for a Store
-  upload). MSIX is for shipping, not testing — sideloading it means trusting a
-  self-signed certificate first. It buys a real install, a Start menu entry and
-  the `windows.startupTask` registration; unpackaged, "start at sign-in" falls
-  back to the per-user `Run` key (`Classes/StartupManager.cs`), so that feature
-  works either way.
+- Package: `.\Persistent.DesktopMSIX\build-msix.ps1` (`-Store` for a Store
+  upload, `-Upload` for both architectures at once). MSIX is for shipping, not
+  testing — sideloading it means trusting a self-signed certificate first. It buys
+  a real install, a Start menu entry and the `windows.startupTask` registration;
+  unpackaged, "start at sign-in" falls back to the per-user `Run` key
+  (`Classes/StartupManager.cs`), so that feature works either way.
 - Release: bump `<Version>` in `apps/desktop/Directory.Build.props`, tag
   `desktop-vX.Y.Z`. The tag prefix keeps desktop releases from colliding with the
   Android `vX.Y.Z` tags in this same repo — which is also why `UpdateService`
@@ -462,6 +462,147 @@ copy you last opened is the one that starts at sign-in.
 
 MSIX refuses to reinstall the same version with different content, so bump
 `<Version>` for every packaged build.
+
+## The Microsoft Store
+
+The app ships on the Store as product **9PCX2XGQ7CJS**, published by
+TechnicallyReal alongside the sibling WinUI apps (Repilot, Little Launcher,
+ImmichDrive). Everything here follows what those three already do; where this one
+differs, it says why.
+
+**Identity is not a detail.** `Package.appxmanifest` carries the real Partner
+Center values, and the Store rejects a package that differs from them by a
+character:
+
+| Field | Value |
+|---|---|
+| `Identity/Name` | `27766TechnicallyReal.Persistent` |
+| `Identity/Publisher` | `CN=C21E6CEF-D0D1-4497-93F9-3718D054DA0E` |
+| `Properties/PublisherDisplayName` | `TechnicallyReal` |
+| Package family name | `27766TechnicallyReal.Persistent_gfb69tsnc4jnp` |
+
+**`build-msix.ps1` has two modes, and they differ in identity, not just signing.**
+
+- Default (**sideload**): rewrites `Name` to `Persistent.Desktop` and `Publisher`
+  to the dev certificate's subject, then signs. Both attributes have to move
+  together — the package family name is a hash of the pair, and Windows refuses to
+  install a package whose declared `Publisher` is not the subject of the
+  certificate that signed it. The rewrite goes through the XML DOM rather than a
+  `-replace`, because `Name="..."` also appears on `TargetDeviceFamily` and on
+  every `Capability`.
+- `-Store`: leaves the Partner Center identity alone and does not sign at all. The
+  Store re-signs at ingestion, so any signature applied here is discarded.
+- `-Upload`: implies `-Store`, builds x64 and ARM64, and emits **both** the loose
+  per-architecture `.msix` files *and* a `.msixupload` container. That is not
+  redundancy: the Partner Center web UI wants the loose files (the container does
+  not upload reliably through it), and `msstore publish` wants the container.
+
+**The packaged build declares a dependency on the Windows App Runtime**, unlike
+the portable build which carries its own copy. `build-msix.ps1` publishes with
+`SelfContained` but not `WindowsAppSDKSelfContained`, so without the
+`<PackageDependency>` on `Microsoft.WindowsAppRuntime.1.8` the app installs
+cleanly and then dies at startup on any machine that has never had it. Keep its
+`MinVersion` in step with the `Microsoft.WindowsAppSDK` package reference.
+
+**The first submission is manual, and only the first.** Microsoft's prerequisites
+for the CLI and the GitHub Action state that "the app you want to update must
+already be published and live in Microsoft Store" — the tooling updates an
+existing product's package, and cannot supply the age rating, pricing and
+availability, or properties that a never-published product needs before
+certification will accept it. So version one goes up by hand:
+
+1. `.\Persistent.DesktopMSIX\build-msix.ps1 -Upload`
+2. Upload the two per-architecture `.msix` files in the Partner Center UI — **not**
+   the `.msixupload`, which does not upload reliably through the web form.
+3. Complete the listing, age rating, and pricing/availability, submit, and wait for
+   it to go live.
+
+**Updates after that are automated** by `.github/workflows/store-publish.yml`
+(manual dispatch, `draft` by default). This is the one TechnicallyReal app where
+that works: the `msstore` CLI supports **free** products only, and the paid
+siblings fall back to a manual upload every time. If Persistent ever gains a
+price, the workflow stops working and the fallback is dragging the two `.msix`
+files into Partner Center.
+It needs four repository secrets — `AZURE_AD_TENANT_ID`,
+`AZURE_AD_APPLICATION_CLIENT_ID`, `AZURE_AD_APPLICATION_SECRET`, `SELLER_ID` —
+plus `SUBMODULES_TOKEN` for the checkout. **Set them with
+`apps/desktop/set-ci-secrets.sh`**, run from the devcontainer (`gh` is already
+authenticated there), which prompts with echo off and pipes each value to
+`gh secret set` over stdin.
+
+`SUBMODULES_TOKEN` is **one PAT shared by four repos** — this one plus Little
+Launcher, Repilot and ImmichDrive, which all check out the same submodule. So
+regenerating it is a fleet-wide operation, and any repo missed starts failing at
+checkout rather than at a step that names the token:
+
+```
+./apps/desktop/set-ci-secrets.sh --all --only SUBMODULES_TOKEN
+```
+
+`--all` prompts once and writes to every consumer, which is the point: pasting a
+PAT four times is how one of the four ends up with a typo. The repo list in the
+script was built by checking which repos hold the secret, not by code search —
+GitHub's code search under-indexes `.gitmodules` and silently missed one.
+
+**The client secret expires, and nothing will tell you.** Entra credentials last
+24 months at most, and there is no call that answers "when does mine expire?" —
+reading an app registration's own `passwordCredentials` needs Graph permissions
+the Store credential does not have and should not be given. So `set-ci-secrets.sh`
+prompts for the date when it sets the secret and records it as the
+`STORE_SECRET_EXPIRES` repository *variable*; `store-secret-expiry.yml` checks it
+weekly and fails the run from 60 days out, and `store-publish.yml` warns on it in
+passing. The two cannot drift, because rotating the secret is what updates the
+date. It is a variable rather than a secret deliberately: an expiry date is not
+sensitive and the warning has to be able to print it.
+
+That workflow does not open an issue on purpose. A failed scheduled run already
+emails the owner, and this repository is public — an issue stating exactly when
+the publishing credential lapses is free reconnaissance for anyone watching.
+
+Note for anyone porting that script back to a sibling repo: `gh secret set` reads
+stdin only when `--body` is **absent**. `--body -` does not mean "read stdin" — it
+stores a literal hyphen and silently discards the pipe.
+
+The names match Little Launcher's rather than describing this workflow, because
+the same Entra app registration and seller account back every TechnicallyReal app
+— a rotation is then the same four values in every repo. They cannot be copied
+between repos programmatically: GitHub returns secret *names* only, never values,
+and the script deliberately never writes them to disk.
+
+The Entra app registration behind them must be added under Partner Center →
+Account settings → User management → Microsoft Entra applications with the
+**Manager** role. Without that role authentication succeeds and submission is
+refused, which is the single most missed step.
+
+**Updating splits by install type** (`Services/UpdateService.cs`). Unpackaged
+copies check GitHub Releases and get a link; packaged copies go through
+`StoreContext`, which installs in place. Offering a GitHub download beside a Store
+install is the alternative update mechanism Store policy exists to stop. Two traps
+in that code are load-bearing and documented at the call site: a listed
+`StorePackageUpdate` reports the version *already installed*, so requiring it to be
+newer means never offering an update at all; and download and install must be two
+separate calls, or a tray app that never exits hides the download behind a wait
+that cannot resolve.
+
+## The `external/promo` submodule
+
+`apps/desktop/external/promo` is a private git submodule
+(`RyanEwen/technicallyreal-promo`) shared with the sibling Store apps. It supplies
+the settings window's "Our other apps" page as a shared-items project imported by
+`Persistent.Desktop.csproj`, and hides whichever app it is running inside by
+package family name.
+
+It never touches the network: names, blurbs and icons are fetched from the Store
+by the submodule's own `refresh.ps1` on a dev machine and committed as static
+assets; clicking a card hands a `ms-windows-store://` URI to the Store app. Both
+CI workflows check out with `submodules: true` and a `SUBMODULES_TOKEN` PAT,
+because the csproj imports it unconditionally — a checkout without it does not
+compile, which is deliberate: guarding the import with `Exists()` would move the
+failure to a confusing "the namespace 'Promo' does not exist".
+
+Once Persistent is live, add `9PCX2XGQ7CJS` to the submodule's `ids.json`, run
+`refresh.ps1`, and bump the submodule pointer in all four apps so the other three
+promote it too.
 
 ## `EnableMsixTooling` is required for the unpackaged build too
 

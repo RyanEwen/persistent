@@ -7,6 +7,22 @@
  * loudest thing on the screen that exists to *finish* it. Soft + floating keeps it
  * always reachable without competing.
  *
+ * Colour matches `GetTheApp.tsx` — soft `primary`, no border — so the app's two
+ * "go do a thing" buttons read as the same control. Neutral-on-surface read as a
+ * disabled chip and was easy to miss; an accent border instead made it an outlined
+ * chip. The ceiling is the rule above: a soft tint may not become a solid accent
+ * fill, because that is the thing that outranked Done last time.
+ *
+ * Two deviations from plain `<Button variant="soft" color="primary">`, both forced
+ * by this button floating over the page rather than sitting in it:
+ * - The tint is a `linear-gradient` layer over an opaque `background.surface`
+ *   rather than `bgcolor`, because `primary.softBg` is translucent
+ *   (`rgba(..., 0.14)`) and a see-through button over the themed doodle background
+ *   reads as part of whatever card it happens to be over.
+ * - Hover stacks that same layer twice instead of using `softHoverBg`, which is
+ *   NOT one of the variables `settings/themes.ts` overrides per accent — it would
+ *   flash the default amber on every theme except Plain.
+ *
  * Two positioning invariants, both easy to lose:
  * - It anchors to the same 640px centred column as `AppLayout`, not the viewport,
  *   or it drifts into the margin on a wide window.
@@ -68,18 +84,26 @@ export function NewReminderFab() {
             component={RouterLink}
             to="/reminders/new"
             variant="soft"
+            color="primary"
             startDecorator={<AddIcon />}
             sx={{
               pointerEvents: 'auto',
               borderRadius: 'xl',
               boxShadow: 'lg',
-              // `soft` alone is a tint; over the themed doodle background it needs
-              // an opaque backdrop and an edge to read as floating rather than as
-              // part of the card behind it.
+              // Opaque base + accent tint layered on top; see the header for why
+              // the tint cannot simply be `bgcolor: 'primary.softBg'`.
               bgcolor: 'background.surface',
-              border: '1px solid',
-              borderColor: 'primary.outlinedBorder',
-              '&:hover': { bgcolor: 'background.level1' }
+              backgroundImage:
+                'linear-gradient(var(--joy-palette-primary-softBg), var(--joy-palette-primary-softBg))',
+              color: 'primary.softColor',
+              '&:hover': {
+                bgcolor: 'background.level1',
+                // The same translucent layer twice — a stronger tint built only
+                // from variables the accent themes actually override.
+                backgroundImage:
+                  'linear-gradient(var(--joy-palette-primary-softBg), var(--joy-palette-primary-softBg)), ' +
+                  'linear-gradient(var(--joy-palette-primary-softBg), var(--joy-palette-primary-softBg))'
+              }
             }}
           >
             New reminder

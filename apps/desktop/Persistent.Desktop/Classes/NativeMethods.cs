@@ -7,7 +7,7 @@ namespace Persistent.Desktop.Classes;
 /// the flyout window (DWM rounded corners, monitor work-area placement), and the
 /// settings window (icon, DPI). See <c>apps/desktop/CLAUDE.md</c>.
 /// </summary>
-internal static class NativeMethods
+internal static partial class NativeMethods
 {
     // ── Window / messages ───────────────────────────────────────────
     public const int WM_SETICON = 0x0080;
@@ -48,6 +48,17 @@ internal static class NativeMethods
 
     [DllImport("kernel32.dll")]
     public static extern uint GetCurrentThreadId();
+
+    // Asks Windows to relaunch this process after it exits. That is how a staged
+    // MSIX update actually lands: the package cannot be installed while any of its
+    // processes are running, and this app starts with Windows and lives in the
+    // tray, so without a deliberate exit-and-return a downloaded update can sit
+    // unapplied indefinitely. Must be registered before shutdown begins.
+    //
+    // A null command line means "relaunch with no arguments", which is what this
+    // app wants: it has no window to restore and always starts to the tray.
+    [LibraryImport("kernel32.dll", StringMarshalling = StringMarshalling.Utf16)]
+    public static partial int RegisterApplicationRestart(string? pwszCommandline, uint dwFlags);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

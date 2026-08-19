@@ -8,24 +8,35 @@
   xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
   IgnorableNamespaces="uap uap5 rescap com desktop">
 
-  <!-- Name/Publisher are replaced by build-msix.ps1 for signed sideload builds so
-       they form a stable local package family that updates in place; -NoSign
-       (Store) builds keep whatever is declared here. Set the real Partner Center
-       values before the first Store submission. -->
+  <!-- These are the real Partner Center values for Store ID 9PCX2XGQ7CJS, and the
+       Store rejects a package whose identity differs from them by even a
+       character. build-msix.ps1 rewrites Name/Publisher for the dev-signed
+       sideload build (see -Store there), so a sideloaded copy forms its own
+       package family and never collides with a Store install. -->
   <Identity
-    Name="Persistent.Desktop"
-    Publisher="CN=Persistent"
+    Name="27766TechnicallyReal.Persistent"
+    Publisher="CN=C21E6CEF-D0D1-4497-93F9-3718D054DA0E"
     Version="VERSION_PLACEHOLDER"
     ProcessorArchitecture="ARCH_PLACEHOLDER" />
 
   <Properties>
     <DisplayName>Persistent</DisplayName>
-    <PublisherDisplayName>Persistent</PublisherDisplayName>
+    <!-- Must match the Partner Center publisher display name exactly. -->
+    <PublisherDisplayName>TechnicallyReal</PublisherDisplayName>
     <Logo>Images\StoreLogo.png</Logo>
   </Properties>
 
   <Dependencies>
     <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.22000.0" MaxVersionTested="10.0.26100.0" />
+    <!-- The packaged build is .NET self-contained but NOT Windows App SDK
+         self-contained (build-msix.ps1 passes SelfContained, publish-portable.ps1
+         passes both), so the framework package has to be declared or the app
+         installs cleanly and then dies at startup on a machine that has never had
+         it. The Store installs a declared dependency alongside the app; the
+         portable build carries its own copy instead, which is why only this side
+         needs the line. Keep MinVersion in step with Microsoft.WindowsAppSDK in
+         Persistent.Desktop.csproj. -->
+    <PackageDependency Name="Microsoft.WindowsAppRuntime.1.8" MinVersion="8000.770.947.0" Publisher="CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US" />
   </Dependencies>
 
   <Resources>

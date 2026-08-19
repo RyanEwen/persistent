@@ -60,7 +60,11 @@ apps/desktop/Persistent.Desktop/Resources/*.png
 apps/desktop/Persistent.DesktopMSIX/Images/
 apps/desktop/**/*.msix
 apps/desktop/**/*.msixbundle
+# The Store upload container (a zip of the per-arch .msix files, renamed).
+apps/desktop/**/*.msixupload
+# Signing keys and the exported certificate, neither of which is ever a source.
 apps/desktop/**/*.pfx
+apps/desktop/**/*.cer
 
 # Android release keystore (kept out of git; CI uses the base64 secret)
 apps/mobile/release.keystore

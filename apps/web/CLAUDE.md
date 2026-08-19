@@ -19,7 +19,9 @@
   Done would make the app's one terminal action the hardest to find. "New reminder" was
   exactly that mistake: a full-width solid `primary` bar sitting directly on top
   of the Done it competed with. It is a soft floating button now
-  (`components/NewReminderFab.tsx`) — the rule is about emphasis, not position:
+  (`components/NewReminderFab.tsx`), accent-*tinted* so it reads as tappable but
+  never accent-*filled* — that line is the whole rule, and solid is what crossed
+  it last time. The rule is about emphasis, not position:
   that button sits in the conventional bottom-right corner and may overlap a
   card's actions at narrow widths, which is a documented trade-off rather than a
   licence to outrank Done visually.

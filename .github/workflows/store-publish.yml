@@ -1,0 +1,160 @@
+name: store-publish
+
+# Build the Store packages (x64 + ARM64, unsigned, real Partner Center identity)
+# and submit them to the Microsoft Store for product 9PCX2XGQ7CJS.
+#
+# THIS CANNOT MAKE THE FIRST SUBMISSION. Microsoft's own prerequisites are explicit
+# that "the app you want to update must already be published and live in Microsoft
+# Store" - the CLI updates the package of an existing product, and has no way to
+# supply the age rating, pricing and availability, and properties a brand-new
+# product needs before it can be certified. So version one goes up by hand:
+#
+#   .\Persistent.DesktopMSIX\build-msix.ps1 -Upload
+#   upload the two .msix files (NOT the .msixupload) in the Partner Center UI,
+#   complete the listing, submit, and wait for it to go live.
+#
+# Every release after that is this workflow.
+#
+# Deliberately separate from `build-desktop-msix`, and manual-dispatch only, for
+# the same reason the Play workflows are separate from `release`: cutting a
+# desktop tag should not also push a submission that a human has not looked at.
+#
+# `draft` is the default. It runs the whole path - build, package, authenticate,
+# upload - and stops before committing the submission, so the packages land in
+# Partner Center as a draft you can inspect. `publish` commits it for review.
+#
+# Unlike the sibling TechnicallyReal apps, this one can actually automate:
+# `msstore` supports FREE products only, and Repilot and Little Launcher are paid
+# (their equivalent workflows are build-and-verify only, and say so at length).
+# Persistent is free. If it ever gains a price, this stops working and the fallback
+# is a manual Partner Center upload of the two .msix files.
+#
+# IMPORTANT: bump <Version> in apps/desktop/Directory.Build.props first. The Store
+# rejects a submission whose package version is not higher than the live one, and
+# it rejects a fourth version part that is not 0 (build-msix.ps1 appends the .0).
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'draft = upload and leave it uncommitted; publish = commit the submission for review'
+        required: true
+        default: draft
+        type: choice
+        options: [draft, publish]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: store-publish
+  cancel-in-progress: false
+
+jobs:
+  store-publish:
+    runs-on: windows-2025
+    defaults:
+      run:
+        working-directory: apps/desktop
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # See build-desktop-msix.yml: the csproj imports the private
+          # external/promo submodule unconditionally.
+          submodules: true
+          token: ${{ secrets.SUBMODULES_TOKEN || github.token }}
+
+      # Fail here rather than 10 minutes later at the publish step. A missing
+      # secret is the single most likely reason this run should not have started.
+      #
+      # Names match apps/desktop/set-ci-secrets.sh and the sibling Little Launcher
+      # repo. They describe where the values come from (Entra, Partner Center)
+      # rather than what they are used for here, which is why they are not STORE_*.
+      - name: Verify Store credentials are configured
+        shell: pwsh
+        run: |
+          # [Environment]::GetEnvironmentVariable, not $env:$_ - the $env: drive
+          # does not take a variable for the name, and $env:$_ parses as the empty
+          # variable $env: followed by $_, so every secret reads as "set".
+          $missing = @('AZURE_AD_TENANT_ID', 'AZURE_AD_APPLICATION_CLIENT_ID',
+                       'AZURE_AD_APPLICATION_SECRET', 'SELLER_ID') |
+            Where-Object { [string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($_)) }
+          if ($missing) {
+            throw "Missing repository secrets: $($missing -join ', '). Run apps/desktop/set-ci-secrets.sh."
+          }
+
+          # A warning, never a failure: an expiring credential still authenticates,
+          # and blocking a release over a date would be worse than the problem.
+          # store-secret-expiry.yml is what actually chases this weekly; this only
+          # catches the case where you are already here and about to ship.
+          $expires = $env:STORE_SECRET_EXPIRES
+          if ([string]::IsNullOrEmpty($expires)) {
+            Write-Warning "STORE_SECRET_EXPIRES is unset, so nothing is tracking when the Store credential lapses."
+          } else {
+            $days = [int]([datetime]::Parse($expires) - (Get-Date)).TotalDays
+            if ($days -lt 0) {
+              Write-Warning "The Store credential expired $expires. This run will probably fail to authenticate."
+            } elseif ($days -le 60) {
+              Write-Warning "The Store credential expires in $days days ($expires). Rotate it soon."
+            }
+          }
+        env:
+          AZURE_AD_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
+          AZURE_AD_APPLICATION_CLIENT_ID: ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
+          AZURE_AD_APPLICATION_SECRET: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
+          SELLER_ID: ${{ secrets.SELLER_ID }}
+          STORE_SECRET_EXPIRES: ${{ vars.STORE_SECRET_EXPIRES }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Read version
+        id: version
+        shell: pwsh
+        run: |
+          [xml]$props = Get-Content Directory.Build.props
+          $ver = ($props.Project.PropertyGroup | Where-Object { $_.Version } | Select-Object -First 1).Version
+          echo "VERSION=$ver" >> $env:GITHUB_OUTPUT
+          Write-Host "Submitting version: $ver"
+
+      # Same ordering reason as build-desktop-msix.yml: the icons are gitignored
+      # build output, and the csproj only picks up ApplicationIcon when the .ico
+      # already exists.
+      - name: Generate images
+        shell: pwsh
+        run: .\Persistent.DesktopMSIX\generate-msix-images.ps1
+
+      - name: Build Store packages
+        shell: pwsh
+        run: .\Persistent.DesktopMSIX\build-msix.ps1 -Upload
+
+      # microsoft/microsoft-store-apppublisher, not microsoft/setup-msstore-cli:
+      # the former is what the msstore CLI's own CI/CD documentation uses. The
+      # latter is what the sibling Repilot workflow pins, but that workflow has
+      # never run (its STORE_* secrets were never created), so it is not evidence
+      # the action still works.
+      - name: Setup Microsoft Store Developer CLI
+        uses: microsoft/microsoft-store-apppublisher@v1.1
+
+      - name: Configure credentials
+        shell: pwsh
+        run: |
+          msstore reconfigure `
+            --tenantId "${{ secrets.AZURE_AD_TENANT_ID }}" `
+            --clientId "${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}" `
+            --clientSecret "${{ secrets.AZURE_AD_APPLICATION_SECRET }}" `
+            --sellerId "${{ secrets.SELLER_ID }}"
+
+      # -nc ("no commit") uploads the packages and leaves the submission sitting
+      # in Partner Center instead of sending it to certification.
+      - name: ${{ inputs.mode == 'publish' && 'Submit to the Microsoft Store' || 'Upload a draft submission' }}
+        shell: pwsh
+        run: |
+          $pkg = ".\Persistent.DesktopMSIX\Persistent.Desktop_${{ steps.version.outputs.VERSION }}.msixupload"
+          if (-not (Test-Path $pkg)) { throw "Package not found: $pkg" }
+          msstore publish $pkg -id 9PCX2XGQ7CJS ${{ inputs.mode == 'publish' && '' || '-nc' }}
+          if ($LASTEXITCODE -ne 0) { throw 'msstore publish failed' }

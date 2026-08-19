@@ -4,6 +4,11 @@ name: Build desktop app
 # `v*` tags in this same repository (see .github/workflows for those).
 on:
   workflow_dispatch:
+    inputs:
+      store_packages:
+        description: 'Also build unsigned Store packages, for a manual Partner Center upload'
+        type: boolean
+        default: false
   # A `desktop-v*` tag publishes a release; a push/PR touching apps/desktop only
   # compiles. That compile-only run is the point: WinUI 3 is outside
   # `npm run validate` and cannot be built in the Linux devcontainer at all, so
@@ -37,6 +42,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # The "Our other apps" page lives in the private external/promo
+          # submodule, and the csproj imports it unconditionally, so a checkout
+          # without it does not compile. SUBMODULES_TOKEN is a PAT with read
+          # access to RyanEwen/technicallyreal-promo; the github.token fallback
+          # keeps forks building everything up to that import.
+          submodules: true
+          token: ${{ secrets.SUBMODULES_TOKEN || github.token }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -78,6 +91,28 @@ jobs:
         with:
           name: Persistent.Desktop-${{ steps.version.outputs.VERSION }}-${{ matrix.platform }}-portable
           path: apps/desktop/artifacts/Persistent.Desktop-*-portable/
+          if-no-files-found: error
+
+      # The first Store submission has to be uploaded by hand (the msstore CLI can
+      # only update an app that is already live), and the Linux devcontainer cannot
+      # produce an MSIX at all - so this is how those packages get built. Unsigned
+      # and carrying the real Partner Center identity, which is what Partner Center
+      # wants; it re-signs at ingestion.
+      #
+      # Safe to publish as an artifact here because Persistent is free. Do not copy
+      # this step to a paid app in a public repo: artifacts need only read access to
+      # download, which on a public repo means anyone.
+      - name: Package MSIX for the Store
+        if: inputs.store_packages
+        shell: pwsh
+        run: .\Persistent.DesktopMSIX\build-msix.ps1 -Platform ${{ matrix.platform }} -Store
+
+      - name: Upload Store package
+        if: inputs.store_packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: store-msix-${{ steps.version.outputs.VERSION }}-${{ matrix.platform }}
+          path: apps/desktop/Persistent.DesktopMSIX/*.msix
           if-no-files-found: error
 
       # Non-blocking on purpose. The portable zip is the build people actually use
