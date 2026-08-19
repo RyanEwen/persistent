@@ -4,6 +4,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Microsoft.UI.Xaml.Controls"
+    xmlns:local="using:Persistent.Desktop.Controls"
     Title="Persistent">
     <!-- Explicitly dark and opaque, not a system backdrop. The hosted PWA is dark
          in every theme it offers, whereas DesktopAcrylicBackdrop follows the
@@ -59,6 +60,15 @@
                      native settings screen made one product look like two. The
                      native window still exists for the server address and About,
                      and the page links to it. -->
+                <!-- Close. Light dismiss already covers this, but a window with no
+                     visible way out reads as stuck, and this one has no system frame
+                     to carry the usual button. Rightmost, where every Windows window
+                     puts it. -->
+                <Button x:Name="CloseButton" Click="CloseButton_Click"
+                        Padding="6" MinWidth="0" Background="Transparent" BorderBrush="Transparent"
+                        ToolTipService.ToolTip="Close">
+                    <FontIcon Glyph="&#xE8BB;" FontSize="14" />
+                </Button>
 
             </StackPanel>
         </Grid>
@@ -86,5 +96,34 @@
                 <Button x:Name="ErrorSettingsButton" Click="ErrorSettingsButton_Click" Content="Settings" />
             </StackPanel>
         </StackPanel>
+        <!-- Drag to resize, done by hand.
+             The window asks its presenter for no frame at all, so there are no
+             system resize borders and there must not be: turning the presenter
+             resizable brings back 10 physical pixels of non-client area on every
+             edge, which the app cannot paint and which reads as a grey band above
+             the header (measured on the 150%-scaled target, see AppFlyout.xaml.cs).
+             These grips are ordinary client area instead, so the frame can never
+             come back.
+             Only the top and left edges: the flyout is anchored to the tray corner,
+             so its bottom-right stays put and it grows up and to the left. Last in
+             the Grid and spanning both rows, which is what puts them above the
+             WebView; `Background="Transparent"` is required, since a null one is
+             not hit-tested. -->
+        <local:ResizeGrip x:Name="ResizeTop" Grid.Row="0" Grid.RowSpan="2"
+                          VerticalAlignment="Top" Height="6" Background="Transparent"
+                          ResizesHeight="True"
+                          PointerPressed="Grip_PointerPressed" PointerMoved="Grip_PointerMoved"
+                          PointerReleased="Grip_PointerReleased" PointerCaptureLost="Grip_PointerCaptureLost" />
+        <local:ResizeGrip x:Name="ResizeLeft" Grid.Row="0" Grid.RowSpan="2"
+                          HorizontalAlignment="Left" Width="6" Background="Transparent"
+                          ResizesWidth="True"
+                          PointerPressed="Grip_PointerPressed" PointerMoved="Grip_PointerMoved"
+                          PointerReleased="Grip_PointerReleased" PointerCaptureLost="Grip_PointerCaptureLost" />
+        <!-- After the other two, so the corner wins where they overlap. -->
+        <local:ResizeGrip x:Name="ResizeCorner" Grid.Row="0" Grid.RowSpan="2"
+                          VerticalAlignment="Top" HorizontalAlignment="Left" Width="14" Height="14"
+                          Background="Transparent" ResizesWidth="True" ResizesHeight="True"
+                          PointerPressed="Grip_PointerPressed" PointerMoved="Grip_PointerMoved"
+                          PointerReleased="Grip_PointerReleased" PointerCaptureLost="Grip_PointerCaptureLost" />
     </Grid>
 </Window>

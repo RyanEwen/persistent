@@ -49,14 +49,18 @@ export function DesktopAppCard({ settings, update }: HostSettingsProps) {
           value={settings.flyoutSize}
           onChange={(_e, value) => value !== null && update({ flyoutSize: value })}
         >
-          {settings.flyoutSizes.map((size) => (
-            // `label` explicitly, because the children here are an array rather
-            // than a plain string and Joy falls back to reading the option's
-            // rendered text to label the closed button.
-            <Option key={size.id} value={size.id} label={size.label}>
-              {size.label} ({size.width} x {size.height})
-            </Option>
-          ))}
+          {settings.flyoutSizes.map((size) => {
+            // One string for both the list and the closed button. `label` is what
+            // Joy renders once a value is picked, so passing the bare name there
+            // while showing the dimensions in the list meant "Custom" collapsed to
+            // exactly the case that needs its numbers: a size with no preset name.
+            const text = `${size.label} (${size.width} x ${size.height})`
+            return (
+              <Option key={size.id} value={size.id} label={text}>
+                {text}
+              </Option>
+            )
+          })}
         </Select>
         <FormHelperText>How large this window opens from the notification area.</FormHelperText>
       </FormControl>

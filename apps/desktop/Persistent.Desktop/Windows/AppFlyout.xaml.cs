@@ -1,5 +1,6 @@
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.Web.WebView2.Core;
 using Persistent.Desktop.Classes.Settings;
 using System.Diagnostics;
@@ -55,6 +56,22 @@ public sealed partial class AppFlyout : Window
 
     /// <summary>A screen requested before the page was listening; see <see cref="NavigateTo"/>.</summary>
     private string? _pendingPath;
+
+    /// <summary>Re-asks the light-dismiss question after the window has settled.</summary>
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _dismissTimer;
+
+    /// <summary>Mid drag-to-resize; see the grip handlers at the end of this file.</summary>
+    private bool _resizing;
+    private POINT _resizeStartCursor;
+    private global::Windows.Graphics.RectInt32 _resizeStartRect;
+
+    /// <summary>
+    /// Smallest the user can drag the flyout. Matches the repair floor in
+    /// <see cref="ViewModels.UserSettings.CompleteInitialization"/>, so a dragged
+    /// size is never one that file would silently rewrite on the next launch.
+    /// </summary>
+    private const int MinFlyoutWidth = 320;
+    private const int MinFlyoutHeight = 400;
 
     /// <summary>When the flyout was last hidden, for the tray-click toggle below.</summary>
     private long _hiddenAtTicks;
@@ -299,6 +316,14 @@ public sealed partial class AppFlyout : Window
         var presenter = OverlappedPresenter.CreateForContextMenu();
         presenter.SetBorderAndTitleBar(false, false);
         presenter.IsAlwaysOnTop = true;
+        // NOT presenter.IsResizable = true, even though it is accepted here without
+        // throwing. Measured on the 150%-scaled target it reads back true and brings
+        // the frame straight back: `non-client top=10 left=10 bottom=10` where a
+        // fixed context-menu presenter logs 0/0/0, and the client area drops from
+        // 690x1230 to 670x1210. That is 10 physical pixels of area the app cannot
+        // paint on every edge, worse than the 3 an overlapped presenter costs.
+        // Dragging to resize is done by hand instead (see the grips below), which
+        // cannot reintroduce non-client area because it never asks for any.
         _appWindow.SetPresenter(presenter);
 
         // NO ExtendsContentIntoTitleBar / SetTitleBar here, deliberately.
@@ -335,6 +360,13 @@ public sealed partial class AppFlyout : Window
         DwmSetWindowAttribute(_hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref round, sizeof(int));
 
         PinButton.IsChecked = SettingsManager.Current.PinFlyout;
+
+        // The grips are invisible, so the cursor is the only thing that says they are
+        // there. Set here rather than in XAML because `ProtectedCursor` is protected,
+        // which is the whole reason ResizeGrip is its own type.
+        ResizeTop.SetCursor(Microsoft.UI.Input.InputSystemCursorShape.SizeNorthSouth);
+        ResizeLeft.SetCursor(Microsoft.UI.Input.InputSystemCursorShape.SizeWestEast);
+        ResizeCorner.SetCursor(Microsoft.UI.Input.InputSystemCursorShape.SizeNorthwestSoutheast);
         // Deliberately NOT ThemeManager.ApplySavedTheme: the flyout is pinned dark
         // in XAML to match the web content it frames, and applying the user's
         // light/system choice here would overwrite that and reintroduce light
@@ -869,24 +901,66 @@ public sealed partial class AppFlyout : Window
         if (args.WindowActivationState != WindowActivationState.Deactivated) return;
         if (SettingsManager.Current.PinFlyout) return;
         if (!_visible) return;
-        if (Environment.TickCount64 - _shownAtTicks < SettleMs) return;
+        // Never dismiss mid-resize. The drag repeatedly moves and resizes the window,
+        // and closing it out from under the pointer would end the gesture by making
+        // the thing being dragged disappear.
+        if (_resizing) return;
+        // Deferred until the window has settled, NOT dropped.
+        //
+        // Dropping it is what left the flyout stuck open: click away within the first
+        // half-second of opening and this returned, and because the window was
+        // already deactivated by that click, no second Deactivated was ever coming.
+        // Nothing re-asked the question, so it stayed open however many times the
+        // user clicked outside it. The delay only decides WHEN to look; the
+        // foreground test below is what actually answers, and it is just as correct
+        // late as it would have been early.
+        long sinceShown = Environment.TickCount64 - _shownAtTicks;
+        ScheduleDismissCheck(sinceShown < SettleMs ? SettleMs - sinceShown : 0);
+    }
 
-        DispatcherQueue.TryEnqueue(() =>
+    /// <summary>
+    /// Ask <see cref="CheckLightDismiss"/> again in <paramref name="delayMs"/>. One
+    /// timer, restarted: several deactivations in quick succession are the same
+    /// question, and only the last answer matters.
+    /// </summary>
+    private void ScheduleDismissCheck(long delayMs)
+    {
+        if (_dismissTimer == null)
         {
-            if (!_visible || SettingsManager.Current.PinFlyout) return;
-            if (Environment.TickCount64 - _shownAtTicks < SettleMs) return;
-            IntPtr foreground = GetForegroundWindow();
-            if (foreground != IntPtr.Zero && GetAncestor(foreground, GA_ROOT) == _hwnd) return;
-            // Logged because a flyout that closes when it shouldn't is invisible in
-            // every other way: this names the window that took the foreground, which
-            // is the only thing that distinguishes "the user clicked away" from
-            // "we never had focus in the first place".
-            Logger.Info("Light dismiss: foreground={0:X} root={1:X} self={2:X}",
-                foreground.ToInt64(),
-                foreground == IntPtr.Zero ? 0 : GetAncestor(foreground, GA_ROOT).ToInt64(),
-                _hwnd.ToInt64());
-            HideFlyout("light dismiss");
-        });
+            _dismissTimer = DispatcherQueue.CreateTimer();
+            _dismissTimer.IsRepeating = false;
+            _dismissTimer.Tick += (timer, _) =>
+            {
+                timer.Stop();
+                CheckLightDismiss();
+            };
+        }
+        _dismissTimer.Stop();
+        // Zero would never tick; 1ms is still the next turn of the loop, which is
+        // what the original code used a plain enqueue for.
+        _dismissTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(delayMs, 1));
+        _dismissTimer.Start();
+    }
+
+    /// <summary>
+    /// Close if focus has genuinely left the flyout. Focus moving *into* the hosted
+    /// WebView2 can surface as a top-level deactivation, so the question is not "did
+    /// we deactivate" but "is the foreground window still ours".
+    /// </summary>
+    private void CheckLightDismiss()
+    {
+        if (!_visible || SettingsManager.Current.PinFlyout || _resizing) return;
+        IntPtr foreground = GetForegroundWindow();
+        if (foreground != IntPtr.Zero && GetAncestor(foreground, GA_ROOT) == _hwnd) return;
+        // Logged because a flyout that closes when it shouldn't is invisible in
+        // every other way: this names the window that took the foreground, which
+        // is the only thing that distinguishes "the user clicked away" from
+        // "we never had focus in the first place".
+        Logger.Info("Light dismiss: foreground={0:X} root={1:X} self={2:X}",
+            foreground.ToInt64(),
+            foreground == IntPtr.Zero ? 0 : GetAncestor(foreground, GA_ROOT).ToInt64(),
+            _hwnd.ToInt64());
+        HideFlyout("light dismiss");
     }
 
     /// <summary>
@@ -950,6 +1024,12 @@ public sealed partial class AppFlyout : Window
         _ = PostHostSettingsAsync();
     }
 
+    /// <summary>
+    /// Close the flyout. An explicit close, so unlike light dismiss it ignores the
+    /// pin: pinning says "don't vanish when I click elsewhere", not "refuse to shut".
+    /// </summary>
+    private void CloseButton_Click(object sender, RoutedEventArgs e) => HideFlyout("close button");
+
     private void BrowserButton_Click(object sender, RoutedEventArgs e)
     {
         MainWindow.OpenInBrowser();
@@ -990,4 +1070,96 @@ public sealed partial class AppFlyout : Window
             Logger.Warn(ex, "Could not post the back message");
         }
     }
+
+    // ── Drag to resize ──────────────────────────────────────────────
+    /// <summary>
+    /// Resizing is implemented against <see cref="AppWindow.MoveAndResize"/> rather
+    /// than by making the presenter resizable, because the system version costs a
+    /// frame this window is specifically built not to have (see the presenter note
+    /// in the constructor). The price is doing the arithmetic here.
+    ///
+    /// <para>The bottom-right corner is held still, because that is where the flyout
+    /// is anchored to the tray: dragging the top edge changes the height and moves
+    /// the top, and the same for the left edge and the width.</para>
+    /// </summary>
+    private void Grip_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is not Controls.ResizeGrip grip) return;
+        GetCursorPos(out _resizeStartCursor);
+        _resizeStartRect = new global::Windows.Graphics.RectInt32(
+            _appWindow.Position.X, _appWindow.Position.Y, _appWindow.Size.Width, _appWindow.Size.Height);
+        _resizing = grip.CapturePointer(e.Pointer);
+        e.Handled = true;
+    }
+
+    private void Grip_PointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (!_resizing || sender is not Controls.ResizeGrip grip) return;
+
+        // Screen coordinates from the OS, not from the event. The window moves out
+        // from under the pointer as it is dragged, so an element-relative position
+        // is measured against a frame of reference that is itself moving, and the
+        // drag runs away from the cursor.
+        GetCursorPos(out var cursor);
+
+        uint dpi = GetDpiForWindow(_hwnd);
+        double scale = dpi / 96.0;
+        int right = _resizeStartRect.X + _resizeStartRect.Width;
+        int bottom = _resizeStartRect.Y + _resizeStartRect.Height;
+
+        int width = _resizeStartRect.Width;
+        int height = _resizeStartRect.Height;
+        if (grip.ResizesWidth)
+        {
+            width = Math.Max((int)Math.Ceiling(MinFlyoutWidth * scale),
+                             _resizeStartRect.Width - (cursor.X - _resizeStartCursor.X));
+        }
+        if (grip.ResizesHeight)
+        {
+            height = Math.Max((int)Math.Ceiling(MinFlyoutHeight * scale),
+                              _resizeStartRect.Height - (cursor.Y - _resizeStartCursor.Y));
+        }
+
+        // Never past the edge of the work area, for the same reason the opening size
+        // is clamped: a flyout taller than the screen puts the PWA's bottom nav off
+        // the bottom of it, and dragging is the easiest way to get there.
+        var mi = new MONITORINFOEX { cbSize = System.Runtime.InteropServices.Marshal.SizeOf<MONITORINFOEX>() };
+        if (GetMonitorInfo(MonitorFromPoint(cursor, MONITOR_DEFAULTTONEAREST), ref mi))
+        {
+            width = Math.Min(width, right - mi.rcWork.Left);
+            height = Math.Min(height, bottom - mi.rcWork.Top);
+        }
+
+        _appWindow.MoveAndResize(new global::Windows.Graphics.RectInt32(
+            right - width, bottom - height, width, height));
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// Store what the drag arrived at, in DIPs, and tell the page: its Settings
+    /// screen shows this size, and after a drag it is a size no preset describes.
+    /// </summary>
+    private void Grip_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        if (!_resizing) return;
+        _resizing = false;
+        if (sender is Controls.ResizeGrip grip) grip.ReleasePointerCapture(e.Pointer);
+
+        double scale = GetDpiForWindow(_hwnd) / 96.0;
+        var settings = SettingsManager.Current;
+        settings.FlyoutWidth = (int)Math.Round(_appWindow.Size.Width / scale);
+        settings.FlyoutHeight = (int)Math.Round(_appWindow.Size.Height / scale);
+        SettingsManager.SaveSettings();
+        Logger.Info("Flyout resized to {0}x{1}", settings.FlyoutWidth, settings.FlyoutHeight);
+        _ = PostHostSettingsAsync();
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// Capture can be taken away mid-drag (an alt-tab, a display change). Treated as
+    /// a release rather than ignored, so the flyout keeps the size it had reached
+    /// instead of staying stuck in a drag that no longer receives moves.
+    /// </summary>
+    private void Grip_PointerCaptureLost(object sender, PointerRoutedEventArgs e) =>
+        Grip_PointerReleased(sender, e);
 }

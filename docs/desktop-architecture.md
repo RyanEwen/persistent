@@ -206,6 +206,12 @@ Consequences worth knowing before changing this:
 - **Changing the size resizes the open flyout** (`ApplyFlyoutSize`). The control
   now lives inside the window it resizes, so deferring to the next open would look
   like it did nothing.
+- **The size can also be dragged**, and then matches no preset, so the picker
+  reports `custom` carrying the real dimensions rather than naming a preset the
+  window does not match. Both halves of that label matter: Joy renders an Option's
+  `label` prop once a value is picked, so putting the dimensions only in the list
+  left "Custom" alone on the closed control, which is precisely the entry that has
+  no meaningful name without them.
 - **There is no settings cog in the flyout title bar.** A cog next to the page's
   own Settings tab, opening a second and differently-styled settings screen, is
   what this arrangement exists to remove. The native window is reachable from the
@@ -320,7 +326,16 @@ actually running; check it before concluding a desktop fix did nothing.
 
 A **pin** toggle (flyout header, and on the page's Settings screen, each pushing to
 the other) suppresses dismissal entirely, because a flyout you are typing a
-reminder into should not vanish on a stray click.
+reminder into should not vanish on a stray click. The header's **close button**
+ignores the pin: pinning means "don't vanish when I click elsewhere", not "refuse
+to shut".
+
+**`SettleMs` defers the check, it does not skip it.** It used to return outright
+during the grace window, which left the flyout stuck open for good: click away
+inside the first half-second and the deactivation was dropped, and since the
+window was already deactivated no second one was ever coming, so nothing re-asked.
+The delay decides only *when* to look; `CheckLightDismiss`'s foreground test is
+what answers, and it is just as correct late as early.
 
 ## The flyout is dark, opaque, and frameless
 
@@ -331,6 +346,21 @@ display it left **3 physical pixels of non-client area on every edge**, which th
 app cannot paint, so it read as a pale hairline around a dark window no matter
 what the content did. A context-menu presenter is popup-based and has no frame,
 which is what the sibling tray app uses for the same job.
+
+**Do not set `IsResizable = true` on it either.** It is *accepted* (no exception,
+and it reads back `true`), so this looks like a free way to get drag-to-resize.
+Measured on the same 150%-scaled display it brings the frame straight back:
+`non-client top=10 left=10 bottom=10` against `0/0/0` for a fixed presenter, and
+the client area drops from 690x1230 to 670x1210. That is worse than the 3px an
+overlapped presenter costs, and it shows as a grey band above the header, because
+the app is not allowed to paint there. **Drag-to-resize is done by hand instead**
+(`Controls/ResizeGrip.cs` plus the grip handlers in `AppFlyout.xaml.cs`):
+transparent strips on the top and left edges that capture the pointer and drive
+`AppWindow.MoveAndResize`. Only those two edges, because the flyout is anchored to
+the tray corner and grows up and to the left. Screen coordinates come from
+`GetCursorPos`, not the pointer event, since the window moves out from under the
+cursor mid-drag and an element-relative position measures against a frame of
+reference that is itself moving.
 
 That is also why **no `DWMWA_BORDER_COLOR` or `DWMWA_CAPTION_COLOR`** is set here
 (only `DWMWA_WINDOW_CORNER_PREFERENCE`, plus `DWMWA_USE_IMMERSIVE_DARK_MODE` so

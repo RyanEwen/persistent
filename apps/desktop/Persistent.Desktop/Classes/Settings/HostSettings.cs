@@ -22,10 +22,11 @@ namespace Persistent.Desktop.Classes.Settings;
 internal static class HostSettings
 {
     /// <summary>
-    /// Fixed sizes rather than a drag-to-resize window. The flyout cannot be
-    /// resizable: a resizable window keeps a Win32 sizing frame even when the
-    /// presenter is asked for no border, and that frame is non-client area the app
-    /// cannot paint (it showed as a pale strip along the top edge).
+    /// Named sizes to pick from. Not the only way to size the flyout any more: its
+    /// top and left edges can be dragged (<see cref="Windows.AppFlyout"/>), and a
+    /// size that matches no preset here is reported as <c>custom</c> rather than
+    /// squeezed into the nearest name. These remain worth offering as a way back to
+    /// a sane size after a drag.
     ///
     /// Sent to the page rather than duplicated there, so the dimensions stay a host
     /// concern: this app can change or add a preset without needing a matching web
@@ -38,7 +39,13 @@ internal static class HostSettings
         ("tall", "Tall", 460, 820)
     ];
 
-    private const int DefaultPresetIndex = 1;
+    /// <summary>
+    /// The id reported when the stored size matches no preset, which is what
+    /// dragging the flyout's edges produces. Sent as an extra option carrying the
+    /// real dimensions, so the picker shows the size the window actually is instead
+    /// of naming a preset it does not match.
+    /// </summary>
+    private const string CustomPresetId = "custom";
 
     /// <summary>
     /// The parts of an applied patch that need a window to act on them, reported
@@ -61,6 +68,21 @@ internal static class HostSettings
         // copy, because a copy is a second answer that can be wrong.
         bool startAtSignIn = await StartupManager.IsEnabledAsync();
 
+        var sizes = FlyoutPresets
+            .Select(preset => new { id = preset.Id, label = preset.Label, width = preset.Width, height = preset.Height })
+            .ToList();
+        string currentSize = CurrentPresetId();
+        if (currentSize == CustomPresetId)
+        {
+            sizes.Add(new
+            {
+                id = CustomPresetId,
+                label = "Custom",
+                width = settings.FlyoutWidth,
+                height = settings.FlyoutHeight
+            });
+        }
+
         return JsonSerializer.Serialize(new
         {
             type = "hostSettings",
@@ -75,10 +97,8 @@ internal static class HostSettings
                     .ToArray(),
                 pinFlyout = settings.PinFlyout,
                 startAtSignIn,
-                flyoutSize = CurrentPresetId(),
-                flyoutSizes = FlyoutPresets
-                    .Select(preset => new { id = preset.Id, label = preset.Label, width = preset.Width, height = preset.Height })
-                    .ToArray()
+                flyoutSize = currentSize,
+                flyoutSizes = sizes
             }
         });
     }
@@ -160,7 +180,11 @@ internal static class HostSettings
         return false;
     }
 
-    /// <summary>The preset matching the stored size, or Standard if it matches none.</summary>
+    /// <summary>
+    /// The preset matching the stored size, or "custom" when none does. Never falls
+    /// back to a preset it does not match: dragging the flyout's edges is expected to
+    /// land between them, and naming one anyway would show a size the window is not.
+    /// </summary>
     private static string CurrentPresetId()
     {
         var settings = SettingsManager.Current;
@@ -168,6 +192,6 @@ internal static class HostSettings
         {
             if (preset.Width == settings.FlyoutWidth && preset.Height == settings.FlyoutHeight) return preset.Id;
         }
-        return FlyoutPresets[DefaultPresetIndex].Id;
+        return CustomPresetId;
     }
 }
