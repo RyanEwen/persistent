@@ -12,7 +12,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
-    "prisma:validate": "prisma validate"
+    "prisma:validate": "DATABASE_URL=\"${DATABASE_URL:-postgresql://validate-only@localhost:5432/validate-only}\" prisma validate"
   },
   "dependencies": {
     "@persistent/shared": "0.1.0",

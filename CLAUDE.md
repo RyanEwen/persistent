@@ -196,7 +196,15 @@ directory guide `apps/api/CLAUDE.md`.
   passkeys and sessions survive, so it never signs you out. `-- --keep` to append,
   `-- --email=…` to pick the user.
 - Before finishing a task run `npm run validate` (lint + test + typecheck +
-  prisma validate). Add focused tests for non-trivial behavior.
+  prisma validate). Add focused tests for non-trivial behavior. **It needs no
+  database and no `DATABASE_URL`**: `prisma validate` only parses the schema, but
+  it still refuses to start without the variable its datasource interpolates, so
+  `apps/api`'s `prisma:validate` script supplies a placeholder when the real one is
+  absent (`${DATABASE_URL:-...}`, so a set value always wins). Nothing is masked —
+  the command never connects, and a malformed schema still fails. This matters
+  because the variable comes from `devcontainer.json`'s `containerEnv`, which not
+  every shell inherits, and the whole check used to die on a missing value having
+  tested nothing.
 - `npm test` discovers `*.test.ts` under `apps/`, `packages/` **and `scripts/`**.
   The last is for repo-hygiene checks belonging to no single workspace — currently
   that the lockfile's recorded workspace versions match their `package.json`
