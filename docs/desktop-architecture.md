@@ -578,6 +578,14 @@ TechnicallyReal alongside the sibling WinUI apps (Repilot, Little Launcher,
 ImmichDrive). Everything here follows what those three already do; where this one
 differs, it says why.
 
+**It is live**, first published 2026-08-19 with 0.4.0. So the manual first
+submission described below is history, and `store-publish.yml` is the route from
+here: the msstore CLI can update a product that already exists, which is the one
+thing it could not do before. That workflow works for this app precisely because
+Persistent is **free**: the CLI cannot submit a paid app, which is why the
+sibling paid apps still release by hand (Repilot's own `store-publish.yml` says so
+in its header and is disabled for it).
+
 **Identity is not a detail.** `Package.appxmanifest` carries the real Partner
 Center values, and the Store rejects a package that differs from them by a
 character:
@@ -730,9 +738,11 @@ because the csproj imports it unconditionally — a checkout without it does not
 compile, which is deliberate: guarding the import with `Exists()` would move the
 failure to a confusing "the namespace 'Promo' does not exist".
 
-Once Persistent is live, add `9PCX2XGQ7CJS` to the submodule's `ids.json`, run
-`refresh.ps1`, and bump the submodule pointer in all four apps so the other three
-promote it too.
+**Outstanding:** Persistent went live on 2026-08-19, so it should now be promoted
+by its siblings. Add `9PCX2XGQ7CJS` to the submodule's `ids.json`, run
+`refresh.ps1` (Windows only: it fetches the name, blurb and icon from the Store),
+and bump the submodule pointer in all four apps. Until that is done, Persistent is
+the only one of the four whose "Our other apps" page does not list it.
 
 ## `EnableMsixTooling` is required for the unpackaged build too
 
