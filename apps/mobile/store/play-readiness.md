@@ -341,6 +341,13 @@ incomplete App content declarations (privacy policy, data safety, content rating
 audience) and the countries the release would go to. `--promote` now prints this
 checklist itself rather than passing Play's bare message through.
 
+Tried again on 2026-08-21 with versionCode 47, immediately after v0.23.0 reached
+`internal`/`alpha`, and refused identically: same bare precondition, same dropped
+edit, both tester tracks still serving 47 afterwards. So the gate is not something
+a newer build clears, which is what a second attempt three days later was worth
+finding out. `.claude/commands/release.md` now says so up front, because that is
+the file read while cutting a release and this one is not.
+
 That promotion runs through `.github/workflows/play-promote.yml`
 (`workflow_dispatch`, never on a tag), which calls `play-publish.mjs --promote`.
 It uploads nothing, because the build is already on Play and a second upload of a
