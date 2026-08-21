@@ -41,6 +41,14 @@ export const EXCLUDE =
  * Markdown never ships behaviour either, and a `*.test.ts` change is by definition
  * not user-visible. v0.22.0 went out with "Explain Play's bare precondition failed
  * on a track write" and three more like it at the top of the testers' what's-new.
+ *
+ * A **package manifest or lockfile on its own** is the same rule again. It is inside
+ * a shipping path but is build metadata, not code the app runs: scripts, versions and
+ * dependency ranges. A change that only touches one cannot alter behaviour a user can
+ * notice, and if a dependency bump genuinely did, the commit would touch source too
+ * and survive on that. v0.23.0 is the case that earned this: "Stop npm run validate
+ * needing a DATABASE_URL" reached Play's what's-new because it edited a script in
+ * `apps/api/package.json`, and its subject matches no keyword above.
  */
 export const PATHS = [
   'apps/web',
@@ -50,7 +58,9 @@ export const PATHS = [
   ':(exclude)apps/mobile/scripts',
   ':(exclude)apps/mobile/store',
   ':(exclude)*.test.ts',
-  ':(exclude)*.md'
+  ':(exclude)*.md',
+  ':(exclude)*package.json',
+  ':(exclude)*package-lock.json'
 ]
 
 export const FALLBACK = '- Maintenance and behind-the-scenes improvements'

@@ -84,6 +84,24 @@ describe('subjectsIn', () => {
       `apps/mobile/scripts changes must not appear, got: ${subjects.join(' | ')}`
     )
   })
+
+  // v0.23.0 shipped "Stop npm run validate needing a DATABASE_URL" to Play's
+  // what's-new: it edited a script in `apps/api/package.json`, which is inside a
+  // shipping path, and its subject matches no excluded keyword. A manifest or
+  // lockfile on its own is build metadata, not code the app runs.
+  it('excludes a commit that only touches a package manifest', () => {
+    const subjects = subjectsIn('desktop-v0.4.0..v0.23.0', repoRoot)
+    assert.ok(subjects.length > 0, 'the range should have commits')
+    assert.ok(
+      !subjects.some((s: string) => s.includes('DATABASE_URL')),
+      `a package.json-only change must not appear, got: ${subjects.join(' | ')}`
+    )
+    // ...while the real user-facing change in the same range survives.
+    assert.ok(
+      subjects.some((s: string) => s.includes('carry its own tones')),
+      `the feature commit must survive, got: ${subjects.join(' | ')}`
+    )
+  })
 })
 
 describe('the CLI', () => {
