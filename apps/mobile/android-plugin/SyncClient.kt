@@ -69,12 +69,22 @@ object SyncClient {
         return true
     }
 
-    /** Turn a server DeviceAlarm into an AlarmSpec, filling the device-local sound URI. */
+    /**
+     * Turn a server DeviceAlarm into an AlarmSpec, filling in the tone.
+     *
+     * The reminder's own tone wins where it has one — the server sends it as
+     * `sound`/`nagSound`, each `{uri, title}` — and this device's setting applies
+     * otherwise. The title travels with an override because it may have been picked
+     * on another phone; SoundResolver is what turns the pair into something playable
+     * here. A device tone needs no title: it came from this device's own picker.
+     */
     private fun parseAlarm(context: Context, json: JSONObject?): AlarmSpec? {
         if (json == null) return null
         val occurrenceId = json.optString("occurrenceId").ifEmpty { return null }
         if (!json.has("fireAtMs")) return null
         val soundKind = json.optString("soundKind", "notification")
+        val sound = json.optJSONObject("sound")
+        val nagSound = json.optJSONObject("nagSound")
         return AlarmSpec(
             occurrenceId = occurrenceId,
             fireAtMs = json.optLong("fireAtMs"),
@@ -83,9 +93,13 @@ object SyncClient {
             soundIntervalSeconds = json.optInt("soundIntervalSeconds", 0),
             alarm = json.optBoolean("alarm", false),
             ongoing = json.optBoolean("ongoing", true),
-            soundUri = AlarmStore.soundUri(context, soundKind),
-            // Only the soft-notification path re-sounds; an alarm rings continuously.
-            nagSoundUri = if (soundKind == "alarm") "" else AlarmStore.soundUri(context, "nag"),
+            soundUri = sound?.optString("uri") ?: AlarmStore.soundUri(context, soundKind),
+            soundTitle = sound?.optString("title") ?: "",
+            // Only the soft-notification path re-sounds; an alarm rings continuously,
+            // which is why the server never sends a nag tone for one.
+            nagSoundUri = nagSound?.optString("uri")
+                ?: if (soundKind == "alarm") "" else AlarmStore.soundUri(context, "nag"),
+            nagSoundTitle = nagSound?.optString("title") ?: "",
             reminderId = json.optString("reminderId", ""),
             canSilence = json.optBoolean("canSilence", false),
             shadeProminence = json.optString("shadeProminence", "INHERIT")

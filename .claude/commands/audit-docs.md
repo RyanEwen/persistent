@@ -17,7 +17,8 @@ Requirements:
 Audit scope:
 - `README.md`
 - Root `CLAUDE.md` and the nested guides (`apps/api/CLAUDE.md`, `apps/web/CLAUDE.md`, `apps/mobile/CLAUDE.md`, `apps/desktop/CLAUDE.md`, `packages/shared/CLAUDE.md`)
-- `docs/auth-architecture.md`, `docs/data-event-contract.md`, `docs/alarm-architecture.md`
+- `docs/auth-architecture.md`, `docs/data-event-contract.md`, `docs/alarm-architecture.md`,
+  `docs/notification-behavior.md`, `docs/desktop-architecture.md`, `docs/development.md`
 - `.claude/commands/`
 - Shared contract guidance implied by `packages/shared`, `apps/api`, and `apps/web`
 - `apps/mobile/README.md` when the native client or alarm plugin changed

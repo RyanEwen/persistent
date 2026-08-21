@@ -65,6 +65,30 @@ class SnoozePickerActivity : Activity() {
         renderMain()
     }
 
+    /**
+     * Re-target the picker at whichever occurrence the new intent names.
+     *
+     * This activity is `singleInstance`, so a second Snooze while it is still alive
+     * reuses this instance — and without this override it would keep the occurrence it
+     * read in `onCreate` and snooze **the wrong reminder**, leaving the one the user
+     * actually picked ringing. That went from impossible to routine when AlarmActivity
+     * stopped finishing itself on the way here (it now has a queue to go back to), and
+     * the shade's per-occurrence Snooze actions all target this one activity too.
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val id = intent.getStringExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID)
+        if (id == null) {
+            finish()
+            return
+        }
+        occurrenceId = id
+        // Start over at the presets: a half-entered custom duration belonged to the
+        // previous reminder, and carrying it across would attach it to this one.
+        renderMain()
+    }
+
     /** The preset list plus entry points to the custom + until-a-time flows. */
     private fun renderMain() {
         showingCustom = false

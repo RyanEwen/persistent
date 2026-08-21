@@ -42,6 +42,11 @@
         android:value="Reminder alarms that must fire and keep sounding until the user confirms completion." />
 </service>
 
+<!-- configChanges: handle them in place rather than being destroyed and recreated.
+     The surface holds a queue position and a two-tap confirm state, and a rotate,
+     unfold, font-size change or dark-mode switch would throw both away and drop the
+     user back to whichever alarm the launching intent named. Its layout is built in
+     code from dp values, so it re-measures for the new configuration on its own. -->
 <activity
     android:name="ca.persistent.app.alarm.AlarmActivity"
     android:exported="false"
@@ -49,6 +54,7 @@
     android:turnScreenOn="true"
     android:excludeFromRecents="true"
     android:launchMode="singleInstance"
+    android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode|density|fontScale"
     android:theme="@android:style/Theme.Material.NoActionBar" />
 
 <activity

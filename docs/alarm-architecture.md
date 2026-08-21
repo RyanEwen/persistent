@@ -31,8 +31,10 @@ So we split responsibilities:
   escalation is pending, an escalation alarm (`apps/api/src/lib/device-alarms.ts`),
   so the occurrence→alarm transform lives in exactly one place. The JS bridge
   (`apps/web/src/native/`, bundled into the web app and started after sign-in by
-  `useAuth`) arms those on-device exact alarms, filling only the device-local sound
-  URI, so reminders fire **even offline** and even if the server is unreachable.
+  `useAuth`) arms those on-device exact alarms, filling in the tone: the reminder's
+  own where it has one (the server sends it as `sound`/`nagSound`), this device's
+  setting otherwise. Reminders fire **even offline** and even if the server is
+  unreachable.
 - **The device keeps its own schedule fresh, autonomously.** Refreshes come from
   three places: **live on every WS event** (`reminder.changed` / `occurrence.*`) and
   on app resume (foreground); reboots re-schedule via `BOOT_COMPLETED`; and — the
@@ -100,10 +102,12 @@ drives them lives in `apps/web/src/native`.
     visible to identify or stop it. The alarm notification's body tap opens that same control
     surface (not the app), and `Back` on it is inert — only Done/Snooze leave.
     Because that surface is a separate window from the shade notification, the
-    service finishes it (a `ca.persistent.app.ALARM_ACTIVITY_DISMISS` broadcast the
-    activity listens for) whenever the occurrence is silenced, acked, snoozed, or
-    cleared from *another* surface — the shade action or another device — so it
-    can't linger on screen as a stale second alert after the alarm is handled.
+    service sends a `ca.persistent.app.ALARM_ACTIVITY_DISMISS` broadcast whenever an
+    occurrence is silenced, acked, snoozed or cleared from *any* surface (this one's
+    own buttons, the shade action, another device, the car), so a handled alarm can't
+    linger on screen as a stale second alert. That broadcast drops the occurrence from
+    the surface's queue rather than closing the surface outright; see "The full-screen
+    surface is a queue, not a screen" below.
   - Swiping a notification away **re-posts all active ones** (delete-intent) so
     they can't be casually dismissed (even when several are swiped together); only
     Done/Snooze clear them.
@@ -118,13 +122,71 @@ drives them lives in `apps/web/src/native`.
     app's in-memory state — Android can drop a notification without telling the app,
     and trusting memory would skip the re-post forever. It runs on every resync and,
     critically, on the background `SyncWorker` cadence (~15 min) and offline, since it
-    reads the local store. Because re-asserting is silent, `scheduleAll` no longer
+    reads the local store. **It skips anything currently ringing as an escalation**
+    (`active[id]?.alarm != true`): an escalation fires as a separate `::esc` alarm but
+    upgrades the *base* occurrence in place, and `AlarmReceiver` consumes only the
+    `::esc` store entry — so the base entry left behind still says `alarm = false` and
+    is stale about exactly what this pass asks. Re-posting from it demoted a **ringing**
+    alarm to a soft nag: out of `alarmIds`/`ringingSpecs` (closing the full-screen
+    surface, and `screenReceiver` would not raise it again) and off the alarm channel,
+    while `MediaPlayer` kept looping, since a silent re-assert returns before the sound
+    block. A resync papers over it once the server flips the occurrence to `ESCALATED`,
+    but **offline that correction never comes** — and offline is what the on-device
+    escalation exists for, with this pass still running on the ~15-minute worker
+    cadence. The live state decides, not the store. Because re-asserting is silent, `scheduleAll` no longer
     re-fires a past-due soft occurrence (which would re-sound on every resync) — only
     a past-due **alarm/escalation** still re-fires, because those must ring, not
     appear quietly. (Genuine on-time fires still sound: they ring from the alarm
     armed ahead of their scheduled time.)
   - Each occurrence gets its **own notification id**, so multiple due reminders
     show at once (the foreground service rebinds to a remaining one as they clear).
+  - **The full-screen surface is a queue, not a screen.** Occurrences are independent
+    (`notification-behavior.md` §4), so several can ring at once, and `AlarmActivity`
+    pages through all of them: swipe between them, a `REMINDER 2 OF 3` kicker plus a
+    dot row says which of how many, and dealing with one advances to the next instead
+    of leaving the rest with no surface. It was a single-occurrence screen launched
+    with `FLAG_ACTIVITY_CLEAR_TASK`, which meant a second alarm **destroyed** the
+    first's surface, and the unconditional `finish()` after Done or Snooze left any
+    remaining alarm ringing with nothing on screen — findable only by hunting for its
+    notification. Three things make the queue work:
+    - Both launch sites (the service's direct `presentAlarmSurface` and the
+      notification's full-screen `PendingIntent`) dropped `CLEAR_TASK`, so a
+      `singleInstance` activity that is already up receives `onNewIntent` instead of
+      being torn down and rebuilt. **The `onNewIntent` override is load-bearing**:
+      without it that intent lands on an activity that ignores it, and the surface
+      would sit there showing the previous alarm while the new one rang unseen.
+    - The queue is read from `AlarmService.ringingAlarms()`, a process-global snapshot
+      of the ringing specs kept in step wherever `alarmIds` is written. `alarmIds`
+      alone can't answer it — a page needs a title, a body and whether De-escalate
+      applies. Order is **oldest-ringing-first and never reshuffles**, deliberately
+      unlike the shade and the in-app lists where newest sits on top (§4a): those are
+      scanned, this is worked through, and a queue that reorders under the user's
+      thumb loses their place.
+    - `ACTION_DISMISS` now **drops that occurrence's page** rather than finishing the
+      activity; only an empty queue finishes it. That single change is what makes
+      "deal with one, get the next" work for every route at once — this surface's own
+      buttons, the shade action, another device, the car.
+    A new alarm **always** pages itself into view, including mid-confirm. That is
+    safe because `confirming` is per-occurrence and the arriving page renders
+    un-armed, so a tap already on its way lands on that page's *Done*, which only
+    arms — it can never become an acknowledgement of either reminder. Refusing to
+    move was tried and is worse: `willPresentAlarmSurface` suppresses both the
+    heads-up banner *and* the full-screen intent whenever this surface is expected to
+    show the alarm, so an alarm the surface then declined to show would ring with
+    almost nothing on screen to identify it. Leaving a page does disarm its confirm.
+    Two exceptions to the paging:
+    - A **screen-on / unlock re-present** carries `EXTRA_KEEP_PAGE`. It has to name an
+      alarm in order to launch at all, but waking the screen is not a request for that
+      reminder — without the flag, letting the screen time out while reading page 3
+      would silently return the user to page 1.
+    - The **intent fallback is cold-start only**. When the service knows of nothing
+      ringing (the notification outlived the process that posted it, so a fresh
+      process has an empty `ringingSpecs`) `onCreate` builds a one-item queue from the
+      launching intent's extras, so tapping a restored alarm's body doesn't open a
+      surface that instantly finishes. Reaching for it on a *refresh* is a trap worth
+      naming: the launching intent always names an occurrence, so the queue could
+      never empty and the surface could never close — De-escalate would leave a page
+      offering De-escalate again, with Back inert and no way out but Home.
   - **Tapping a soft nag's body opens the app on that reminder's detail view.**
     The content intent **must be a direct `PendingIntent.getActivity` targeting
     `MainActivity`** — never a broadcast to `AlarmReceiver` that then calls
@@ -159,6 +221,12 @@ drives them lives in `apps/web/src/native`.
     custom number + unit, or "until" a specific date + time (converted to minutes
     from now, capped at `MAX_SNOOZE_MINUTES`); the chosen minutes are re-armed
     locally and queued to the server (`PendingSnoozeStore`).
+    The picker is `singleInstance`, so a second Snooze while it is up reuses the same
+    instance: `onNewIntent` re-targets it at the occurrence the new intent names and
+    starts over at the presets. Without it the picker keeps whatever it read in
+    `onCreate` and snoozes **the wrong reminder**, leaving the one the user picked
+    ringing. That went from impossible to routine when `AlarmActivity` stopped
+    finishing itself on the way here (it now has a queue to go back to).
   - **Silence** (escalation alarms only) stops the loud alarm but keeps the
     reminder nagging: it downgrades the on-device alarm to a soft, ongoing
     notification, queues a silence for the server (`PendingSilenceStore`), and the
@@ -171,6 +239,38 @@ drives them lives in `apps/web/src/native`.
   picker; the chosen URIs are stored in settings and passed through as the
   alarm/notification tone (system default otherwise). The service plays audio
   itself (silent channel) so each tone is honored.
+- **A single reminder can override all three** (`Reminder.sounds`, shared
+  `reminderSoundsSchema`: `{ notification, nag, alarm }`, each `{ uri, title }` or
+  null for "use this device's"). Unlike the device tones this is a *reminder* field,
+  so it syncs — and that is the whole difficulty, because **a tone URI does not
+  travel**. `content://media/…` ids are assigned per device and a file picked on one
+  phone is absent on another, so a synced URI is a first guess, not an answer. The
+  title it was picked under travels with it for exactly that reason.
+  `SoundResolver.resolve` is the four-step chain every playback goes through, each
+  step likelier to work than the last: the **URI** if this device can open it (asked
+  by opening it, since a URI can be well-formed and still refused), a tone with the
+  same **title** in the device's own banks (which is what carries a stock tone like
+  "Argon" between phones), the **device's own** tone for that kind, then the **system
+  default**. The rule it exists to serve: *an alarm must never fail to a silence.*
+  Losing a chosen tone is cosmetic; losing the sound is the guarantee failing
+  quietly. Every fallback logs under `PersistAlarm`, and `startContinuousAlarm` /
+  `playNotificationSound` retry the system default if `MediaPlayer` still refuses —
+  before this an unreadable URI threw inside `setDataSource`, was swallowed by a bare
+  `catch`, and the alarm rang with no sound and no trace at all.
+  The override reaches the device on all three paths: the JS bridge and `SyncClient`
+  read `sound`/`nagSound` off the server's `DeviceAlarm`, and `FcmService` reads the
+  four flat `soundUri`/`soundTitle`/`nagSoundUri`/`nagSoundTitle` strings off the push
+  payload. That last one is not optional the way `shadeProminence` is: a fire/escalate
+  push only acts when the device has **no** local alarm for the occurrence, so it is
+  the device's only chance to learn the tone. A **Silence** is the exception that needs
+  no payload — an escalation upgrades the base occurrence in place, so the armed base
+  alarm is that firing's pre-escalation form, tones included, and
+  `AlarmService.silenceOccurrence` reads the soft tones back out of `AlarmStore`. That
+  is also the only thing that could work for the two silences that involve no push at
+  all (the shade action and the car reply).
+  Web and desktop store and display the choice but cannot honour it — neither has any
+  say over what its OS plays — so the editor's copy says "Android only", as
+  `shadeProminence` does.
 - **Three tones, because a fire and a nag are different events** (see the
   vocabulary in [`notification-behavior.md`](notification-behavior.md)): the
   *notification* tone plays when an occurrence first fires, the *nag* tone on each
@@ -181,6 +281,15 @@ drives them lives in `apps/web/src/native`.
   before. An `ALARM` carries no nag tone at all — it loops one continuous tone, so
   there is no separate follow-up to re-tone. Every path that builds a spec fills
   both: the JS bridge, `SyncClient` (background worker) and `FcmService` (push).
+- **With several alarms ringing, the tone follows the newest** (`AlarmService.ringTone`).
+  Only one tone can sound at a time, and *which* one stopped being academic once a
+  tone became a per-reminder choice. The newest is the event that just happened — the
+  same reason a nag re-stamps its post time to rise back up the shade — and on a clear
+  the sound falls back to the newest of what remains. Compared by *tone*, not by
+  occurrence, so two alarms sharing one don't restart the loop and put an audible gap
+  in a ring that is meant to be relentless. Before this a second alarm simply rode the
+  first's tone, and clearing the first left the survivor ringing the *cleared* alarm's
+  tone, because `continuousAlarm` was already true and so nothing re-started it.
 - Stops **only** on **Done**, a deliberate **two-tap confirm** on every surface
   (notification, full-screen `AlarmActivity`, and the in-app card): the first tap
   swaps the controls to *Confirm done* / *Not yet* (the alarm keeps ringing) so an
@@ -525,7 +634,8 @@ absent from the `play` flavor).
   reminder create/update/delete — and on a checklist tick, which rewrites a live
   notification's body (skipping Web Push, which would surface a blank
   "site updated" notification; open web clients already converge over `/ws`).
-  The test is whether a device would show something different: collapsing a
+  The test is whether a device would show or play something different (an armed
+  alarm carries the reminder's own tones as well as its text): collapsing a
   checklist's ticked items (`hide-checked`) is a reminder write that sends no
   nudge, because the body is built from the unticked items either way.
 
@@ -535,9 +645,11 @@ On native, FCM is handled by `FcmService` (Kotlin) — it subclasses
 the **self-contained data payload even when the WebView/bridge is dead**: `dismiss`
 clears the nag, `fire`/`escalate` show it, `silence` downgrades it; it then calls
 `super()` so the JS bridge still receives the message when alive (token hand-off in
-`nativeSync.ts` `initFcm`, plus a resync). A pushed `fire` plays the user's chosen
-tone (mirrored into native storage via `AlarmStore.setSyncConfig`; prominence falls
-back to the device default), but the on-device scheduled alarm remains the
+`nativeSync.ts` `initFcm`, plus a resync). A pushed `fire` plays the reminder's own
+tone when the payload carries one (`soundUri`/`soundTitle`, resolved through
+`SoundResolver`), and the device's chosen tone otherwise (mirrored into native
+storage via `AlarmStore.setSyncConfig`); prominence falls back to the device
+default either way. The on-device scheduled alarm remains the
 full-fidelity primary path — and precisely because of that, a `fire`/
 `escalate` push is **suppressed when the occurrence is already handled locally**
 (`FcmService.handledLocally`: showing in the service, still armed in `AlarmStore`

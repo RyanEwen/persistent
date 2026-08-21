@@ -17,10 +17,17 @@ data class AlarmSpec(
     val ongoing: Boolean,
     // Chosen sound URI for the FIRST fire ("" = system default for the type).
     val soundUri: String,
+    // The title soundUri was picked under, or "" when it was picked on THIS device.
+    // A reminder's own tone may have been chosen on another phone, where
+    // content://media ids mean something else or nothing at all, so the title is how
+    // SoundResolver finds the tone by name before falling back. See SoundResolver.
+    val soundTitle: String = "",
     // Tone for the follow-up nags — each re-sound while still unconfirmed.
     // "" = reuse soundUri, so an unset nag tone behaves exactly as before.
     // Only used when soundIntervalSeconds > 0; an alarm loops one continuous tone.
     val nagSoundUri: String = "",
+    // The title nagSoundUri was picked under; see soundTitle.
+    val nagSoundTitle: String = "",
     // Parent reminder id, so tapping the notification can open its editor.
     val reminderId: String = "",
     // true = an escalation alarm the user may silence back to a soft nag; false for
@@ -39,7 +46,9 @@ data class AlarmSpec(
         .put("alarm", alarm)
         .put("ongoing", ongoing)
         .put("soundUri", soundUri)
+        .put("soundTitle", soundTitle)
         .put("nagSoundUri", nagSoundUri)
+        .put("nagSoundTitle", nagSoundTitle)
         .put("reminderId", reminderId)
         .put("canSilence", canSilence)
         .put("shadeProminence", shadeProminence)
@@ -57,7 +66,9 @@ data class AlarmSpec(
                 alarm = call.getBoolean("alarm") ?: false,
                 ongoing = call.getBoolean("ongoing") ?: true,
                 soundUri = call.getString("soundUri") ?: "",
+                soundTitle = call.getString("soundTitle") ?: "",
                 nagSoundUri = call.getString("nagSoundUri") ?: "",
+                nagSoundTitle = call.getString("nagSoundTitle") ?: "",
                 reminderId = call.getString("reminderId") ?: "",
                 canSilence = call.getBoolean("canSilence") ?: false,
                 shadeProminence = call.getString("shadeProminence") ?: "INHERIT"
@@ -77,7 +88,9 @@ data class AlarmSpec(
                 alarm = json.optBoolean("alarm", false),
                 ongoing = json.optBoolean("ongoing", true),
                 soundUri = json.optString("soundUri", ""),
+                soundTitle = json.optString("soundTitle", ""),
                 nagSoundUri = json.optString("nagSoundUri", ""),
+                nagSoundTitle = json.optString("nagSoundTitle", ""),
                 reminderId = json.optString("reminderId", ""),
                 canSilence = json.optBoolean("canSilence", false),
                 shadeProminence = json.optString("shadeProminence", "INHERIT")

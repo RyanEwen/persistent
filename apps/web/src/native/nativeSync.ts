@@ -59,12 +59,21 @@ function defaultShadeMinimized(): boolean {
 }
 
 /**
- * Fill a server-computed DeviceAlarm with the one field it can't know — the
- * device-local sound URI — chosen by the alarm/notification tone kind. All the
+ * Fill a server-computed DeviceAlarm with the tone to play. All the
  * occurrence->alarm logic (fire time, escalation sub-alarm, silenceable, etc.)
  * is done once server-side (see apps/api/src/lib/device-alarms.ts).
+ *
+ * The reminder's own tone wins where it has one, and it travels with its title
+ * because it may have been picked on a different device — native resolves the pair
+ * and falls back rather than trusting the URI. Where the reminder says nothing, this
+ * device's own setting applies, with no title: the URI came from this device's
+ * picker, so it is authoritative here.
  */
 function toScheduledAlarm(alarm: DeviceAlarm): ScheduledAlarm {
+  const deviceUri = chosenSoundUri(alarm.soundKind === 'alarm' ? 'alarmSound' : 'notificationSound')
+  // Only the soft-notification path re-sounds, so an alarm carries no nag tone —
+  // it loops one continuous tone until confirmed.
+  const deviceNagUri = alarm.soundKind === 'alarm' ? '' : chosenSoundUri('nagSound')
   return {
     occurrenceId: alarm.occurrenceId,
     fireAtMs: alarm.fireAtMs,
@@ -73,10 +82,10 @@ function toScheduledAlarm(alarm: DeviceAlarm): ScheduledAlarm {
     soundIntervalSeconds: alarm.soundIntervalSeconds,
     alarm: alarm.alarm,
     ongoing: alarm.ongoing,
-    soundUri: chosenSoundUri(alarm.soundKind === 'alarm' ? 'alarmSound' : 'notificationSound'),
-    // Only the soft-notification path re-sounds, so an alarm carries no nag tone —
-    // it loops one continuous tone until confirmed.
-    nagSoundUri: alarm.soundKind === 'alarm' ? '' : chosenSoundUri('nagSound'),
+    soundUri: alarm.sound?.uri ?? deviceUri,
+    soundTitle: alarm.sound?.title ?? '',
+    nagSoundUri: alarm.nagSound?.uri ?? deviceNagUri,
+    nagSoundTitle: alarm.nagSound?.title ?? '',
     reminderId: alarm.reminderId,
     canSilence: alarm.canSilence,
     shadeProminence: alarm.shadeProminence
@@ -86,11 +95,17 @@ function toScheduledAlarm(alarm: DeviceAlarm): ScheduledAlarm {
 /**
  * Mirror the little the native background sync worker needs but can't read from
  * the WebView: the API origin (for the authenticated fetch) and the chosen sound
- * URIs (which live in this WebView's localStorage). The worker fills each
- * server-emitted alarm's tone from these. Also flushes the WebView cookie jar so
- * the worker can present the session cookie while the app is closed.
+ * URIs (which live in this WebView's localStorage). The worker fills the tone of
+ * each server-emitted alarm the *reminder* doesn't name one for. Also flushes the
+ * WebView cookie jar so the worker can present the session cookie while the app is
+ * closed.
+ *
+ * Exported so Settings can push a newly-picked device tone straight away. Without
+ * that the change only reached native on the next resync (a WS event, resume, or the
+ * ~15-minute worker), so a tone chosen and immediately tested rang as the old one.
  */
-async function mirrorSyncConfig(): Promise<void> {
+export async function mirrorSyncConfig(): Promise<void> {
+  if (!isNative()) return
   await AlarmPlugin.setSyncConfig({
     apiBaseUrl: window.location.origin,
     alarmSoundUri: chosenSoundUri('alarmSound'),

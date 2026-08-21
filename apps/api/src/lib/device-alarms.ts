@@ -6,12 +6,17 @@
  *
  * Mirrors what the device needs: a main fire alarm plus, when escalation is
  * configured and still pending, a second escalation alarm at the computed instant.
- * The device-local sound URI is intentionally omitted — the server emits
- * `soundKind` and each consumer fills the tone from local settings.
+ *
+ * Sound is split. The *device's* tones are per-device settings the server has never
+ * seen, so it emits `soundKind` and the consumer fills the URI locally. The
+ * *reminder's* own tones are reminder fields, so they are sent (`sound`/`nagSound`)
+ * — still as a choice to resolve rather than a URI to trust, since it was picked on
+ * whichever device the user set it from.
  */
 import type { Reminder } from '@prisma/client'
 import { type DeviceAlarm, ESC_SUFFIX } from '@persistent/shared'
 import { notificationBody } from './notification-format.js'
+import { firingSounds } from './reminder-sounds.js'
 import { toCheckedItemIds } from './serializers.js'
 
 interface OccurrenceForAlarm {
@@ -85,7 +90,8 @@ export function buildDeviceAlarms(occurrence: OccurrenceForAlarm, escalateAt: Da
     canSilence: reminder.persistence !== 'ALARM' && ringing,
     soundKind: alarm ? 'alarm' : 'notification',
     reminderId: occurrence.reminderId,
-    shadeProminence: reminder.shadeProminence
+    shadeProminence: reminder.shadeProminence,
+    ...firingSounds(reminder.sounds, alarm)
   }
   const alarms: DeviceAlarm[] = [main]
 
@@ -103,6 +109,11 @@ export function buildDeviceAlarms(occurrence: OccurrenceForAlarm, escalateAt: Da
       alarm: true,
       soundIntervalSeconds: 0,
       soundKind: 'alarm',
+      // Re-asked rather than inherited through the spread: the main alarm above is
+      // the *soft* form of this firing (nothing already ringing gets an escalation),
+      // so it carries the reminder's notification tone and its nag tone. An
+      // escalation rings, so it takes the alarm tone and no nag tone at all.
+      ...firingSounds(reminder.sounds, true),
       body: main.body ? `${main.body} (escalated)` : 'Escalated',
       // The escalation alarm is always silenceable (escalation never applies to an
       // ALARM-persistence reminder), so the user can quiet it and keep nagging.

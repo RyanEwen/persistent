@@ -254,6 +254,38 @@ The one exception is an **escalation**, which outranks recency: it is ringing an
 alarm right now. It is also the only firing that gets a loud card
 (`firingTone.ts`), so urgency is graded the same way in both places.
 
+### 4b. Several alarms ringing at once are a queue you can move through
+
+Independent occurrences mean several can be **ringing** at the same time — an
+unconfirmed 09:00 dose when the 13:00 one escalates, or two reminders simply set to
+the same minute. The Android full-screen surface shows all of them:
+
+- **It says how many.** The header reads `REMINDER 2 OF 3`, with a dot per alarm
+  beneath. A single alarm looks exactly as it always did — one dot is not
+  information.
+- **You can swipe between them**, each page carrying its own reminder and its own
+  Done / Snooze / De-escalate. Nothing is shared between pages: acting on one
+  affects that occurrence only, exactly as §4 requires.
+- **Dealing with one brings you to the next.** Done, Snooze or De-escalate removes
+  that page and lands on its neighbour; the surface closes only when nothing is left
+  ringing. Confirming on another device, or from the shade, does the same thing —
+  the page goes, the queue stays.
+- **Ordered oldest-first, and it does not reshuffle.** This is a deliberate contrast
+  with §4a: a *list* puts the newest on top because it is being scanned, while this
+  is being worked through, and a queue that reorders under the user's thumb loses
+  their place. A newly-ringing alarm joins the end and pages into view — it is the
+  thing that just happened, and it must never ring unseen. It cannot cause an
+  accidental Done: an arriving page always shows an un-armed *Done*, so a tap already
+  on its way arms that page rather than confirming anything (§1). Waking the screen
+  is not such an event and leaves the page alone.
+- **Only one tone sounds**, and it is the newest ringing alarm's; when that one is
+  cleared the sound falls back to the newest of what remains.
+
+The guarantee is unchanged by any of it: each firing is still `FIRED` until its own
+explicit Done, and being on a page the user has not swiped to yet excuses nothing.
+The Windows tray app has no alarm surface at all (§5a), and the web is best-effort;
+this is the Android client's, where the hard alarm lives.
+
 ## 5. Android Auto — the same actions, by voice, in the car
 
 While the phone is projecting to Android Auto, the native notification is mirrored

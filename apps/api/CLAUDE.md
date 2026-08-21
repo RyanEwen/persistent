@@ -35,7 +35,8 @@
   alarm's body stale. Every surface that renders a notification — the fire/escalate
   payloads, the silence downgrade, `buildDeviceAlarms`, the escalation email — must
   pass the occurrence's `checkedItems`, never the reminder alone. The nudge is for
-  writes that change what a device would *show*: `POST
+  writes that change what a device would *show or play* (a reminder's own tones ride
+  the armed alarm too, so changing one makes it stale exactly as a rename does): `POST
   /api/reminders/:id/hide-checked` is a reminder write that deliberately skips it
   (and push), because collapsing ticked items is presentation only — the body is
   built from the unticked items either way, so no armed alarm goes stale. WS alone

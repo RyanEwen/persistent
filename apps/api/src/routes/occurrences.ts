@@ -287,6 +287,12 @@ async function silenceEverywhere(
   occurrence: ReminderOccurrence & { reminder: Parameters<typeof notificationTitle>[0] & Parameters<typeof notificationBody>[0] }
 ): Promise<void> {
   broadcast(userId, { type: 'silence', occurrenceId: occurrence.id })
+  // No tones here, deliberately. What the alarm drops back to is a soft nag, which
+  // should re-sound in the reminder's soft tone — but the device already has that:
+  // an escalation upgrades the base occurrence in place, so the armed base alarm is
+  // this firing's pre-escalation form, tones included. `AlarmService.silenceOccurrence`
+  // reads it from there, which is also the only thing that can work for the two
+  // silences that involve no push at all (the shade action and the car reply).
   await dispatchToUser(userId, {
     type: 'silence',
     occurrenceId: occurrence.id,

@@ -7,6 +7,7 @@ import {
   reminderInputSchema,
   reminderSchema,
   selectableReminderTypes,
+  toReminderSounds,
   todoItems,
   todoProgress,
   withTodoItem,
@@ -32,6 +33,37 @@ test('shadeProminence accepts NORMAL and MINIMIZED', () => {
 
 test('shadeProminence rejects unknown values', () => {
   assert.equal(reminderInputSchema.safeParse({ ...base, shadeProminence: 'LOUD' }).success, false)
+})
+
+// --- Per-reminder sounds -----------------------------------------------------
+
+test('a reminder overrides no sounds when none are given', () => {
+  assert.deepEqual(reminderInputSchema.parse(base).sounds, { notification: null, nag: null, alarm: null })
+})
+
+test('each of the three sounds can be overridden on its own', () => {
+  const parsed = reminderInputSchema.parse({
+    ...base,
+    sounds: { alarm: { uri: 'content://media/external/audio/media/7', title: 'Argon' } }
+  })
+  assert.deepEqual(parsed.sounds.alarm, { uri: 'content://media/external/audio/media/7', title: 'Argon' })
+  assert.equal(parsed.sounds.notification, null)
+  assert.equal(parsed.sounds.nag, null)
+})
+
+test('a sound needs both a uri and the title it was picked under', () => {
+  // The title is the cross-device fallback, so a choice without one is not a choice.
+  assert.equal(reminderInputSchema.safeParse({ ...base, sounds: { alarm: { uri: 'content://x' } } }).success, false)
+})
+
+test('toReminderSounds reads an unparseable column as overriding nothing', () => {
+  // Never as silence: the device falls back to its own tone, so a junk column
+  // costs the user their chosen tone and never the reminder itself.
+  const empty = { notification: null, nag: null, alarm: null }
+  assert.deepEqual(toReminderSounds({}), empty)
+  assert.deepEqual(toReminderSounds(null), empty)
+  assert.deepEqual(toReminderSounds('nonsense'), empty)
+  assert.deepEqual(toReminderSounds({ alarm: 'content://x' }), empty)
 })
 
 // --- Unscheduled ("no date or time") reminders -------------------------------

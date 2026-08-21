@@ -4,6 +4,7 @@
  */
 import type { Reminder as ReminderRow, ReminderOccurrence, User, Passkey } from '@prisma/client'
 import type { Occurrence, Reminder, SessionUser, Schedule, TypeData, PasskeyInfo } from '@persistent/shared'
+import { toReminderSounds } from '@persistent/shared'
 
 export function toPasskey(row: Passkey): PasskeyInfo {
   return {
@@ -40,6 +41,9 @@ export function toReminder(
     schedule: row.schedule as unknown as Schedule,
     persistence: row.persistence,
     soundIntervalSeconds: row.soundIntervalSeconds,
+    // Loose JSON column, and every row written before the field existed holds `{}` —
+    // narrow it rather than trusting it, so a bad shape reads as "overrides nothing".
+    sounds: toReminderSounds(row.sounds),
     shadeProminence: row.shadeProminence,
     escalateAfterMinutes: row.escalateAfterMinutes,
     escalateAtTime: row.escalateAtTime,

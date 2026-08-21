@@ -247,9 +247,11 @@ anything that is not a `TODO`. It exists as stored state for one reason: so a
 list left collapsed on one device is still collapsed on the next.
 
 It is the one **display** preference that is server-synced. The rest (time
-format, theme, chosen sounds, the default shade prominence) are deliberately
-per-device in the web client's localStorage — they describe a device, whereas
-this describes one *list*.
+format, theme, this device's own chosen sounds, the default shade prominence) are
+deliberately per-device in the web client's localStorage — they describe a device,
+whereas this describes one *list*. A *reminder's* own tones (`Reminder.sounds`) are
+the counterpart to its own `shadeProminence`: part of the definition rather than a
+preference, so they sync with it.
 
 Whole state (`{ hidden }`) rather than a toggle, unlike a tick: there is a single
 flag, so a stale replay can only restore a view the user themselves chose, while

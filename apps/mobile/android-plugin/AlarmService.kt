@@ -60,6 +60,9 @@ class AlarmService : Service() {
     private val loops = HashMap<String, Runnable>()
     private var player: MediaPlayer? = null
     private var continuousAlarm = false
+    // Which tone the looping alarm is currently playing (uri to title), so a second
+    // alarm ringing the same tone doesn't restart it. See ringTone.
+    private var soundingTone: Pair<String, String>? = null
     private var vibrator: Vibrator? = null
     private val handler = Handler(Looper.getMainLooper())
     // The occurrence whose notification the foreground service is bound to.
@@ -85,10 +88,17 @@ class AlarmService : Service() {
      */
     private val screenReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
+            // The front of the queue — only what the surface *opens* on, since it pages
+            // through the rest (see AlarmActivity).
             val ringing = active.values.firstOrNull { it.alarm && alarmIds.contains(it.occurrenceId) } ?: return
             // force: the screen may still register as non-interactive here, and the
             // whole point is that this must not be gated.
-            presentAlarmSurface(ringing, force = true)
+            //
+            // keepPage: waking the screen is not a request for a particular reminder.
+            // Without it, a surface already up would page back to the front of the
+            // queue on every screen-on and unlock — so reading page 3 and letting the
+            // screen time out would silently return the user to page 1.
+            presentAlarmSurface(ringing, force = true, keepPage = true)
         }
     }
 
@@ -129,7 +139,9 @@ class AlarmService : Service() {
                         alarm = intent.getBooleanExtra("alarm", false),
                         ongoing = intent.getBooleanExtra("ongoing", true),
                         soundUri = intent.getStringExtra("soundUri") ?: "",
+                        soundTitle = intent.getStringExtra("soundTitle") ?: "",
                         nagSoundUri = intent.getStringExtra("nagSoundUri") ?: "",
+                        nagSoundTitle = intent.getStringExtra("nagSoundTitle") ?: "",
                         reminderId = intent.getStringExtra("reminderId") ?: "",
                         canSilence = intent.getBooleanExtra("canSilence", false),
                         shadeProminence = intent.getStringExtra("shadeProminence") ?: "INHERIT"
@@ -259,7 +271,32 @@ class AlarmService : Service() {
             for (id in active.keys) active[id]?.let { postedText[notifId(id)] = Pair(it.title, it.body) }
         }
         val due = AlarmStore.all(this).filter {
-            !it.alarm && it.fireAtMs <= now && !it.occurrenceId.endsWith(AlarmReceiver.ESC_SUFFIX)
+            !it.alarm && it.fireAtMs <= now && !it.occurrenceId.endsWith(AlarmReceiver.ESC_SUFFIX) &&
+                // ...and NOT something that is ringing as an escalation right now.
+                //
+                // An escalation fires as a separate `::esc` alarm but upgrades the BASE
+                // occurrence in place, and `AlarmReceiver` consumes only the `::esc`
+                // store entry. The base entry left behind still says `alarm = false`: it
+                // is this firing's *pre-escalation* form, and from the moment the
+                // escalation rings it is stale about the one thing this filter asks.
+                //
+                // Re-posting from it demotes a ringing alarm to a soft nag — it drops out
+                // of `alarmIds`/`ringingSpecs`, so the full-screen surface closes and
+                // `screenReceiver` will not raise it again, and its notification loses the
+                // alarm channel — while `MediaPlayer` keeps looping, because a silent
+                // re-assert returns before the sound block. An alarm ringing with no
+                // surface and a soft notification is the one outcome this service must
+                // never produce.
+                //
+                // A resync normally papers over it (the server flips the occurrence to
+                // ESCALATED and then sends `alarm = true`), but offline that correction
+                // never arrives — and offline is exactly what the on-device escalation
+                // exists for, with this pass still running on the ~15-minute worker
+                // cadence. So the live state decides, not the store.
+                //
+                // In a fresh process `active` is empty, which is the correct answer
+                // there: nothing is ringing in it, and no sound is playing either.
+                active[it.occurrenceId]?.alarm != true
         }
         for (spec in due) {
             val shown = postedText[notifId(spec.occurrenceId)]
@@ -356,6 +393,10 @@ class AlarmService : Service() {
         if (!silent) alertedAt[spec.occurrenceId] = System.currentTimeMillis()
         activeIds.add(spec.occurrenceId)
         if (spec.alarm) alarmIds.add(spec.occurrenceId) else alarmIds.remove(spec.occurrenceId)
+        // Keep the surface's view of what is ringing in step. Re-put rather than
+        // put-if-absent so a re-fire refreshes the text, and remove on the non-alarm
+        // branch so a downgraded firing leaves the queue.
+        if (spec.alarm) ringingSpecs[spec.occurrenceId] = spec else ringingSpecs.remove(spec.occurrenceId)
         // An escalation upgrades the base occurrence in place and arrives carrying
         // canSilence, so the live spec — not the pre-escalation one still in AlarmStore —
         // is the only place that knows this ring can be quieted back to a nag.
@@ -391,7 +432,7 @@ class AlarmService : Service() {
         }
         AlarmStore.markSoundedNow(this, spec.occurrenceId, now)
         if (spec.alarm) {
-            if (!continuousAlarm) startContinuousAlarm(spec.soundUri)
+            ringTone(spec)
             // If the shade notification can't be shown (POST_NOTIFICATIONS denied),
             // the full-screen surface is the ONLY thing that identifies the ringing
             // alarm and lets the user stop it — so force it up regardless of lock /
@@ -399,7 +440,7 @@ class AlarmService : Service() {
             // sound play with no visible, stoppable surface.
             presentAlarmSurface(spec, force = !notificationsVisible())
         } else {
-            playNotificationSound(spec.soundUri)
+            playNotificationSound(spec.soundUri, spec.soundTitle)
             loops.remove(spec.occurrenceId)?.let { handler.removeCallbacks(it) }
             if (spec.soundIntervalSeconds > 0) startReNotifyLoop(spec)
         }
@@ -452,7 +493,7 @@ class AlarmService : Service() {
     private fun canLaunchAlarmActivity(): Boolean =
         Build.VERSION.SDK_INT < 35 || Settings.canDrawOverlays(this)
 
-    private fun presentAlarmSurface(spec: AlarmSpec, force: Boolean = false) {
+    private fun presentAlarmSurface(spec: AlarmSpec, force: Boolean = false, keepPage: Boolean = false) {
         if (!force) {
             val power = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
             val keyguard = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
@@ -473,7 +514,13 @@ class AlarmService : Service() {
                     .putExtra("title", spec.title)
                     .putExtra("body", spec.body)
                     .putExtra("canSilence", spec.canSilence)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                    .putExtra(AlarmActivity.EXTRA_KEEP_PAGE, keepPage)
+                    // NEW_TASK without CLEAR_TASK: AlarmActivity is singleInstance, so
+                    // this reaches a surface that is already up via onNewIntent instead
+                    // of tearing its task down and rebuilding it. That is what lets a
+                    // second alarm join the queue on screen rather than replace the one
+                    // the user is in the middle of dealing with.
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             )
         } catch (error: Exception) {
             // The launch can still be denied (OEM policies, an OS version we didn't
@@ -536,16 +583,38 @@ class AlarmService : Service() {
     private fun silenceOccurrence(occurrenceId: String) {
         val spec = active[occurrenceId] ?: return
         if (!spec.alarm) return
-        val downgraded = spec.copy(alarm = false, canSilence = false)
+        // What it drops back to is a soft nag, so it should re-sound in the reminder's
+        // soft tone rather than keep ringing the alarm one on every repeat. The armed
+        // base spec still holds it: an escalation is a separate `::esc` alarm that
+        // upgrades the base occurrence *in place*, so the base entry in AlarmStore is
+        // this firing in its pre-escalation form. Read from there rather than from the
+        // push, because the shade action and the car reply silence with no push at all.
+        val soft = AlarmStore.find(this, occurrenceId)
+        val downgraded = spec.copy(
+            alarm = false,
+            canSilence = false,
+            soundUri = soft?.soundUri ?: spec.soundUri,
+            soundTitle = soft?.soundTitle ?: spec.soundTitle,
+            nagSoundUri = soft?.nagSoundUri ?: spec.nagSoundUri,
+            nagSoundTitle = soft?.nagSoundTitle ?: spec.nagSoundTitle
+        )
         active[occurrenceId] = downgraded
         alarmIds.remove(occurrenceId)
         silenceableIds.remove(occurrenceId)
+        ringingSpecs.remove(occurrenceId)
         val notif = buildNotification(downgraded)
         if (foregroundId == occurrenceId) startForeground(notifId(occurrenceId), notif)
         else nm.notify(notifId(occurrenceId), notif)
         loops.remove(occurrenceId)?.let { handler.removeCallbacks(it) }
         if (downgraded.soundIntervalSeconds > 0) startReNotifyLoop(downgraded)
-        if (active.values.none { it.alarm } && continuousAlarm) stopSound()
+        // Hand the ring to the newest alarm still going, exactly as `clear` does. This
+        // was missed when that one was fixed, and the hole is the same shape: silencing
+        // the alarm whose tone is playing left every survivor ringing the *silenced*
+        // reminder's tone for good, because `continuousAlarm` was still true and
+        // nothing re-picked. `soundingTone` stayed stale with it, so a later alarm on
+        // that tone would ride the wrong loop rather than start its own.
+        val nextAlarm = active.values.lastOrNull { it.alarm }
+        if (nextAlarm != null) ringTone(nextAlarm) else if (continuousAlarm) stopSound()
         // The alarm is no longer ringing for this occurrence; tear down its
         // full-screen surface so only the (downgraded) shade nag remains.
         dismissAlarmSurface(occurrenceId)
@@ -733,8 +802,13 @@ class AlarmService : Service() {
         return if (minimized) CHANNEL_MINIMIZED else CHANNEL_NORMAL
     }
 
-    private fun resolveUri(uriStr: String, defaultType: Int): android.net.Uri =
-        if (uriStr.isNotEmpty()) android.net.Uri.parse(uriStr) else RingtoneManager.getDefaultUri(defaultType)
+    /**
+     * The tone to actually play. A reminder's own tone may have been picked on another
+     * device, so this is a resolution rather than a parse — see SoundResolver, which
+     * owns the fallback chain and the rule that it must never end in silence.
+     */
+    private fun resolveUri(uriStr: String, title: String, kind: String, defaultType: Int): android.net.Uri =
+        SoundResolver.resolve(this, uriStr, title, kind, defaultType)
 
     /**
      * Keep the group summary in step with the live non-minimized notifications. The
@@ -816,7 +890,10 @@ class AlarmService : Service() {
                 .putExtra("title", spec.title)
                 .putExtra("body", spec.body)
                 .putExtra("canSilence", spec.canSilence)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+                // As with the direct launch above: no CLEAR_TASK, so tapping this
+                // alarm's notification while the surface is already up pages to it
+                // rather than rebuilding the surface around it alone.
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         // First "Done" tap -> ask for confirmation (doesn't ack); see AlarmReceiver.
@@ -1010,25 +1087,47 @@ class AlarmService : Service() {
         )
     }
 
+    /**
+     * Ring this alarm's tone, unless it is already the tone playing.
+     *
+     * Only one tone can sound at a time, and with several alarms ringing at once the
+     * question of *which* stopped being academic when a tone became a per-reminder
+     * choice. The rule: the tone follows the **newest** ringing alarm, because that is
+     * the event that just happened — the same reason a nag re-stamps its post time to
+     * rise back up the shade. On a clear it falls back to the newest of what remains.
+     *
+     * Compared by tone rather than by occurrence, so two alarms sharing a tone (the
+     * common case — neither overrides anything) don't restart the loop and put an
+     * audible gap in a ring that is supposed to be relentless.
+     */
+    private fun ringTone(spec: AlarmSpec) {
+        val tone = spec.soundUri to spec.soundTitle
+        if (continuousAlarm && soundingTone == tone) return
+        startContinuousAlarm(spec.soundUri, spec.soundTitle)
+        soundingTone = tone
+    }
+
     /** Alarm: ring the chosen alarm tone continuously (looping) + vibrate until cleared. */
-    private fun startContinuousAlarm(soundUri: String) {
+    private fun startContinuousAlarm(soundUri: String, soundTitle: String = "") {
         stopSound()
-        try {
-            player = MediaPlayer().apply {
-                setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ALARM)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build()
-                )
-                setDataSource(this@AlarmService, resolveUri(soundUri, RingtoneManager.TYPE_ALARM))
-                isLooping = true
-                prepare()
-                start()
+        val chosen = resolveUri(soundUri, soundTitle, "alarm", RingtoneManager.TYPE_ALARM)
+        // Try the chosen tone, then the system default. An alarm that rings silently is
+        // the persistence guarantee failing with no symptom, so a playback failure has
+        // to be retried rather than swallowed: SoundResolver only promises the URI can
+        // be opened, and MediaPlayer can still reject what it finds there (an unplayable
+        // codec, a zero-length file, a provider that opens and then errors).
+        if (!playLooping(chosen)) {
+            val fallback = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+            android.util.Log.w("PersistAlarm", "alarm tone $chosen would not play; falling back to the system default")
+            if (fallback != chosen && playLooping(fallback)) {
+                continuousAlarm = true
+            } else {
+                // Out of options — say so, because from here the only alert is the
+                // vibration below and the full-screen surface.
+                android.util.Log.e("PersistAlarm", "no alarm tone would play; ringing on vibration + screen only")
             }
+        } else {
             continuousAlarm = true
-        } catch (_: Exception) {
-            // ignore playback failures; the visual alarm still stands
         }
         val vib = object : Runnable {
             override fun run() {
@@ -1040,27 +1139,63 @@ class AlarmService : Service() {
         handler.post(vib)
     }
 
+    /** Start the looping alarm tone. Returns false if it would not play. */
+    private fun playLooping(uri: android.net.Uri): Boolean = try {
+        player = MediaPlayer().apply {
+            setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
+            setDataSource(this@AlarmService, uri)
+            isLooping = true
+            prepare()
+            start()
+        }
+        true
+    } catch (e: Exception) {
+        android.util.Log.w("PersistAlarm", "looping alarm tone failed to play: $uri", e)
+        player?.release()
+        player = null
+        false
+    }
+
     /** Notification: play the chosen notification tone once (unless an alarm is ringing). */
-    private fun playNotificationSound(soundUri: String) {
+    private fun playNotificationSound(soundUri: String, soundTitle: String = "", kind: String = "notification") {
         if (continuousAlarm) return // don't interrupt a ringing alarm
-        try {
-            player?.release()
-            player = MediaPlayer().apply {
-                setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_NOTIFICATION)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build()
-                )
-                setDataSource(this@AlarmService, resolveUri(soundUri, RingtoneManager.TYPE_NOTIFICATION))
-                isLooping = false
-                prepare()
-                start()
+        val chosen = resolveUri(soundUri, soundTitle, kind, RingtoneManager.TYPE_NOTIFICATION)
+        if (!playOnce(chosen)) {
+            val fallback = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            if (fallback != chosen) {
+                android.util.Log.w("PersistAlarm", "notification tone $chosen would not play; falling back to the system default")
+                playOnce(fallback)
             }
-        } catch (_: Exception) {
-            // ignore playback failures; the visual notification still stands
         }
         vibrate()
+    }
+
+    /** Play a tone once. Returns false if it would not play. */
+    private fun playOnce(uri: android.net.Uri): Boolean = try {
+        player?.release()
+        player = MediaPlayer().apply {
+            setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
+            setDataSource(this@AlarmService, uri)
+            isLooping = false
+            prepare()
+            start()
+        }
+        true
+    } catch (e: Exception) {
+        android.util.Log.w("PersistAlarm", "notification tone failed to play: $uri", e)
+        player?.release()
+        player = null
+        false
     }
 
     /**
@@ -1088,7 +1223,11 @@ class AlarmService : Service() {
                 // place in the car when Android Auto is already running (see mirrorsToCar).
                 alertedAt[current.occurrenceId] = now
                 nm.notify(notifId(current.occurrenceId), buildNotification(current, renotify = true))
-                playNotificationSound(current.nagSoundUri.ifEmpty { current.soundUri })
+                if (current.nagSoundUri.isNotEmpty()) {
+                    playNotificationSound(current.nagSoundUri, current.nagSoundTitle, "nag")
+                } else {
+                    playNotificationSound(current.soundUri, current.soundTitle)
+                }
                 handler.postDelayed(this, intervalMs)
             }
         }
@@ -1111,6 +1250,7 @@ class AlarmService : Service() {
         player?.release()
         player = null
         continuousAlarm = false
+        soundingTone = null
     }
 
     private fun clear(occurrenceId: String) {
@@ -1121,6 +1261,7 @@ class AlarmService : Service() {
         activeIds.remove(occurrenceId)
         alarmIds.remove(occurrenceId)
         silenceableIds.remove(occurrenceId)
+        ringingSpecs.remove(occurrenceId)
         loops.remove(occurrenceId)?.let { handler.removeCallbacks(it) }
         nm.cancel(notifId(occurrenceId))
         // Done/Snooze/dismiss for this occurrence — close its full-screen surface too.
@@ -1147,9 +1288,16 @@ class AlarmService : Service() {
         }
         // Keep a ringing alarm going if any alarm occurrence remains; otherwise
         // stop the continuous sound (per-occurrence notification loops continue).
-        val nextAlarm = active.values.firstOrNull { it.alarm }
+        //
+        // `lastOrNull`, not `firstOrNull`: the tone follows the NEWEST ringing alarm
+        // (see ringTone), so clearing one hands the sound to the newest of what is
+        // left rather than the oldest. Before this it handed it to nobody — the
+        // `continuousAlarm` flag was still true, so the survivor kept ringing in the
+        // cleared alarm's tone, which per-reminder tones turn from invisible into
+        // plainly wrong.
+        val nextAlarm = active.values.lastOrNull { it.alarm }
         if (nextAlarm != null) {
-            if (!continuousAlarm) startContinuousAlarm(nextAlarm.soundUri)
+            ringTone(nextAlarm)
         } else if (continuousAlarm) {
             stopSound()
         }
@@ -1166,6 +1314,7 @@ class AlarmService : Service() {
         activeIds.clear()
         alarmIds.clear()
         silenceableIds.clear()
+        ringingSpecs.clear()
         foregroundId = null
         nm.cancel(GROUP_SUMMARY_ID)
         dismissAlarmSurface(null)
@@ -1303,6 +1452,26 @@ class AlarmService : Service() {
         // a resync can re-arm future alarms without re-firing ones already on screen.
         val activeIds: MutableSet<String> = java.util.Collections.synchronizedSet(LinkedHashSet())
         val alarmIds: MutableSet<String> = java.util.Collections.synchronizedSet(LinkedHashSet())
+
+        /**
+         * The ringing alarms themselves, not just their ids, in the order they started
+         * ringing — what AlarmActivity pages through.
+         *
+         * `alarmIds` alone can't answer it: the surface has to draw a title, a body and
+         * whether De-escalate applies, and it is a separate process-visible object from
+         * the service instance, which may not even be alive when the surface is rebuilt.
+         * Process-global for the same reason the id sets are.
+         *
+         * Insertion order is deliberate and is the queue's order: oldest ringing first.
+         * That differs from the shade and the in-app lists, where newest sits on top
+         * (notification-behavior.md §4a) — those are scanned, this is worked through,
+         * and a queue that reshuffles under the user's thumb loses their place.
+         */
+        private val ringingSpecs: MutableMap<String, AlarmSpec> =
+            java.util.Collections.synchronizedMap(LinkedHashMap())
+
+        /** Snapshot of the ringing alarms, oldest first. */
+        fun ringingAlarms(): List<AlarmSpec> = synchronized(ringingSpecs) { ringingSpecs.values.toList() }
 
         /**
          * Of the ringing ones, which can be de-escalated back to a soft nag — mirroring

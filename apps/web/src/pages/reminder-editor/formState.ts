@@ -13,12 +13,13 @@ import type {
   PersistenceLevel,
   Reminder,
   ReminderInput,
+  ReminderSounds,
   ReminderType,
   Schedule,
   ScheduleKind,
   ShadeProminence
 } from '@persistent/shared'
-import { isTimeless, selectableReminderTypes, todoItems } from '@persistent/shared'
+import { isTimeless, noReminderSounds, selectableReminderTypes, todoItems } from '@persistent/shared'
 import { immediateSchedule, localCalendarDate, localTimeOfDay } from '../../lib/immediate-schedule.js'
 import { newTodoItemId } from '../../lib/todoItemId.js'
 import type { SchedulePreviewInput } from '../../lib/schedule-preview.js'
@@ -72,6 +73,8 @@ export interface FormState {
   skipWeekends: boolean
   persistence: PersistenceLevel
   soundIntervalMinutes: number
+  /** This reminder's own tones; each null leaves that one to the device's setting. */
+  sounds: ReminderSounds
   shadeProminence: ShadeProminence
   escalate: boolean
   escalateMode: 'after' | 'at'
@@ -126,6 +129,7 @@ export function emptyForm(): FormState {
     skipWeekends: false,
     persistence: 'PERSISTENT',
     soundIntervalMinutes: 0, // 0 = sound once (no re-sound)
+    sounds: noReminderSounds(),
     shadeProminence: 'INHERIT',
     escalate: false,
     escalateMode: 'after',
@@ -242,6 +246,7 @@ export function toInput(form: FormState): ReminderInput {
     // minutes; 0 = sound once.
     soundIntervalSeconds:
       form.persistence === 'PERSISTENT' && form.soundIntervalMinutes > 0 ? form.soundIntervalMinutes * 60 : null,
+    sounds: form.sounds,
     shadeProminence: form.shadeProminence,
     // ALARM already rings continuously, so escalation doesn't apply there.
     escalateAfterMinutes: escalating && form.escalateMode === 'after' ? Number(form.escalateAfterMinutes) || 15 : null,
@@ -303,6 +308,7 @@ export function fromReminder(reminder: Reminder): FormState {
     persistence: reminder.persistence,
     soundIntervalMinutes:
       reminder.soundIntervalSeconds != null ? Math.max(1, Math.round(reminder.soundIntervalSeconds / 60)) : 0,
+    sounds: reminder.sounds,
     shadeProminence: reminder.shadeProminence,
     escalate: reminder.escalateAfterMinutes != null || reminder.escalateAtTime != null,
     escalateMode: reminder.escalateAtTime != null ? 'at' : 'after',

@@ -61,8 +61,9 @@ you *actually mark it done*. It's built for the things you can't afford to miss.
   (including the last day of every month) — or never at all, for something you
   want to keep but never be reminded about. Multi-line notes that stay multi-line
   wherever you read them; custom snooze and re-nag intervals, separate tones for a
-  reminder firing and for its follow-up nags, per-reminder notification-shade
-  prominence (Android), and a history of what you've done.
+  reminder firing and for its follow-up nags (and any single reminder can use its
+  own tones instead of your device's), per-reminder notification-shade prominence
+  (Android), and a history of what you've done.
 - **Checklists.** A reminder can cover several things at once — a morning routine,
   a packing list. Tick items off as you go; each firing tracks its own ticks, so a
   repeating checklist starts fresh every time, and the notification lists only what

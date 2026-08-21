@@ -5,7 +5,7 @@
  * best-effort notifications there. See docs/alarm-architecture.md.
  */
 import { Capacitor, registerPlugin } from '@capacitor/core'
-import type { DeviceAgendaEntry } from '@persistent/shared'
+import type { DeviceAgendaEntry, SoundChoice } from '@persistent/shared'
 
 export interface ScheduledAlarm {
   /** Occurrence id — the alarm's stable key and what we ack against. */
@@ -23,12 +23,21 @@ export interface ScheduledAlarm {
   /** Chosen sound URI for the first fire; '' = system default for the type. */
   soundUri: string
   /**
+   * The title `soundUri` was picked under, so the device can find the tone by name
+   * when the URI means nothing to it — a reminder's own tone was picked on whichever
+   * device the user set it from, and `content://media/…` ids don't travel. Empty for
+   * a tone picked on this device, where the URI is authoritative.
+   */
+  soundTitle: string
+  /**
    * Tone for the follow-up nags (each re-sound while unconfirmed). '' = reuse
    * `soundUri`, i.e. the nag sounds the same as the fire. Only meaningful when
    * `soundIntervalSeconds > 0`; an ALARM loops one continuous tone and has no
    * separate follow-up to re-tone.
    */
   nagSoundUri: string
+  /** The title `nagSoundUri` was picked under; see `soundTitle`. */
+  nagSoundTitle: string
   /** Parent reminder id, so tapping the notification opens its editor. */
   reminderId: string
   /**
@@ -135,6 +144,25 @@ export interface AlarmPluginPlugin {
 }
 
 export const AlarmPlugin = registerPlugin<AlarmPluginPlugin>('AlarmPlugin')
+
+/**
+ * Open the system ringtone picker and return the tone, or null when the user
+ * cancelled or the picker isn't there (the web, an older native build).
+ *
+ * Normalized here so both callers — Settings picking a device tone and the editor
+ * picking a reminder's — agree on what a non-answer means: nothing changes. An
+ * empty uri is *not* one of those; it is the picker's own "Default" row, a real
+ * choice meaning "the system tone for this kind".
+ */
+export async function pickSound(type: 'alarm' | 'notification', currentUri: string): Promise<SoundChoice | null> {
+  try {
+    const result = await AlarmPlugin.pickSound({ type, current: currentUri })
+    if (result.cancelled) return null
+    return { uri: result.uri ?? '', title: result.title || 'Default' }
+  } catch {
+    return null
+  }
+}
 
 /** State emitted by the native Update plugin while downloading/installing an APK. */
 export interface UpdateState {

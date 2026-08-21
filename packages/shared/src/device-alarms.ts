@@ -5,12 +5,15 @@
  * once, server-side, so the JS bridge and the native background sync worker arm
  * identical alarms from a single source — no occurrence->alarm logic duplicated.
  *
- * The one field the server can't know is the concrete sound URI (the user's chosen
- * tone lives in per-device settings), so it emits `soundKind` and the consumer
- * fills the URI from local settings.
+ * Sound is the one thing split between the two. The *device's* tones live in
+ * per-device settings and the server has never seen them, so it emits `soundKind`
+ * and the consumer fills the URI locally. A *reminder's* own tone is a reminder
+ * field, so the server does send it (`sound` / `nagSound`) — and the consumer still
+ * has work to do, because the URI was picked on some other device and may not
+ * resolve here. Either way the consumer resolves; the server only says what it knows.
  */
 import { z } from 'zod'
-import { shadeProminenceSchema } from './reminders.js'
+import { shadeProminenceSchema, soundChoiceSchema } from './reminders.js'
 
 /**
  * The escalation alarm is a second device alarm keyed off the occurrence id with
@@ -34,8 +37,19 @@ export const deviceAlarmSchema = z.object({
   ongoing: z.boolean(),
   /** An escalation the user may silence back to a soft nag (never for inherent ALARM reminders). */
   canSilence: z.boolean(),
-  /** Which per-device tone to play: the alarm tone or the notification tone. */
+  /** Which per-device tone to fall back to: the alarm tone or the notification tone. */
   soundKind: z.enum(['alarm', 'notification']),
+  /**
+   * The reminder's own tone for this alarm's `soundKind`, or null when it overrides
+   * nothing and the device's tone applies. Picked on whichever device the user set
+   * it from, so the consumer resolves rather than trusting it (`soundChoiceSchema`).
+   */
+  sound: soundChoiceSchema.nullable(),
+  /**
+   * The reminder's own tone for the `soundIntervalSeconds` re-sound loop. Always null
+   * on an alarm, which loops one continuous tone and has no follow-up to re-tone.
+   */
+  nagSound: soundChoiceSchema.nullable(),
   /** Parent reminder id, so tapping the notification can open its editor. */
   reminderId: z.string(),
   /** Shade placement (visual only); ignored for alarms/escalations. */

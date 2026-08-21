@@ -31,8 +31,11 @@ not gate this on whether the change "feels user-visible". Drift is a bug. Review
   `packages/shared/CLAUDE.md` — conventions, model lists, helper inventories,
   and "do/don't" rules that the change affects.
 - `docs/` contracts — `auth-architecture.md`, `data-event-contract.md`,
-  `alarm-architecture.md` — whenever auth/sessions/passkeys, the HTTP/WS data
-  flow + offline sync, or the notification/alarm/escalation model changed.
+  `alarm-architecture.md`, `notification-behavior.md`, `desktop-architecture.md` —
+  whenever auth/sessions/passkeys, the HTTP/WS data flow + offline sync, the
+  notification/alarm/escalation *mechanism*, the user-facing done/silence/snooze
+  *guarantee*, or the Windows tray app changed. The guarantee and the tray app are
+  separate entries because a change can move one without touching the mechanism doc.
 - `.claude/commands/` (`commit.md`, `deploy.md`, `release.md`, `audit-docs.md`) —
   when a workflow, script, or expectation referenced by a command changed.
 - `.env.example` — when any env var / config key is added, renamed, or removed.

@@ -282,6 +282,34 @@ internal object AlarmUi {
         return row
     }
 
+    /**
+     * A row of dots saying how many alarms are ringing and which one is on screen.
+     *
+     * Paired with the kicker's "REMINDER 2 OF 3": the words are the precise answer and
+     * the dots are the glanceable one, which matters on a surface someone is reading
+     * half-awake. Returns an empty (zero-height) row for a single alarm — one dot is
+     * not information, and the common case should look exactly as it did before.
+     */
+    fun pageDots(context: Context, count: Int, selected: Int): LinearLayout =
+        LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            if (count < 2) return@apply
+            val size = dp(context, 7f)
+            val gap = dp(context, 6f)
+            repeat(count) { index ->
+                addView(View(context).apply {
+                    background = GradientDrawable().apply {
+                        shape = GradientDrawable.OVAL
+                        setColor(if (index == selected) KICKER else BORDER)
+                    }
+                    layoutParams = LinearLayout.LayoutParams(size, size).apply {
+                        if (index > 0) marginStart = gap
+                    }
+                })
+            }
+        }
+
     /** Layout params for a non-button child stacked with a top margin. */
     fun stacked(context: Context, topMarginDp: Float): LinearLayout.LayoutParams =
         LinearLayout.LayoutParams(

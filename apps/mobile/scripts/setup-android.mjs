@@ -427,8 +427,9 @@ if (existsSync(iconOverlay)) {
 // --- 4f. Android Auto (CarConnection projection detection) ------------------
 // CarProjection observes androidx.car.app's CarConnection to tell when the phone is
 // projecting to Android Auto, so buildNotification can mirror nags as MessagingStyle
-// (the only form Auto surfaces). 1.4.0 is compatible with the project's compileSdk 34
-// / AGP 8.2.1; its minSdk 23 is reconciled via tools:overrideLibrary in the manifest.
+// (the only form Auto surfaces). 1.4.0 is compatible with the compileSdk/AGP this
+// script pins above; its minSdk 23 is reconciled via tools:overrideLibrary in the
+// manifest. (It named compileSdk 34 / AGP 8.2.1 until those pins moved on without it.)
 {
   let g = readFileSync(appGradlePath, 'utf8')
   if (!g.includes('androidx.car.app:app')) {
@@ -439,6 +440,25 @@ if (existsSync(iconOverlay)) {
     )
     writeFileSync(appGradlePath, g)
     console.log('[setup-android] added androidx.car.app (Android Auto) dependency')
+  }
+}
+
+// --- 4g. ViewPager2 (the full-screen alarm's queue) -------------------------
+// Several occurrences can ring at once (they are independent — see
+// notification-behavior.md §4), so AlarmActivity pages through them rather than
+// showing one and losing the rest. ViewPager2 brings recyclerview transitively;
+// the pages are plain views from a RecyclerView.Adapter, so no fragment/AppCompat
+// dependency comes with it (AlarmActivity is a bare android.app.Activity).
+{
+  let g = readFileSync(appGradlePath, 'utf8')
+  if (!g.includes('androidx.viewpager2:viewpager2')) {
+    g = g.replace(
+      /dependencies\s*\{/,
+      `dependencies {
+    implementation "androidx.viewpager2:viewpager2:1.1.0"`
+    )
+    writeFileSync(appGradlePath, g)
+    console.log('[setup-android] added androidx.viewpager2 (alarm surface paging) dependency')
   }
 }
 

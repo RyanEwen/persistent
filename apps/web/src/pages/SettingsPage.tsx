@@ -10,7 +10,6 @@
 import { useEffect, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import Stack from '@mui/joy/Stack'
-import Box from '@mui/joy/Box'
 import Card from '@mui/joy/Card'
 import Typography from '@mui/joy/Typography'
 import Button from '@mui/joy/Button'
@@ -27,7 +26,9 @@ import { useSettings, type SoundChoice } from '../settings/useSettings.js'
 import { APP_THEMES } from '../settings/themes.js'
 import { formatDateTime } from '../lib/datetime.js'
 import { SectionHeading } from '../components/SectionHeading.js'
-import { AlarmPlugin, isNative } from '../native/alarmBridge.js'
+import { SoundPickerRow } from '../components/SoundPickerRow.js'
+import { AlarmPlugin, isNative, pickSound } from '../native/alarmBridge.js'
+import { mirrorSyncConfig } from '../native/nativeSync.js'
 import { hostSupportsPush } from '../native/desktopBridge.js'
 import { DesktopSettings } from '../native/desktop-settings/DesktopSettings.js'
 import { UpdateSettings } from '../native/UpdateSettings.js'
@@ -52,13 +53,12 @@ export function SettingsPage() {
   } = useSettings()
 
   async function chooseSound(type: 'alarm' | 'notification', current: SoundChoice, apply: (s: SoundChoice) => void) {
-    try {
-      const result = await AlarmPlugin.pickSound({ type, current: current.uri })
-      if (result.cancelled) return
-      apply({ uri: result.uri ?? '', title: result.title || 'Default' })
-    } catch {
-      /* picker unavailable */
-    }
+    const picked = await pickSound(type, current.uri)
+    if (!picked) return
+    apply(picked)
+    // Push it to native now rather than at the next resync, so a tone chosen and
+    // immediately tested is the one that rings.
+    void mirrorSyncConfig().catch(() => {})
   }
 
   function changeShadeProminence(value: 'NORMAL' | 'MINIMIZED') {
@@ -130,48 +130,29 @@ export function SettingsPage() {
         <Typography level="title-sm">Sounds</Typography>
         {isNative() ? (
           <Stack spacing={1.5}>
-            <FormControl orientation="horizontal" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-              <Box>
-                <FormLabel>Notification sound</FormLabel>
-                <Typography level="body-xs">{notificationSound.title}</Typography>
-              </Box>
-              <Button
-                size="sm"
-                variant="outlined"
-                onClick={() => chooseSound('notification', notificationSound, setNotificationSound)}
-              >
-                Choose
-              </Button>
-            </FormControl>
-            <FormControl orientation="horizontal" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-              <Box>
-                <FormLabel>Nag sound</FormLabel>
-                <Typography level="body-xs">
-                  {nagSound.uri ? nagSound.title : `Same as notification (${notificationSound.title})`}
-                </Typography>
-              </Box>
-              <Button
-                size="sm"
-                variant="outlined"
-                onClick={() => chooseSound('notification', nagSound, setNagSound)}
-              >
-                Choose
-              </Button>
-            </FormControl>
+            <SoundPickerRow
+              label="Notification sound"
+              value={notificationSound.title}
+              onChoose={() => void chooseSound('notification', notificationSound, setNotificationSound)}
+            />
+            <SoundPickerRow
+              label="Nag sound"
+              value={nagSound.uri ? nagSound.title : `Same as notification (${notificationSound.title})`}
+              onChoose={() => void chooseSound('notification', nagSound, setNagSound)}
+            />
             <Typography level="body-xs">
               The notification sound plays the first time a reminder notifies you; the nag sound plays on each repeat after
               that, for reminders with a nag interval set. Alarms ring one continuous tone, so this doesn't apply
               to them.
             </Typography>
-            <FormControl orientation="horizontal" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-              <Box>
-                <FormLabel>Alarm sound</FormLabel>
-                <Typography level="body-xs">{alarmSound.title}</Typography>
-              </Box>
-              <Button size="sm" variant="outlined" onClick={() => chooseSound('alarm', alarmSound, setAlarmSound)}>
-                Choose
-              </Button>
-            </FormControl>
+            <SoundPickerRow
+              label="Alarm sound"
+              value={alarmSound.title}
+              onChoose={() => void chooseSound('alarm', alarmSound, setAlarmSound)}
+            />
+            <Typography level="body-xs">
+              These are this device's tones. A single reminder can override them on its Notifications tab.
+            </Typography>
           </Stack>
         ) : (
           <Typography level="body-sm">Choosing sounds is available in the Android app.</Typography>

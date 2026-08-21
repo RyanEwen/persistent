@@ -99,7 +99,16 @@
   (`Reminder.hideCheckedItems`, `data/reminders.ts` `useSetHideCheckedItems`): it
   describes one *list*, and the whole point is that a list stays as you left it on
   your other device. Don't move a per-list view state into `useSettings`, and
-  don't put a device-shaped preference on the reminder. Themes are defined in
+  don't put a device-shaped preference on the reminder. **Sounds sit on both sides
+  of that line, and the two are not the same setting**: `useSettings` holds the
+  tones *this device* plays, while `Reminder.sounds` holds the tones *one reminder*
+  overrides them with (shared `reminderSoundsSchema`, `pages/reminder-editor/
+  ReminderSoundsField.tsx`). The reminder one is not a device preference wearing a
+  disguise — "this reminder sounds like this" is a property of the reminder and
+  belongs on every device — but it does mean a reminder can carry a tone URI that
+  this device cannot resolve, which is why the pair travels as `{ uri, title }` and
+  native resolves it (`docs/alarm-architecture.md`). Both are rendered by the one
+  `components/SoundPickerRow.tsx`. Themes are defined in
   `settings/themes.ts` and applied as a background pattern + accent CSS variables
   by `components/AppLayout.tsx`. Format dates/times via `lib/datetime.ts`, never
   `toLocaleString` directly.

@@ -63,6 +63,19 @@ export const pushPayloadSchema = z.object({
   body: z.string().optional(),
   alarm: z.boolean().optional(),
   soundIntervalSeconds: z.number().int().nullable().optional(),
-  scheduledFor: z.string().datetime().optional()
+  scheduledFor: z.string().datetime().optional(),
+  // The reminder's own tone for whichever kind this push is (`soundChoiceSchema`,
+  // flattened to two scalars because FCM data values are strings — an object would
+  // arrive as "[object Object]"). Omitted when the reminder overrides nothing, so
+  // the device uses its own tone exactly as before.
+  //
+  // Unlike `shadeProminence`, which the push path hard-codes to INHERIT because
+  // getting it wrong is only visual, this has to travel: a fire/escalate push only
+  // acts when the device has NO local alarm for the occurrence, which is precisely
+  // when it has no other way to learn the reminder's tone.
+  soundUri: z.string().optional(),
+  soundTitle: z.string().optional(),
+  nagSoundUri: z.string().optional(),
+  nagSoundTitle: z.string().optional()
 })
 export type PushPayload = z.infer<typeof pushPayloadSchema>

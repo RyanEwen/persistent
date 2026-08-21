@@ -60,6 +60,9 @@ npm run prepare:android   # build web -> cap add android -> wire plugin -> cap s
      declaring the notification mirror makes it a *messaging* app in Play's Auto review,
      which a reminder app fails; see `docs/alarm-architecture.md` (Android Auto) and
      `store/play-readiness.md` #1b,
+   - adds the `androidx.viewpager2` dependency, which the full-screen alarm surface
+     pages the ringing set with (several occurrences can ring at once; see
+     `docs/notification-behavior.md` §4b),
    - if `ANDROID_KEYSTORE_FILE` is set, copies the keystore in and injects a
      release `signingConfig` (passwords read from env at build time), plus
      `versionName`/`versionCode` from `ANDROID_VERSION_NAME`/`_CODE`.

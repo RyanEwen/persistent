@@ -25,6 +25,7 @@ import { notificationTitle, notificationBody, escalationEmailText } from './noti
 import { dispatchToUser } from './delivery/index.js'
 import { sendCloudflareEmail } from './cloudflare-email.js'
 import { escalateAtFor, shouldEscalateNow } from './escalation.js'
+import { firingSounds } from './reminder-sounds.js'
 import { toOccurrence, toCheckedItemIds } from './serializers.js'
 import { broadcast } from './realtime.js'
 
@@ -317,15 +318,22 @@ type OccurrenceForNotification = ReminderOccurrence & { reminder: Reminder }
 
 function buildPayload(type: PushPayload['type'], occurrence: OccurrenceForNotification, alarm: boolean): PushPayload {
   const { reminder } = occurrence
+  const rings = alarm || reminder.persistence === 'ALARM'
+  // A fire/escalate push only acts on a device with no local alarm for the
+  // occurrence, so it is the device's only chance to learn the reminder's tone.
+  // Flattened to scalars because FCM data values are strings.
+  const { sound, nagSound } = firingSounds(reminder.sounds, rings)
   return {
     type,
     occurrenceId: occurrence.id,
     reminderId: reminder.id,
     title: notificationTitle(reminder),
     body: notificationBody(reminder, toCheckedItemIds(occurrence.checkedItems)),
-    alarm: alarm || reminder.persistence === 'ALARM',
+    alarm: rings,
     soundIntervalSeconds: reminder.soundIntervalSeconds,
-    scheduledFor: occurrence.scheduledFor.toISOString()
+    scheduledFor: occurrence.scheduledFor.toISOString(),
+    ...(sound ? { soundUri: sound.uri, soundTitle: sound.title } : {}),
+    ...(nagSound ? { nagSoundUri: nagSound.uri, nagSoundTitle: nagSound.title } : {})
   }
 }
 

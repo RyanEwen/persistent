@@ -57,6 +57,67 @@ export const shadeProminenceLevels = ['INHERIT', 'NORMAL', 'MINIMIZED'] as const
 export const shadeProminenceSchema = z.enum(shadeProminenceLevels)
 export type ShadeProminence = (typeof shadeProminenceLevels)[number]
 
+/**
+ * A tone exactly as the user picked it on a device: the URI the system ringtone
+ * picker returned, plus the title it was picked under.
+ *
+ * **The title is not decoration.** A tone URI is device-local — `content://media/…`
+ * ids are assigned per device, and a file picked on one phone is simply absent on
+ * another — but a *reminder's* sound is a reminder field, so it syncs to every
+ * device the account touches. The title is what a second device matches on when
+ * the URI doesn't resolve, before falling back to that device's own tone and then
+ * to the system default. That chain is what keeps the guarantee: a reminder must
+ * never ring silently because it was picked somewhere else. See the resolution
+ * order in `docs/alarm-architecture.md`.
+ */
+export const soundChoiceSchema = z.object({
+  uri: z.string().trim().max(2048),
+  title: z.string().trim().max(200)
+})
+export type SoundChoice = z.infer<typeof soundChoiceSchema>
+
+/**
+ * The three tones a reminder can override, mirroring the three a device sets —
+ * because a fire, a nag and a ringing alarm are different events, not one event at
+ * three volumes (`docs/notification-behavior.md`).
+ */
+export const reminderSoundKinds = ['notification', 'nag', 'alarm'] as const
+export type ReminderSoundKind = (typeof reminderSoundKinds)[number]
+
+/**
+ * A reminder's own tones. Each is null when the reminder says nothing about that
+ * tone — the default, and what every reminder created before this existed carries:
+ * the device plays whatever the user chose in its own settings.
+ *
+ * Android only, like `shadeProminence`: the web/PWA and the Windows tray app have
+ * no say over what their OS plays, so they store and display the choice but cannot
+ * honour it.
+ */
+export const reminderSoundsSchema = z.object({
+  /** First fire of a soft nag. */
+  notification: soundChoiceSchema.nullable().default(null),
+  /** Each re-sound of the `soundIntervalSeconds` loop; null also falls back to `notification`. */
+  nag: soundChoiceSchema.nullable().default(null),
+  /** A ringing alarm — inherent `ALARM` persistence, or an escalation. */
+  alarm: soundChoiceSchema.nullable().default(null)
+})
+export type ReminderSounds = z.infer<typeof reminderSoundsSchema>
+
+/** A reminder that overrides nothing. Fresh object per call — callers mutate form state. */
+export function noReminderSounds(): ReminderSounds {
+  return { notification: null, nag: null, alarm: null }
+}
+
+/**
+ * Narrow the loose `sounds` JSON column to the shape the DTO promises. Anything
+ * unparseable reads as "overrides nothing", which is the safe answer: the device
+ * falls back to its own tone rather than to silence.
+ */
+export function toReminderSounds(value: unknown): ReminderSounds {
+  const parsed = reminderSoundsSchema.safeParse(value ?? {})
+  return parsed.success ? parsed.data : noReminderSounds()
+}
+
 export const occurrenceStatuses = [
   'PENDING',
   'FIRED',
@@ -347,6 +408,10 @@ export const reminderSchema = z.object({
   schedule: scheduleSchema,
   persistence: persistenceLevelSchema,
   soundIntervalSeconds: z.number().int().nullable(),
+  // This reminder's own tones (Android only). Each null = use the device's setting.
+  // Defaulted like the other late-added fields, so a reminder cached before the
+  // column existed still parses rather than taking the whole view down.
+  sounds: reminderSoundsSchema.default(noReminderSounds()),
   // Android shade prominence (visual only; INHERIT = use the device default).
   shadeProminence: shadeProminenceSchema,
   escalateAfterMinutes: z.number().int().nullable(),
@@ -404,6 +469,9 @@ export const reminderInputSchema = z
     persistence: persistenceLevelSchema.default('PERSISTENT'),
     // null = no repeating sound; otherwise seconds between sound repeats (up to ~1 year).
     soundIntervalSeconds: z.number().int().min(5).max(31_536_000).nullable().default(null),
+    // Per-reminder tone overrides; omitted entirely = override nothing, which is
+    // what every reminder written before this field existed means.
+    sounds: reminderSoundsSchema.default(noReminderSounds()),
     shadeProminence: shadeProminenceSchema.default('INHERIT'),
     // Minutes after firing before escalating to an alarm (up to ~1 year).
     escalateAfterMinutes: z.number().int().min(1).max(525_600).nullable().default(null),

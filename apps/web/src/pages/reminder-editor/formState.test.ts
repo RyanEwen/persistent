@@ -59,6 +59,7 @@ function reminder(schedule: Schedule, overrides: Partial<Reminder> = {}): Remind
     schedule,
     persistence: 'PERSISTENT',
     soundIntervalSeconds: null,
+    sounds: { notification: null, nag: null, alarm: null },
     shadeProminence: 'INHERIT',
     escalateAfterMinutes: null,
     escalateAtTime: null,

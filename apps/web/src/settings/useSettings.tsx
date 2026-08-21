@@ -4,15 +4,19 @@
  * not server-synced account settings.
  */
 import { createContext, useContext, useState, type ReactNode } from 'react'
+import type { SoundChoice } from '@persistent/shared'
 import { detectTimeFormat, type TimeFormat } from '../lib/datetime.js'
 import { APP_THEMES, DEFAULT_THEME_ID, type ThemeId } from './themes.js'
 
 const STORAGE_KEY = 'persistent-settings'
 
-export interface SoundChoice {
-  uri: string // '' = system default
-  title: string
-}
+/**
+ * A picked tone, `{ uri, title }` — the same shape a *reminder* stores, so it comes
+ * from the shared contract rather than being declared twice. Here `uri: ''` means
+ * the system default for the kind. Re-exported because this module is where the
+ * device's own tones live, and most callers reach for them together.
+ */
+export type { SoundChoice }
 
 /** Device default for where reminders sit in the Android shade (visual only). */
 export type ShadeDefault = 'NORMAL' | 'MINIMIZED'

@@ -497,6 +497,7 @@ function toReminderData(
     schedule: input.schedule as unknown as Prisma.InputJsonValue,
     persistence: input.persistence,
     soundIntervalSeconds: input.soundIntervalSeconds,
+    sounds: input.sounds as unknown as Prisma.InputJsonValue,
     shadeProminence: input.shadeProminence,
     escalateAfterMinutes: input.escalateAfterMinutes,
     escalateAtTime: input.escalateAtTime,

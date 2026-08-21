@@ -158,6 +158,14 @@ model Reminder {
   persistence          PersistenceLevel @default(PERSISTENT)
   /// null = no repeating sound; otherwise seconds between sound repeats.
   soundIntervalSeconds Int?
+  /// This reminder's own tones, overriding the device's: `{ notification, nag,
+  /// alarm }`, each `{ uri, title }` or null for "use this device's setting".
+  /// See shared reminderSoundsSchema. Android only.
+  ///
+  /// The URI is device-local and the title is how another device finds the tone
+  /// when that URI means nothing to it — the resolution chain is on the device
+  /// (docs/alarm-architecture.md), because only the device knows what it owns.
+  sounds               Json             @default("{}")
   /// Android shade prominence (visual only; INHERIT = use the device default).
   shadeProminence      ShadeProminence  @default(INHERIT)
   /// Escalation (always to an alarm): N minutes after firing, OR at a specific

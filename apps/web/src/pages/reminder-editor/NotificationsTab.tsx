@@ -1,7 +1,8 @@
 /**
  * Notifications tab: how hard the reminder nags (notification vs alarm), the
- * re-sound interval, and where it sits in the Android shade. All of it describes a
- * firing, so a note — which never has one — gets an explanation instead.
+ * re-sound interval, which tones it uses, and where it sits in the Android shade.
+ * All of it describes a firing, so a note — which never has one — gets an
+ * explanation instead.
  */
 import Stack from '@mui/joy/Stack'
 import Typography from '@mui/joy/Typography'
@@ -11,6 +12,7 @@ import Button from '@mui/joy/Button'
 import Alert from '@mui/joy/Alert'
 import { persistenceLevels, shadeProminenceLevels, type PersistenceLevel, type ShadeProminence } from '@persistent/shared'
 import { DurationField } from '../../components/DurationField.js'
+import { ReminderSoundsField } from './ReminderSoundsField.js'
 import type { FormState } from './formState.js'
 
 const PERSISTENCE_LABELS: Record<PersistenceLevel, string> = {
@@ -73,6 +75,8 @@ export function NotificationsTab({
           />
         </FormControl>
       )}
+
+      <ReminderSoundsField form={form} set={set} />
 
       <FormControl>
         <FormLabel>Shade prominence</FormLabel>

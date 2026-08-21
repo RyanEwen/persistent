@@ -11,6 +11,7 @@
 import { QueryClient, QueryCache, MutationCache } from '@tanstack/react-query'
 import {
   extractErrorMessage,
+  toReminderSounds,
   withTodoItem,
   withTodoItemText,
   withTodoOrder,
@@ -91,6 +92,9 @@ function optimisticReminder(input: ReminderInput, id = tempId()): Reminder {
     schedule: input.schedule,
     persistence: input.persistence ?? 'PERSISTENT',
     soundIntervalSeconds: input.soundIntervalSeconds ?? null,
+    // ReminderInput is the *input* side of the schema, so each tone is optional
+    // there; this is the parsed shape, so run it through the same coercion.
+    sounds: toReminderSounds(input.sounds),
     shadeProminence: input.shadeProminence ?? 'INHERIT',
     escalateAfterMinutes: input.escalateAfterMinutes ?? null,
     escalateAtTime: input.escalateAtTime ?? null,

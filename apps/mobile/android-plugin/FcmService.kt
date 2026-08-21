@@ -95,14 +95,27 @@ class FcmService : MessagingService() {
             soundIntervalSeconds = data["soundIntervalSeconds"]?.toIntOrNull() ?: 0,
             alarm = alarm,
             ongoing = true,
-            // The chosen tone is mirrored into native storage by the WebView on each
-            // foreground sync (AlarmStore.setSyncConfig, for the background worker) —
-            // use it here too, so a push-delivered ring (e.g. a just-created reminder
-            // firing before this device has synced it) plays the user's sound instead
-            // of the system default. "" (never mirrored) still means default.
-            soundUri = AlarmStore.soundUri(context, if (alarm) "alarm" else "notification"),
-            // An alarm loops one continuous tone, so it has no separate follow-up tone.
-            nagSoundUri = if (alarm) "" else AlarmStore.soundUri(context, "nag"),
+            // Two tones can apply here, in this order.
+            //
+            // The *reminder's* own tone rides the payload, because this path runs
+            // exactly when the device has no local alarm for the occurrence (see
+            // handledLocally) and so has no other way to know it. It carries its title
+            // too: it was picked on whichever device the user set it from, and
+            // SoundResolver needs both to find it here.
+            //
+            // Failing that, the *device's* tone, mirrored into native storage by the
+            // WebView on each foreground sync (AlarmStore.setSyncConfig, for the
+            // background worker) — so a push-delivered ring (e.g. a just-created
+            // reminder firing before this device has synced it) still plays the user's
+            // sound instead of the system default. "" (never mirrored) means default.
+            soundUri = data["soundUri"]
+                ?: AlarmStore.soundUri(context, if (alarm) "alarm" else "notification"),
+            soundTitle = data["soundTitle"] ?: "",
+            // An alarm loops one continuous tone, so it has no separate follow-up tone
+            // — which is also why the server sends no nag tone with an alarm push.
+            nagSoundUri = data["nagSoundUri"]
+                ?: if (alarm) "" else AlarmStore.soundUri(context, "nag"),
+            nagSoundTitle = data["nagSoundTitle"] ?: "",
             reminderId = data["reminderId"] ?: "",
             canSilence = type == "escalate",
             shadeProminence = "INHERIT"
@@ -118,7 +131,9 @@ class FcmService : MessagingService() {
             putExtra("alarm", spec.alarm)
             putExtra("ongoing", spec.ongoing)
             putExtra("soundUri", spec.soundUri)
+            putExtra("soundTitle", spec.soundTitle)
             putExtra("nagSoundUri", spec.nagSoundUri)
+            putExtra("nagSoundTitle", spec.nagSoundTitle)
             putExtra("reminderId", spec.reminderId)
             putExtra("canSilence", spec.canSilence)
             putExtra("shadeProminence", spec.shadeProminence)
