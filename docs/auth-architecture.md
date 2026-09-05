@@ -66,6 +66,14 @@ were dead on every Play build while working perfectly on the sideloaded one a
 developer tests with. If a flavor, package name or signing key ever changes again,
 this file is the thing to change with it.
 
+⚠️ **Do not paste Play Console's Digital Asset Links snippet over this file.** The
+App signing page offers one and invites you to merge it, but it declares
+`delegate_permission/common.handle_all_urls`, which is Android App Links. Passkeys
+need `delegate_permission/common.get_login_creds`. Merging the two relations is
+harmless; replacing the file with the Console's version silently kills passkeys on
+both builds. The app declares no `autoVerify` intent filter and claims no web URLs,
+so the App Links statement is not wanted at all.
+
 ## Sign in with Google
 
 Optional third method (enabled when `GOOGLE_CLIENT_ID` is set; the client reads
@@ -83,12 +91,27 @@ no sign-in, with nothing server-side to adjust.
 
 | Flavor | Package | SHA-1 to register |
 | --- | --- | --- |
-| `direct` | `ca.persistent.app` | the release keystore's |
-| `play` | `ca.dynamicsolutions.persistent` | `AC:47:C4:96:38:A1:0A:00:70:B7:82:E7:AC:B4:E7:CC:1D:D9:5E:23` (Play's app-signing cert) |
+| `direct` | `ca.persistent.app` | `8D:36:D5:65:2D:7A:AB:4F:C8:E9:33:87:C4:3D:F1:5F:7B:E3:01:15` (release keystore, a.k.a. the **upload key**) |
+| `play` | `ca.dynamicsolutions.persistent` | `AC:47:C4:96:38:A1:0A:00:70:B7:82:E7:AC:B4:E7:CC:1D:D9:5E:23` (Play's **app signing key**) |
+
+**The upload key is not the app signing key**, and Play Console's App signing page
+lists both, which is how the wrong one gets registered. You sign with the upload
+key; Google re-signs with the app signing key; users install what Google signed. A
+client bound to the upload key therefore matches the sideloaded build and never a
+Play install. As of 2026-09-05 only the `direct` row existed, so native Google
+sign-in was unavailable on Play exactly as passkeys were, for the same reason one
+layer along.
 
 To check: Google Cloud console → APIs & Services → Credentials → OAuth 2.0 Client
-IDs, look for an **Android** client whose package name and SHA-1 are the row above.
-Play Console → Setup → App integrity is where the Play values come from.
+IDs, look for an **Android** client per row above. Play Console → Setup → App
+signing is where the Play values come from.
+
+**Register these in the project that owns `GOOGLE_WEB_CLIENT_ID`** (client
+`20949993505-…`), because the server verifies the ID token with that client as the
+audience. Note this is *not* the Firebase project: FCM lives in `persistent-7c99a`
+(project number `157199800668`) and has both package names registered for push, so
+its "add a SHA-1 to the Android app" flow looks like the right shortcut and creates
+the client in the wrong project.
 
 ## Sessions
 
