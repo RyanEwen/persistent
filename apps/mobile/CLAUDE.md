@@ -75,7 +75,9 @@ the listing free of health framing while `MEDICATION` is withheld from the picke
 
 ## Reaching a wider Play track
 
-**A tag publishes to internal + alpha; nothing reaches production on its own.**
+**The app is on production** as of 2026-09-05, versionCode 47 (v0.23.0). That
+changes nothing about how builds get there: **a tag publishes to internal + alpha,
+and nothing reaches production on its own.**
 Promoting is the manual `play-promote` workflow (`scripts/play-publish.mjs
 --promote`), which moves a versionCode already on Play onto another track without
 rebuilding or re-uploading, since Play rejects a second upload of a code it has

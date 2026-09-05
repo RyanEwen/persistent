@@ -333,25 +333,28 @@ tracks. Promotion to beta/production stays a deliberate, separate decision: a ta
 publishes something so it can be tested, and judging it good enough for everyone
 happens later and by a person.
 
-**Production is not open yet.** A first promotion of versionCode 45 was attempted on
-2026-08-18 and Play refused the track write with `FAILED_PRECONDITION` and the single
-sentence "Precondition check failed", which is the same answer it gives for every way an
-app can be ineligible for a track. Nothing was written; the edit was dropped
-uncommitted, and `internal`/`alpha` were untouched. The likeliest cause by far is
-Google's closed-testing rule for personal developer accounts: at least 12 testers opted
-in for 14 continuous days before production unlocks. That fits this account, which is
-mid-transfer from individual to organization (root `CLAUDE.md`), and it cannot be
-waived or worked around from the API. The other candidates, all Console-side, are
-incomplete App content declarations (privacy policy, data safety, content rating, target
-audience) and the countries the release would go to. `--promote` now prints this
-checklist itself rather than passing Play's bare message through.
+**Production is open, and versionCode 47 (v0.23.0) is the first release on it** (from
+alpha, full rollout, 2026-09-05).
 
-Tried again on 2026-08-21 with versionCode 47, immediately after v0.23.0 reached
-`internal`/`alpha`, and refused identically: same bare precondition, same dropped
-edit, both tester tracks still serving 47 afterwards. So the gate is not something
-a newer build clears, which is what a second attempt three days later was worth
-finding out. `.claude/commands/release.md` now says so up front, because that is
-the file read while cutting a release and this one is not.
+It was gated for the three weeks before that, and the history is worth keeping,
+because the symptom is uninformative and it will look identical if it ever recurs.
+Promotions of versionCode 45 (2026-08-18) and then 47 (2026-08-21, immediately after
+v0.23.0 reached the tester tracks) were both refused with `FAILED_PRECONDITION` and
+the single sentence "Precondition check failed", which is the same answer Play gives
+for every way an app can be ineligible for a track. Nothing was written either time:
+the edit was dropped uncommitted and `internal`/`alpha` kept serving 47. The second
+attempt was worth making only to establish that a newer build does not clear it.
+
+The likeliest cause was Google's closed-testing rule for personal developer accounts
+(at least 12 testers opted in for 14 continuous days). Note the account is **still
+personal** as of 2026-09-05, so the individual-to-organization transfer was not what
+unblocked it, and the `MEDICATION` withholding that transfer governs still stands.
+The other candidates, all Console-side, were incomplete App content declarations
+(privacy policy, data safety, content rating, target audience) and the countries the
+release would go to. None of it is waivable or diagnosable from the API, which is why
+`--promote` prints that checklist itself rather than passing Play's bare message
+through. Leave it printing: if the write is ever refused again it is the only clue
+the caller gets.
 
 That promotion runs through `.github/workflows/play-promote.yml`
 (`workflow_dispatch`, never on a tag), which calls `play-publish.mjs --promote`.
@@ -508,12 +511,21 @@ GitHub, and never reuse one.
 8. ~~Automated Play publishing in CI~~ ✅ live, internal + alpha (#6b)
 9. ~~Verify the alarm UI on an Android 15+ device~~ ✅ (Pixel 9 Pro, Android 15 — see #2)
 10. ~~Create the app, upload one AAB manually, add `PLAY_SERVICE_ACCOUNT_JSON`~~ ✅ (#6b)
-11. Decide Play App Signing (watch the passkey cert consequence in #6)
-12. Play Console paperwork: restricted-permission declarations (#5), Data Safety, App access and the deletion URL (`listing.md`), then submit
+11. ~~Decide Play App Signing~~ ✅ enrolled (#6), with the passkey consequence handled
+12. ~~Play Console paperwork: restricted-permission declarations (#5), Data Safety, App access and the deletion URL (`listing.md`), then submit~~ ✅
+13. ~~First production release~~ ✅ versionCode 47 (v0.23.0), promoted from alpha at full rollout on 2026-09-05 (#6b)
 
-**No code blockers remain.** What's left is one decision (Play App Signing) and
-console paperwork. Tagging a release now puts the build in front of internal and
-alpha testers with no manual step.
+**The app is public.** A tag still reaches internal and alpha only; production is
+the manual `play-promote` step, deliberately.
+
+Two things carried into the production release rather than blocking it, both fixed
+server-side on 2026-09-05 and neither needing a rebuild: `assetlinks.json` gained the
+`play` flavor's package (passkeys had never worked on a Play install, see #6), and
+the privacy policy lost its medication and "not a medical device" copy, which the
+no-health-framing rule always covered but which only the listing had been checked
+against. `android:allowBackup="false"` landed the same day and is the one that does
+need a build, so **versionCode 47 still ships `true`**; answer Data Safety for the
+build that is actually live.
 
 All listing screenshots are captured, including the ringing full-screen alarm
 (`graphics/screenshots/00-ringing-alarm.png`), taken on Android 15 during the

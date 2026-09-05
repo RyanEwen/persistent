@@ -24,18 +24,20 @@ end-user-facing changes only — internal/docs/tooling commits are excluded; see
   manual `play-promote` workflow, which moves an existing versionCode to another
   track without rebuilding or re-uploading.
 
-**Production is not open yet, so do not offer or attempt a promotion to it.** Play
-gates the first production release behind its closed-testing rule for personal
-developer accounts (at least 12 testers opted in for 14 continuous days), and this
-account is mid-transfer from individual to organization. Nothing in the API can
-waive it: the track write is refused with a bare "precondition failed", the same
-answer Play gives for every way an app can be ineligible, and the edit is dropped
-uncommitted so `internal`/`alpha` are left untouched. It has now been tried twice
-(versionCode 45 on 2026-08-18, 47 on 2026-08-21) with that same result. The full
-diagnosis, including the Console-side candidates to rule out, is the "Production is
-not open yet" section of `apps/mobile/store/play-readiness.md`. Read it before
-acting on any request to promote, and say the gate is the reason rather than
-running the workflow to rediscover it.
+**Production is open.** It was gated until 2026-09-05, refusing the track write
+twice with a bare "precondition failed" (versionCode 45 on 2026-08-18, 47 on
+2026-08-21). Play lifted it, and versionCode 47 (v0.23.0) was promoted from alpha
+as the first production release, at full rollout.
+
+That does **not** make production part of a tag. Promotion stays the separate
+manual `play-promote` workflow, which moves an existing versionCode to another
+track without rebuilding or re-uploading: a tag publishes something so it can be
+tested, and judging it good enough for everyone is a later decision made by a
+person. Don't add `production` to a tag's tracks to skip the step.
+
+If a promotion is ever refused again, nothing is written (the edit is dropped
+uncommitted and the tester tracks are untouched) and `--promote` prints the
+Console-side checklist itself. See #6b of `apps/mobile/store/play-readiness.md`.
 
 Never publish the `direct` APK to Play — it carries two things the `play` flavor
 deliberately omits: the in-app updater with `REQUEST_INSTALL_PACKAGES`, which Play
