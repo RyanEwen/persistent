@@ -219,6 +219,23 @@ if (!manifest.includes('android:enableOnBackInvokedCallback')) {
   )
 }
 
+// Android backup is off. Every reminder lives on the server and the app re-syncs
+// from it on sign-in, so a Google backup would copy cloud data the account already
+// holds; all it adds is a Data Safety obligation and a second copy of reminder
+// content (including the doses on pre-existing medication reminders) somewhere the
+// user never chose to put it. Written here rather than in the manifest because the
+// Capacitor template ships `true` and the generated project is gitignored, so a
+// hand edit would not survive a re-run.
+//
+// This covers cloud backup only. On API 31+ device-to-device transfer is governed
+// separately by `android:dataExtractionRules`, left alone deliberately: a
+// phone-to-phone copy never reaches Google, and the app re-syncs either way.
+if (manifest.includes('android:allowBackup=')) {
+  manifest = manifest.replace(/android:allowBackup="true"/, 'android:allowBackup="false"')
+} else {
+  manifest = manifest.replace(/<application\b/, '<application android:allowBackup="false"')
+}
+
 writeFileSync(manifestPath, manifest)
 console.log('[setup-android] merged permissions + components into AndroidManifest.xml')
 

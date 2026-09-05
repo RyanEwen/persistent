@@ -252,8 +252,13 @@ One designated account can now sign in with a fixed code —
 The Play Console "App access" wording is in [`listing.md`](listing.md); the secret
 itself is deliberately not in this repo.
 
-Set on the production server and passed through `compose.server.yml`. Rotate the
-code once the review concludes.
+Set on the production server and passed through `compose.server.yml`.
+
+**Live only while a review is in flight.** Set a fresh code before each submission
+and clear both vars once it concludes, rather than rotating to another long-lived
+value: the code never expires and its value is typed into a Console form, so between
+reviews it is a standing credential on an account whose address `listing.md` names.
+Cleared after the 2026-09-05 production approval; the next submission sets it again.
 
 ## 3. Privacy policy ✅ DONE
 
@@ -473,7 +478,7 @@ GitHub, and never reuse one.
 
 ## 8. Smaller things 🟢
 
-- `android:allowBackup="true"` means reminder data goes into Google backups. Fine, but it's a Data Safety answer — either declare it or set `false`.
+- `android:allowBackup` is **`false`**, set by `setup-android.mjs` (the Capacitor template ships `true`, and the generated project is gitignored, so it has to be patched rather than edited). Every reminder lives on the server and the app re-syncs from it, so a Google backup only duplicated cloud data the account already held while adding a Data Safety obligation and a second copy of reminder content. Cloud backup only: device-to-device transfer on API 31+ is `android:dataExtractionRules`, left alone because a phone-to-phone copy never reaches Google. **Takes effect in the next build, not in versionCode 47.**
 - The WebView loads the live site from `persistent.dynamic-solutions.ca`. This is allowed, and the substantial native alarm plugin clears Play's minimum-functionality bar comfortably — but it means **a server-side web change alters shipped app behavior without review.** Keep the hosted UI consistent with what you declared.
 - Content rating questionnaire: the escalation email is a one-way system message, not user-to-user chat, so "users can communicate" is reasonably **no**.
 

@@ -175,9 +175,15 @@ which is the app's central guarantee: a reminder is only cleared by an explicit
 confirmation, never by dismissing a notification.
 ```
 
-Do not paste the real code into this file — it is a shared secret and this repo is
-version-controlled. Keep it in the server `.env` and the Play Console form only,
-and rotate it once the review concludes.
+Do not paste the real code into this file: it is a shared secret and this repo is
+public. Keep it in the server `.env` and the Play Console form only.
+
+**Set it fresh for each submission and clear both vars once the review concludes.**
+The code never expires, so leaving it set between reviews is a standing credential on
+an account whose address this file names. Unsetting `REVIEW_ACCOUNT_EMAIL` and
+`REVIEW_ACCOUNT_CODE` in the production env removes the path with no other effect
+(`docs/auth-architecture.md`), and the next submission simply sets it again. Cleared
+after the production approval of 2026-09-05.
 
 ---
 
@@ -205,7 +211,7 @@ chooses). None is a "transfer for advertising."
 Security practices to declare:
 - ✅ Data is encrypted in transit (HTTPS everywhere; `cleartext: false`, HSTS-style proxy, `Secure`/`HttpOnly` session cookie)
 - ⚠️ **At rest, Postgres columns are plaintext** — only session secrets and email codes are hashed. Don't over-claim encryption at rest.
-- ❌ **"Users can request data deletion" — you cannot truthfully claim this yet.** See blockers.
+- ✅ **"Users can request data deletion" is true, so claim it.** Two routes, both live: in-app at Settings → Delete account, and the public URL above for anyone who cannot sign in. `DELETE /api/auth/me` requires the caller to type their own email, so a session cookie alone will not fire it. Verified end to end against a throwaway account: the user, reminders, occurrences, sessions and the `EmailCode` rows (keyed by address, so they have no cascade and are deleted explicitly) all go.
 
 **Health info was declared here and is not any more**, because the Medication type
 is withheld from the picker — the app collects no new drug names or doses. Restore

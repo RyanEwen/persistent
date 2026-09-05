@@ -13,8 +13,12 @@
  *
  * Operational rules:
  * - Point it at a throwaway account holding demo reminders, never a real one.
- * - Rotate `REVIEW_ACCOUNT_CODE` after a review concludes; it is a shared secret
- *   with a value printed in a Play Console form.
+ * - The path is meant to be live only while a review is actually in flight. Set a
+ *   fresh code before each submission and **clear both vars once it concludes**,
+ *   rather than rotating and leaving one set: this is a never-expiring shared
+ *   secret whose value gets typed into a Play Console form, so between reviews it
+ *   is a standing credential on an account nobody is watching. Clearing it is not
+ *   a teardown of this module, which is why the vars are the switch.
  * - The code is compared in constant time and never logged.
  */
 import { timingSafeEqual } from 'node:crypto'

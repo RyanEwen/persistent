@@ -144,6 +144,12 @@ elsewhere: unlike an emailed code, the review code never expires, so it is the o
 credential worth guessing.
 
 **Operational rules.** Point it at a throwaway account holding demo reminders, never
-a real one — a reviewer will sign in and look around. Rotate the code after a review
-concludes; it lives in a console form, not a secret store. Removing both vars
-disables the path entirely with no other effect.
+a real one: a reviewer will sign in and look around.
+
+**The path should be live only while a review is in flight.** Set a fresh code before
+each submission, and **clear both vars once the review concludes** rather than
+rotating to another long-lived value. The code never expires and its value is typed
+into a Play Console form rather than held in a secret store, so between reviews it is
+a standing credential on an account nobody is watching. Removing both vars disables
+the path entirely with no other effect, so clearing it costs nothing and the next
+submission just sets it again.
