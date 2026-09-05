@@ -16,16 +16,25 @@ const CHALLENGE_MAX_AGE_SECONDS = 60 * 10
 // rather than the https URL, so each signing certificate the app may ship under
 // needs its own accepted origin.
 //
-// There can be more than one. Enrolling in Play App Signing means Play re-signs the
-// app with *its* key, so the Play build reports a different origin than the
-// sideloaded build signed with the release/upload key — and both must be accepted
-// or passkeys break on one of them. Set ANDROID_APP_ORIGIN to a comma-separated
-// list to cover both; the default is the release key alone.
+// There are two. The app is enrolled in Play App Signing, so Play re-signs the
+// `play` flavor with Google's key: a Play install reports a different origin than
+// the sideloaded `direct` build signed with the release keystore, and both must be
+// accepted or passkeys break on whichever was left out. Set ANDROID_APP_ORIGIN to a
+// comma-separated list covering both; the default below is the release key alone,
+// which is right for dev and wrong for production.
 //
-// Keep this in lockstep with `sha256_cert_fingerprints` in
-// apps/web/public/.well-known/assetlinks.json, which is the same set of
-// certificates expressed as hex. `npm run android:origin -- <SHA-256>` converts
-// one to the other.
+// Keep this in lockstep with apps/web/public/.well-known/assetlinks.json, the same
+// certificates expressed as hex. `npm run android:origin -- <SHA-256>` converts one
+// to the other.
+//
+// **The cert is only half of it.** That file is keyed by *package name* as well,
+// and the two flavors install under different ones (`ca.persistent.app` sideloaded,
+// `ca.dynamicsolutions.persistent` on Play). Credential Manager checks package and
+// cert together on-device, so a Play build missing its package entry fails the
+// ceremony before a request ever reaches this file, and nothing here can rescue it.
+// That is exactly what shipped: the entry was added only when production was opened
+// on 2026-09-05, so every internal/alpha build before that had passkeys dead while
+// the sideloaded build a developer tests on worked perfectly.
 const DEFAULT_ANDROID_APP_ORIGIN = 'android:apk-key-hash:TeqrYvSE9JO8zCVuXNwiUkDQKT7CsnFR1ss1TWHGpf0'
 
 const androidAppOrigins = (env.ANDROID_APP_ORIGIN ?? DEFAULT_ANDROID_APP_ORIGIN)

@@ -8,5 +8,15 @@
         "4D:EA:AB:62:F4:84:F4:93:BC:CC:25:6E:5C:DC:22:52:40:D0:29:3E:C2:B2:71:51:D6:CB:35:4D:61:C6:A5:FD"
       ]
     }
+  },
+  {
+    "relation": ["delegate_permission/common.get_login_creds"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "ca.dynamicsolutions.persistent",
+      "sha256_cert_fingerprints": [
+        "6E:00:68:E8:1D:83:05:B7:53:1B:D7:D8:3A:AC:B3:F0:44:87:5E:3F:74:94:F2:4C:77:21:5F:AF:05:77:D8:5A"
+      ]
+    }
   }
 ]

@@ -50,8 +50,8 @@ export function PrivacyPage() {
           </Typography>
           <Typography level="body-sm">
             <strong>Your reminders.</strong> The title, details, schedule, and settings of every reminder you
-            create, including the items on a checklist reminder. If you use the Medication type, that includes the
-            medication names, doses, and units you enter — health information you have chosen to record.
+            create, including the items on a checklist reminder and any structured fields the reminder&rsquo;s
+            type adds.
           </Typography>
           <Typography level="body-sm">
             <strong>Reminder history.</strong> When each reminder notified you, which checklist items you ticked off,
@@ -129,11 +129,11 @@ export function PrivacyPage() {
           </Typography>
         </Section>
 
-        <Section title="Not medical advice">
+        <Section title="No guarantees">
           <Typography level="body-sm">
-            Persistent is not a medical device and does not provide medical advice. It reminds you about
-            things you told it to remind you about. Do not rely on it as the sole safeguard for
-            safety-critical medication.
+            Persistent reminds you about things you told it to remind you about. Whether a notification
+            reaches you depends on your device, its operating system, and your network, none of which we
+            control. Do not rely on it as the sole safeguard for anything critical.
           </Typography>
         </Section>
 

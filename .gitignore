@@ -70,5 +70,10 @@ apps/desktop/**/*.cer
 apps/mobile/release.keystore
 *.keystore
 
+# Play's app-signing certificate, exported from the Console to read its
+# fingerprint. Public rather than secret, but not a source either: the two values
+# it yields live in .well-known/assetlinks.json and ANDROID_APP_ORIGIN.
+*.der
+
 # Build artifacts staged for a Play upload
 *.aab

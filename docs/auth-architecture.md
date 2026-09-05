@@ -42,9 +42,29 @@ Native app: the WebView has no `navigator.credentials`, so the native
 `PasskeyPlugin` (androidx.credentials Credential Manager) performs the ceremony —
 `passkeyClient.ts` routes to it when `isNative()`, else to the browser API. This
 requires a Digital Asset Links file at `/.well-known/assetlinks.json` (served
-from `apps/web/public`) listing the app package + release-cert SHA-256, which
-authorizes the app for the RP. Update that fingerprint if the signing key
-changes.
+from `apps/web/public`) listing the app package + cert SHA-256, which authorizes
+the app for the RP.
+
+**One entry per flavor, because the two install under different package names.**
+Credential Manager matches package *and* certificate on-device, so a package the
+file does not name fails the ceremony before any request reaches the server, and
+no server setting can rescue it:
+
+| Flavor | Package | Signed by |
+| --- | --- | --- |
+| `direct` (sideloaded) | `ca.persistent.app` | the release keystore |
+| `play` (Store) | `ca.dynamicsolutions.persistent` | Google, via Play App Signing |
+
+The app is enrolled in Play App Signing, so Play re-signs the bundle and the Play
+build's certificate is Google's, not the upload key's. Both entries must be present
+here and both origins in `ANDROID_APP_ORIGIN`; `npm run android:origin -- <SHA-256>`
+converts a fingerprint to the origin form.
+
+This was wrong from the moment the Play flavor got its own `applicationId` until
+production opened on 2026-09-05: only `ca.persistent.app` was listed, so passkeys
+were dead on every Play build while working perfectly on the sideloaded one a
+developer tests with. If a flavor, package name or signing key ever changes again,
+this file is the thing to change with it.
 
 ## Sign in with Google
 
@@ -57,8 +77,18 @@ a verified email, upserts the user **by email** (so it links to the same account
 as the email-code / passkey methods), and starts the usual session.
 
 Native requires an Android OAuth client registered for the package + signing
-SHA-1; the web client id is passed as the `serverClientId`. Like passkeys, the
-SHA-1 changes under Play App Signing.
+SHA-1; the web client id is passed as the `serverClientId`. This has the same
+per-flavor split as passkeys above, and the same failure mode: no matching client,
+no sign-in, with nothing server-side to adjust.
+
+| Flavor | Package | SHA-1 to register |
+| --- | --- | --- |
+| `direct` | `ca.persistent.app` | the release keystore's |
+| `play` | `ca.dynamicsolutions.persistent` | `AC:47:C4:96:38:A1:0A:00:70:B7:82:E7:AC:B4:E7:CC:1D:D9:5E:23` (Play's app-signing cert) |
+
+To check: Google Cloud console → APIs & Services → Credentials → OAuth 2.0 Client
+IDs, look for an **Android** client whose package name and SHA-1 are the row above.
+Play Console → Setup → App integrity is where the Play values come from.
 
 ## Sessions
 

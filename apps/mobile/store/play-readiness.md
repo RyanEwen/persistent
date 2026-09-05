@@ -451,22 +451,34 @@ Two things to know before pushing:
   cap and could not be pasted in. The publisher now refuses an over-limit
   description instead of letting it rot.
 
-## 6. AAB build ✅ DONE — Play App Signing still to decide 🟡
+## 6. AAB build ✅ DONE — Play App Signing enrolled ✅
 
 `npm run bundle:play` produces the AAB (`bundlePlayRelease`), and
 `.github/workflows/release.yml` builds it alongside the sideload APK on every tag.
 It is uploaded as a **workflow artifact**, deliberately not as a release asset —
 publishing it next to the APK would invite installing the wrong one.
 
-Still yours to decide: **Play App Signing.** If you enroll, Play holds the signing
-key and your existing `release.keystore` becomes the upload key. *(The keystore is
-correctly gitignored — verified.)*
+**Play App Signing is enrolled**, so Play holds the signing key and
+`release.keystore` is the upload key. *(The keystore is correctly gitignored,
+verified.)* Confirmed from the exported certificate rather than the Console UI: it
+is issued to `O=Google Inc., OU=Android, CN=Android`, which an upload key never is.
 
-Note the signing-cert consequence for passkeys: enrolling in Play App Signing means
-Play re-signs the app, so the **fingerprint changes**. `assetlinks.json` and
-`ANDROID_APP_ORIGIN` in `apps/api/src/lib/webauthn.ts` both hard-code the current
-cert and would need Play's signing certificate added, or passkeys break on the
-Play build.
+| | SHA-256 | SHA-1 |
+| --- | --- | --- |
+| Play app-signing cert (`play` flavor) | `6E:00:68:E8:1D:83:05:B7:53:1B:D7:D8:3A:AC:B3:F0:44:87:5E:3F:74:94:F2:4C:77:21:5F:AF:05:77:D8:5A` | `AC:47:C4:96:38:A1:0A:00:70:B7:82:E7:AC:B4:E7:CC:1D:D9:5E:23` |
+| Release keystore (`direct` flavor) | `4D:EA:AB:62:…:61:C6:A5:FD` (see `assetlinks.json`) | in the keystore |
+
+The consequence for passkeys is handled: `assetlinks.json` now carries an entry per
+flavor and `ANDROID_APP_ORIGIN` an origin per certificate. **It was not handled for
+the whole internal/alpha period**, and the cert was only half the reason. The file is
+keyed by package name too, and the `play` flavor's `applicationId` differs, so the
+Play build failed the Credential Manager check on-device no matter what the server
+accepted. Anything that changes a package name or a signing key has to change both
+that file and `ANDROID_APP_ORIGIN` with it. See `docs/auth-architecture.md`.
+
+The same package + SHA-1 pairing governs native Google sign-in, which needs its own
+Android OAuth client. That one is Cloud-console-side and cannot be checked from this
+repo; `docs/auth-architecture.md` records what to look for.
 
 ## 7. `versionCode` must be monotonic 🟢
 
