@@ -60,7 +60,7 @@ class ReminderCarAppService : CarAppService() {
  * notifications ([AlarmService.mirrorBacklogToCar]). Connecting deliberately isn't —
  * that is what stopped the car replaying every live nag as a burst of cards — but a
  * driver who opens Persistent has asked to see what is outstanding, and the answer is
- * more useful when it can also be read aloud and answered by voice.
+ * more useful when each one also carries its own Done and Snooze.
  *
  * Hung off the session's own lifecycle rather than screen construction: `STARTED` means
  * the app is actually on the head unit's screen, so a host that pre-warms or restores a

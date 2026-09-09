@@ -52,7 +52,7 @@ npm run prepare:android   # build web -> cap add android -> wire plugin -> cap s
      so server FCM pushes are handled natively even when the bridge is dead — see
      `docs/alarm-architecture.md`,
    - adds the `androidx.car.app` dependency (with a `tools:overrideLibrary` for its
-     minSdk 23) in both flavors, and — in the **`direct` flavor only** — the entire
+     minSdk 23) in the **`direct` flavor only**, along with the entire
      **Android Auto** integration: the `com.google.android.gms.car.application`
      meta-data plus `automotive_app_desc.xml` that project reminder notifications into
      the car (`CarProjection.kt`), and the templated car screen listing the whole
@@ -244,12 +244,12 @@ build keeps and the Play build does without:
 | `REQUEST_INSTALL_PACKAGES` | declared | **not** declared |
 | Updates via | in-app APK install | Google Play |
 | Android Auto **car screen** (`ReminderCarAppService`) | compiled in, declared | absent |
-| Android Auto **notification** mirror | yes | yes |
+| Android Auto **notification** mirror | yes | **no** |
 
-The car screen is split out because a templated Auto app has to declare one of Auto's
-approved categories and a reminder app is none of them, so declaring one would put an
-Auto review in the path of every Play release. Mirroring notifications into the car
-needs no category and stays in both. See `store/play-readiness.md` #1a.
+The whole Auto integration is split out because a templated Auto app has to declare one
+of Auto's approved categories and a reminder app is none of them. The Play artifact has
+no Auto dependency, implementation classes, manifest entries, or resources. See
+`store/play-readiness.md` #1a and #1b.
 
 Sources live in `android-plugin/flavor/<flavor>/`, and direct-only Kotlin files are
 listed in `setup-android.mjs`'s `DIRECT_ONLY_KT`; the script copies both into
@@ -263,7 +263,7 @@ Auto review. CI asserts both on every release. To confirm what a build actually
 contains:
 
 ```bash
-grep -cE 'REQUEST_INSTALL_PACKAGES|androidx.car.app.CarAppService' \
+grep -cE 'REQUEST_INSTALL_PACKAGES|androidx.car.app|com.google.android.gms.car.application' \
   android/app/build/intermediates/packaged_manifests/playRelease/AndroidManifest.xml   # expect 0
 ```
 

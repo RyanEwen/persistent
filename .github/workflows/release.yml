@@ -184,9 +184,9 @@ jobs:
           # The markers are every direct-only manifest entry, and each one is here
           # because it has cost something:
           #   REQUEST_INSTALL_PACKAGES        — Play prohibits self-updating apps.
-          #   androidx.car.app.CarAppService  — the car screen; a templated car app
-          #                                     must claim an Auto category this app
-          #                                     cannot honestly claim.
+          #   androidx.car.app                catches the car screen and every component
+          #                                   merged from the AndroidX Car App dependency;
+          #                                   none belongs in the Play artifact.
           #   com.google.android.gms.car.application — the Auto *notification* mirror.
           #     Added after it slipped into the Play build and drew an Auto App Quality
           #     enforcement (2026-08-17): <uses name="notification"/> declares the app a
@@ -204,7 +204,7 @@ jobs:
           while IFS= read -r manifest; do
             FOUND=1
             DECLARATIONS=$(perl -0777 -pe 's/<!--.*?-->//gs' "$manifest")
-            for marker in REQUEST_INSTALL_PACKAGES androidx.car.app.CarAppService com.google.android.gms.car.application; do
+            for marker in REQUEST_INSTALL_PACKAGES androidx.car.app com.google.android.gms.car.application; do
               COUNT=$(printf '%s' "$DECLARATIONS" | grep -c "$marker" || true)
               if [ "$COUNT" != "0" ]; then
                 echo "::error::$manifest declares $marker ($COUNT) — that component is direct-flavor only. See apps/mobile/store/play-readiness.md."

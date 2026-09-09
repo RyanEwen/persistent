@@ -34,16 +34,18 @@ GitHub releases. Two things live in `direct` only, each because Play would objec
 - **the whole Android Auto integration** — the car screen (`ReminderCarAppService` +
   its screens) *and* the notification mirror's `com.google.android.gms.car.application`
   declaration. A templated car app must declare one of Auto's approved categories and a
-  reminder app is none of them; the mirror needs no category, which is why it shipped in
-  both flavors until Play's 2026-08-17 notice — `<uses name="notification"/>` declares
-  the app a **messaging** app, and review then tests it for sending and receiving
-  messages, which no reminder app can pass. Both halves are `direct`-only now, and the
-  Play build has no Auto surface (`store/play-readiness.md` #1b). What stays shared is
-  the code that is inert without the declaration: `CarProjection` (which checks the
-  app's own manifest before observing anything), the mirror in `AlarmService`, and
-  `AgendaStore` — the sync that writes it is shared, and a writer must not have to know
-  whether a reader was compiled into this flavor, the same reason `CarListRefresh`
-  broadcasts to nobody in the `play` build.
+  reminder app is none of them. The mirror used to be judged separately, on the grounds
+  that it "needs no category". That was true, but it said `<uses name="notification"/>`, which
+  declares the app a **messaging** app, and review then tests it for sending and
+  receiving messages, which no reminder app can pass (Play's 2026-08-17 notice). The
+  descriptor now says `<uses name="template"/>` and the mirror is a `CarAppExtender`, so
+  that false claim is gone. Both halves are `direct`-only because they are now literally
+  the same declaration, and the Play build has no Auto surface
+  (`store/play-readiness.md` #1b). The AndroidX dependency,
+  projection observer, notification extender, refresh broadcast, manifest declarations,
+  and car resources are all direct-only. Shared callers compile against no-op play
+  implementations. `AgendaStore` remains shared because the sync writer must not have to
+  know whether a reader was compiled into this flavor.
 
 Direct-only Kotlin sources are listed in `scripts/setup-android.mjs`
 (`DIRECT_ONLY_KT`) and their manifest entries in `flavor/direct/AndroidManifest.xml`;

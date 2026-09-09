@@ -10,11 +10,17 @@ import androidx.car.app.connection.CarConnection
 /**
  * Tracks whether the phone is currently projecting to Android Auto, and since when.
  *
- * Android Auto surfaces ONLY `MessagingStyle` notifications (carrying reply +
- * mark-as-read actions). So only while projecting does [AlarmService.buildNotification]
- * mirror a nag in that form, with invisible reply/mark-as-read actions. Off the car
- * this stays false and the heavily-tuned phone shade notification is left exactly as
- * it was — the gate keeps the car integration from perturbing normal phone behaviour.
+ * Android Auto shows a notification only if it is extended with `CarAppExtender`, so
+ * only while projecting does [AlarmService.buildNotification] extend one (with the car's
+ * own Done/Snooze actions). Off the car nothing is extended at all.
+ *
+ * The gate is cheaper than it used to be: an extender adds to a notification rather than
+ * restyling it, so the heavily-tuned phone shade version is now untouched in *both*
+ * states. Under the previous `MessagingStyle` mirror, projecting rewrote the phone's own
+ * notification into a fake conversation and cost it its `BigTextStyle` for the duration
+ * of the drive. Keeping the gate anyway: there is no reason to attach car metadata to a
+ * notification no car will see, and [projectingSince] is still needed for the second half
+ * of the decision below.
  *
  * [projectingSince] is the second half of that gate. Projecting is not on its own a
  * reason to put a nag in front of the driver: what matters is whether the nag is
@@ -48,8 +54,8 @@ object CarProjection {
      *
      * The two directions are deliberately not symmetric:
      * - **Connecting** re-posts only the nags that qualify for the car right now
-     *   ([AlarmService.mirrorLiveToCar]). Re-styling all of them — which is what this
-     *   used to do — landed every live nag in the car as a brand-new message at once,
+     *   ([AlarmService.mirrorLiveToCar]). Re-styling all of them, which is what this
+     *   used to do, landed every live nag in the car as a brand-new card at once,
      *   so starting the car replayed the whole backlog as a burst of cards.
      * - **Disconnecting** re-posts everything ([AlarmService.restyleAll]), because every
      *   nag that did gain the car form has to lose it again and get its phone shade

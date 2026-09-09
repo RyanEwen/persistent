@@ -214,9 +214,10 @@ drives them lives in `apps/web/src/native`.
     control surface, not the app (see above) — and that path was never a trampoline.
   - The body is rendered with **`BigTextStyle`**, so a multi-line description shows
     in full when the notification is expanded instead of being ellipsized to one
-    line. It is applied only on the non-projecting branch: a notification has
-    exactly one style, and Android Auto requires `MessagingStyle` (see below), so
-    setting both would silently drop the car mirror.
+    line. It applies unconditionally. It used to be skipped while projecting to
+    Android Auto, because the car mirror claimed the notification's single style
+    slot for `MessagingStyle`; the mirror is a `CarAppExtender` now (see below),
+    which extends rather than restyles, so the phone keeps its own body mid-drive.
   - **Snooze** opens a duration picker (`SnoozePickerActivity`) offering presets, a
     custom number + unit, or "until" a specific date + time (converted to minutes
     from now, capped at `MAX_SNOOZE_MINUTES`); the chosen minutes are re-armed
@@ -267,7 +268,7 @@ drives them lives in `apps/web/src/native`.
   alarm is that firing's pre-escalation form, tones included, and
   `AlarmService.silenceOccurrence` reads the soft tones back out of `AlarmStore`. That
   is also the only thing that could work for the two silences that involve no push at
-  all (the shade action and the car reply).
+  all (the shade action and the car screen's De-escalate).
   Web and desktop store and display the choice but cannot honour it — neither has any
   say over what its OS plays — so the editor's copy says "Android only", as
   `shadeProminence` does.
@@ -467,44 +468,49 @@ hold and no sound replays):
 ## Android Auto
 
 A fired reminder is invisible while the user is driving with Android Auto (AA), so
-the native client **projects nags into the car** and lets the user act on them by
-voice, and the sideloaded build adds a **templated car screen** listing the whole
-on-device set. The phone/Wear keep the full hard-alarm guarantee unchanged.
+the native client **projects nags into the car** with their own Done/Snooze buttons,
+and the sideloaded build adds a **templated car screen** listing the whole on-device
+set. The phone/Wear keep the full hard-alarm guarantee unchanged.
 
 The two halves divide by *time*, and that division is the point: **notifications are
 for what is happening**, the **car screen is for everything else**.
 
-- **The whole Auto integration is `direct`-flavor only, mirror included.** The car
-  *screen* always was; the notification mirror was not, and that was the mistake. `<uses
-  name="notification"/>` needs no Auto *category*, which is why it looked safe to ship in
-  the Play build — but to Auto it declares the app a **messaging** app, and Play's Auto
-  App Quality review then tests it as one. On 2026-08-17 it failed exactly that test
-  ("not able to send outgoing messages / receive incoming messages"), with updates to be
-  rejected until fixed. No reminder app passes a messaging test, so the declaration moved
-  to the `direct` manifest alongside the screen, and `res/xml/automotive_app_desc.xml`
-  moved with it (`setup-android.mjs` copies it into that flavor's `res/`, and deletes any
-  stale copy from `src/main`). The Play build now has no Auto surface at all — which is
-  what Play's own remediation offers as the alternative to being a messaging app. See
-  `store/play-readiness.md` #1b.
-- **AA surfaces only `MessagingStyle` notifications** that carry a reply action
-  (`SEMANTIC_ACTION_REPLY` + a single `RemoteInput`, `showsUserInterface=false`) and a
-  mark-as-read action (`SEMANTIC_ACTION_MARK_AS_READ`, `showsUserInterface=false`).
-  Plus a manifest `<meta-data com.google.android.gms.car.application>` pointing at
-  `res/xml/automotive_app_desc.xml` (`<uses name="notification"/>`) — in the `direct`
-  flavor only, per the point above.
-- **Gated on active projection.** The phone shade notification is heavily tuned, so we
-  do **not** permanently convert it. `CarProjection` first checks that this build even
-  declares itself to Auto (`declaresAutoApp`, read from the app's own manifest, so the
-  `play` flavor stops here and never builds a car-shaped notification — asking the
-  declaration beats duplicating a flavor constant that can drift from it). It then
-  observes `androidx.car.app`'s `CarConnection`; only while it reports `CONNECTION_TYPE_PROJECTION` can
-  `AlarmService.buildNotification` add a MessagingStyle mirror + the two **invisible**
-  car actions (`addCarProjection`). Off the car the notification is byte-identical to
-  before.
+- **AA shows a notification if, and only if, it is extended with `CarAppExtender`**:
+  "even if the extender does not override any properties", per the class's own contract.
+  An extended notification may carry **up to 2 actions of its own**, which override the
+  builder's for the car display only. That is the whole mechanism:
+  `CarNotificationProjection` attaches a car title/text, `IMPORTANCE_HIGH`, and
+  **Done** + **Snooze**.
+- **It is not a messaging surface, and pretending it was cost the Play build.** Until
+  2026-09-06 the mirror was a `MessagingStyle` disguise: a fake one-message conversation
+  plus invisible `SEMANTIC_ACTION_REPLY`/`SEMANTIC_ACTION_MARK_AS_READ` actions, written
+  against the belief that AA surfaces *only* messaging notifications. It does not. The
+  disguise required `<uses name="notification"/>`, whose only meaning to Auto is *this app
+  sends and receives short-form messages*, and Play's Auto App Quality review holds an app
+  to it: on 2026-08-17 it failed that test ("not able to send outgoing messages / receive
+  incoming messages"), with updates rejected until fixed. The descriptor now says
+  **`<uses name="template"/>`**, which is what it always should have said.
+- **The whole Auto integration is `direct`-flavor only.** Now for one reason rather than
+  two: `<uses name="template"/>` and `ReminderCarAppService` are a single claim to be a
+  templated car app, and a templated car app must declare one of AA's approved categories,
+  none of which a reminder app honestly fits (see the car screen below). So the
+  descriptor and the `<meta-data com.google.android.gms.car.application>` that points at
+  it live in the `direct` manifest alongside the screen (`setup-android.mjs` copies the
+  descriptor into that flavor's `res/`, and deletes any stale copy from `src/main`). The
+  Play build has no Auto surface at all. See `store/play-readiness.md` #1b.
+- **Gated on active projection.** The direct flavor's `CarProjection` first checks that
+  this build declares itself to Auto (`declaresAutoApp`, read from the app's own
+  manifest), then observes `androidx.car.app`'s `CarConnection`. The Play flavor supplies
+  a no-op seam and does not link the AndroidX Car App library. Only while it reports
+  `CONNECTION_TYPE_PROJECTION` does `AlarmService.buildNotification`
+  attach the extender. The gate matters less than it used to: an extender *adds to* a
+  notification instead of restyling it, so the heavily-tuned phone shade version is now
+  identical either way. Under the old mirror, projecting rewrote the phone's own
+  notification into a fake conversation and cost it `BigTextStyle` for the whole drive.
 - **Projecting is not on its own enough to mirror a nag** (`AlarmService.mirrorsToCar`).
-  Connecting used to re-style *every* live nag at once, and each one then reached the
-  car as a brand-new message — so starting the car replayed the entire backlog as a
-  burst of heads-up cards. A nag is mirrored only if it **genuinely alerted since
+  Connecting used to put *every* live nag into the car form at once, and each one then
+  reached the car as a brand-new arrival, so starting the car replayed the entire
+  backlog as a burst of heads-up cards. A nag is mirrored only if it **genuinely alerted since
   projection began**: its first fire, or a follow-up nag (`alertedAt`, stamped in
   `startAlarm` when not silent and in `startReNotifyLoop` — never by the incidental
   re-posts: keep-alive, swipe-reshow, text/style refresh, peek). Two riders:
@@ -522,8 +528,8 @@ for what is happening**, the **car screen is for everything else**.
   → `mirrorBacklogToCar`, called from `ReminderCarSession`'s lifecycle `onStart`). This is
   the other half of the rule above, and what makes it liveable: connecting is not a
   request, but opening Persistent in the car is an explicit one, so every unconfirmed nag
-  gains its car form then and becomes something the driver can have read out and answer by
-  voice. The ids are held in `carRequested`, stamped with `CarProjection.projectingSince`
+  gains its car form then and becomes a card carrying its own Done and Snooze. The ids are
+  held in `carRequested`, stamped with `CarProjection.projectingSince`
   so the request **expires with the drive** — a later connection starts quiet again. Hung
   off the session lifecycle rather than screen construction, so a host that pre-warms a
   session without showing it doesn't trip it.
@@ -532,22 +538,35 @@ for what is happening**, the **car screen is for everything else**.
   in place, since the car form never moves a notification between channels.
   Disconnecting fires `ACTION_RESTYLE` (`restyleAll`), which re-posts *everything*,
   because every nag that did gain the car form has to lose it again.
-- **Managing from the car is the reply channel.** AA gives no arbitrary buttons, so the
-  reply `RemoteInput` is how the user acts: `AlarmReceiver.ACTION_CAR_REPLY` →
-  `AlarmService.handleCarReply` parses the spoken/typed text — "done/finished/..." →
-  `markDone` (a spoken Done is deliberate, so it skips the two-tap confirm), "snooze
-  15 minutes"/"in an hour" → `parseSnoozeMinutes` + `snooze`, "de-escalate/silence" →
-  `silence` (only when the occurrence is actually ringing as an alarm). Unrecognized
-  text is ignored so the nag persists. These reuse the existing companion actions, so
-  the car reply reaches the server (`PendingAck/Snooze/SilenceStore` + `SyncWorker.syncNow`)
-  and re-arms locally with **zero new plumbing**; Done/Snooze cancel the notification,
-  which clears the car card too.
-- **Mark-as-read is a deliberate no-op.** AA requires the action (and may fire it when it
-  reads a message aloud), but reading/dismissing a nag in the car must **never** satisfy
-  the persistence guarantee — the occurrence stays `FIRED` until an explicit Done.
+- **Managing from the car is two buttons**, and they are deliberately not the phone's
+  three. The extender's action slots are capped at 2, so the car gets **Done** and
+  **Snooze**; De-escalate stays on the car *screen* (§5b), which has room for it.
+  - **Car Done acks directly** (`ACTION_CONFIRM`), skipping the phone's two-tap confirm.
+    That guard exists for a stray pocket tap, which is not something that happens to a
+    dashboard you have to reach for, and `notification-behavior.md` §5b already settled
+    that the car earns its deliberateness some way other than making a driver read a
+    confirmation. It also avoids stranding a half-armed confirm: nothing times the prompt
+    out, so a car-initiated first tap left unfinished would freeze the *phone's*
+    notification in its "Tap Confirm done" state.
+  - **Car Snooze is a fixed `DEFAULT_SNOOZE_MINUTES`** (`ACTION_SNOOZE` + `EXTRA_MINUTES`),
+    not the phone's picker. The phone's Snooze action launches `SnoozePickerActivity`, and
+    a notification action that opens phone UI is useless in the car; choosing a duration is
+    also not a driving task.
+  - Both reuse the existing companion entry points, so a car action reaches the server
+    (`PendingAck/SnoozeStore` + `SyncWorker.syncNow`) and re-arms locally with **zero new
+    plumbing**; either one cancels the notification, which clears the car card too.
+- **Tapping the card body opens the car screen**, not the phone. `carAppPendingIntent`
+  wraps a `CarPendingIntent.getCarApp` at this app's own `CarAppService`, which is *looked up*
+  through the package manager rather than named, since `ReminderCarAppService` is compiled
+  into `direct` only and `AlarmService` is shared. Null in a build without one, so the tap
+  degrades to no content intent rather than launching an Activity a head unit cannot show.
 - **Alarm audio does not stream to AA.** A continuously-looping alarm tone is not an AA
-  capability; in-car an alarm shows as an urgent messaging heads-up (AA's own chime +
-  Assistant read-aloud). The real looping alarm + full-screen UI still fire on the phone.
+  capability; in-car an alarm shows as an `IMPORTANCE_HIGH` heads-up card. The real looping
+  alarm + full-screen UI still fire on the phone.
+- **What was lost with the messaging disguise**: AA's read-aloud and voice reply are
+  messaging affordances, so they went with it. That was the trade: buttons a driver can
+  see and press, against a hands-free channel. Worth revisiting only if AA ever offers
+  read-aloud to non-messaging notifications.
 
 ### The car screen (`direct` flavor only)
 
@@ -560,17 +579,20 @@ own pace instead of pushed at them all at once.
   none of them (navigation / parking / charging / POI / IOT / settings / messaging /
   calling / weather), so shipping it in the Play AAB would risk an Auto review rejection
   on every release. The sideloaded build declares `SETTINGS`, the closest fit of a bad
-  set. The **notification** mirror above needs no category and stays in *both* flavors.
+  set. The **notification** mirror above is part of the same claim and ships with it:
+  `<uses name="template"/>` describes this service, so the two cannot be split by flavor
+  even though a notification needs no category of its own.
   Sources are listed in `setup-android.mjs`'s `DIRECT_ONLY_KT`; the service is declared
-  in `flavor/direct/AndroidManifest.xml`, which now also carries the notification
-  declaration. Seeing it needs AA's developer setting "Add new apps to launcher", as any
+  in `flavor/direct/AndroidManifest.xml`, which also carries the Auto declaration.
+  Seeing it needs AA's developer setting "Add new apps to launcher", as any
   sideloaded car app does.
 - **Screens**: `ReminderListScreen` (root — "Needs attention" / "Coming up" / "Notes"
   sections, paging behind a "N more reminders" row) →
   `ReminderDetailScreen` (body + Done / Snooze, De-escalate on the action strip when
   `AlarmService.isSilenceable`) → `CarSnoozeScreen` (fixed durations; typing a number
-  is not a driving task, and the voice reply already parses an arbitrary one). Three
-  screens deep, inside AA's five-step task limit.
+  is not a driving task). Three screens deep, inside AA's five-step task limit. This
+  is also where **De-escalate** lives, since the notification's two action slots go to
+  Done and Snooze.
 - **Done sits one screen in from the list.** The phone's shade action wants a second
   confirming tap because a notification can be brushed in a pocket; reaching a
   reminder's own screen is that same guard by another route — two intentional taps —
@@ -599,11 +621,10 @@ own pace instead of pushed at them all at once.
   `AlarmPlugin.setAgenda` from the JS bridge), and `AgendaStore` is shared by both flavors
   even though only `direct` reads it — the writer must not have to know whether a car
   screen was compiled in.
-- **Redraw is pushed, not polled**: `CarListRefresh` (a package-scoped broadcast) is
-  fired wherever the set changes — a fire, an ack, a de-escalation, a resync — and each
-  screen listens for it on its own lifecycle. The sender is shared code, so in the
-  `play` build it is a send with nobody home; that is deliberate, so no caller has to
-  know whether a car screen was compiled in.
+- **Redraw is pushed, not polled**: the direct flavor's `CarListRefresh` sends a
+  package-scoped broadcast wherever the set changes: a fire, an ack, a de-escalation,
+  or a resync. Each car screen listens for it on its own lifecycle. The call sites are
+  shared, but Play supplies a no-op implementation so no car broadcast code ships there.
 - **Head units cap list length** (`ConstraintManager.CONTENT_LIMIT_TYPE_LIST`, as low as
   six while driving), so the list **pages**: each screen fills to the cap — one row short
   of it when there is a next page, since the "N more reminders" row costs one — and pushes
@@ -613,12 +634,40 @@ own pace instead of pushed at them all at once.
   a driver can decide whether to look.
 
 The car dependency is minSdk 23 while the app floor is 22; `tools:overrideLibrary` in
-the manifest reconciles that (AA needs 23+ anyway, and `CarProjection.init` is
-SDK-guarded). `setup-android.mjs` injects `androidx.car.app:app` and copies
-`android-res/xml/automotive_app_desc.xml` into `res/xml/`. **Runtime verification needs
-the Desktop Head Unit (DHU) or a real car** — it can't be exercised in the devcontainer;
-`npm run verify:android` only confirms it compiles/wires (and that the car screen is
-absent from the `play` flavor).
+the direct manifest reconciles that (AA needs 23+ anyway, and `CarProjection.init` is
+SDK-guarded). `setup-android.mjs` adds `androidx.car.app:app` as a direct-only dependency
+and copies the descriptor and action icons into the direct resource set. `npm run
+verify:android` confirms both flavors compile and wire independently.
+
+**Runtime verification needs the Desktop Head Unit (DHU) or a real car**, and the DHU
+*does* run in the devcontainer: an earlier version of this note said it could not. The
+binary is x86-64 with no arm64 build, so `sdkmanager` filters it out on this host, but it
+runs through the same host qemu binfmt that already runs `aapt2` (`.devcontainer/Dockerfile`).
+Setup, once per container (not in the image: add it there if this becomes routine):
+
+```sh
+sudo apt-get install -y --no-install-recommends libc++1:amd64 libc++abi1:amd64 libasound2t64:amd64
+sudo mkdir -p $ANDROID_HOME/extras/google/auto && cd $_
+sudo curl -sO https://dl.google.com/android/repository/desktop-head-unit-linux-x64_r02.0.zip
+sudo unzip -o -q desktop-head-unit-linux-x64_r02.0.zip && sudo chmod +x desktop-head-unit
+```
+
+Then, with the phone on wireless adb (`.devcontainer/adb-discover.py`), Android Auto's
+developer menu set to **Start head unit server**, and the phone unlocked:
+
+```sh
+adb forward tcp:5277 tcp:5277
+LD_LIBRARY_PATH=. ./desktop-head-unit --headless   # console: `screenshot /tmp/car.png`
+```
+
+`--headless` needs no display, and the built-in `screenshot` command captures the
+projected video, which is what makes the car surface checkable from here at all. Two
+caveats: the **`direct`** build must be installed (the Play one declares no Auto surface,
+so a correct run would look like a failure), and `mirrorsToCar` only mirrors a nag that
+alerts *while* projecting, so fire a reminder during the session, or open Persistent on
+the head unit to pull the backlog in. DHU over wireless adb is undocumented by Google;
+it only ever talks to `localhost:5277`, so it should be transport-agnostic, but USB is
+the supported path if it misbehaves.
 
 ## Push channels
 

@@ -84,9 +84,8 @@ detail view). The first tap arms the action (swapping
 the controls to *Confirm done* / *Not yet*, with the alarm still ringing); only
 the confirm tap acknowledges. This guards a persistence-grade reminder against a
 stray pocket tap or misclick clearing it by accident. *Not yet* restores the
-normal controls and changes nothing. (The Android Auto **voice** surface is the
-one exception — see §5: a spoken "done" is inherently deliberate, so it
-acknowledges directly.)
+normal controls and changes nothing. (**Android Auto is the exception**: see §5:
+a dashboard is not a pocket, so a car Done acknowledges directly.)
 
 Done is the terminal action — it is the persistence guarantee being satisfied.
 
@@ -286,12 +285,12 @@ explicit Done, and being on a page the user has not swiped to yet excuses nothin
 The Windows tray app has no alarm surface at all (§5a), and the web is best-effort;
 this is the Android client's, where the hard alarm lives.
 
-## 5. Android Auto — the same actions, by voice, in the car
+## 5. Android Auto: the same actions, on buttons, in the car
 
 While the phone is projecting to Android Auto, the native notification is mirrored
-into the car (as a `MessagingStyle` notification — the only form Auto surfaces).
-This is a **projection of the native surface, not a new outcome**: the same three
-actions apply and converge to the same server state as everywhere else.
+into the car, carrying its own **Done** and **Snooze** buttons. This is a
+**projection of the native surface, not a new outcome**: the same actions apply and
+converge to the same server state as everywhere else.
 
 **Only what is happening pops up.** Starting the car is not itself an event, so a nag
 that was already on screen when the drive began does not announce itself in the car;
@@ -302,31 +301,38 @@ still nagging on the phone, and it is listed in full on the car screen (§5b).
 
 **Android Auto is the sideloaded build only.** Both halves of it — the notification
 mirror here and the car screen in §5b — ship in the `direct` APK and not in the Play one.
-Declaring the mirror (`<uses name="notification"/>`) tells Auto the app sends and receives
-messages, and Play's Auto review holds it to that; a reminder app cannot pass a messaging
-test, so the Play build opts out of Auto entirely rather than claim to be something it is
+A car app must declare one of Auto's approved categories, and a reminder app is none of
+them, so the Play build opts out of Auto entirely rather than claim to be something it is
 not (`alarm-architecture.md`, `store/play-readiness.md` #1b). Nothing about the guarantee
 changes for a Play user: the phone still nags, rings and escalates exactly as specified —
 it simply does not project into the car.
 
-Because Auto offers no arbitrary buttons on a notification, the user acts on one by
-**voice reply**:
+An Auto notification carries **two** action slots, so the car gets the two that end a
+nag, and De-escalate lives on the car screen (§5b) where there is room:
 
-- "done" / "finished" / "all done" → **Done** (acknowledges). This is the one place
-  Done is *not* a two-tap confirm — a spoken Done is inherently deliberate and there
-  is no pocket-tap to guard against.
-- "snooze 15 minutes" / "in an hour" → **Snooze** for the parsed duration (default
-  10 minutes if none is spoken).
-- "de-escalate" / "silence" → **Silence**, but only when the occurrence is actually
-  ringing as an escalated alarm (otherwise ignored).
-- An unrecognized reply is ignored — the nag persists.
+- **Done**: acknowledges, and it is the one surface where Done is *not* a two-tap
+  confirm. Two reasons, and the second outranks the first. The confirm guards against a
+  stray pocket tap, which is not a thing that happens to a head unit; and more importantly
+  a confirmation step **is a safety problem in a moving car**: it takes a driver's eyes
+  back to the screen to read a question and find a second, differently-placed button.
+  §5b settled the same point for the car screen. Nowhere else does the guard cost
+  attention that is needed for the road, which is why nowhere else is exempt.
+- **Snooze**: a fixed 10 minutes. Choosing a duration is not a driving task; the car
+  screen offers the full range.
 
-Auto's **mark-as-read** action (and reading the reminder aloud) **never**
-acknowledges — only an explicit spoken Done does; the persistence guarantee holds in
-the car exactly as on every other surface. A continuously-looping alarm tone is not
-an Auto capability, so in-car an alarm is an urgent messaging heads-up (Auto's chime
-+ read-aloud) while the real looping alarm keeps ringing on the phone. See
-[`alarm-architecture.md`](alarm-architecture.md) (Android Auto) for the mechanism.
+Tapping the card body opens the reminder **on the car screen**, not on the phone.
+
+A continuously-looping alarm tone is not an Auto capability, so in-car an alarm is an
+urgent heads-up card while the real looping alarm keeps ringing on the phone. Reading or
+dismissing a nag in the car **never** acknowledges it. Only Done does, exactly as on
+every other surface. See [`alarm-architecture.md`](alarm-architecture.md) (Android Auto)
+for the mechanism.
+
+> Until 2026-09-06 this surface was voice-only: the mirror disguised each nag as a chat
+> message so that Auto would show it at all, and the driver spoke "done" or "snooze 15
+> minutes" to act. That rested on a misreading: Auto shows any notification extended
+> with `CarAppExtender`, buttons and all, and the disguise is what failed Play's Auto
+> review. Read-aloud and voice reply were messaging affordances and went with it.
 
 ## 5b. The Android Auto screen — the list, at the driver's pace
 
@@ -349,7 +355,7 @@ a count of things you cannot reach is not a list.
 **Opening the app on the head unit shows the backlog as notifications too.** Connecting
 stays quiet — projecting is not a request — but opening Persistent in the car is an
 explicit one, so every unconfirmed nag gains its car form at that moment and lands in
-the car's own notification list, where it can be read aloud and answered by voice (§5).
+the car's own notification list, each carrying its own Done and Snooze (§5).
 The request expires with the drive: a later connection is quiet again.
 
 Opening a reminder there shows its full body (its **unticked** items, as everywhere)
@@ -357,7 +363,9 @@ and offers **Done** and **Snooze**, plus **De-escalate** when an escalation is a
 ringing. Same three actions, same server state, same guarantee: only Done clears a
 firing. Done sits one screen in from the list rather than on the list itself — the
 deliberateness the phone gets from its two-tap confirm, without asking a driver to
-read a confirmation. A reminder that has not fired yet offers no actions, exactly as
+read a confirmation. That is the same reasoning the car *notification's* Done relies on
+(§5), and this screen is where **De-escalate** lives, since a notification has only two
+action slots. A reminder that has not fired yet offers no actions, exactly as
 it has no notification to act on.
 
 The Play build ships neither this screen (Android Auto has no app category a reminder app

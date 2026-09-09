@@ -45,16 +45,24 @@ if (!existsSync(join(mobileRoot, 'android'))) {
 //   - UpdatePlugin installs downloaded APKs, which Play forbids outright.
 //   - The Android Auto car screen must declare one of Auto's approved app categories,
 //     and a reminder app is none of them — so it stays out of the reviewed build
-//     rather than risking a rejection. (The Auto *notification* mirror needs no
-//     category and stays shared.)
+//     rather than risking a rejection. The notification mirror rides along with it:
+//     both are the one `<uses name="template"/>` claim, and that claim needs a category.
 /**
- * The Android Auto notification descriptor, relative to `android-res/`. Direct-only for
- * the same reason as the car screen — see 1c below.
+ * The Android Auto app descriptor, relative to `android-res/`. Direct-only for the same
+ * reason as the car screen, and now for literally the same declaration. See 1c below.
  */
 const AUTO_DESC_REL = join('xml', 'automotive_app_desc.xml')
+const DIRECT_ONLY_RES = [
+  AUTO_DESC_REL,
+  join('drawable', 'ic_action_done.xml'),
+  join('drawable', 'ic_action_snooze.xml')
+]
 
 const DIRECT_ONLY_KT = new Set([
   'UpdatePlugin.kt',
+  'CarProjection.kt',
+  'CarNotificationProjection.kt',
+  'CarListRefresh.kt',
   'ReminderCarAppService.kt',
   'ReminderListScreen.kt',
   'ReminderDetailScreen.kt',
@@ -99,6 +107,14 @@ for (const flavor of ['play', 'direct']) {
     mkdirSync(destRoot, { recursive: true })
     copyFileSync(flavorManifestSrc, join(destRoot, 'AndroidManifest.xml'))
   }
+
+  // Flavor implementations that shared code calls without importing a library that
+  // does not belong in the other artifact (for example the Play no-op projection).
+  const flavorAlarmPkg = join(destPkg, 'alarm')
+  for (const file of readdirSync(srcDir).filter((name) => name.endsWith('.kt'))) {
+    mkdirSync(flavorAlarmPkg, { recursive: true })
+    copyFileSync(join(srcDir, file), join(flavorAlarmPkg, file))
+  }
 }
 // UpdatePlugin only exists in the direct flavor.
 const directAlarmPkg = join(mobileRoot, 'android', 'app', 'src', 'direct', 'java', 'ca', 'persistent', 'app', 'alarm')
@@ -109,18 +125,22 @@ for (const file of DIRECT_ONLY_KT) {
 
 // --- 1c. The Android Auto declaration is direct-only -------------------------
 // `com.google.android.gms.car.application` (flavor/direct/AndroidManifest.xml) opts an
-// app into Play's Auto review *as a messaging app* — which a reminder app fails, since
-// it can neither send nor receive a message (2026-08-17 policy notice). Both halves of
-// the declaration therefore live in `direct`: the manifest entry above, and the
-// descriptor it points at, here.
-const directAutoXml = join(mobileRoot, 'android', 'app', 'src', 'direct', 'res', 'xml')
-mkdirSync(directAutoXml, { recursive: true })
-copyFileSync(join(mobileRoot, 'android-res', AUTO_DESC_REL), join(directAutoXml, 'automotive_app_desc.xml'))
-// An earlier checkout copied it into src/main, where it would ship in the Play AAB.
-const staleAutoXml = join(androidApp, 'res', AUTO_DESC_REL)
-if (existsSync(staleAutoXml)) {
-  rmSync(staleAutoXml)
-  console.log('[setup-android] removed stale automotive_app_desc.xml from src/main (now direct-only)')
+// app into Auto. A reminder app has no approved templated-app category, and its earlier
+// notification declaration caused a messaging-app review it could not pass. Every Auto
+// declaration and resource therefore lives in `direct`.
+const directRes = join(mobileRoot, 'android', 'app', 'src', 'direct', 'res')
+for (const resource of DIRECT_ONLY_RES) {
+  const destination = join(directRes, resource)
+  mkdirSync(dirname(destination), { recursive: true })
+  copyFileSync(join(mobileRoot, 'android-res', resource), destination)
+
+  // Earlier checkouts copied the Auto descriptor and action icons into src/main,
+  // where they would ship in the Play AAB even though no Play code uses them.
+  const stale = join(androidApp, 'res', resource)
+  if (existsSync(stale)) {
+    rmSync(stale)
+    console.log(`[setup-android] removed stale ${resource} from src/main (now direct-only)`)
+  }
 }
 
 console.log('[setup-android] installed play/direct flavor source sets')
@@ -374,12 +394,11 @@ $1`
 // android-res/) onto the generated res/, replacing Capacitor's default icon.
 const iconOverlay = join(mobileRoot, 'android-res')
 if (existsSync(iconOverlay)) {
-  // Everything EXCEPT the Android Auto descriptor, which belongs to the `direct`
-  // flavor along with the manifest entry that points at it (see 1c). Copying it into
-  // src/main would put it in the Play AAB, where the entry no longer exists to use it.
+  // Everything except Android Auto resources, which belong to the `direct` flavor
+  // along with the code and manifest entry that use them (see 1c).
   cpSync(iconOverlay, join(androidApp, 'res'), {
     recursive: true,
-    filter: (src) => !src.endsWith(AUTO_DESC_REL)
+    filter: (src) => !DIRECT_ONLY_RES.some((resource) => src.endsWith(resource))
   })
   console.log('[setup-android] applied custom launcher icons')
 }
@@ -443,17 +462,22 @@ if (existsSync(iconOverlay)) {
 
 // --- 4f. Android Auto (CarConnection projection detection) ------------------
 // CarProjection observes androidx.car.app's CarConnection to tell when the phone is
-// projecting to Android Auto, so buildNotification can mirror nags as MessagingStyle
-// (the only form Auto surfaces). 1.4.0 is compatible with the compileSdk/AGP this
-// script pins above; its minSdk 23 is reconciled via tools:overrideLibrary in the
+// projecting to Android Auto, and CarNotificationProjection adds CarAppExtender metadata.
+// Both implementations and this dependency are direct-only. 1.4.0 is compatible with
+// the compileSdk/AGP this script pins above; its minSdk 23 is reconciled in the direct
 // manifest. (It named compileSdk 34 / AGP 8.2.1 until those pins moved on without it.)
 {
   let g = readFileSync(appGradlePath, 'utf8')
-  if (!g.includes('androidx.car.app:app')) {
+  const sharedCarDependency = /^\s*implementation\s+["']androidx\.car\.app:app:[^"']+["']\s*$/m
+  if (sharedCarDependency.test(g)) {
+    g = g.replace(sharedCarDependency, '    directImplementation "androidx.car.app:app:1.4.0"')
+    writeFileSync(appGradlePath, g)
+    console.log('[setup-android] moved androidx.car.app dependency to direct flavor')
+  } else if (!g.includes('androidx.car.app:app')) {
     g = g.replace(
       /dependencies\s*\{/,
       `dependencies {
-    implementation "androidx.car.app:app:1.4.0"`
+    directImplementation "androidx.car.app:app:1.4.0"`
     )
     writeFileSync(appGradlePath, g)
     console.log('[setup-android] added androidx.car.app (Android Auto) dependency')

@@ -27,6 +27,7 @@ two flavors instead of dropping the updater outright:
 | `REQUEST_INSTALL_PACKAGES` | yes | **no** |
 | `ReminderCarAppService` (Android Auto screen) | yes | **no** — see #1a |
 | `com.google.android.gms.car.application` (Auto notification mirror) | yes | **no** — see #1b |
+| `androidx.car.app` dependency and implementation | yes | **no** (see #1b) |
 
 - Flavor sources: `apps/mobile/android-plugin/flavor/{play,direct}/`
 - `setup-android.mjs` copies them into `android/app/src/<flavor>/` and injects the `productFlavors` block
@@ -38,10 +39,10 @@ manifest contains **0** occurrences of `REQUEST_INSTALL_PACKAGES` and the flavor
 compiled output contains **0** `UpdatePlugin` classes; `directDebug` has both. Both
 flavors compile (Kotlin + Java). The same check covers Auto: the built `playDebug` APK
 has **no** `com.google.android.gms.car.application` meta-data, **no**
-`ReminderCarAppService`, and **no** `res/xml/automotive_app_desc.xml`; `directDebug` has
-all three. Check the APK, not the source — the entry reached the Play build for months
-because it was merged into `src/main` by `setup-android.mjs`, which no source file for
-the `play` flavor mentions.
+`ReminderCarAppService`, **no** `androidx.car.app` library components, and **no** Auto
+resources; `directDebug` has them. Check the APK, not the source: the entry reached the
+Play build for months because it was merged into `src/main` by `setup-android.mjs`, which
+no source file for the `play` flavor mentions.
 
 ### 1b. The Auto notification mirror was the actual policy hit
 
@@ -57,10 +58,20 @@ own remediation offers ("exclude your app from Android Auto by removing the Andr
 manifest entry"). The Play build now has no Auto surface; the sideloaded build keeps
 both the mirror and the screen.
 
+**The messaging claim itself was never necessary, and is gone as of 2026-09-06.** It was
+made because the mirror was built as a `MessagingStyle` disguise, on the belief that Auto
+surfaces only messaging notifications. It does not: Auto shows any notification extended
+with `androidx.car.app.notification.CarAppExtender`, and lets it carry two real action
+buttons. The descriptor now says `<uses name="template"/>`, describing the templated car
+app that genuinely exists. **This does not by itself re-open Auto for Play**. Section #1a's
+category problem is untouched and is now the only thing standing in the way. Re-attempting
+Auto on Play would be a deliberate decision to defend `SETTINGS` (or another category) at
+review, not a consequence of this change.
+
 Two things follow from it, and both are done: the store description no longer claims the
-app works in the car (`listing.md`), and `CarProjection.init` reads the app's own manifest
-for the declaration rather than trusting a flavor constant, so the Play build never even
-observes the car connection.
+app works in the car (`listing.md`), and every Auto implementation now lives in the direct
+source set. Play compiles against no-op projection and notification-extension seams, with
+no AndroidX Car App dependency to contribute components through manifest merging.
 
 The web UI is the same hosted bundle for both flavors, so it cannot be compiled
 differently — every updater surface gates on `hasNativeUpdater()`
@@ -69,7 +80,7 @@ differently — every updater surface gates on `hasNativeUpdater()`
 ⚠️ **Never upload the `direct` artifact to Play.** CI now asserts this on every
 release ("Verify the Play bundle carries no direct-only components"): it locates the
 `playRelease` packaged manifest and fails the run if any direct-only marker appears —
-`REQUEST_INSTALL_PACKAGES`, `androidx.car.app.CarAppService`, or
+`REQUEST_INSTALL_PACKAGES`, `androidx.car.app`, or
 `com.google.android.gms.car.application`. **Add a marker the moment a component becomes
 flavor-specific.** The Auto notification meta-data was missing from this list, so the
 step ran green for months while the entry shipped in the Play build and eventually drew
@@ -85,7 +96,7 @@ To check by hand:
 ```bash
 perl -0777 -pe 's/<!--.*?-->//gs' \
   apps/mobile/android/app/build/intermediates/packaged_manifests/playRelease/*/AndroidManifest.xml |
-  grep -cE 'REQUEST_INSTALL_PACKAGES|androidx.car.app.CarAppService|com.google.android.gms.car.application'   # expect 0
+  grep -cE 'REQUEST_INSTALL_PACKAGES|androidx.car.app|com.google.android.gms.car.application'   # expect 0
 ```
 
 Run the same against `directRelease` and expect a non-zero count — a guard nobody has
@@ -98,8 +109,8 @@ warning means the check has stopped running and the path needs updating.)
 
 ## 1a. Android Auto car screen ✅ DONE (kept out of the Play build)
 
-Android Auto's **notification** extension — mirroring a nag into the car as a
-`MessagingStyle` notification — needs no app category, which is why it shipped in
+Android Auto's **notification** extension, which mirrors a nag into the car via
+`CarAppExtender`, needs no app category of its own. That is why it shipped in
 **both** flavors until Play enforced against it. It is `direct`-only now, for the
 reasons in #1b, and the CI guard above covers its manifest entry.
 

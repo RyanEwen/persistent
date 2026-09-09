@@ -27,11 +27,6 @@
      looks for — it must never reach the `play` build. -->
 
 
-<!-- androidx.car.app is minSdk 23 while the app floor is 22. Android Auto itself
-     needs API 23+, and CarProjection.init is SDK-guarded, so overriding the library's
-     minSdk here is safe (Gradle still injects the app's real minSdk). -->
-<uses-sdk tools:overrideLibrary="androidx.car.app" />
-
 <!-- ===== inside <application> ===== -->
 <service
     android:name="ca.persistent.app.alarm.AlarmService"
@@ -95,5 +90,8 @@
     tools:node="remove" />
 
 <!-- The Android Auto declaration (com.google.android.gms.car.application) is NOT here.
-     It lives in the `direct` flavor's manifest, because declaring it opts the app into
-     Google Play's Auto review as a *messaging* app — see flavor/direct/AndroidManifest.xml. -->
+     It lives in the `direct` flavor's manifest, because it declares a templated car app
+     and Auto requires one of its approved categories, which no reminder app honestly fits.
+     See flavor/direct/AndroidManifest.xml. (It used to say `<uses name="notification"/>`,
+     which additionally claimed the app was a *messaging* app and failed Play's Auto review
+     on 2026-08-17; that claim is gone.) -->

@@ -1,11 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Declares that this app extends its notifications to Android Auto. Required (with
-  the com.google.android.gms.car.application meta-data in the manifest) for Android
-  Auto to project the app's MessagingStyle reminder notifications. See
-  docs/alarm-architecture.md (Android Auto). Copied into res/xml/ by
-  scripts/setup-android.mjs.
+  Declares this build to Android Auto as a **templated** car app: it has a
+  CarAppService (ReminderCarAppService) offering car screens, and its notifications
+  are extended with CarAppExtender so Auto surfaces them with their own Done/Snooze
+  buttons.
+
+  It said `<uses name="notification"/>` until 2026-09-06, on the belief that Auto
+  surfaces only MessagingStyle notifications and that opting in "needs no category".
+  Both halves were wrong. To Auto, `notification` means exactly one thing: this app
+  sends and receives short-form messages, and Play's Auto review then tests it as a
+  messaging app, which is the 2026-08-17 rejection no reminder app can pass. A
+  notification does not need it: `CarAppExtender` is what makes Auto show one, and it
+  carries up to two real actions with no messaging pretence.
+
+  Paired with the com.google.android.gms.car.application meta-data in the manifest.
+  Copied into the direct flavor's res/xml/ by scripts/setup-android.mjs. See
+  docs/alarm-architecture.md (Android Auto) and store/play-readiness.md #1b.
 -->
 <automotiveApp>
-    <uses name="notification" />
+    <uses name="template" />
 </automotiveApp>
