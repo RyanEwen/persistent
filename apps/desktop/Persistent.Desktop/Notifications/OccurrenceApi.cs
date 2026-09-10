@@ -9,7 +9,7 @@ namespace Persistent.Desktop.Notifications;
 /// it. Nothing else.
 ///
 /// <para><b>This is a deliberate, narrow exception to the rule in
-/// <c>apps/desktop/CLAUDE.md</c></b> that the host never calls a domain API. It
+/// <c>apps/desktop/AGENTS.md</c></b> that the host never calls a domain API. It
 /// exists because toast buttons that only open the flyout were judged not worth
 /// having; the trade is that this is now a second caller of the ack/snooze
 /// endpoints and has to stay faithful to them.</para>

@@ -12,7 +12,7 @@ namespace Persistent.Desktop.Notifications;
 ///
 /// <para>It carries no reminder model, no schedule and no status rules — just an
 /// id to act on and the text to display. Anything richer would be the C# mirror
-/// of <c>@persistent/shared</c> that <c>apps/desktop/CLAUDE.md</c> exists to
+/// of <c>@persistent/shared</c> that <c>apps/desktop/AGENTS.md</c> exists to
 /// prevent.</para>
 /// </summary>
 internal sealed record RealtimeEvent(

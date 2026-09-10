@@ -467,7 +467,7 @@ whose dose is still unconfirmed must keep that dose nagging, because the day it
 belongs to is still covered.
 
 **The first exception** is a reminder that had no schedule at all (kind `none` —
-see the root `CLAUDE.md`). Its single firing is an artifact of being unscheduled,
+see `.agents/guides/reminder-model.md`). Its single firing is an artifact of being unscheduled,
 not a commitment to a date, so giving it a real schedule retires that firing
 instead of leaving it behind.
 

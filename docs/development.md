@@ -73,7 +73,7 @@ compiled XAML was never copied all passed CI and were only ever found by running
 it. So **`npm run install:desktop` is the real check** — it syncs the working tree
 to the Windows machine over SSH, builds a dev-signed MSIX there and installs it
 into the logged-on session. The working tree rather than a commit, deliberately, so
-a desktop change is tried before it is committed. See `apps/desktop/CLAUDE.md`.
+a desktop change is tried before it is committed. See `apps/desktop/AGENTS.md`.
 
 The image does ship the .NET SDK, so `npm run verify:desktop` compiles the
 **non-XAML** C# against the real Windows App SDK reference assemblies. Run it
@@ -146,17 +146,19 @@ Because the app loads the UI from production, web-only changes ship via a deploy
 with no new build — cut a release only for native changes (alarm/update/passkey/
 Google plugins, manifest, icon).
 
-## Slash commands (`.claude/commands/`)
+## Codex skills (`.agents/skills/`)
 
-- `/commit` — review (docs + data-isolation + logging) + validate + commit.
-- `/deploy` — `/commit` then push + SSH-Docker deploy.
-- `/release` — derive the next version from changes since the last release, tag,
+- `$commit`: review (docs, data isolation, and logging), validate, and commit.
+- `$deploy`: `$commit`, then push and deploy through SSH and Docker.
+- `$release`: derive the next version from changes since the last release, tag,
   and let CI build both flavors: the signed APK onto a GitHub Release and the
   AAB onto Google Play's `internal` + `alpha` tracks.
-- `/audit-docs` — resync all docs with the code.
+- `$audit-docs`: resync all docs and project guidance with the code.
+- `$verify`: observe web behavior or run the appropriate Android/desktop check.
 
 ## Docs
 
 Cross-cutting contracts live in `docs/`: `auth-architecture.md`,
 `data-event-contract.md`, `alarm-architecture.md`. Directory-scoped conventions
-are in each `CLAUDE.md`.
+are in the scoped `AGENTS.md` files. Reusable workflows and focused agent guides
+live under `.agents/`.

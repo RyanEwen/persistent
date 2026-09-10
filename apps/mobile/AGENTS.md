@@ -1,7 +1,7 @@
-# Mobile conventions (`apps/mobile`)
+# Mobile guidance (`apps/mobile`)
 
 Capacitor (Android) wrapper of the built web app plus the custom native alarm
-plugin — where the hard alarm guarantee actually lives. Architecture is in
+plugin: where the hard alarm guarantee actually lives. Architecture is in
 [`docs/alarm-architecture.md`](../../docs/alarm-architecture.md); build, wireless
 adb and signing are in `README.md`.
 
@@ -14,12 +14,12 @@ the floor, and see `store/play-readiness.md` #2a for the checklist to run on a p
 after one.
 
 **Native (Kotlin/Java) changes aren't covered by `npm run validate`.** The
-devcontainer ships JDK 17 + the Android SDK (platform-36, build-tools 36.0.0 — the
+devcontainer ships JDK 17 + the Android SDK (platform-36, build-tools 36.0.0; the
 app targets API 36; `setup-android.mjs` pins the compileSdk/targetSdk, AGP and Gradle
 versions together, since AGP caps the compileSdk it will build), so
 verify them by compiling: from here, `npm run verify:android` (re-syncs
 `android-plugin/` into the generated project, then compiles the Kotlin **and**
-Java tasks for **both product flavors**). All four tasks matter — the plugin is
+Java tasks for **both product flavors**). All four tasks matter: the plugin is
 Kotlin but `MainActivity.java` is Java, and the Kotlin task alone compiles right
 past a broken `MainActivity`. Run `npm run prepare:android` once first if the
 generated `android/` project doesn't exist yet.
@@ -29,9 +29,9 @@ generated `android/` project doesn't exist yet.
 `android-plugin/flavor/`: `play` for the Play Store, `direct` for sideloaded
 GitHub releases. Two things live in `direct` only, each because Play would object:
 
-- **the in-app updater** — `direct` registers `UpdatePlugin` and declares
+- **the in-app updater**: `direct` registers `UpdatePlugin` and declares
   `REQUEST_INSTALL_PACKAGES`; Play forbids an app it distributes from updating itself.
-- **the whole Android Auto integration** — the car screen (`ReminderCarAppService` +
+- **the whole Android Auto integration**: the car screen (`ReminderCarAppService` +
   its screens) *and* the notification mirror's `com.google.android.gms.car.application`
   declaration. A templated car app must declare one of Auto's approved categories and a
   reminder app is none of them. The mirror used to be judged separately, on the grounds
@@ -51,7 +51,7 @@ Direct-only Kotlin sources are listed in `scripts/setup-android.mjs`
 (`DIRECT_ONLY_KT`) and their manifest entries in `flavor/direct/AndroidManifest.xml`;
 `res/xml/automotive_app_desc.xml` is copied into that flavor's `res/` by the same script
 (`AUTO_DESC_REL`), which also deletes a stale copy from `src/main`. **Check a policy
-split on the built APK, not the source** — the Auto entry reached the Play build for
+split on the built APK, not the source.** The Auto entry reached the Play build for
 months because `setup-android.mjs` merged it into `src/main`, where no `play` source
 file mentions it.
 `MainActivity` is shared and calls `FlavorPlugins.register(this)`, which each flavor
@@ -67,13 +67,13 @@ on `hasNativeUpdater()` (`apps/web/src/native/alarmBridge.ts`), never
 --email=…` fills the **store demo account** with the small, health-data-free set
 the screenshots are taken against, and `npm run shots -- --email=…` renders four
 of the six store screenshots from the running dev web app (Playwright, kept out
-of `package.json` — the script prints the one-off install). The full-screen alarm
+of `package.json`; the script prints the one-off install). The full-screen alarm
 and the notification shade are native/OS surfaces and still need a device.
 `store/listing.md` is the source of truth for the copy *and* the screenshot set;
 both are pushed to Play by the manual `play-listing` workflow
 (`scripts/play-publish.mjs --listing`). See `store/play-readiness.md`, and keep
 the listing free of health framing while `MEDICATION` is withheld from the picker
-(root `CLAUDE.md`).
+(root `AGENTS.md`).
 
 ## Reaching a wider Play track
 
@@ -83,5 +83,5 @@ and nothing reaches production on its own.**
 Promoting is the manual `play-promote` workflow (`scripts/play-publish.mjs
 --promote`), which moves a versionCode already on Play onto another track without
 rebuilding or re-uploading, since Play rejects a second upload of a code it has
-seen. Don't add production to a tag's tracks to skip this: the split is what keeps
+seen. Don't add production to a tag's tracks to skip this; the split is what keeps
 "published so it can be tested" separate from "judged good enough for everyone".

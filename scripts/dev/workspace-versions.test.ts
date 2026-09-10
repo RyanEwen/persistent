@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 
 /**
  * package-lock.json records each workspace's version alongside its dependency
- * tree. `/release` bumps apps/web/package.json, which does not touch the lockfile,
+ * tree. `$release` bumps apps/web/package.json, which does not touch the lockfile,
  * so the two drift apart silently — at one point the lockfile still claimed 0.7.0
  * while the app was several releases ahead. Nothing breaks immediately, but a lie
  * in the lockfile is confusing at exactly the wrong moment (a release), and

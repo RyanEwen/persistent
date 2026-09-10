@@ -18,7 +18,9 @@
 .git
 .github
 .devcontainer
-.claude
+.agents
+AGENTS.md
+**/AGENTS.md
 docs
 
 # The Android client is built by CI, never by this image, and its generated

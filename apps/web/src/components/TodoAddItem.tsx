@@ -4,7 +4,7 @@
  *
  * Collapsed to one quiet text button until it is used. The card it sits on already
  * has Done on it, and Done is the app's entire guarantee: nothing that merely adds
- * to a list may compete with it for attention (see apps/web/CLAUDE.md).
+ * to a list may compete with it for attention (see apps/web/AGENTS.md).
  *
  * Once open it *stays* open after each item, focus intact — a list is usually
  * extended by more than one line, and having to re-open the field between lines is

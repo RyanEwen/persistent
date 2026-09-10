@@ -5,7 +5,7 @@ namespace Persistent.Desktop.Classes;
 /// <summary>
 /// Win32 P/Invoke for the invisible tray host (Shell_NotifyIcon + a popup menu),
 /// the flyout window (DWM rounded corners, monitor work-area placement), and the
-/// settings window (icon, DPI). See <c>apps/desktop/CLAUDE.md</c>.
+/// settings window (icon, DPI). See <c>apps/desktop/AGENTS.md</c>.
 /// </summary>
 internal static partial class NativeMethods
 {

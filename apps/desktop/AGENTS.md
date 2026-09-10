@@ -1,14 +1,14 @@
-# Desktop conventions (`apps/desktop`)
+# Desktop guidance (`apps/desktop`)
 
 WinUI 3 (Windows App SDK) tray app that hosts the Persistent PWA in a WebView2
 flyout. Architecture, and the reasoning behind the WebView decision, live in
-[`docs/desktop-architecture.md`](../../docs/desktop-architecture.md) — read that
+[`docs/desktop-architecture.md`](../../docs/desktop-architecture.md): read that
 first.
 
 **This is C#, so `npm run validate` does not cover it and the Linux devcontainer
 cannot build or run the app.** `.github/workflows/build-desktop-msix.yml` compiles
 both platforms on `windows-2025` for every push/PR under this directory, and is
-the only complete check — treat a red run there the way you would a failed
+the only complete check: treat a red run there the way you would a failed
 `npm run validate`.
 
 **Before you commit anything that touches XAML, code-behind or packaging, install
@@ -31,10 +31,10 @@ files it covers, and the stubs standing in for the XAML-backed types, are in
 ## The rule that keeps this app small
 
 **Anything that belongs to a reminder belongs in the PWA, not here.** The host
-owns windows, the tray, and which server to load — nothing else. If you find
+owns windows, the tray, and which server to load: nothing else. If you find
 yourself adding a C# model of a reminder, a REST call for domain data, or a
 second implementation of a done/snooze rule, stop: that is the mistake this design
-exists to avoid (see `docs/notification-behavior.md` — every surface must
+exists to avoid (see `docs/notification-behavior.md`: every surface must
 converge, and the surface that *is* the web client cannot diverge).
 
 Concretely, do not add: DTO mirrors of `@persistent/shared`, native reminder UI,
@@ -47,7 +47,7 @@ occurrence event, and `POST`s to `/api/occurrences/:id/{ack,snooze}` behind the
 toast buttons. What keeps it from becoming the mistake:
 
 - It reads **ids and display text**, never a reminder model, a schedule or a
-  status rule. It renders no medication doses and no checklist — that is
+  status rule. It renders no medication doses and no checklist: that is
   `reminderBodyText` in `@persistent/shared`, and re-implementing it here is the
   drift this design exists to prevent. The full body is one click away.
 - It decides **nothing** about whether an action is allowed; the server's 409 is
@@ -69,7 +69,7 @@ writer of `settings.json`; the page holds no copy and persists nothing.
 
 | Path | Role |
 |---|---|
-| `Directory.Build.props` | `<Version>` — single source of truth; platform auto-detect |
+| `Directory.Build.props` | `<Version>`: single source of truth; platform auto-detect |
 | `Persistent.Desktop/App.xaml.cs` | Entry point; single-instance mutex; NLog wiring |
 | `Persistent.Desktop/MainWindow.xaml.cs` | Invisible tool window: tray icon, menu, app lifetime |
 | `Persistent.Desktop/Windows/AppFlyout.xaml.cs` | The flyout + the warm WebView2 (the actual product) |
@@ -89,15 +89,15 @@ writer of `settings.json`; the page holds no copy and persists nothing.
 
 ## Conventions
 
-- **The WebView is created once, at startup, and shown/hidden — never rebuilt.**
+- **The WebView is created once, at startup, and shown/hidden: never rebuilt.**
   Opening is then instant and lands the user where they left off. While hidden it
-  is suspended (`TrySuspendAsync`), so it costs little to keep around — that is
+  is suspended (`TrySuspendAsync`), so it costs little to keep around: that is
   affordable only because nothing outside the flyout consumes the page.
 - **Settings**: one `[ObservableProperty]` partial property per setting on
   `UserSettings`, PascalCase, with a sensible default; side-effects go in a
   partial `On<Name>Changed` guarded by `if (_initializing) return;`.
   `SettingsManager` serializes to `%AppData%\Persistent\settings.json`. Keep this
-  file free of credentials — the session lives in the WebView2 profile.
+  file free of credentials: the session lives in the WebView2 profile.
 - **A setting the user came to Settings for is shown by the PWA, not by a native
   page.** Notifications, start-at-sign-in, the flyout size and the pin go through
   `HostSettings` and render in `apps/web/src/native/desktop-settings/`; the
@@ -111,16 +111,16 @@ writer of `settings.json`; the page holds no copy and persists nothing.
   header comment. Prefer `[LibraryImport]` for new declarations (the class must
   then be `partial`). Always `DestroyIcon` an HICON you create.
 - **Icons**: load a generous frame (32 for the tray/small slot, 64 for
-  `AppWindow.SetIcon`), never 16 — the shell downscaling stays crisp, upscaling
+  `AppWindow.SetIcon`), never 16: the shell downscaling stays crisp, upscaling
   does not. In-app XAML `Image` sources use the high-res PNG, not the `.ico`.
 - **PowerShell build scripts must be ASCII.** Windows PowerShell 5.1 reads a
   BOM-less `.ps1` as ANSI, so a UTF-8 dash or curly quote inside a string breaks
   parsing in ways that are hard to spot.
-- **Failure paths get an NLog line, not a silent `catch`** — the same rule as the
+- **Failure paths get an NLog line, not a silent `catch`**: the same rule as the
   API. The app has no window at startup, so a swallowed exception is invisible;
   `StartupDiagnostics` exists because of exactly that. Keep a bare `catch` only for
   genuinely cosmetic things, and say so in a comment.
-- `global::` does not parse inside interpolated strings — assign to a local first.
+- `global::` does not parse inside interpolated strings: assign to a local first.
   Fully-qualify `Microsoft.UI.Xaml.Visibility` / `FocusState` in page code-behind.
 - Bump `<Version>` in `Directory.Build.props` for every packaged build; MSIX
   refuses to reinstall the same version with different content. Releases are
@@ -133,7 +133,7 @@ writer of `settings.json`; the page holds no copy and persists nothing.
 - **This app is packaged as well as portable, so anything install-shaped has two
   answers.** Startup registration, update checks and app data all branch on
   whether `Package.Current` exists. When adding another, branch it too rather than
-  assuming the portable case — and put the packaged path behind the same
+  assuming the portable case; put the packaged path behind the same
   try/catch idiom the existing ones use.
 - **`external/promo` is a submodule and the csproj imports it unconditionally.**
   Clone with `--recurse-submodules`, and keep `submodules: true` plus
@@ -146,13 +146,13 @@ writer of `settings.json`; the page holds no copy and persists nothing.
 
 Host behavior that depends on the page lives in
 `apps/web/src/native/desktopBridge.ts`. All three hosts load the **same** hosted
-bundle, so it is runtime feature detection, never a build flag — and
+bundle, so it is runtime feature detection, never a build flag.
 `isDesktopHost()` must stay distinct from `isNative()` (Capacitor is absent here,
 so `isNative()` is false in this host).
 
 **The page ships ahead of this app.** The bundle is hosted and updates itself,
 while the running `.exe` may be an older portable build or a Store update the user
 hasn't taken. So the page must degrade when the host doesn't answer, rather than
-assume it will: a host too old to know `getHostSettings` never replies, and the
+assume it will. A host too old to know `getHostSettings` never replies, and the
 Settings card hides itself (`useHostSettings.ts`). Any new page->host request needs
 the same shape. Never write a version compare instead.

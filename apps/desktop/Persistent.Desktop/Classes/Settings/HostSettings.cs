@@ -16,7 +16,7 @@ namespace Persistent.Desktop.Classes.Settings;
 /// Two things deliberately do NOT come through here. The server address stays
 /// native, because a control for the setting that decides whether the page loads
 /// cannot live inside that page. And anything about a reminder stays in the PWA
-/// outright (`apps/desktop/CLAUDE.md`) - this carries host state only, never a
+/// outright (`apps/desktop/AGENTS.md`) - this carries host state only, never a
 /// schedule, a status or a done/snooze rule.
 /// </summary>
 internal static class HostSettings
