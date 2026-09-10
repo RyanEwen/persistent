@@ -38,6 +38,12 @@ the `Passkey` model.
   `webauthn.ts`, kept in sync with the cert in `assetlinks.json`). The login UI
   offers passkey first, with email as fallback.
 
+In optional devkit host mode, `CLIENT_ORIGIN` is the checkout's derived
+`*.localhost` URL. WebAuthn binds credentials to that hostname: a passkey created
+on plain `localhost` or another worktree will not work there, even when a database
+snapshot copied its credential row. Sign in by email code and register a separate
+passkey for each development hostname where one is useful.
+
 Native app: the WebView has no `navigator.credentials`, so the native
 `PasskeyPlugin` (androidx.credentials Credential Manager) performs the ceremony —
 `passkeyClient.ts` routes to it when `isNative()`, else to the browser API. This

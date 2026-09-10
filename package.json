@@ -12,6 +12,9 @@
   "scripts": {
     "build": "npm run build --workspace @persistent/shared && npm run build --workspace @persistent/api && npm run build --workspace @persistent/web",
     "dev": "node scripts/dev/run-dev.mjs",
+    "dev:bootstrap": "devkit bootstrap",
+    "dev:doctor": "devkit doctor",
+    "dev:host": "devkit",
     "start:prod": "npm run prisma:migrate:deploy --workspace @persistent/api && node apps/api/dist/server.js",
     "deploy:prod": "node --env-file=.env scripts/deploy/deploy-over-ssh.mjs",
     "db:generate": "npm run prisma:generate --workspace @persistent/api",
@@ -30,6 +33,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.24.0",
+    "@ryanewen/devkit": "github:RyanEwen/devkit#v0.3.0",
     "concurrently": "^9.1.2",
     "eslint": "^9.24.0",
     "eslint-plugin-react-hooks": "^5.2.0",

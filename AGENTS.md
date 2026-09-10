@@ -82,8 +82,10 @@ directory guide `apps/api/AGENTS.md`.
 
 ## Build & validation
 
-- Development is **devcontainer-only** (Node 20 + Postgres `db` service). The web
-  build's service-worker generation needs Node 20.
+- The devcontainer (Node 20 + Postgres `db` service) is the complete development
+  environment. Optional `@ryanewen/devkit` host mode supports concurrent
+  checkouts; it disables itself inside the devcontainer, which retains fixed
+  ports and networking. The web build's service-worker generation needs Node 20.
 - `npm run dev`: shared (watch) + api + web concurrently.
 - `npm run db:migrate`: create/apply Prisma migrations. Regenerate the client
   (`npm run db:generate`) and update shared contracts when the schema changes.

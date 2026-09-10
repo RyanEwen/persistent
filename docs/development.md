@@ -45,17 +45,24 @@ conflict resolution. Live updates arrive over a per-user WebSocket. The native
 client also pulls occurrences to schedule on-device alarms and drains
 acks/snoozes back to the server. See `docs/data-event-contract.md`.
 
-## Development (devcontainer-only)
+## Development
 
-Developed exclusively inside the **dev container** (VS Code: "Reopen in
-Container"), which provides Node 20, PostgreSQL (`db` service), the Android
-SDK/JDK, and all tooling; `DATABASE_URL`/`API_PORT` are injected automatically.
+The **dev container** (VS Code: "Reopen in Container") remains the complete
+development environment. It provides Node 20, PostgreSQL (`db` service), the
+Android SDK/JDK, and all tooling; `DATABASE_URL`/`API_PORT` are injected
+automatically. Devkit detects the container and disables itself, so this path
+keeps its fixed ports and existing network setup.
 
 ```bash
 npm run dev        # shared (watch) + api + web, concurrently
 npm run db:migrate # apply Prisma migrations
 npm run validate   # lint + test + typecheck + prisma validate
 ```
+
+`npm run dev` waits for PostgreSQL and applies all checked-in Prisma migrations
+before it starts the watchers. Schema changes still need a real migration from
+`npm run db:migrate -- <name>`; startup never substitutes `db push` for migration
+history.
 
 `validate` does not cover the native Kotlin. After editing `apps/mobile/android-plugin/`,
 compile-check it with `npm run verify:android` (from `apps/mobile`) — see
@@ -86,6 +93,51 @@ the API response instead of emailing it. Config lives in `.env` (see
 `.env.example`).
 
 For the Android app (build, wireless adb, signing), see `apps/mobile/README.md`.
+
+### Multi-checkout host mode (optional)
+
+`@ryanewen/devkit` lets several repositories or linked worktrees run together
+from a host shell. Each checkout gets a hostname, PostgreSQL database, and web/API
+ports derived from its path. It is off unless bootstrapped on the machine, and
+`DEVKIT=0` disables it for one run.
+
+```bash
+npm run dev:bootstrap          # once per machine, from the host rather than the devcontainer
+npm run dev:host -- snapshot   # once in the primary checkout, capture its database baseline
+npm install                    # once in each new worktree
+npm run dev
+```
+
+On first start, a worktree copies the primary checkout's `.env` only when it has
+none, clones the database baseline, applies migrations added by its branch, and
+prints both its proxied `*.localhost` URL and direct Vite URL. Persistent has no
+filesystem baseline paths, so snapshots contain database state only.
+
+The snapshot, rather than `db:seed`, supplies a new worktree's initial users and
+reminders. `npm run db:seed` remains an explicit operation against the current
+checkout's database. Seed changes do not refresh the baseline automatically;
+run `npm run dev:host -- snapshot` in the primary checkout when those changes
+should reach future worktrees. A newly applied primary-checkout migration does
+trigger a best-effort baseline refresh after the dev servers start.
+
+Passkeys are deliberately hostname-specific. A credential registered for
+`localhost` cannot authenticate at `persistent.localhost`, and a credential for
+one worktree hostname cannot authenticate at another. Cloning its database row
+does not change that browser/WebAuthn binding, so use email-code sign-in and
+register a passkey separately on each hostname where one is useful.
+
+| Command | Purpose |
+| --- | --- |
+| `npm run dev:doctor` | Report every host-mode prerequisite and its fix |
+| `npm run dev:host -- snapshot` | Refresh the database baseline, retaining the previous copy as `_prev` |
+| `npm run dev:host -- reset` | Drop and re-clone a worktree database; add `--empty` to skip the baseline |
+| `npm run dev:host -- prune` | Find databases for deleted worktrees; add `--yes` to drop them |
+| `npm run dev:host -- infra` | Restart the shared proxy and PostgreSQL stack |
+
+Reset refuses to operate on the primary checkout because it owns the source
+database for snapshots. Deleting `~/.config/devkit/host.json` disables host mode
+permanently; `DEVKIT=0 npm run dev` disables it once. The devcontainer always
+wins over the host marker and remains the full escape hatch.
 
 ## Deployment
 
