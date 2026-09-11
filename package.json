@@ -33,7 +33,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.24.0",
-    "@ryanewen/devkit": "github:RyanEwen/devkit#v0.3.0",
+    "@ryanewen/devkit": "github:RyanEwen/devkit#v0.3.1",
     "concurrently": "^9.1.2",
     "eslint": "^9.24.0",
     "eslint-plugin-react-hooks": "^5.2.0",

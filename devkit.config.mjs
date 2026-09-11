@@ -10,7 +10,7 @@ export default {
   ports: ['web', 'api'],
 
   /** Pin the PostgreSQL server version this project expects. */
-  database: { engine: 'postgres', version: '16-bookworm' },
+  database: { engine: 'postgres', version: '16.13-bookworm' },
 
   /** Prisma migration history lets doctor and baseline refresh compare schema state. */
   migrationsTable: '_prisma_migrations',
