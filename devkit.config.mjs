@@ -27,6 +27,9 @@ export default {
   /** A linked worktree needs the primary checkout's ignored local configuration on first start. */
   worktreeFiles: ['.env'],
 
+  /** Open the proxied UI only after its API is ready to serve the application. */
+  browser: { path: '/', healthPath: '/api/health' },
+
   /**
    * CLIENT_ORIGIN is the proxied origin the browser uses, which also makes its hostname the
    * WebAuthn relying-party id. Devkit itself supplies the host bind and allowed-host values.
