@@ -17,6 +17,7 @@
   "scripts": {
     "build": "npm run build --workspace @persistent/shared && npm run build --workspace @persistent/api && npm run build --workspace @persistent/web",
     "dev": "node scripts/dev/run-dev.mjs",
+    "dev:down": "npm run dev -- --down",
     "dev:bootstrap": "devkit bootstrap",
     "dev:doctor": "devkit doctor",
     "dev:host": "devkit",

@@ -134,7 +134,7 @@ register a passkey separately on each hostname where one is useful.
 | `npm run dev:host -- prune` | Find volumes for deleted worktrees; add `--yes` to remove them |
 | `npm run dev:host -- infra` | Restart the machine proxy and this checkout's PostgreSQL container |
 
-`npm run dev -- --down` removes this checkout's containers and network while preserving its
+`npm run dev:down` removes this checkout's containers and network while preserving its
 database volume.
 
 Reset refuses to operate on the primary checkout because it owns the source
