@@ -1,0 +1,9 @@
+{
+  "recommendations": [
+    "ms-ossdata.vscode-pgsql",
+    "Prisma.prisma",
+    "dbaeumer.vscode-eslint",
+    "ms-dotnettools.csdevkit",
+    "ms-azuretools.vscode-docker"
+  ]
+}
