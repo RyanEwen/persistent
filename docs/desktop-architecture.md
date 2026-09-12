@@ -428,9 +428,9 @@ mouse.
 
 The installed MSIX registers `Persistent.Widget`, a small out-of-process C# widget
 provider. Windows starts it through COM only when the Widgets Board needs it. The
-card supports small and medium sizes and opens `Persistent.Desktop.exe`; the tray
-app's single-instance path then shows the existing warm flyout if it is already
-running.
+card supports small, medium and large sizes and opens `Persistent.Desktop.exe`;
+the tray app's single-instance path then shows the existing warm flyout if it is
+already running.
 
 The manifest's `TrustedPackageFamilyNames` entry for stable Edge is required even
 though the provider itself is native C#. The Widgets Board uses that package to
@@ -448,9 +448,10 @@ Selecting a row opens the real app.
 The host validates and caps every string, then atomically replaces
 `%AppData%\Persistent\widget-snapshot.json`. Signing out replaces it with a
 signed-out empty state so personal text does not linger on the board. The widget
-shows two rows at small size and four at medium size; Windows still owns its
-outer chrome and light/dark background, while the Adaptive Card mirrors the app's
-Upcoming heading, type labels, information order and accent treatment.
+shows two rows at small size, four compact one-line rows at medium size and four
+expanded rows at large size. Windows still owns its outer chrome and light/dark
+background, while the Adaptive Card mirrors the app's Upcoming heading,
+information order and accent treatment.
 
 This feature is packaged-only. The portable build has no manifest registration,
 and Windows does not discover unpackaged widget providers. The packaging script

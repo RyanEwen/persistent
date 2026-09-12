@@ -168,7 +168,8 @@ public sealed class PersistentWidgetProvider : IWidgetProvider
 
     /// <summary>
     /// Build app-like information hierarchy inside Windows-owned widget chrome.
-    /// Small cards show two rows; medium cards show all four snapshot rows.
+    /// Small cards show two concise blocks, medium cards show four compact rows,
+    /// and large cards show all four rows with their optional detail.
     /// </summary>
     private static string BuildTemplate(WidgetSnapshot snapshot)
     {
@@ -190,6 +191,7 @@ public sealed class PersistentWidgetProvider : IWidgetProvider
         {
             body.Add(SmallReminderLayout(snapshot.Items));
             body.Add(MediumReminderLayout(snapshot.Items));
+            body.Add(LargeReminderLayout(snapshot.Items));
         }
 
         var card = new JsonObject
@@ -217,7 +219,7 @@ public sealed class PersistentWidgetProvider : IWidgetProvider
         var rows = new JsonArray();
         for (int index = 0; index < Math.Min(items.Count, 2); index++)
         {
-            rows.Add(ReminderRow(items[index], index > 0, includeDescription: false));
+            rows.Add(ExpandedReminderRow(items[index], index > 0, includeDescription: false));
         }
 
         return new JsonObject
@@ -228,45 +230,87 @@ public sealed class PersistentWidgetProvider : IWidgetProvider
         };
     }
 
-    /// <summary>Use the medium card's width for two columns of two reminders.</summary>
+    /// <summary>Fit all four reminders into the medium card as one-line rows.</summary>
     private static JsonObject MediumReminderLayout(IReadOnlyList<WidgetReminderItem> items)
     {
-        var columns = new JsonArray();
-        for (int columnIndex = 0; columnIndex < 2; columnIndex++)
+        var rows = new JsonArray();
+        for (int index = 0; index < items.Count; index++)
         {
-            var rows = new JsonArray();
-            int start = columnIndex * 2;
-            for (int index = start; index < Math.Min(items.Count, start + 2); index++)
-            {
-                rows.Add(ReminderRow(items[index], index > start, includeDescription: true));
-            }
-
-            columns.Add(new JsonObject
-            {
-                ["type"] = "Column",
-                ["width"] = "stretch",
-                ["items"] = rows
-            });
+            rows.Add(CompactReminderRow(items[index], index > 0));
         }
 
         return new JsonObject
         {
-            ["type"] = "ColumnSet",
+            ["type"] = "Container",
             ["$when"] = "${$host.widgetSize==\"medium\"}",
-            ["columns"] = columns
+            ["items"] = rows
         };
     }
 
-    /// <summary>Build one row with the same label, title and timing order as the PWA.</summary>
-    private static JsonObject ReminderRow(
+    /// <summary>Use the large card's height for four full rows with optional detail.</summary>
+    private static JsonObject LargeReminderLayout(IReadOnlyList<WidgetReminderItem> items)
+    {
+        var rows = new JsonArray();
+        for (int index = 0; index < items.Count; index++)
+        {
+            rows.Add(ExpandedReminderRow(items[index], index > 0, includeDescription: true));
+        }
+
+        return new JsonObject
+        {
+            ["type"] = "Container",
+            ["$when"] = "${$host.widgetSize==\"large\"}",
+            ["items"] = rows
+        };
+    }
+
+    /// <summary>Build one space-efficient row with title and time aligned on one line.</summary>
+    private static JsonObject CompactReminderRow(WidgetReminderItem item, bool separator)
+    {
+        var columns = new JsonArray
+        {
+            new JsonObject
+            {
+                ["type"] = "Column",
+                ["width"] = "stretch",
+                ["items"] = new JsonArray
+                {
+                    Text(item.Title, weight: "bolder", maxLines: 1)
+                }
+            },
+            new JsonObject
+            {
+                ["type"] = "Column",
+                ["width"] = "auto",
+                ["items"] = new JsonArray
+                {
+                    Text(item.When, color: item.Paused ? "default" : "accent", maxLines: 1)
+                }
+            }
+        };
+
+        return SelectableRow(
+            new JsonArray
+            {
+                new JsonObject
+                {
+                    ["type"] = "ColumnSet",
+                    ["columns"] = columns
+                }
+            },
+            separator,
+            spacing: "small");
+    }
+
+    /// <summary>Build one row with the same title, optional detail and timing order as the PWA.</summary>
+    private static JsonObject ExpandedReminderRow(
         WidgetReminderItem item,
         bool separator,
         bool includeDescription)
     {
         var rowItems = new JsonArray
         {
-            Text(string.IsNullOrEmpty(item.Type) ? "REMINDER" : item.Type, size: "small", weight: "bolder", color: "accent"),
-            Text(item.Title, weight: "bolder", spacing: "none", maxLines: 1)
+            Text(item.Title, weight: "bolder", maxLines: 1)
         };
         if (includeDescription && !string.IsNullOrEmpty(item.Description))
         {
@@ -274,19 +318,24 @@ public sealed class PersistentWidgetProvider : IWidgetProvider
         }
         rowItems.Add(Text(item.When, color: item.Paused ? "default" : "accent", spacing: "small", maxLines: 1));
 
-        var row = new JsonObject
+        return SelectableRow(rowItems, separator, spacing: "medium");
+    }
+
+    /// <summary>Wrap reminder content in a consistently actionable, separated row.</summary>
+    private static JsonObject SelectableRow(JsonArray items, bool separator, string spacing)
+    {
+        return new JsonObject
         {
             ["type"] = "Container",
             ["separator"] = separator,
-            ["spacing"] = "medium",
-            ["items"] = rowItems,
+            ["spacing"] = spacing,
+            ["items"] = items,
             ["selectAction"] = new JsonObject
             {
                 ["type"] = "Action.Execute",
                 ["verb"] = "open"
             }
         };
-        return row;
     }
 
     /// <summary>Create one Adaptive Card text block while omitting unused optional properties.</summary>

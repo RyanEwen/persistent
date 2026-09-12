@@ -94,9 +94,9 @@ your architecture (x64 or ARM64) is on the
 [latest `desktop-v*` release](https://github.com/RyanEwen/persistent/releases?q=desktop&expanded=true):
 unzip and run. It's for seeing and confirming reminders at your desk, and it can
 show optional Windows notifications with Done and Snooze on them. The Store build
-also provides a Windows 11 widget with the next two reminders at small size or
-four at medium size. It never rings an alarm and can't reach you when it's closed
-or the PC is asleep.
+also provides a Windows 11 widget with the next two reminders at small size, four
+compact rows at medium size, or four expanded rows at large size. It never rings
+an alarm and can't reach you when it's closed or the PC is asleep.
 
 > Both apps publish into the same release list, so browsing it raw interleaves
 > them. The Android app is tagged `vX.Y.Z` and is always the one marked **Latest**;
