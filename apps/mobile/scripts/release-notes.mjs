@@ -25,7 +25,7 @@ import { execFileSync } from 'node:child_process'
 
 /** Commit subjects that describe internal work, whatever files they touched. */
 export const EXCLUDE =
-  /^- (bump version|merge )|\b(docs?|documentation|readme|changelog|jsdoc|chore|ci|workflow|lint|eslint|prettier|typecheck|tsconfig|devcontainer|dockerfile|compose|gitignore|deps?|dependency|dependencies|refactor|rename|cleanup|clean up|tidy|reorganize|restructure|test|tests|spec|csp|coop|coep|cors|co-?authored?)\b/i
+  /^- (bump version|merge )|\b(docs?|documentation|readme|changelog|jsdoc|chore|ci|workflow|lint|eslint|prettier|typecheck|tsconfig|development container|dockerfile|compose|gitignore|deps?|dependency|dependencies|refactor|rename|cleanup|clean up|tidy|reorganize|restructure|test|tests|spec|csp|coop|coep|cors|co-?authored?)\b/i
 
 /**
  * The paths whose changes an Android user can actually notice.

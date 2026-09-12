@@ -123,7 +123,7 @@ Sources are `graphics/*.svg`; re-render with
 
 ### Capturing more
 
-Wireless ADB is already set up (`.devcontainer/adb-discover.py`; the phone's
+Wireless ADB is already set up (`scripts/dev/adb-discover.py`; the phone's
 wireless-debug port rotates every time the toggle is flipped):
 
 ```

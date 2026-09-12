@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Build and install the desktop app on the Windows machine, from the devcontainer.
+# Build and install the desktop app on the Windows machine from the development container.
 #
 #   npm run install:desktop                 sync, build, install
 #   npm run install:desktop -- --no-sync    use whatever source is already over there

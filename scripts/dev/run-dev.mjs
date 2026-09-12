@@ -1,9 +1,7 @@
 #!/usr/bin/env node
 /**
- * Dev orchestrator: prepares the database, builds shared once, then runs shared (watch), api, and
- * web concurrently. Optional @ryanewen/devkit host mode gives each checkout its own hostname,
- * database, and ports. Devkit disables itself in containers and when not bootstrapped, preserving
- * the devcontainer's fixed ports, database service, and environment.
+ * Starts a checkout-specific Devkit stack. The same runner performs database preparation and
+ * watcher startup when Compose invokes it with `--container-runtime`.
  */
 import { spawn, spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
@@ -28,12 +26,19 @@ const envPath = path.join(repoRoot, '.env')
 if (existsSync(envPath)) process.loadEnvFile(envPath)
 
 const teardown = process.argv.includes('--down')
+const containerRuntime = process.argv.includes('--container-runtime')
 let hostMode = null
-try {
-  hostMode = await preflight({ repoRoot, teardown })
-} catch (error) {
-  console.error(`\n[dev] ${error.message}\n`)
-  process.exit(1)
+if (!containerRuntime) {
+  try {
+    hostMode = await preflight({ repoRoot, teardown })
+  } catch (error) {
+    console.error(`\n[dev] ${error.message}\n`)
+    process.exit(1)
+  }
+  if (!hostMode) {
+    console.error('\n[dev] Devkit is not enabled; run `npm run dev:bootstrap` once on this host.\n')
+    process.exit(1)
+  }
 }
 
 // Host mode intentionally overrides fixed .env values with this checkout's derived resources.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Compile-check the desktop app's non-XAML C# in the Linux devcontainer.
+# Compile-check the desktop app's non-XAML C# in the Linux development container.
 #
 # WinUI 3 cannot be fully built here — the Windows App SDK's XamlCompiler.exe and
 # MakePri.exe are Windows-only — so `.github/workflows/build-desktop-msix.yml` on
@@ -24,8 +24,8 @@ PROJECT="tools/csharp-check/CSharpCheck.csproj"
 OUT_DIR="tools/csharp-check"
 
 if ! command -v dotnet >/dev/null 2>&1; then
-  # The devcontainer image installs it; a bare checkout may not have it.
-  echo "verify-csharp: no 'dotnet' on PATH - install the .NET 10 SDK, or rebuild the devcontainer." >&2
+  # The development image installs it; a bare host may not have it.
+  echo "verify-csharp: no 'dotnet' on PATH - install the .NET 10 SDK, or rebuild the development image." >&2
   exit 1
 fi
 

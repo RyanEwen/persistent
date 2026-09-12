@@ -497,7 +497,7 @@ sitting in the Action Center back to this app.
 
 ## Building and releasing
 
-The devcontainer is Linux and **cannot build or run any of this**; there is no
+The development container is Linux and **cannot build or run any of this**; there is no
 .NET or Windows SDK, and `npm run validate` does not cover C#. The CI workflow
 `.github/workflows/build-desktop-msix.yml` compiles both platforms on
 `windows-2025` for every push/PR touching `apps/desktop`, which is the only
@@ -664,7 +664,7 @@ files into Partner Center.
 It needs four repository secrets — `AZURE_AD_TENANT_ID`,
 `AZURE_AD_APPLICATION_CLIENT_ID`, `AZURE_AD_APPLICATION_SECRET`, `SELLER_ID` —
 plus `SUBMODULES_TOKEN` for the checkout. **Set them with
-`apps/desktop/set-ci-secrets.sh`**, run from the devcontainer (`gh` is already
+`apps/desktop/set-ci-secrets.sh`**, run from the development container (`gh` is already
 authenticated there), which prompts with echo off and pipes each value to
 `gh secret set` over stdin.
 
@@ -771,7 +771,7 @@ for `resources.pri` beside the exe before looking at the markup.
 - **WebView2 runtime.** Evergreen ships with Windows 11, so this is a non-issue on
   the target. `AppFlyout` still shows an explanatory panel rather than an empty
   box if initialization fails.
-- **Untested at runtime.** Everything here was authored in a Linux devcontainer
+- **Untested at runtime.** Everything here was authored in a Linux development container
   and compiled only by CI. The focus/light-dismiss interaction and the Google
   sign-in popup path in particular want a real machine before they are trusted.
 - **A failed toast registration now turns the setting off.** `NotificationService.Sync`

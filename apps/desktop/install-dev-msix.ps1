@@ -6,7 +6,7 @@
 #   .\install-dev-msix.ps1 -SkipBuild       reinstall the package already built
 #   .\install-dev-msix.ps1 -Platform x64    override the auto-detected architecture
 #
-# Run it from the devcontainer instead with `npm run install:desktop`, which syncs
+# Run it from the development container with `npm run install:desktop`, which syncs
 # the working tree over first so uncommitted changes are what gets installed.
 #
 # Why this exists rather than "run build-msix.ps1 and double-click the result":

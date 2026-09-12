@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Set the desktop app's GitHub Actions secrets, from the devcontainer.
+# Set the desktop app's GitHub Actions secrets from the development container.
 #
 # Two workflows need credentials that cannot live in the repo:
 #

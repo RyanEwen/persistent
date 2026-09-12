@@ -640,9 +640,9 @@ and copies the descriptor and action icons into the direct resource set. `npm ru
 verify:android` confirms both flavors compile and wire independently.
 
 **Runtime verification needs the Desktop Head Unit (DHU) or a real car**, and the DHU
-*does* run in the devcontainer: an earlier version of this note said it could not. The
+*does* run in the development container: an earlier version of this note said it could not. The
 binary is x86-64 with no arm64 build, so `sdkmanager` filters it out on this host, but it
-runs through the same host qemu binfmt that already runs `aapt2` (`.devcontainer/Dockerfile`).
+runs through the same host qemu binfmt that already runs `aapt2` (`docker/dev/Dockerfile`).
 Setup, once per container (not in the image: add it there if this becomes routine):
 
 ```sh
@@ -652,7 +652,7 @@ sudo curl -sO https://dl.google.com/android/repository/desktop-head-unit-linux-x
 sudo unzip -o -q desktop-head-unit-linux-x64_r02.0.zip && sudo chmod +x desktop-head-unit
 ```
 
-Then, with the phone on wireless adb (`.devcontainer/adb-discover.py`), Android Auto's
+Then, with the phone on wireless adb (`scripts/dev/adb-discover.py`), Android Auto's
 developer menu set to **Start head unit server**, and the phone unlocked:
 
 ```sh

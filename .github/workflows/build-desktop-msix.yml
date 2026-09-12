@@ -11,7 +11,7 @@ on:
         default: false
   # A `desktop-v*` tag publishes a release; a push/PR touching apps/desktop only
   # compiles. That compile-only run is the point: WinUI 3 is outside
-  # `npm run validate` and cannot be built in the Linux devcontainer at all, so
+  # `npm run validate` and cannot be built in the Linux development container at all, so
   # without it a broken csproj or a XAML/code-behind mismatch would not surface
   # until release day.
   push:
@@ -94,7 +94,7 @@ jobs:
           if-no-files-found: error
 
       # The first Store submission has to be uploaded by hand (the msstore CLI can
-      # only update an app that is already live), and the Linux devcontainer cannot
+      # only update an app that is already live), and the Linux development container cannot
       # produce an MSIX at all - so this is how those packages get built. Unsigned
       # and carrying the real Partner Center identity, which is what Partner Center
       # wants; it re-signs at ingestion.

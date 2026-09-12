@@ -3,7 +3,7 @@
 
 Why not `adb mdns`: Android advertises its wireless-debug endpoint
 (`_adb-tls-connect._tcp`) over mDNS, but mDNS is multicast (224.0.0.251) and does
-NOT traverse the Docker/WSL2 bridge this devcontainer lives on (172.22.0.0/16,
+NOT traverse the Docker/WSL2 bridge this development container lives on,
 NAT'd to the phone's LAN via the gateway). `adb mdns services` therefore returns
 nothing here, and a unicast :5353 probe to the phone gets no reply. Unicast TCP,
 however, routes fine through the gateway -- which is why `adb connect host:port`

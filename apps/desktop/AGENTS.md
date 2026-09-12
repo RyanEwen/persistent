@@ -5,7 +5,7 @@ flyout. Architecture, and the reasoning behind the WebView decision, live in
 [`docs/desktop-architecture.md`](../../docs/desktop-architecture.md): read that
 first.
 
-**This is C#, so `npm run validate` does not cover it and the Linux devcontainer
+**This is C#, so `npm run validate` does not cover it and the Linux development container
 cannot build or run the app.** `.github/workflows/build-desktop-msix.yml` compiles
 both platforms on `windows-2025` for every push/PR under this directory, and is
 the only complete check: treat a red run there the way you would a failed
@@ -80,7 +80,7 @@ writer of `settings.json`; the page holds no copy and persists nothing.
 | `Persistent.Desktop/Classes/NativeMethods.cs` | **All** Win32 P/Invoke |
 | `verify-csharp.sh` | Linux compile-check of the non-XAML C# (`npm run verify:desktop`) |
 | `install-dev-msix.sh` / `install-dev-msix.ps1` | Build + install a dev-signed MSIX on the Windows machine (`npm run install:desktop`) |
-| `set-ci-secrets.sh` | Sets the Store + submodule GitHub secrets (run from the devcontainer) |
+| `set-ci-secrets.sh` | Sets the Store + submodule GitHub secrets (run from the development container) |
 | `tools/csharp-check/` | The project + XAML stubs that check drives; not in the .slnx, not built by CI |
 | `Persistent.Desktop/Services/UpdateService.cs` | Update check; GitHub when unpackaged, `StoreContext` when packaged |
 | `publish-portable.ps1` | Self-contained unpackaged build (**the one to use for testing**) |

@@ -7,8 +7,8 @@ stops only when the user taps **Done**. See `../../docs/alarm-architecture.md`.
 
 This sub-project is intentionally **not** part of the root npm workspaces (it
 pulls the Capacitor/Android toolchain), so it doesn't affect `npm run validate`.
-Build it from inside this directory in the devcontainer (needs a JDK + Android
-SDK; add them to the devcontainer image or use Android Studio).
+Build it from inside this directory in the development container (needs a JDK + Android
+SDK; add them to `docker/dev/Dockerfile` or use Android Studio).
 
 ## Layout
 
@@ -77,8 +77,8 @@ the core firing), provision Firebase — it stays inert until you do:
 - **Server:** set `FCM_PROJECT_ID` + `FCM_SERVICE_ACCOUNT_FILE` (the native client
   only registers when the server reports `fcmEnabled`, so ship both halves together).
 
-> The devcontainer image ships a JDK 17 + the Android SDK (see
-> `.devcontainer/Dockerfile`), so the project builds headlessly:
+> The development image ships a JDK 17 + the Android SDK (see
+> `docker/dev/Dockerfile`), so the project builds headlessly:
 >
 > ```bash
 > npm run assemble:android   # ./gradlew assembleDebug
@@ -96,7 +96,7 @@ the core firing), provision Firebase — it stays inert until you do:
 
 ## Running on a device (wireless adb)
 
-USB passthrough into the devcontainer is unreliable, so connect to a physical
+USB passthrough into the development container is unreliable, so connect to a physical
 device over the network (Android **Wireless debugging**):
 
 ```bash
@@ -107,20 +107,20 @@ npm run assemble:android             # build the direct-flavor debug APK
 adb install -r android/app/build/outputs/apk/direct/debug/app-direct-debug.apk
 ```
 
-The adb auth key lives in `~/.android`, which the devcontainer persists in a
+The adb auth key lives in `~/.android`, which the development stack persists in a
 named volume, so the device's "always allow from this computer" trust **survives
 container rebuilds** — you pair once, not every rebuild.
 
-Two things make the connection fiddly, and `.devcontainer/` handles both:
+Two things make the connection fiddly, and the development stack handles both:
 
 - The live connection is only in the adb server's memory, so it **drops on every
   container start**.
 - Android's wireless-debug **port rotates every time the toggle is flipped**, so a
   pinned address goes stale (it is never 5555).
 
-`.devcontainer/adb-connect.sh` (wired to `postStartCommand`) tries any
+`scripts/dev/adb-connect.sh` runs when the development container starts and tries any
 `ADB_CONNECT` targets from the workspace `.env` first, then hands off to
-`.devcontainer/adb-discover.py` in the background, which re-finds the phone by
+`scripts/dev/adb-discover.py` in the background, which re-finds the phone by
 scanning and remembers the result in `~/.android/adb-endpoint` (a persisted
 volume) so the next start is instant.
 
@@ -134,8 +134,8 @@ multicast, which doesn't cross the container's Docker/WSL bridge. Hence the scan
 see the header of `adb-discover.py`. To re-find the phone by hand:
 
 ```bash
-python3 .devcontainer/adb-discover.py            # scan using remembered/.env hints
-python3 .devcontainer/adb-discover.py 192.168.2.98:40001   # try a known endpoint first
+python3 scripts/dev/adb-discover.py            # scan using remembered/.env hints
+python3 scripts/dev/adb-discover.py 192.168.2.98:40001   # try a known endpoint first
 ```
 
 ## Rebuild + run after web changes

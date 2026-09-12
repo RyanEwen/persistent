@@ -14,7 +14,7 @@ the floor, and see `store/play-readiness.md` #2a for the checklist to run on a p
 after one.
 
 **Native (Kotlin/Java) changes aren't covered by `npm run validate`.** The
-devcontainer ships JDK 17 + the Android SDK (platform-36, build-tools 36.0.0; the
+development image ships JDK 17 + the Android SDK (platform-36, build-tools 36.0.0; the
 app targets API 36; `setup-android.mjs` pins the compileSdk/targetSdk, AGP and Gradle
 versions together, since AGP caps the compileSdk it will build), so
 verify them by compiling: from here, `npm run verify:android` (re-syncs

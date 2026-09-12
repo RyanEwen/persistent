@@ -22,8 +22,7 @@ set -uo pipefail
 # here -- multicast doesn't cross the container's Docker/WSL bridge; see that
 # script's header.
 #
-# Invoked from devcontainer.json `postStartCommand` (runs on create and on every
-# subsequent start/reopen).
+# Invoked by the development process container on every start.
 
 # Resolve adb without relying on a login shell having sourced the PATH drop-in.
 ADB="$(command -v adb || true)"

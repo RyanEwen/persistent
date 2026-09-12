@@ -6,8 +6,8 @@
  * then overlays onto the generated Capacitor project. Run after editing an SVG.
  *
  * Rasterizer is rsvg-convert (librsvg) — ImageMagick's built-in SVG renderer
- * does not antialias and produces jagged edges. librsvg ships in the devcontainer
- * image (.devcontainer/Dockerfile); install `librsvg2-bin` if running elsewhere.
+ * does not antialias and produces jagged edges. librsvg ships in the development
+ * image (`docker/dev/Dockerfile`); install `librsvg2-bin` if running elsewhere.
  */
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync } from 'node:fs'
@@ -35,7 +35,7 @@ function assertRsvg() {
   } catch {
     console.error(
       '[gen-icons] rsvg-convert not found. Install it with `apt-get install librsvg2-bin`\n' +
-        '            (it is preinstalled in the devcontainer image).',
+        '            (it is preinstalled in the development image).',
     )
     process.exit(1)
   }

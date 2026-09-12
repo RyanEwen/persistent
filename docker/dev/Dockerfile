@@ -1,13 +1,9 @@
-# Dev container image for Persistent.
-#
-# Mirrors printstream's devcontainer base (typescript-node) but thinned: we have
-# no in-workspace slicer, so the BambuStudio/qemu/wine/ffmpeg runtime layers are
-# dropped. We keep the common CLI tooling (gh, ripgrep, jq, postgres-client, …)
-# plus a JDK + Android command-line tools so the Capacitor Android client
+# Process and mobile-tooling image for Persistent. It includes a JDK and Android
+# command-line tools so the Capacitor Android client
 # (apps/mobile) can be built from inside the container later. librsvg2-bin
 # (rsvg-convert) rasterizes the app-icon SVGs into launcher PNGs via
 # `npm run gen:icons` in apps/mobile.
-FROM mcr.microsoft.com/devcontainers/typescript-node:4.0.6-20-trixie
+FROM node:20-trixie
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -25,6 +21,7 @@ RUN set -eux; \
       jq \
       less \
       librsvg2-bin \
+      python3 \
       postgresql-client \
       ripgrep \
       tree \
@@ -38,7 +35,7 @@ RUN set -eux; \
 # (Gradle 8.2 can't run on JDK 21 — the only OpenJDK Debian trixie ships). We
 # pull JDK 17 from Amazon Corretto, whose apt suite is codename-agnostic
 # ("stable main"), so it serves trixie on both amd64 and arm64. Java must live in
-# the image (not a devcontainer feature, which would layer on too late) because
+# the image because
 # the sdkmanager step below needs it at build time. The key is stored armored;
 # apt's signed-by reads .asc directly, so no gnupg dependency.
 RUN set -eux; \
@@ -76,8 +73,7 @@ ENV PATH="${PATH}:/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/pla
 
 # Builds find the SDK via ANDROID_HOME (inherited everywhere), but the PATH
 # additions above are dropped by login shells, which re-source /etc/profile and
-# reset PATH. The devcontainer probes a login shell (userEnvProbe), so without
-# this drop-in `sdkmanager`/`adb` would be missing from the integrated terminal.
+# reset PATH. This drop-in keeps `sdkmanager` and `adb` available in login shells.
 RUN printf 'export PATH="$PATH:%s:%s"\n' \
       /opt/android-sdk/cmdline-tools/latest/bin \
       /opt/android-sdk/platform-tools \
@@ -127,12 +123,4 @@ RUN set -eux; \
 RUN printf 'export PATH="$PATH:%s"\nexport DOTNET_ROOT="%s"\n' /opt/dotnet /opt/dotnet \
       > /etc/profile.d/dotnet.sh
 
-# Pre-create /home/node/.vscode-server owned by node. This MUST live in the
-# image, not in fix-volume-perms.sh (postCreateCommand): the persist overlay
-# mounts a named volume at the SUB-path .vscode-server/extensions, so Docker
-# auto-creates the parent .vscode-server as root. VS Code then installs its
-# server before postCreate runs, so a postCreate chown is too late. Creating the
-# parent (and the extensions mountpoint) node-owned here fixes that.
-RUN set -eux; \
-    mkdir -p /home/node/.vscode-server/extensions /home/node/.vscode-server/data/agent-host /home/node/.vscode-server/data/agentSessionData; \
-    chown -R node:node /home/node/.vscode-server
+WORKDIR /workspace

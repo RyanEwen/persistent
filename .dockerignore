@@ -17,7 +17,6 @@
 # --- Not needed to build or run the server ---
 .git
 .github
-.devcontainer
 .agents
 AGENTS.md
 **/AGENTS.md

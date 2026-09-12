@@ -82,10 +82,9 @@ directory guide `apps/api/AGENTS.md`.
 
 ## Build & validation
 
-- The devcontainer (Node 20 + Postgres `db` service) is the complete development
-  environment. Optional `@ryanewen/devkit` host mode supports concurrent
-  checkouts; it disables itself inside the devcontainer, which retains fixed
-  ports and networking. The web build's service-worker generation needs Node 20.
+- The Devkit-managed Compose stack is the complete development environment. It
+  provides Node 20, PostgreSQL, and isolated resources for concurrent checkouts.
+  The web build's service-worker generation needs Node 20.
 - `npm run dev`: shared (watch) + api + web concurrently.
 - `npm run db:migrate`: create/apply Prisma migrations. Regenerate the client
   (`npm run db:generate`) and update shared contracts when the schema changes.
@@ -105,7 +104,7 @@ directory guide `apps/api/AGENTS.md`.
   `apps/api`'s `prisma:validate` script supplies a placeholder when the real one is
   absent (`${DATABASE_URL:-...}`, so a set value always wins). Nothing is masked:
   the command never connects, and a malformed schema still fails. This matters
-  because the variable comes from `devcontainer.json`'s `containerEnv`, which not
+  because the variable normally comes from the development environment, which not
   every shell inherits, and the whole check used to die on a missing value having
   tested nothing.
 - `npm test` discovers `*.test.ts` under `apps/`, `packages/` **and `scripts/`**.

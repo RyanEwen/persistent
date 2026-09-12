@@ -50,10 +50,10 @@ export default defineConfig(({ mode }) => {
       })
     ],
     server: {
-      // Host mode derives a per-checkout port. Off/devcontainer mode retains the fixed default.
+      // Devkit derives a per-checkout port while the container keeps its fixed internal port.
       port: Number(env.VITE_DEV_PORT ?? 5173),
       // Devkit needs an explicit IPv4 bind for its host proxy. The existing all-interface bind
-      // remains the default for devcontainer/WSL2 forwarding when devkit is off.
+      // remains the default for Docker/WSL2 forwarding.
       host: env.VITE_DEV_HOST || true,
       allowedHosts: env.VITE_DEV_ALLOWED_HOSTS
         ? env.VITE_DEV_ALLOWED_HOSTS.split(',').map((host) => host.trim()).filter(Boolean)

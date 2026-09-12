@@ -47,11 +47,9 @@ acks/snoozes back to the server. See `docs/data-event-contract.md`.
 
 ## Development
 
-The **dev container** (VS Code: "Reopen in Container") remains the complete
-development environment. It provides Node 20, PostgreSQL (`db` service), the
-Android SDK/JDK, and all tooling; `DATABASE_URL`/`API_PORT` are injected
-automatically. Devkit detects the container and disables itself, so this path
-keeps its fixed ports and existing network setup.
+The editor stays on the host. Devkit runs Node 20, PostgreSQL, and the Android
+SDK/JDK in a checkout-specific Compose stack and injects `DATABASE_URL` and
+`API_PORT` into the development processes.
 
 ```bash
 npm run dev        # shared (watch) + api + web, concurrently
@@ -94,16 +92,15 @@ the API response instead of emailing it. Config lives in `.env` (see
 
 For the Android app (build, wireless adb, signing), see `apps/mobile/README.md`.
 
-### Multi-checkout host mode (optional)
+### Multi-checkout development
 
 `@ryanewen/devkit` lets several repositories or linked worktrees run together
 while the editor remains on the host. Each checkout gets a hostname and a private
 Compose stack containing Node and PostgreSQL. Container ports stay fixed; the
-published web port is derived from the checkout path. It is off unless bootstrapped
-on the machine, and `DEVKIT=0` disables it for one run.
+published web port is derived from the checkout path.
 
 ```bash
-npm run dev:bootstrap          # once per machine, from the host rather than the devcontainer
+npm run dev:bootstrap          # once per machine
 npm run dev:host -- snapshot   # once in the primary checkout, capture its database baseline
 npm install                    # once in each new worktree
 npm run dev
@@ -128,7 +125,7 @@ register a passkey separately on each hostname where one is useful.
 
 | Command | Purpose |
 | --- | --- |
-| `npm run dev:doctor` | Report every host-mode prerequisite and its fix |
+| `npm run dev:doctor` | Report every development prerequisite and its fix |
 | `npm run dev:host -- snapshot` | Refresh the portable database baseline for new worktrees |
 | `npm run dev:host -- reset` | Recreate a worktree database volume; add `--empty` to skip the baseline |
 | `npm run dev:host -- prune` | Find volumes for deleted worktrees; add `--yes` to remove them |
@@ -138,9 +135,7 @@ register a passkey separately on each hostname where one is useful.
 database volume.
 
 Reset refuses to operate on the primary checkout because it owns the source
-database for snapshots. Deleting `~/.config/devkit/host.json` disables host mode
-permanently; `DEVKIT=0 npm run dev` disables it once. The devcontainer always
-wins over the host marker and remains the full escape hatch.
+database for snapshots.
 
 ## Deployment
 
