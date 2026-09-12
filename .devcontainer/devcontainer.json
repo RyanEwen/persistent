@@ -1,7 +1,7 @@
 {
   "name": "persistent",
   "dockerComposeFile": [
-    "compose.yml",
+    "compose.dev.yml",
     "compose.persist.yml"
   ],
   "service": "workspace",

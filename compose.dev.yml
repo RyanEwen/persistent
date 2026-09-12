@@ -1,0 +1,31 @@
+# Host-editor runtime. Devkit adds this checkout's PostgreSQL service.
+services:
+  node:
+    build:
+      context: .devcontainer
+      dockerfile: Dockerfile
+    working_dir: /workspace
+    user: "${HOST_UID:?host uid is required}:${HOST_GID:?host gid is required}"
+    init: true
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      HOME: /tmp/devkit-home
+      NODE_ENV: development
+      DATABASE_URL: ${DATABASE_URL:?database URL is required}
+      API_PORT: ${API_PORT:?api port is required}
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN:?client origin is required}
+      VITE_API_PORT: ${VITE_API_PORT:?vite api port is required}
+      VITE_DEV_ALLOWED_HOSTS: ${VITE_DEV_ALLOWED_HOSTS:?allowed hosts are required}
+      VITE_DEV_HOST: 0.0.0.0
+      VITE_DEV_PORT: ${VITE_DEV_PORT:?vite port is required}
+    ports:
+      - "127.0.0.1:${DEVKIT_WEB_PORT:?web port is required}:${VITE_DEV_PORT:?vite port is required}"
+      - "[::1]:${DEVKIT_WEB_PORT:?web port is required}:${VITE_DEV_PORT:?vite port is required}"
+    volumes:
+      - .:/workspace
+    depends_on:
+      database:
+        condition: service_healthy
+    command: npm run dev

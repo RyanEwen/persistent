@@ -5,9 +5,15 @@
  *
  * Counterpart: `scripts/dev/run-dev.mjs`, the only caller of `preflight()`.
  */
+/** Fixed listeners inside every checkout container; Compose receives these through `env()`. */
+export const DEV_PORTS = Object.freeze({
+  api: '4000',
+  web: '5173'
+})
+
 export default {
   /** Web is first because the proxy routes to the first port in each checkout's derived block. */
-  ports: ['web', 'api'],
+  ports: ['web'],
 
   /** Pin the PostgreSQL server version this project expects. */
   database: { engine: 'postgres', version: '16.13-bookworm' },
@@ -25,10 +31,10 @@ export default {
    * CLIENT_ORIGIN is the proxied origin the browser uses, which also makes its hostname the
    * WebAuthn relying-party id. Devkit itself supplies the host bind and allowed-host values.
    */
-  env: ({ ports, url }) => ({
-    API_PORT: String(ports.api),
+  env: ({ url }) => ({
+    API_PORT: DEV_PORTS.api,
     CLIENT_ORIGIN: url,
-    VITE_DEV_PORT: String(ports.web),
-    VITE_API_PORT: String(ports.api)
+    VITE_DEV_PORT: DEV_PORTS.web,
+    VITE_API_PORT: DEV_PORTS.api
   })
 }

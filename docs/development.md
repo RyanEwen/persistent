@@ -97,9 +97,10 @@ For the Android app (build, wireless adb, signing), see `apps/mobile/README.md`.
 ### Multi-checkout host mode (optional)
 
 `@ryanewen/devkit` lets several repositories or linked worktrees run together
-from a host shell. Each checkout gets a hostname, PostgreSQL database, and web/API
-ports derived from its path. It is off unless bootstrapped on the machine, and
-`DEVKIT=0` disables it for one run.
+while the editor remains on the host. Each checkout gets a hostname and a private
+Compose stack containing Node and PostgreSQL. Container ports stay fixed; the
+published web port is derived from the checkout path. It is off unless bootstrapped
+on the machine, and `DEVKIT=0` disables it for one run.
 
 ```bash
 npm run dev:bootstrap          # once per machine, from the host rather than the devcontainer
@@ -109,7 +110,7 @@ npm run dev
 ```
 
 On first start, a worktree copies the primary checkout's `.env` only when it has
-none, clones the database baseline, applies migrations added by its branch, and
+none, restores the portable database baseline, applies migrations added by its branch, and
 prints both its proxied `*.localhost` URL and direct Vite URL. Persistent has no
 filesystem baseline paths, so snapshots contain database state only.
 
@@ -117,8 +118,7 @@ The snapshot, rather than `db:seed`, supplies a new worktree's initial users and
 reminders. `npm run db:seed` remains an explicit operation against the current
 checkout's database. Seed changes do not refresh the baseline automatically;
 run `npm run dev:host -- snapshot` in the primary checkout when those changes
-should reach future worktrees. A newly applied primary-checkout migration does
-trigger a best-effort baseline refresh after the dev servers start.
+should reach future worktrees.
 
 Passkeys are deliberately hostname-specific. A credential registered for
 `localhost` cannot authenticate at `persistent.localhost`, and a credential for
@@ -129,10 +129,13 @@ register a passkey separately on each hostname where one is useful.
 | Command | Purpose |
 | --- | --- |
 | `npm run dev:doctor` | Report every host-mode prerequisite and its fix |
-| `npm run dev:host -- snapshot` | Refresh the database baseline, retaining the previous copy as `_prev` |
-| `npm run dev:host -- reset` | Drop and re-clone a worktree database; add `--empty` to skip the baseline |
-| `npm run dev:host -- prune` | Find databases for deleted worktrees; add `--yes` to drop them |
-| `npm run dev:host -- infra` | Restart the shared proxy and PostgreSQL stack |
+| `npm run dev:host -- snapshot` | Refresh the portable database baseline for new worktrees |
+| `npm run dev:host -- reset` | Recreate a worktree database volume; add `--empty` to skip the baseline |
+| `npm run dev:host -- prune` | Find volumes for deleted worktrees; add `--yes` to remove them |
+| `npm run dev:host -- infra` | Restart the machine proxy and this checkout's PostgreSQL container |
+
+`npm run dev -- --down` removes this checkout's containers and network while preserving its
+database volume.
 
 Reset refuses to operate on the primary checkout because it owns the source
 database for snapshots. Deleting `~/.config/devkit/host.json` disables host mode

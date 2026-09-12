@@ -11,10 +11,10 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import {
+  checkoutCompose,
+  checkoutComposeLifecycle,
   inheritWorktreeFiles,
-  preflight,
-  refreshBaselineAfterMigrations,
-  removeRoute
+  preflight
 } from '@ryanewen/devkit'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
@@ -27,9 +27,10 @@ await inheritWorktreeFiles({ repoRoot })
 const envPath = path.join(repoRoot, '.env')
 if (existsSync(envPath)) process.loadEnvFile(envPath)
 
+const teardown = process.argv.includes('--down')
 let hostMode = null
 try {
-  hostMode = await preflight({ repoRoot })
+  hostMode = await preflight({ repoRoot, teardown })
 } catch (error) {
   console.error(`\n[dev] ${error.message}\n`)
   process.exit(1)
@@ -38,16 +39,33 @@ try {
 // Host mode intentionally overrides fixed .env values with this checkout's derived resources.
 if (hostMode) Object.assign(process.env, hostMode.env)
 
-function runSync(command, args) {
-  const result = spawnSync(command, args, { stdio: 'inherit', cwd: repoRoot, env: process.env })
+function runSync(command, args, env = process.env) {
+  const result = spawnSync(command, args, { stdio: 'inherit', cwd: repoRoot, env })
   if (result.status !== 0) process.exit(result.status ?? 1)
 }
 
-// The devcontainer database and devkit's per-checkout database share the same startup contract:
-// wait until reachable, then apply only the checked-in migration history before any app boots.
-runSync('node', ['scripts/dev/wait-for-db.mjs'])
-runSync('npm', ['run', 'db:migrate:deploy'])
-runSync('npm', ['run', 'build', '--workspace', '@persistent/shared'])
+let composeInvocation = null
+let composeLifecycle = null
+if (hostMode) {
+  composeInvocation = checkoutCompose(hostMode, {
+    files: [path.join(repoRoot, 'compose.dev.yml')],
+    projectDirectory: repoRoot,
+    env: {
+      DEVKIT_WEB_PORT: String(hostMode.ports.web),
+      HOST_UID: String(process.getuid?.() ?? 1000),
+      HOST_GID: String(process.getgid?.() ?? 1000)
+    }
+  })
+  composeLifecycle = checkoutComposeLifecycle(hostMode, composeInvocation)
+  if (teardown) {
+    process.exit(composeLifecycle.stop())
+  }
+} else {
+  runSync('node', ['scripts/dev/wait-for-db.mjs'])
+  runSync('npm', ['run', 'db:generate'])
+  runSync('npm', ['run', 'db:migrate:deploy'])
+  runSync('npm', ['run', 'build', '--workspace', '@persistent/shared'])
+}
 
 if (hostMode) {
   for (const line of hostMode.lines) console.log(`[dev] ${line}`)
@@ -55,6 +73,15 @@ if (hostMode) {
   console.log(`  ${hostMode.identity.repoName}${hostMode.identity.isPrimary ? '' : ` / ${hostMode.identity.worktreeName}`}  ->  ${hostMode.url}`)
   console.log(`  direct${' '.repeat(Math.max(1, hostMode.identity.repoName.length - 5))}  ->  ${hostMode.directUrl}`)
   console.log('')
+}
+
+if (composeLifecycle) {
+  try {
+    process.exit(await composeLifecycle.run(['up', '--build', '--remove-orphans']))
+  } catch (error) {
+    console.error(`[dev] could not start Docker Compose: ${error.message}`)
+    process.exit(1)
+  }
 }
 
 const child = spawn(
@@ -69,22 +96,6 @@ const child = spawn(
   ],
   { stdio: 'inherit', cwd: repoRoot, env: process.env }
 )
-
-// A newly-applied primary-checkout migration makes the baseline stale. Refresh it after watchers
-// start so snapshot work never delays the session; failures are advisory by devkit's contract.
-if (hostMode) {
-  try {
-    refreshBaselineAfterMigrations(hostMode)
-  } catch (error) {
-    console.log(`[dev] baseline refresh skipped: ${error.message}`)
-  }
-}
-
-// The route points at a port that is about to stop. Removing it is tidiness; a stale route would
-// return a bad gateway rather than send traffic to another checkout.
-process.on('exit', () => {
-  if (hostMode) removeRoute(hostMode.config, hostMode.identity)
-})
 
 // Ctrl-C already reaches the foreground process group, including concurrently and its children.
 child.on('exit', (code) => process.exit(code ?? 0))
