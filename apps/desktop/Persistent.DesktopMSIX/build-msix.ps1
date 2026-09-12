@@ -34,6 +34,7 @@ if ($Upload -and $Platform) { throw '-Upload builds both architectures; drop -Pl
 $msixDir    = $PSScriptRoot
 $root       = Split-Path -Parent $msixDir
 $project    = Join-Path $root 'Persistent.Desktop\Persistent.Desktop.csproj'
+$widgetProject = Join-Path $root 'Persistent.Widget\Persistent.Widget.csproj'
 $layout     = Join-Path $msixDir 'layout'
 $imagesDir  = Join-Path $msixDir 'Images'
 
@@ -88,7 +89,6 @@ function Resolve-SdkTool([string]$name) {
 }
 
 $makeappx = Resolve-SdkTool 'makeappx.exe'
-$makepri  = Resolve-SdkTool 'makepri.exe'
 $signtool = if ($Store) { $null } else { Resolve-SdkTool 'signtool.exe' }
 
 # --- Upload: build each architecture, then wrap them for msstore ----------
@@ -166,6 +166,20 @@ Write-Host "Publishing $rid..."
     -o $layout
 if ($LASTEXITCODE -ne 0) { throw 'dotnet publish failed' }
 
+# Widget providers only work from an installed package. Publish the provider
+# into a subdirectory so its .NET runtime and projection assemblies cannot
+# collide with the tray app. The package manifest supplies Windows App Runtime
+# 2.4 as a framework dependency rather than inflating this package with a copy.
+$widgetLayout = Join-Path $layout 'Widget'
+& dotnet publish $widgetProject `
+    -c Release `
+    -r $rid `
+    -p:Platform=$Platform `
+    -p:SelfContained=true `
+    -p:WindowsAppSdkBootstrapInitialize=false `
+    -o $widgetLayout
+if ($LASTEXITCODE -ne 0) { throw 'widget dotnet publish failed' }
+
 # --- Assemble the layout --------------------------------------------------
 
 # Compiled XAML, copied by hand because `dotnet publish` does not emit it.
@@ -242,16 +256,12 @@ if (-not $Store) {
     Write-Host "Store identity: $($doc.Package.Identity.Name) / $($doc.Package.Identity.Publisher)"
 }
 
-# --- Resources + package --------------------------------------------------
-Push-Location $layout
-try {
-    & $makepri createconfig /cf priconfig.xml /dq en-US /o | Out-Null
-    & $makepri new /pr . /cf priconfig.xml /of resources.pri /o | Out-Null
-    Remove-Item priconfig.xml -Force -ErrorAction SilentlyContinue
-} finally {
-    Pop-Location
-}
-
+# --- Package --------------------------------------------------------------
+# The WinUI build already emitted Persistent.Desktop.pri, which indexes the XBF
+# copied above. Running makepri over that completed index tries to index the same
+# Files/App.xbf resource a second time, reports PRI175/PRI277, and produces no
+# package resource file. The manifest uses direct image paths and no ms-resource
+# strings, so there is no second package-level PRI to generate.
 $outName = "Persistent.Desktop_${version}_$Platform.msix"
 $outPath = Join-Path $msixDir $outName
 if (Test-Path $outPath) { Remove-Item $outPath -Force }

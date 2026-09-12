@@ -74,7 +74,9 @@ jobs:
 
       - name: Build
         shell: pwsh
-        run: dotnet build Persistent.Desktop/Persistent.Desktop.csproj -c Release -p:Platform=${{ matrix.platform }}
+        run: |
+          dotnet build Persistent.Desktop/Persistent.Desktop.csproj -c Release -p:Platform=${{ matrix.platform }}
+          dotnet build Persistent.Widget/Persistent.Widget.csproj -c Release -p:Platform=${{ matrix.platform }}
 
       # Published on EVERY run, not just tags: a portable zip is the only way to
       # try a build without first trusting a self-signed certificate, so it needs

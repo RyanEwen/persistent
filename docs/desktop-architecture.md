@@ -70,11 +70,11 @@ and load-bearing:
 - Opening is instant and lands the user on the screen they left, rather than
   re-loading the app on every tray click.
 
-**Hidden, the WebView is suspended.** `SetWebViewIdle` collapses the control and
+**Hidden, the WebView is normally suspended.** `SetWebViewIdle` collapses the control and
 then calls `TrySuspendAsync` (order matters — it refuses while the controller is
 visible), freezing JavaScript and timers and letting the renderer's memory be
 reclaimed; `Resume` on show restores the page as it was. This is only affordable
-because nothing outside the flyout consumes the page. While the tray icon carried
+because no background feature needs the page continuously. While the tray icon carried
 a due-count badge the `/ws` socket had to stay live to feed it, so the most that
 could be done was stop rendering; removing the badge is what made real suspension
 possible. The socket drops while suspended and the web client reconnects on
@@ -89,6 +89,15 @@ still serve the bundle it started with. So `SetWebViewIdle(false)` posts
 also listens for `visibilitychange`, which collapsing the controller is supposed to
 drive — the message exists because that link cannot be verified outside Windows).
 Tray -> **Reload** remains the manual lever, since it is a real navigation.
+
+The Windows widget is the one bounded exception. When its card becomes visible,
+the provider posts `Persistent_RefreshWidget` to the resident host. The host wakes
+the hidden WebView without showing the flyout, asks the page to refetch its two
+Upcoming inputs, stores the returned display-only snapshot, and suspends the
+WebView again. A 15-second timeout restores suspension if the page cannot answer.
+The provider watches the atomically replaced snapshot file and updates every
+pinned instance. This gives the card fresh data without keeping a second socket
+open or teaching C# how reminders work.
 
 **Clicking the tray icon while the flyout is open closes it.** That needs a guard:
 the click itself deactivates the flyout, so light dismiss has already hidden it by
@@ -131,6 +140,10 @@ detection — the same rule that already governs `hasNativeUpdater()`.
   caller either.
 - `checkForUpdate` (host -> page) says the flyout was just resumed, so the page
   should look for a new build (`lib/swUpdate.ts`).
+- `refreshWidgetSnapshot` (host -> page) requests a refetch, and `widgetSnapshot`
+  (page -> host) returns at most four preformatted Upcoming rows. The page applies
+  the same selector used by `UpcomingPage`; C# only validates, stores and renders
+  those strings. Signing out replaces the file with a signed-out empty snapshot.
 - `getHostSettings` / `setHostSettings` / `openHostSettings` (page -> host) and
   `hostSettings` (host -> page) are the tray app's own settings, shown on the
   page's Settings screen. See [Settings](#settings) below.
@@ -355,12 +368,13 @@ the client area drops from 690x1230 to 670x1210. That is worse than the 3px an
 overlapped presenter costs, and it shows as a grey band above the header, because
 the app is not allowed to paint there. **Drag-to-resize is done by hand instead**
 (`Controls/ResizeGrip.cs` plus the grip handlers in `AppFlyout.xaml.cs`):
-transparent strips on the top and left edges that capture the pointer and drive
-`AppWindow.MoveAndResize`. Only those two edges, because the flyout is anchored to
-the tray corner and grows up and to the left. Screen coordinates come from
-`GetCursorPos`, not the pointer event, since the window moves out from under the
-cursor mid-drag and an element-relative position measures against a frame of
-reference that is itself moving.
+transparent strips on the two edges opposite the tray corner capture the pointer
+and drive `AppWindow.MoveAndResize`. Their alignment is updated whenever the
+flyout moves, so the corner nearest the notification-area icon stays fixed for a
+taskbar on any monitor edge. Screen coordinates come from `GetCursorPos`, not the
+pointer event, since the window moves out from under the cursor mid-drag and an
+element-relative position measures against a frame of reference that is itself
+moving.
 
 That is also why **no `DWMWA_BORDER_COLOR` or `DWMWA_CAPTION_COLOR`** is set here
 (only `DWMWA_WINDOW_CORNER_PREFERENCE`, plus `DWMWA_USE_IMMERSIVE_DARK_MODE` so
@@ -394,6 +408,55 @@ worth keeping straight because fixing one did not fix the other:
 
 The DWM border colour is also pinned (`DWMWA_BORDER_COLOR`), since the default
 outlines a dark window in the system's light border.
+
+## Tray placement
+
+The flyout follows the notification-area icon, not a presumed taskbar edge.
+`Shell_NotifyIconGetRect` supplies the icon's physical screen rectangle; the
+flyout chooses the nearest corner of that monitor's work area and keeps a 12-DIP
+inset. This covers top, bottom, left, and right taskbars, including a secondary
+monitor whose taskbar is arranged differently from the primary one. The cursor is
+only a fallback while Explorer is rebuilding the notification area and cannot
+return the icon rectangle.
+
+The nearest-corner rule also applies when a size setting changes while the flyout
+is open. It anchors from the window's own centre in that case, so changing a
+setting cannot make the window jump to whichever monitor currently holds the
+mouse.
+
+## Windows Widgets Board
+
+The installed MSIX registers `Persistent.Widget`, a small out-of-process C# widget
+provider. Windows starts it through COM only when the Widgets Board needs it. The
+card supports small and medium sizes and opens `Persistent.Desktop.exe`; the tray
+app's single-instance path then shows the existing warm flyout if it is already
+running.
+
+The manifest's `TrustedPackageFamilyNames` entry for stable Edge is required even
+though the provider itself is native C#. The Widgets Board uses that package to
+host provider content; omitting the trust entry leaves the extension installed
+and visible in the package manifest but silently excludes it from the picker.
+
+The widget is a **read-only Upcoming summary**, not a second reminder client.
+Windows widgets use Adaptive Cards and run outside the WebView2 profile, so they
+cannot reuse the PWA session or UI. The authenticated page applies the same
+`selectUpcomingReminders` helper as `UpcomingPage`, formats at most four rows,
+and posts those display strings to the host. The provider has no REST client,
+cookie, reminder DTO, schedule calculation, checklist state or reminder action.
+Selecting a row opens the real app.
+
+The host validates and caps every string, then atomically replaces
+`%AppData%\Persistent\widget-snapshot.json`. Signing out replaces it with a
+signed-out empty state so personal text does not linger on the board. The widget
+shows two rows at small size and four at medium size; Windows still owns its
+outer chrome and light/dark background, while the Adaptive Card mirrors the app's
+Upcoming heading, type labels, information order and accent treatment.
+
+This feature is packaged-only. The portable build has no manifest registration,
+and Windows does not discover unpackaged widget providers. The packaging script
+publishes the provider into `Widget\`, isolated from the tray app. The manifest
+declares Windows App Runtime 2.4 beside the main process's 1.8 dependency, so the
+Store installs each process's framework without bundling either one here.
 
 ## Notifications
 
@@ -641,6 +704,10 @@ the portable build which carries its own copy. `build-msix.ps1` publishes with
 `<PackageDependency>` on `Microsoft.WindowsAppRuntime.1.8` the app installs
 cleanly and then dies at startup on any machine that has never had it. Keep its
 `MinVersion` in step with the `Microsoft.WindowsAppSDK` package reference.
+The widget provider is the exception: it needs the newer widget APIs and declares
+Windows App Runtime 2.4 as a second framework dependency. Its .NET runtime and
+projection assemblies are published under `Widget\`, so they do not replace the
+main process's 1.8 files.
 
 **The first submission is manual, and only the first.** Microsoft's prerequisites
 for the CLI and the GitHub Action state that "the app you want to update must

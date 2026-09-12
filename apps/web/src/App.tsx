@@ -20,6 +20,8 @@ import { HelpPage } from './pages/HelpPage.js'
 import { PrivacyPage } from './pages/PrivacyPage.js'
 import { DeleteAccountPage } from './pages/DeleteAccountPage.js'
 import { UpdateCheck } from './native/UpdateCheck.js'
+import { DesktopWidgetSync } from './native/DesktopWidgetSync.js'
+import { clearWidgetSnapshot } from './native/desktopBridge.js'
 import { registerNavHandler } from './native/navTo.js'
 import { useNativeBack } from './native/useNativeBack.js'
 import { useScrollReset } from './lib/useScrollReset.js'
@@ -34,6 +36,10 @@ export function App() {
   useNativeBack()
   // A new screen starts at the top; Back keeps where you were.
   useScrollReset()
+
+  useEffect(() => {
+    if (!loading && !user) clearWidgetSnapshot()
+  }, [loading, user])
 
   if (loading) {
     return (
@@ -59,6 +65,7 @@ export function App() {
   return (
     <AppLayout>
       <UpdateCheck />
+      <DesktopWidgetSync />
       <Routes>
         <Route path="/" element={<RemindersPage />} />
         <Route path="/upcoming" element={<UpcomingPage />} />

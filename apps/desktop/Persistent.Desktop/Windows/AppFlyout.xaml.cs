@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.Web.WebView2.Core;
 using Persistent.Desktop.Classes.Settings;
+using Persistent.WindowsWidget;
 using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
@@ -43,6 +44,10 @@ public sealed partial class AppFlyout : Window
     private bool _webViewReady;
     private bool _visible;
 
+    /// <summary>The tray-side corner currently held fixed during resizing.</summary>
+    private bool _anchorRight = true;
+    private bool _anchorBottom = true;
+
     /// <summary>The page is suspended while hidden; see <see cref="SetWebViewIdle"/>.</summary>
     private bool _suspended;
 
@@ -56,6 +61,12 @@ public sealed partial class AppFlyout : Window
 
     /// <summary>A screen requested before the page was listening; see <see cref="NavigateTo"/>.</summary>
     private string? _pendingPath;
+
+    /// <summary>A widget refresh held until the newly loaded page attaches its bridge listener.</summary>
+    private bool _pendingWidgetRefresh;
+
+    /// <summary>Stops a hidden WebView staying awake if a widget refresh cannot complete.</summary>
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _widgetRefreshTimer;
 
     /// <summary>Re-asks the light-dismiss question after the window has settled.</summary>
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _dismissTimer;
@@ -114,6 +125,16 @@ public sealed partial class AppFlyout : Window
     public static void Hide()
     {
         if (_instance is { _visible: true }) _instance.HideFlyout("Hide() called");
+    }
+
+    /// <summary>
+    /// Wake the hidden page just long enough to refresh the display-only widget
+    /// snapshot. The page still owns the Upcoming selection and formatting rules.
+    /// </summary>
+    public static void RefreshWidgetSnapshot()
+    {
+        EnsureCreated();
+        _instance?.RequestWidgetSnapshot();
     }
 
     /// <summary>
@@ -364,8 +385,8 @@ public sealed partial class AppFlyout : Window
         // The grips are invisible, so the cursor is the only thing that says they are
         // there. Set here rather than in XAML because `ProtectedCursor` is protected,
         // which is the whole reason ResizeGrip is its own type.
-        ResizeTop.SetCursor(Microsoft.UI.Input.InputSystemCursorShape.SizeNorthSouth);
-        ResizeLeft.SetCursor(Microsoft.UI.Input.InputSystemCursorShape.SizeWestEast);
+        ResizeHeightEdge.SetCursor(Microsoft.UI.Input.InputSystemCursorShape.SizeNorthSouth);
+        ResizeWidthEdge.SetCursor(Microsoft.UI.Input.InputSystemCursorShape.SizeWestEast);
         ResizeCorner.SetCursor(Microsoft.UI.Input.InputSystemCursorShape.SizeNorthwestSoutheast);
         // Deliberately NOT ThemeManager.ApplySavedTheme: the flyout is pinned dark
         // in XAML to match the web content it frames, and applying the user's
@@ -498,7 +519,14 @@ public sealed partial class AppFlyout : Window
                         string? pending = _pendingPath;
                         _pendingPath = null;
                         if (pending != null) PostNavigate(pending);
+                        if (_pendingWidgetRefresh) PostWidgetRefresh();
                     });
+                    break;
+
+                case "widgetSnapshot":
+                    if (!root.TryGetProperty("snapshot", out var widgetSnapshot)) break;
+                    var snapshot = widgetSnapshot.Clone();
+                    DispatcherQueue.TryEnqueue(() => StoreWidgetSnapshot(snapshot));
                     break;
 
                 // The page's Settings screen showing this app's own settings; see
@@ -625,10 +653,11 @@ public sealed partial class AppFlyout : Window
     // ── Show / hide ─────────────────────────────────────────────────
     private void ShowNearTray()
     {
-        // Anchored on the cursor: the monitor it is on is the one whose tray was
-        // just clicked.
-        GetCursorPos(out var cursor);
-        _appWindow.MoveAndResize(TrayRect(cursor));
+        // Ask the shell for the real icon position. A cursor fallback still puts a
+        // direct tray click on the correct monitor if Explorer cannot return the
+        // rectangle, such as while it is rebuilding the notification area.
+        if (!MainWindow.TryGetTrayIconCenter(out var anchor)) GetCursorPos(out anchor);
+        _appWindow.MoveAndResize(TrayRect(anchor));
         _visible = true;
         _shownAtTicks = Environment.TickCount64;
         SetWebViewIdle(false);
@@ -641,10 +670,13 @@ public sealed partial class AppFlyout : Window
 
     /// <summary>
     /// Where the flyout goes: the configured size in physical pixels, clamped to the
-    /// work area, tucked into the bottom-right corner of the monitor
-    /// <paramref name="anchor"/> is on and inset so it clears the taskbar.
+    /// work area, tucked into whichever corner is nearest the tray icon at
+    /// <paramref name="anchor"/> and inset so it clears the taskbar.
     /// </summary>
-    private global::Windows.Graphics.RectInt32 TrayRect(POINT anchor)
+    private global::Windows.Graphics.RectInt32 TrayRect(
+        POINT anchor,
+        bool? anchorRightOverride = null,
+        bool? anchorBottomOverride = null)
     {
         var settings = SettingsManager.Current;
         uint dpi = GetDpiForWindow(_hwnd);
@@ -664,11 +696,47 @@ public sealed partial class AppFlyout : Window
             // on small displays and the PWA's bottom nav becomes unreachable.
             w = Math.Min(w, workWidth - margin * 2);
             h = Math.Min(h, workHeight - margin * 2);
-            x = mi.rcWork.Right - w - margin;
-            y = mi.rcWork.Bottom - h - margin;
+            int anchorX = anchor.X;
+            int anchorY = anchor.Y;
+            bool anchorRight = anchorRightOverride ??
+                anchorX >= mi.rcMonitor.Left + (mi.rcMonitor.Right - mi.rcMonitor.Left) / 2;
+            bool anchorBottom = anchorBottomOverride ??
+                anchorY >= mi.rcMonitor.Top + (mi.rcMonitor.Bottom - mi.rcMonitor.Top) / 2;
+
+            x = anchorRight ? mi.rcWork.Right - w - margin : mi.rcWork.Left + margin;
+            y = anchorBottom ? mi.rcWork.Bottom - h - margin : mi.rcWork.Top + margin;
+            _anchorRight = anchorRight;
+            _anchorBottom = anchorBottom;
+            ConfigureResizeGrips(anchorRight, anchorBottom);
         }
 
         return new global::Windows.Graphics.RectInt32(x, y, w, h);
+    }
+
+    /// <summary>
+    /// Put the resize grips on the two edges away from the tray. Resizing then
+    /// keeps the tray-side corner fixed, regardless of which taskbar edge Windows
+    /// is using.
+    /// </summary>
+    private void ConfigureResizeGrips(bool anchorRight, bool anchorBottom)
+    {
+        ResizeWidthEdge.HorizontalAlignment = anchorRight
+            ? Microsoft.UI.Xaml.HorizontalAlignment.Left
+            : Microsoft.UI.Xaml.HorizontalAlignment.Right;
+        ResizeWidthEdge.MovesLeftEdge = anchorRight;
+
+        ResizeHeightEdge.VerticalAlignment = anchorBottom
+            ? Microsoft.UI.Xaml.VerticalAlignment.Top
+            : Microsoft.UI.Xaml.VerticalAlignment.Bottom;
+        ResizeHeightEdge.MovesTopEdge = anchorBottom;
+
+        ResizeCorner.HorizontalAlignment = ResizeWidthEdge.HorizontalAlignment;
+        ResizeCorner.VerticalAlignment = ResizeHeightEdge.VerticalAlignment;
+        ResizeCorner.MovesLeftEdge = anchorRight;
+        ResizeCorner.MovesTopEdge = anchorBottom;
+        ResizeCorner.SetCursor(anchorRight == anchorBottom
+            ? Microsoft.UI.Input.InputSystemCursorShape.SizeNorthwestSoutheast
+            : Microsoft.UI.Input.InputSystemCursorShape.SizeNortheastSouthwest);
     }
 
     /// <summary>
@@ -689,7 +757,7 @@ public sealed partial class AppFlyout : Window
             X = _appWindow.Position.X + _appWindow.Size.Width / 2,
             Y = _appWindow.Position.Y + _appWindow.Size.Height / 2
         };
-        _appWindow.MoveAndResize(TrayRect(here));
+        _appWindow.MoveAndResize(TrayRect(here, _anchorRight, _anchorBottom));
     }
 
     // ── Host settings, shown on the page's own Settings screen ──────
@@ -791,11 +859,11 @@ public sealed partial class AppFlyout : Window
     /// <summary>
     /// Put the WebView to sleep while the flyout is off-screen, and wake it on show.
     ///
-    /// This is only possible because nothing outside the flyout consumes the page.
+    /// This is possible because no background feature consumes the page continuously.
     /// While the tray icon carried a due-count badge the page's `/ws` socket had to
     /// stay live to feed it, so the most that could be done was stop rendering;
-    /// with the badge gone there is no reason to run a browser engine for a window
-    /// nobody is looking at.
+    /// with the badge gone there is no reason to run a browser engine continuously
+    /// for a window nobody is looking at. A widget refresh wakes it only briefly.
     ///
     /// Order matters: `TrySuspendAsync` refuses while the controller is visible, so
     /// collapse first. Suspending freezes JavaScript and timers and lets the
@@ -857,6 +925,79 @@ public sealed partial class AppFlyout : Window
             // Worst case the page updates on the next restart, as it did before.
             Logger.Debug(ex, "Could not ask the page to check for an update");
         }
+    }
+
+    /// <summary>
+    /// Resume the WebView without showing the flyout, then ask its authenticated
+    /// app to refetch Upcoming. A timeout restores suspension if navigation,
+    /// connectivity or sign-in prevents a reply.
+    /// </summary>
+    private void RequestWidgetSnapshot()
+    {
+        if (!_visible) SetWebViewIdle(false);
+        _pendingWidgetRefresh = true;
+
+        _widgetRefreshTimer ??= DispatcherQueue.CreateTimer();
+        _widgetRefreshTimer.Stop();
+        _widgetRefreshTimer.IsRepeating = false;
+        _widgetRefreshTimer.Interval = TimeSpan.FromSeconds(15);
+        _widgetRefreshTimer.Tick -= OnWidgetRefreshTimedOut;
+        _widgetRefreshTimer.Tick += OnWidgetRefreshTimedOut;
+        _widgetRefreshTimer.Start();
+
+        if (_pageListening) PostWidgetRefresh();
+    }
+
+    /// <summary>Post the refresh only after the page has announced its listener.</summary>
+    private void PostWidgetRefresh()
+    {
+        if (!_webViewReady || !_pageListening) return;
+
+        try
+        {
+            WebView.CoreWebView2.PostWebMessageAsJson("{\"type\":\"refreshWidgetSnapshot\"}");
+            _pendingWidgetRefresh = false;
+        }
+        catch (Exception ex)
+        {
+            Logger.Debug(ex, "Could not ask the page to refresh the widget snapshot");
+        }
+    }
+
+    /// <summary>Validate and persist one web-produced snapshot, then restore idle state.</summary>
+    private void StoreWidgetSnapshot(JsonElement element)
+    {
+        try
+        {
+            if (!WidgetSnapshotStorage.TryParse(element, out var snapshot))
+            {
+                Logger.Warn("Ignoring an invalid widget snapshot from the page");
+                return;
+            }
+
+            WidgetSnapshotStorage.Save(snapshot);
+            Logger.Info("Widget snapshot updated with {0} upcoming reminders", snapshot.Items.Count);
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn(ex, "Could not store the widget snapshot");
+        }
+        finally
+        {
+            _widgetRefreshTimer?.Stop();
+            if (!_visible) SetWebViewIdle(true);
+        }
+    }
+
+    /// <summary>Restore suspension after an unanswered background refresh.</summary>
+    private void OnWidgetRefreshTimedOut(
+        Microsoft.UI.Dispatching.DispatcherQueueTimer sender,
+        object args)
+    {
+        sender.Stop();
+        _pendingWidgetRefresh = false;
+        if (!_visible) SetWebViewIdle(true);
+        Logger.Debug("Widget snapshot refresh timed out");
     }
 
     /// <summary>
@@ -1078,9 +1219,9 @@ public sealed partial class AppFlyout : Window
     /// frame this window is specifically built not to have (see the presenter note
     /// in the constructor). The price is doing the arithmetic here.
     ///
-    /// <para>The bottom-right corner is held still, because that is where the flyout
-    /// is anchored to the tray: dragging the top edge changes the height and moves
-    /// the top, and the same for the left edge and the width.</para>
+    /// <para>The corner nearest the tray is held still. Which two edges move is
+    /// assigned when the flyout is positioned, so this remains true for taskbars
+    /// on the top, bottom, left, or right.</para>
     /// </summary>
     private void Grip_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
@@ -1104,20 +1245,21 @@ public sealed partial class AppFlyout : Window
 
         uint dpi = GetDpiForWindow(_hwnd);
         double scale = dpi / 96.0;
-        int right = _resizeStartRect.X + _resizeStartRect.Width;
-        int bottom = _resizeStartRect.Y + _resizeStartRect.Height;
-
         int width = _resizeStartRect.Width;
         int height = _resizeStartRect.Height;
         if (grip.ResizesWidth)
         {
-            width = Math.Max((int)Math.Ceiling(MinFlyoutWidth * scale),
-                             _resizeStartRect.Width - (cursor.X - _resizeStartCursor.X));
+            int delta = cursor.X - _resizeStartCursor.X;
+            width = Math.Max(
+                (int)Math.Ceiling(MinFlyoutWidth * scale),
+                _resizeStartRect.Width + (grip.MovesLeftEdge ? -delta : delta));
         }
         if (grip.ResizesHeight)
         {
-            height = Math.Max((int)Math.Ceiling(MinFlyoutHeight * scale),
-                              _resizeStartRect.Height - (cursor.Y - _resizeStartCursor.Y));
+            int delta = cursor.Y - _resizeStartCursor.Y;
+            height = Math.Max(
+                (int)Math.Ceiling(MinFlyoutHeight * scale),
+                _resizeStartRect.Height + (grip.MovesTopEdge ? -delta : delta));
         }
 
         // Never past the edge of the work area, for the same reason the opening size
@@ -1126,12 +1268,22 @@ public sealed partial class AppFlyout : Window
         var mi = new MONITORINFOEX { cbSize = System.Runtime.InteropServices.Marshal.SizeOf<MONITORINFOEX>() };
         if (GetMonitorInfo(MonitorFromPoint(cursor, MONITOR_DEFAULTTONEAREST), ref mi))
         {
-            width = Math.Min(width, right - mi.rcWork.Left);
-            height = Math.Min(height, bottom - mi.rcWork.Top);
+            width = Math.Min(width, grip.MovesLeftEdge
+                ? _resizeStartRect.X + _resizeStartRect.Width - mi.rcWork.Left
+                : mi.rcWork.Right - _resizeStartRect.X);
+            height = Math.Min(height, grip.MovesTopEdge
+                ? _resizeStartRect.Y + _resizeStartRect.Height - mi.rcWork.Top
+                : mi.rcWork.Bottom - _resizeStartRect.Y);
         }
 
+        int x = grip.MovesLeftEdge
+            ? _resizeStartRect.X + _resizeStartRect.Width - width
+            : _resizeStartRect.X;
+        int y = grip.MovesTopEdge
+            ? _resizeStartRect.Y + _resizeStartRect.Height - height
+            : _resizeStartRect.Y;
         _appWindow.MoveAndResize(new global::Windows.Graphics.RectInt32(
-            right - width, bottom - height, width, height));
+            x, y, width, height));
         e.Handled = true;
     }
 

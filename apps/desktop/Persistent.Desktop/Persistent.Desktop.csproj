@@ -70,6 +70,7 @@
 
   <!-- Content files to copy to output ────────────────────────────── -->
   <ItemGroup>
+    <Compile Include="..\Shared\WidgetSnapshot.cs" Link="Classes\Widgets\WidgetSnapshot.cs" />
     <None Remove="NLog.config" />
     <None Remove="Resources\Persistent.ico" />
     <None Remove="Resources\Persistent.png" />

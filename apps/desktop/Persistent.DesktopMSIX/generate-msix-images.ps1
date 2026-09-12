@@ -120,6 +120,62 @@ function Save-Scaled($source, [int]$w, [int]$h, [string]$path) {
     $bmp.Dispose()
 }
 
+function Save-WidgetScreenshot($source, [string]$path) {
+    $bmp = New-Object System.Drawing.Bitmap(600, 400)
+    $g   = [System.Drawing.Graphics]::FromImage($bmp)
+    $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+    $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+    $g.Clear([System.Drawing.Color]::FromArgb(255, 32, 36, 48))
+
+    # A real preview of the Upcoming card, not a stretched app icon. This is what
+    # the Windows widget picker shows before the user pins it.
+    $g.DrawImage($source, 32, 26, 52, 52)
+    $headingFont = [System.Drawing.Font]::new('Segoe UI', 22, [System.Drawing.FontStyle]::Bold)
+    $bodyFont = [System.Drawing.Font]::new('Segoe UI', 14, [System.Drawing.FontStyle]::Regular)
+    $rowFont = [System.Drawing.Font]::new('Segoe UI', 15, [System.Drawing.FontStyle]::Bold)
+    $labelFont = [System.Drawing.Font]::new('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
+    $buttonFont = [System.Drawing.Font]::new('Segoe UI', 12, [System.Drawing.FontStyle]::Bold)
+    $whiteBrush = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::White)
+    $mutedBrush = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::FromArgb(255, 205, 210, 224))
+    $widgetAccent = [System.Drawing.Color]::FromArgb(255, 18, 184, 134)
+    $accentBrush = [System.Drawing.SolidBrush]::new($widgetAccent)
+    $darkBrush = [System.Drawing.SolidBrush]::new($bg)
+
+    $g.DrawString('Upcoming', $headingFont, $whiteBrush, 104, 28)
+    $g.DrawString('Everything coming up, soonest first.', $bodyFont, $mutedBrush, 32, 88)
+
+    $g.DrawLine([System.Drawing.Pens]::DimGray, 32, 132, 568, 132)
+    $g.DrawString('MEDICATION', $labelFont, $accentBrush, 32, 145)
+    $g.DrawString('Morning medication', $rowFont, $whiteBrush, 32, 169)
+    $g.DrawString('Today at 9:00 a.m.', $bodyFont, $accentBrush, 32, 198)
+
+    $g.DrawLine([System.Drawing.Pens]::DimGray, 32, 238, 568, 238)
+    $g.DrawString('TO-DO', $labelFont, $accentBrush, 32, 251)
+    $g.DrawString('Pick up groceries', $rowFont, $whiteBrush, 32, 275)
+    $g.DrawString('Today at 5:30 p.m.', $bodyFont, $accentBrush, 32, 304)
+
+    $button = [System.Drawing.RectangleF]::new(386, 336, 182, 40)
+    $g.FillRectangle($accentBrush, $button)
+    $format = [System.Drawing.StringFormat]::new()
+    $format.Alignment = [System.Drawing.StringAlignment]::Center
+    $format.LineAlignment = [System.Drawing.StringAlignment]::Center
+    $g.DrawString('Open upcoming', $buttonFont, $darkBrush, $button, $format)
+
+    $format.Dispose()
+    $headingFont.Dispose()
+    $bodyFont.Dispose()
+    $rowFont.Dispose()
+    $labelFont.Dispose()
+    $buttonFont.Dispose()
+    $whiteBrush.Dispose()
+    $mutedBrush.Dispose()
+    $accentBrush.Dispose()
+    $darkBrush.Dispose()
+    $g.Dispose()
+    $bmp.Save($path, [System.Drawing.Imaging.ImageFormat]::Png)
+    $bmp.Dispose()
+}
+
 Write-Host "Rendering master at ${MasterSize}px..."
 $master = New-Master $MasterSize
 
@@ -133,13 +189,18 @@ $tiles = @(
     @{ n = 'Wide310x150Logo.png';                w = 310;  h = 150 },
     @{ n = 'StoreLogo.png';                      w = 50;   h = 50 },
     @{ n = 'SplashScreen.png';                   w = 620;  h = 300 },
-    @{ n = 'LockScreenLogo.png';                 w = 24;   h = 24 }
+    @{ n = 'LockScreenLogo.png';                 w = 24;   h = 24 },
+    @{ n = 'WidgetIcon.png';                     w = 96;   h = 96 }
 )
 foreach ($t in $tiles) {
     $path = Join-Path $imagesDir $t.n
     Save-Scaled $master $t.w $t.h $path
     Write-Host "  $($t.n)"
 }
+
+$widgetScreenshotPath = Join-Path $imagesDir 'WidgetScreenshot.png'
+Save-WidgetScreenshot $master $widgetScreenshotPath
+Write-Host "  WidgetScreenshot.png"
 
 # --- In-app PNG (title bar, flyout, About) ------------------------------
 $pngPath = Join-Path $resDir 'Persistent.png'

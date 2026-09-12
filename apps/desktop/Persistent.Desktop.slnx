@@ -1,3 +1,4 @@
 <Solution>
   <Project Path="Persistent.Desktop/Persistent.Desktop.csproj" />
+  <Project Path="Persistent.Widget/Persistent.Widget.csproj" />
 </Solution>

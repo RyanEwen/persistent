@@ -21,6 +21,18 @@ public partial class ResizeGrip : Panel
     public bool ResizesWidth { get; set; }
     public bool ResizesHeight { get; set; }
 
+    /// <summary>
+    /// True when horizontal resizing moves the left edge. False means the right
+    /// edge moves. Set by the flyout whenever its tray corner changes.
+    /// </summary>
+    public bool MovesLeftEdge { get; set; }
+
+    /// <summary>
+    /// True when vertical resizing moves the top edge. False means the bottom
+    /// edge moves. Set by the flyout whenever its tray corner changes.
+    /// </summary>
+    public bool MovesTopEdge { get; set; }
+
     public void SetCursor(InputSystemCursorShape shape) =>
         ProtectedCursor = InputSystemCursor.Create(shape);
 }

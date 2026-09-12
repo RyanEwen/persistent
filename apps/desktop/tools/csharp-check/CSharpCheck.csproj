@@ -70,6 +70,7 @@
     <Compile Include="../../Persistent.Desktop/Classes/StartupManager.cs" />
     <Compile Include="../../Persistent.Desktop/Classes/StartupDiagnostics.cs" />
     <Compile Include="../../Persistent.Desktop/Classes/NativeMethods.cs" />
+    <Compile Include="../../Shared/WidgetSnapshot.cs" />
     <!-- A plain class despite being a XAML element type, so it checks here. Worth
          checking: most WinUI controls are sealed, and picking a base that isn't is
          not something to establish by a CI round-trip (Border was, and cost one). -->

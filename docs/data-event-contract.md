@@ -70,6 +70,16 @@ it hosts is suspended while the flyout is hidden — see
 slice (an occurrence's id, reminder id, status, title and `details`) and ignores
 every other field and event type, so events stay free to grow.
 
+The Windows widget is a downstream projection of the normal web queries, not
+another API or socket consumer. While the authenticated page is awake,
+`DesktopWidgetSync` reads the same reminders and active-occurrences caches as
+`UpcomingPage`, applies their shared selector, and sends at most four preformatted
+rows through the WebView bridge. Opening the Widgets Board asks the host to wake
+the page briefly and refetch both feeds; the provider then reads the atomically
+replaced local snapshot. No event payload, session credential, schedule, or
+reminder DTO crosses into the provider. See
+[`desktop-architecture.md`](desktop-architecture.md#windows-widgets-board).
+
 ## Cross-device dismiss
 
 When an occurrence is acknowledged or snoozed (from any device or the SW action),

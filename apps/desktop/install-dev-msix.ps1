@@ -111,10 +111,11 @@ Write-Step "Persistent $version, $Platform"
 # Built BEFORE anything is removed, deliberately: a build that fails should leave
 # the machine with the app it already had, not with no app at all.
 if (-not $SkipBuild) {
-    if (-not (Test-Path (Join-Path $msixDir 'Images'))) {
-        Write-Step 'Generating package images...'
-        & (Join-Path $msixDir 'generate-msix-images.ps1')
-    }
+    # These are deterministic build output. Regenerate even when an earlier build
+    # left Images behind, or an edited icon/preview script silently packages stale
+    # assets forever on the development machine.
+    Write-Step 'Generating package images...'
+    & (Join-Path $msixDir 'generate-msix-images.ps1')
     Write-Step 'Building the package...'
     & (Join-Path $msixDir 'build-msix.ps1') -Platform $Platform -CertPassword $CertPassword
 }
@@ -166,8 +167,8 @@ if ($trusted) {
 # its already-deleted install folder open, and you spend a while looking at the
 # old build convinced the install did nothing. The new one is launched at the end,
 # so stopping all of them costs nothing.
-Get-Process -Name 'Persistent.Desktop' -ErrorAction SilentlyContinue | ForEach-Object {
-    Write-Step "Stopping running Persistent.Desktop (pid $($_.Id))"
+Get-Process -Name 'Persistent.Desktop', 'Persistent.Widget' -ErrorAction SilentlyContinue | ForEach-Object {
+    Write-Step "Stopping running $($_.ProcessName) (pid $($_.Id))"
     Stop-Process -Id $_.Id -Force
 }
 

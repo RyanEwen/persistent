@@ -139,7 +139,10 @@ read the cookie straight out of the WebView2 profile per call
 (`AppFlyout.GetSessionCookieAsync`). Unlike the Android worker it caches nothing
 and mirrors nothing — it has a WebView right there — so a refreshed session is
 picked up automatically and signing out simply makes its calls fail. Nothing about
-the session is written to `settings.json`.
+the session is written to `settings.json`. The separate Windows widget provider
+never receives the cookie: the authenticated page sends it only bounded,
+display-ready Upcoming strings, and signing out replaces that local snapshot with
+an empty state.
 
 `attachUser` middleware resolves the cookie into `request.userId` for every
 request; `requireUser` rejects anonymous callers; `requireUserId(request)`

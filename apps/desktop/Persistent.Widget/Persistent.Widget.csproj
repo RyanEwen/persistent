@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.22000.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Platforms>x64;ARM64</Platforms>
+    <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
+    <AssemblyName>Persistent.Widget</AssemblyName>
+    <RootNamespace>Persistent.Widget</RootNamespace>
+    <UseWinUI>false</UseWinUI>
+    <WindowsPackageType>None</WindowsPackageType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Shared\WidgetSnapshot.cs" Link="WidgetSnapshot.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Windows widget providers require 2.3.1 or later. Keep this on the current
+         stable release. The package manifest supplies its 2.4 framework beside
+         the main app's proven 1.8 runtime. -->
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.4.0" />
+    <PackageReference Include="NLog" Version="6.1.1" />
+  </ItemGroup>
+</Project>

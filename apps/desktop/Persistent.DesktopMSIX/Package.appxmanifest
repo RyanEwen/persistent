@@ -3,10 +3,11 @@
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
   xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
   xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
   xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
-  IgnorableNamespaces="uap uap5 rescap com desktop">
+  IgnorableNamespaces="uap uap3 uap5 rescap com desktop">
 
   <!-- These are the real Partner Center values for Store ID 9PCX2XGQ7CJS, and the
        Store rejects a package whose identity differs from them by even a
@@ -37,6 +38,10 @@
          needs the line. Keep MinVersion in step with Microsoft.WindowsAppSDK in
          Persistent.Desktop.csproj. -->
     <PackageDependency Name="Microsoft.WindowsAppRuntime.1.8" MinVersion="8000.770.947.0" Publisher="CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US" />
+    <!-- The widget provider uses the current Widgets API while the tray process
+         remains on its proven 1.8 runtime. Keeping both framework dependencies
+         avoids bundling a second full Windows App SDK into the application. -->
+    <PackageDependency Name="Microsoft.WindowsAppRuntime.2" MinVersion="2.4.0.0" Publisher="CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US" />
   </Dependencies>
 
   <Resources>
@@ -82,8 +87,55 @@
             <com:ExeServer Executable="Persistent.Desktop.exe" DisplayName="Persistent" Arguments="----AppNotificationActivated:">
               <com:Class Id="17864FEB-13E6-4192-8FCF-215D50A0D632" />
             </com:ExeServer>
+            <com:ExeServer Executable="Widget\Persistent.Widget.exe" DisplayName="Persistent widget provider" Arguments="-RegisterProcessAsComServer">
+              <com:Class Id="8C74E4F8-6D73-4D2D-92E8-CA3027DD1ED1" DisplayName="Persistent widget provider" />
+            </com:ExeServer>
           </com:ComServer>
         </com:Extension>
+
+        <!-- The Widgets Board starts the separate provider process above. The
+             card shows a bounded, display-ready Upcoming snapshot produced by
+             the hosted PWA; reminder state and actions stay in that PWA. -->
+        <uap3:Extension Category="windows.appExtension">
+          <uap3:AppExtension Name="com.microsoft.windows.widgets" DisplayName="Persistent" Id="technicallyreal.persistent.widget" PublicFolder="Public">
+            <uap3:Properties>
+              <WidgetProvider>
+                <ProviderIcons>
+                  <Icon Path="Images\WidgetIcon.png" />
+                </ProviderIcons>
+                <Activation>
+                  <CreateInstance ClassId="8C74E4F8-6D73-4D2D-92E8-CA3027DD1ED1" />
+                </Activation>
+                <!-- The Windows Widgets Board hosts provider content through the
+                     stable Edge package. Without this trust entry the extension
+                     installs but is omitted from the widget picker. -->
+                <TrustedPackageFamilyNames>
+                  <TrustedPackageFamilyName>Microsoft.MicrosoftEdge.Stable_8wekyb3d8bbwe</TrustedPackageFamilyName>
+                </TrustedPackageFamilyNames>
+                <Definitions>
+                  <Definition Id="Persistent_Launcher_Widget"
+                              DisplayName="Persistent"
+                              Description="See your next Persistent reminders.">
+                    <Capabilities>
+                      <Capability><Size Name="small" /></Capability>
+                      <Capability><Size Name="medium" /></Capability>
+                    </Capabilities>
+                    <ThemeResources>
+                      <Icons>
+                        <Icon Path="Images\WidgetIcon.png" />
+                      </Icons>
+                      <Screenshots>
+                        <Screenshot Path="Images\WidgetScreenshot.png" DisplayAltText="Persistent widget showing upcoming reminders" />
+                      </Screenshots>
+                      <DarkMode />
+                      <LightMode />
+                    </ThemeResources>
+                  </Definition>
+                </Definitions>
+              </WidgetProvider>
+            </uap3:Properties>
+          </uap3:AppExtension>
+        </uap3:Extension>
       </Extensions>
     </Application>
   </Applications>

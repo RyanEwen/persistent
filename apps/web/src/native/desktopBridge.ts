@@ -9,14 +9,10 @@
  * the desktop host, and a check that conflates the two will silently do the wrong
  * thing on one of them.
  *
- * The channel is small on purpose. Host -> page carries `back` (the flyout's
- * title-bar button, which walks the app's screen hierarchy rather than browser
- * history) and `hostSettings`; page -> host carries `close` (Back ran out of
- * hierarchy) and the settings requests below. Nothing streams *reminder* state to
- * the host: it has no surface that needs it, and a second copy of "what is due"
- * would be a second source of truth that can disagree. Host settings are the
- * opposite direction and not that: the host stays the only owner of its own
- * settings file, and the page renders what it is told.
+ * The channel is small on purpose. Reminder data crosses it only as the bounded,
+ * display-ready snapshot used by the Windows widget. Selection, scheduling and
+ * wording stay in this bundle; neither native process becomes another reminder
+ * client or another source of truth.
  */
 
 interface WebView2Bridge {
@@ -52,7 +48,23 @@ type HostMessage =
   | { type: 'back' }
   | { type: 'navigate'; path: string }
   | { type: 'checkForUpdate' }
+  | { type: 'refreshWidgetSnapshot' }
   | { type: 'hostSettings'; settings: HostSettings }
+
+export interface WidgetReminderItem {
+  type: string
+  title: string
+  description: string
+  when: string
+  paused: boolean
+}
+
+export interface WidgetSnapshot {
+  version: 1
+  signedIn: boolean
+  generatedAt: string
+  items: WidgetReminderItem[]
+}
 
 /**
  * One flyout size the host offers. The dimensions and their labels come from the
@@ -243,6 +255,7 @@ export function onHostMessage(handler: (message: HostMessage) => void): () => vo
     const type = (data as { type?: unknown }).type
     if (type === 'back') handler({ type: 'back' })
     if (type === 'checkForUpdate') handler({ type: 'checkForUpdate' })
+    if (type === 'refreshWidgetSnapshot') handler({ type: 'refreshWidgetSnapshot' })
     if (type === 'navigate') {
       const path = (data as { path?: unknown }).path
       if (typeof path === 'string' && /^\/[^/]/.test(path)) handler({ type: 'navigate', path })
@@ -289,6 +302,25 @@ export function announcePageReady(): void {
 }
 
 /**
+ * Give the native widget a small, already-formatted view of Upcoming. The host
+ * validates and stores it locally; it never receives authentication material or
+ * enough domain state to reproduce reminder scheduling.
+ */
+export function publishWidgetSnapshot(snapshot: WidgetSnapshot): void {
+  postToHost({ type: 'widgetSnapshot', snapshot })
+}
+
+/** Remove personal widget content as soon as this desktop WebView signs out. */
+export function clearWidgetSnapshot(): void {
+  publishWidgetSnapshot({
+    version: 1,
+    signedIn: false,
+    generatedAt: new Date().toISOString(),
+    items: []
+  })
+}
+
+/**
  * Ask the host for its settings. It replies with a `hostSettings` message, and a
  * host too old to know the request simply never does, which is the whole version
  * check, since the page is a hosted bundle that updates on its own while the .exe
@@ -316,4 +348,3 @@ export function writeHostSettings(patch: HostSettingsPatch): void {
 export function openHostSettingsWindow(): void {
   postToHost({ type: 'openHostSettings' })
 }
-

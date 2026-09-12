@@ -173,10 +173,33 @@ internal static partial class NativeMethods
         public IntPtr hBalloonIcon;
     }
 
+    /// <summary>
+    /// Identifies one notification-area icon for <see cref="Shell_NotifyIconGetRect"/>.
+    /// Persistent uses the classic window/id identity rather than a GUID.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct NOTIFYICONIDENTIFIER
+    {
+        public uint cbSize;
+        public IntPtr hWnd;
+        public uint uID;
+        public Guid guidItem;
+    }
+
     // SetLastError so a failed NIM_ADD can report *why* — without it the tray icon
     // just doesn't appear and there is nothing to go on.
     [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     public static extern bool Shell_NotifyIcon(int dwMessage, ref NOTIFYICONDATA lpData);
+
+    /// <summary>
+    /// Retrieves the icon's real screen rectangle. This is the only reliable
+    /// anchor now that the notification area can live on any taskbar edge.
+    /// Returns an HRESULT, where zero means success.
+    /// </summary>
+    [DllImport("shell32.dll")]
+    public static extern int Shell_NotifyIconGetRect(
+        ref NOTIFYICONIDENTIFIER identifier,
+        out RECT iconLocation);
 
     // ── Context menu ────────────────────────────────────────────────
     public const uint MF_STRING = 0x00000000;

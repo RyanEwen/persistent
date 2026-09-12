@@ -22,6 +22,9 @@ public sealed partial class MainWindow : Window
 
     /// <summary>Posted by a second launch to ask the running instance to show the flyout.</summary>
     public static readonly uint WmShowFlyout = RegisterWindowMessage("Persistent_ShowFlyout");
+
+    /// <summary>Posted by the widget provider when its cached Upcoming card becomes visible.</summary>
+    public static readonly uint WmRefreshWidget = RegisterWindowMessage("Persistent_RefreshWidget");
     private static readonly uint WmTrayCallback = RegisterWindowMessage("Persistent_TrayCallback");
 
     /// <summary>Broadcast by the shell when Explorer (re)starts; we must re-add the tray icon.</summary>
@@ -155,12 +158,41 @@ public sealed partial class MainWindow : Window
         szInfoTitle = string.Empty
     };
 
+    /// <summary>
+    /// Return the centre of the notification-area icon in physical screen pixels.
+    /// The shell owns both its position and the taskbar edge, so callers should use
+    /// this rather than assuming that the tray is at the bottom-right.
+    /// </summary>
+    internal static bool TryGetTrayIconCenter(out POINT centre)
+    {
+        centre = default;
+        if (instance is not { _trayAdded: true }) return false;
+
+        var identifier = new NOTIFYICONIDENTIFIER
+        {
+            cbSize = (uint)Marshal.SizeOf<NOTIFYICONIDENTIFIER>(),
+            hWnd = instance._hwnd,
+            uID = TrayIconId
+        };
+
+        if (Shell_NotifyIconGetRect(ref identifier, out var rect) != 0) return false;
+
+        centre.X = rect.Left + (rect.Right - rect.Left) / 2;
+        centre.Y = rect.Top + (rect.Bottom - rect.Top) / 2;
+        return true;
+    }
+
     // ── Window procedure ────────────────────────────────────────────
     private IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam, IntPtr id, IntPtr data)
     {
         if (msg == WmShowFlyout)
         {
             AppFlyout.Show();
+            return IntPtr.Zero;
+        }
+        if (msg == WmRefreshWidget)
+        {
+            App.MainDispatcherQueue.TryEnqueue(AppFlyout.RefreshWidgetSnapshot);
             return IntPtr.Zero;
         }
         if (msg == WmTaskbarCreated)

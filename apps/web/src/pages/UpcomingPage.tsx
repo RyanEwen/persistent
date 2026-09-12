@@ -22,35 +22,21 @@ import Chip from '@mui/joy/Chip'
 import { SectionHeading } from '../components/SectionHeading.js'
 import { NewReminderFab } from '../components/NewReminderFab.js'
 import { reminderBodyText } from '@persistent/shared'
-import type { Reminder } from '@persistent/shared'
 import { useReminders } from '../data/reminders.js'
-import { isNote } from '../lib/notes.js'
 import { useActiveOccurrences } from '../data/occurrences.js'
 import { scheduleSummary } from '../lib/scheduleSummary.js'
 import { formatWhen } from '../lib/datetime.js'
-import { reminderNextFire } from '../lib/schedule-preview.js'
+import { selectUpcomingReminders } from '../lib/upcomingReminders.js'
 import { useSettings } from '../settings/useSettings.js'
 import { ReminderListItem } from '../components/ReminderListItem.js'
 import { PullToRefresh } from '../components/PullToRefresh.js'
-
-// A one-time reminder that's been done (acknowledged) is finished — it lives in
-// History, not here. Missed/snoozed are still actionable, so they stay, and
-// repeating reminders always do (they keep recurring).
-function isFinished(reminder: Reminder): boolean {
-  return reminder.schedule.kind === 'once' && reminder.lastOccurrence?.status === 'ACKNOWLEDGED'
-}
 
 export function UpcomingPage() {
   const reminders = useReminders()
   const active = useActiveOccurrences()
   const { timeFormat } = useSettings()
 
-  const pendingReminderIds = new Set((active.data ?? []).map((o) => o.reminderId))
-  const idle = (reminders.data ?? [])
-    // Notes have their own tab — nothing about one is upcoming.
-    .filter((r) => !isNote(r) && !isFinished(r) && !pendingReminderIds.has(r.id))
-    .map((reminder) => ({ reminder, next: reminderNextFire(reminder) }))
-    .sort((a, b) => (a.next?.getTime() ?? Infinity) - (b.next?.getTime() ?? Infinity))
+  const idle = selectUpcomingReminders(reminders.data ?? [], active.data ?? [])
 
   return (
     <PullToRefresh onRefresh={() => Promise.all([reminders.refetch(), active.refetch()])}>

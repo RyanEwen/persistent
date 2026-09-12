@@ -104,17 +104,18 @@
              the header (measured on the 150%-scaled target, see AppFlyout.xaml.cs).
              These grips are ordinary client area instead, so the frame can never
              come back.
-             Only the top and left edges: the flyout is anchored to the tray corner,
-             so its bottom-right stays put and it grows up and to the left. Last in
-             the Grid and spanning both rows, which is what puts them above the
-             WebView; `Background="Transparent"` is required, since a null one is
-             not hit-tested. -->
-        <local:ResizeGrip x:Name="ResizeTop" Grid.Row="0" Grid.RowSpan="2"
+             The active edges are opposite whichever corner contains the tray icon,
+             so the tray-side corner stays put as the window grows. Their alignment
+             is set whenever the flyout is positioned. Last in the Grid and spanning
+             both rows, which is what puts them above the WebView;
+             `Background="Transparent"` is required, since a null one is not
+             hit-tested. -->
+        <local:ResizeGrip x:Name="ResizeHeightEdge" Grid.Row="0" Grid.RowSpan="2"
                           VerticalAlignment="Top" Height="6" Background="Transparent"
                           ResizesHeight="True"
                           PointerPressed="Grip_PointerPressed" PointerMoved="Grip_PointerMoved"
                           PointerReleased="Grip_PointerReleased" PointerCaptureLost="Grip_PointerCaptureLost" />
-        <local:ResizeGrip x:Name="ResizeLeft" Grid.Row="0" Grid.RowSpan="2"
+        <local:ResizeGrip x:Name="ResizeWidthEdge" Grid.Row="0" Grid.RowSpan="2"
                           HorizontalAlignment="Left" Width="6" Background="Transparent"
                           ResizesWidth="True"
                           PointerPressed="Grip_PointerPressed" PointerMoved="Grip_PointerMoved"

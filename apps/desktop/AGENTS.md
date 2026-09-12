@@ -37,10 +37,13 @@ second implementation of a done/snooze rule, stop: that is the mistake this desi
 exists to avoid (see `docs/notification-behavior.md`: every surface must
 converge, and the surface that *is* the web client cannot diverge).
 
-Concretely, do not add: DTO mirrors of `@persistent/shared`, native reminder UI,
-or a second implementation of a done/snooze rule.
+Concretely, do not add: DTO mirrors of `@persistent/shared`, native reminder
+policy, or a second implementation of a done/snooze rule. A bounded native
+presentation may consume display-ready strings produced by the PWA, as the
+widget does, but it must not infer state from them.
 
-**`Notifications/` is the one bounded exception**, and it is bounded on purpose.
+**`Notifications/` and the read-only widget are bounded exceptions**, and they
+are bounded on purpose.
 Optional Windows toasts (off by default) need three things the rule would
 otherwise forbid: a `/ws` client, a flattened read of five fields off an
 occurrence event, and `POST`s to `/api/occurrences/:id/{ack,snooze}` behind the
@@ -57,12 +60,15 @@ toast buttons. What keeps it from becoming the mistake:
   confirm variant. A toast surface that acked on first click would diverge from
   every other surface, which is the thing that must never happen.
 
-Do not widen it. Anything else about a reminder still belongs in the PWA.
+The widget receives at most four already-selected, already-formatted Upcoming
+rows through the bridge. Its shared C# contract contains only display strings,
+not a reminder DTO, schedule, status or action. Do not widen either exception.
+Anything else about a reminder still belongs in the PWA.
 
 **Host settings rendered by the page are not an exception to this rule, they are
 the same rule pointed the other way.** `HostSettings` sends this app's own
-settings to the PWA to display, and takes back what the user changed. Nothing
-about a reminder crosses that channel, and the host stays the only owner and
+settings to the PWA to display, and takes back what the user changed. No domain
+state or credentials cross that channel, and the host stays the only owner and
 writer of `settings.json`; the page holds no copy and persists nothing.
 
 ## Layout
@@ -77,6 +83,9 @@ writer of `settings.json`; the page holds no copy and persists nothing.
 | `Persistent.Desktop/Pages/` | `ConnectionPage`, `AppSettingsPage` (the nav cog), `AboutPage` |
 | `Persistent.Desktop/Classes/Settings/HostSettings.cs` | The settings the PWA's own Settings screen shows and writes |
 | `Persistent.Desktop/Notifications/` | Optional Windows toasts: `/ws` client, toast builder, ack/snooze calls |
+| `Persistent.Widget/` | Packaged, read-only Windows 11 Upcoming widget provider |
+| `Persistent.Widget/NativeMethods.cs` | Widget-process-only COM and window messaging P/Invoke |
+| `Shared/WidgetSnapshot.cs` | Validated display-only file contract shared by the host and widget process |
 | `Persistent.Desktop/Classes/NativeMethods.cs` | **All** Win32 P/Invoke |
 | `verify-csharp.sh` | Linux compile-check of the non-XAML C# (`npm run verify:desktop`) |
 | `install-dev-msix.sh` / `install-dev-msix.ps1` | Build + install a dev-signed MSIX on the Windows machine (`npm run install:desktop`) |
@@ -92,7 +101,8 @@ writer of `settings.json`; the page holds no copy and persists nothing.
 - **The WebView is created once, at startup, and shown/hidden: never rebuilt.**
   Opening is then instant and lands the user where they left off. While hidden it
   is suspended (`TrySuspendAsync`), so it costs little to keep around: that is
-  affordable only because nothing outside the flyout consumes the page.
+  affordable because no background feature needs the page continuously. The
+  widget may wake it briefly for a bounded refresh, then suspends it again.
 - **Settings**: one `[ObservableProperty]` partial property per setting on
   `UserSettings`, PascalCase, with a sensible default; side-effects go in a
   partial `On<Name>Changed` guarded by `if (_initializing) return;`.
@@ -108,8 +118,10 @@ writer of `settings.json`; the page holds no copy and persists nothing.
   reasoning, including why the host always echoes what it holds, is in
   `docs/desktop-architecture.md`.
 - **P/Invoke** lives only in `Classes/NativeMethods.cs`, grouped by DLL with a
-  header comment. Prefer `[LibraryImport]` for new declarations (the class must
-  then be `partial`). Always `DestroyIcon` an HICON you create.
+  header comment. The separately compiled widget process follows the same rule in
+  its own `NativeMethods.cs`; do not bury declarations in provider logic. Prefer
+  `[LibraryImport]` for new declarations (the class must then be `partial`).
+  Always `DestroyIcon` an HICON you create.
 - **Icons**: load a generous frame (32 for the tray/small slot, 64 for
   `AppWindow.SetIcon`), never 16: the shell downscaling stays crisp, upscaling
   does not. In-app XAML `Image` sources use the high-res PNG, not the `.ico`.
