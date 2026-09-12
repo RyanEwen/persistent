@@ -3,7 +3,7 @@
 # (apps/mobile) can be built from inside the container later. librsvg2-bin
 # (rsvg-convert) rasterizes the app-icon SVGs into launcher PNGs via
 # `npm run gen:icons` in apps/mobile.
-FROM node:20-trixie
+FROM node:20.20.2-trixie
 
 ARG DEBIAN_FRONTEND=noninteractive
 

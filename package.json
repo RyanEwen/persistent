@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "license": "UNLICENSED",
+  "packageManager": "npm@10.8.2",
+  "engines": {
+    "node": "20.20.2",
+    "npm": "10.8.2"
+  },
   "type": "module",
   "workspaces": [
     "apps/api",

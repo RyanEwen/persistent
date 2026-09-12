@@ -5,7 +5,7 @@
 # Build context is the repo root. Used by compose.server.yml.
 
 # --- build stage ---
-FROM node:20-bookworm-slim AS build
+FROM node:20.20.2-bookworm-slim AS build
 WORKDIR /app
 # OpenSSL so `prisma generate` detects the right engine (debian-openssl-3.0.x),
 # matching the runtime image.
@@ -29,7 +29,7 @@ RUN npm run db:generate \
  && npm run build --workspace @persistent/api
 
 # --- runtime stage ---
-FROM node:20-bookworm-slim AS runtime
+FROM node:20.20.2-bookworm-slim AS runtime
 WORKDIR /app
 # Prisma needs OpenSSL at runtime.
 RUN apt-get update \

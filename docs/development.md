@@ -52,6 +52,9 @@ SDK/JDK in a checkout-specific Compose stack and injects `DATABASE_URL` and
 `API_PORT` into the development processes.
 
 ```bash
+nvm install        # installs the exact Node release from .nvmrc
+nvm use
+npm install
 npm run dev        # shared (watch) + api + web, concurrently
 npm run db:migrate # apply Prisma migrations
 npm run validate   # lint + test + typecheck + prisma validate
