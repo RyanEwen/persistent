@@ -49,14 +49,13 @@
     <PackageReference Include="NLog" Version="6.1.1" />
   </ItemGroup>
 
-  <!-- Shared "Our other apps" cross-promo page ───────────────────────
+  <!-- Shared "Our other apps" cross-promo page.
        A git submodule (apps/desktop/external/promo) shared with the sibling
        TechnicallyReal Store apps. It is the one place a reminder-shaped rule does
        not apply, because it says nothing about reminders: it lists the
-       publisher's other Store apps from data baked in at dev time by the
-       submodule's refresh.ps1, and hides whichever app it is running inside by
-       package family name. No runtime networking - clicking a card hands a
-       ms-windows-store:// URI to the Store app.
+       publisher's other apps from a public runtime manifest, persists the last
+       successful refresh, and hides whichever app it is running inside by package
+       family name. Bundled data remains the offline first-run fallback.
 
        Imported unconditionally, so a clone that skipped the recursive-submodule
        flag fails here naming the missing file. Guarding it with Exists() would let

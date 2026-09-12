@@ -61,10 +61,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # See build-desktop-msix.yml: the csproj imports the private
-          # external/promo submodule unconditionally.
           submodules: true
-          token: ${{ secrets.SUBMODULES_TOKEN || github.token }}
 
       # Fail here rather than 10 minutes later at the publish step. A missing
       # secret is the single most likely reason this run should not have started.

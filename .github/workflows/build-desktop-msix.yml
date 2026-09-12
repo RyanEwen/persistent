@@ -43,13 +43,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # The "Our other apps" page lives in the private external/promo
-          # submodule, and the csproj imports it unconditionally, so a checkout
-          # without it does not compile. SUBMODULES_TOKEN is a PAT with read
-          # access to RyanEwen/technicallyreal-promo; the github.token fallback
-          # keeps forks building everything up to that import.
           submodules: true
-          token: ${{ secrets.SUBMODULES_TOKEN || github.token }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4

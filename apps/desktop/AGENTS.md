@@ -89,12 +89,12 @@ writer of `settings.json`; the page holds no copy and persists nothing.
 | `Persistent.Desktop/Classes/NativeMethods.cs` | **All** Win32 P/Invoke |
 | `verify-csharp.sh` | Linux compile-check of the non-XAML C# (`npm run verify:desktop`) |
 | `install-dev-msix.sh` / `install-dev-msix.ps1` | Build + install a dev-signed MSIX on the Windows machine (`npm run install:desktop`) |
-| `set-ci-secrets.sh` | Sets the Store + submodule GitHub secrets (run from the development container) |
+| `set-ci-secrets.sh` | Sets the Store publishing secrets (run from the development container) |
 | `tools/csharp-check/` | The project + XAML stubs that check drives; not in the .slnx, not built by CI |
 | `Persistent.Desktop/Services/UpdateService.cs` | Update check; GitHub when unpackaged, `StoreContext` when packaged |
 | `publish-portable.ps1` | Self-contained unpackaged build (**the one to use for testing**) |
 | `Persistent.DesktopMSIX/` | Manifest + `build-msix.ps1` + `generate-msix-images.ps1` (for shipping) |
-| `external/promo/` | Private submodule: the shared "Our other apps" page |
+| `external/promo/` | Public submodule: the shared "Our other apps" page |
 
 ## Conventions
 
@@ -148,8 +148,8 @@ writer of `settings.json`; the page holds no copy and persists nothing.
   assuming the portable case; put the packaged path behind the same
   try/catch idiom the existing ones use.
 - **`external/promo` is a submodule and the csproj imports it unconditionally.**
-  Clone with `--recurse-submodules`, and keep `submodules: true` plus
-  `SUBMODULES_TOKEN` on any new workflow that builds this app.
+  Clone with `--recurse-submodules`, and keep `submodules: true` on any new
+  workflow that builds this app.
 - Real builds are Windows-side:
   `dotnet build Persistent.Desktop/Persistent.Desktop.csproj -c Debug`, packaged
   with `Persistent.DesktopMSIX/build-msix.ps1`.

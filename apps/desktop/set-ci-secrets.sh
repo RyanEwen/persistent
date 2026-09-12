@@ -1,15 +1,8 @@
 #!/usr/bin/env bash
 #
-# Set the desktop app's GitHub Actions secrets from the development container.
+# Set the desktop app's Store publishing secrets from the development container.
 #
-# Two workflows need credentials that cannot live in the repo:
-#
-#   SUBMODULES_TOKEN                 Read access to the private
-#                                    RyanEwen/technicallyreal-promo submodule.
-#                                    build-desktop-msix.yml and store-publish.yml
-#                                    both check it out, and the csproj imports it
-#                                    unconditionally, so without this the desktop
-#                                    build does not compile at all.
+# The Store workflow needs credentials that cannot live in the repo:
 #
 #   AZURE_AD_TENANT_ID               Entra tenant ID
 #   AZURE_AD_APPLICATION_CLIENT_ID   App registration (client) ID
@@ -45,23 +38,17 @@
 #
 # Usage:
 #   ./set-ci-secrets.sh
-#   ./set-ci-secrets.sh --only SUBMODULES_TOKEN
 #   ./set-ci-secrets.sh --only AZURE_AD_APPLICATION_SECRET   # rotate just the secret
 #   ./set-ci-secrets.sh --repo RyanEwen/persistent           # repeatable
-#   ./set-ci-secrets.sh --all --only SUBMODULES_TOKEN        # rotate across the fleet
+#   ./set-ci-secrets.sh --all --only AZURE_AD_APPLICATION_SECRET
 #
-# --all targets every repo that consumes the promo submodule. SUBMODULES_TOKEN is
-# one PAT shared by all of them, so regenerating it means updating all four or the
-# ones you missed start failing at checkout. Each value is prompted for once and
-# then written to every target, so a rotated token is pasted once rather than four
-# times - which is the point, since pasting it four times is how one gets a typo.
+# --all targets every Store app backed by the same Entra registration and seller
+# account. Each value is prompted for once and then written to every target.
 #
 set -euo pipefail
 
-# Every repo whose CI checks out RyanEwen/technicallyreal-promo. Confirmed by
-# looking for the secret itself rather than by code search, which under-indexes
-# .gitmodules and silently missed one.
-SUBMODULE_REPOS=(
+# Every Store app backed by the shared publishing credentials.
+STORE_REPOS=(
   RyanEwen/persistent
   RyanEwen/LittleLauncher
   RyanEwen/Repilot
@@ -72,17 +59,15 @@ REPOS=()
 ONLY=()
 
 # Parallel arrays rather than an associative array: the prompt order is part of the
-# UX (the token that blocks the build comes first), and bash does not preserve
+# UX, and bash does not preserve
 # insertion order for associative keys.
 NAMES=(
-  SUBMODULES_TOKEN
   AZURE_AD_TENANT_ID
   AZURE_AD_APPLICATION_CLIENT_ID
   AZURE_AD_APPLICATION_SECRET
   SELLER_ID
 )
 HINTS=(
-  "PAT, read-only Contents on technicallyreal-promo"
   "Entra tenant ID          (entra.microsoft.com > Identity > Overview)"
   "Application (client) ID  (Entra > App registrations > your app)"
   "Client secret VALUE      (Entra > your app > Certificates & secrets)"
@@ -94,7 +79,7 @@ usage() { sed -n '2,52p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo) REPOS+=("${2:?--repo needs a value}"); shift 2 ;;
-    --all) REPOS+=("${SUBMODULE_REPOS[@]}"); shift ;;
+    --all) REPOS+=("${STORE_REPOS[@]}"); shift ;;
     --only) ONLY+=("${2:?--only needs a secret name}"); shift 2 ;;
     -h|--help) usage 0 ;;
     *) echo "Unknown argument: $1" >&2; usage 1 >&2 ;;

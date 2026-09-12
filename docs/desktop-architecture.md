@@ -731,24 +731,8 @@ price, the workflow stops working and the fallback is dragging the two `.msix`
 files into Partner Center.
 It needs four repository secrets — `AZURE_AD_TENANT_ID`,
 `AZURE_AD_APPLICATION_CLIENT_ID`, `AZURE_AD_APPLICATION_SECRET`, `SELLER_ID` —
-plus `SUBMODULES_TOKEN` for the checkout. **Set them with
-`apps/desktop/set-ci-secrets.sh`**, run from the development container (`gh` is already
-authenticated there), which prompts with echo off and pipes each value to
-`gh secret set` over stdin.
-
-`SUBMODULES_TOKEN` is **one PAT shared by four repos** — this one plus Little
-Launcher, Repilot and ImmichDrive, which all check out the same submodule. So
-regenerating it is a fleet-wide operation, and any repo missed starts failing at
-checkout rather than at a step that names the token:
-
-```
-./apps/desktop/set-ci-secrets.sh --all --only SUBMODULES_TOKEN
-```
-
-`--all` prompts once and writes to every consumer, which is the point: pasting a
-PAT four times is how one of the four ends up with a typo. The repo list in the
-script was built by checking which repos hold the secret, not by code search —
-GitHub's code search under-indexes `.gitmodules` and silently missed one.
+which can be set with `apps/desktop/set-ci-secrets.sh` from the development
+container. The public promo submodule needs no separate checkout credential.
 
 **The client secret expires, and nothing will tell you.** Entra credentials last
 24 months at most, and there is no call that answers "when does mine expire?" —
@@ -792,25 +776,17 @@ that cannot resolve.
 
 ## The `external/promo` submodule
 
-`apps/desktop/external/promo` is a private git submodule
+`apps/desktop/external/promo` is a public git submodule
 (`RyanEwen/technicallyreal-promo`) shared with the sibling Store apps. It supplies
 the settings window's "Our other apps" page as a shared-items project imported by
 `Persistent.Desktop.csproj`, and hides whichever app it is running inside by
 package family name.
 
-It never touches the network: names, blurbs and icons are fetched from the Store
-by the submodule's own `refresh.ps1` on a dev machine and committed as static
-assets; clicking a card hands a `ms-windows-store://` URI to the Store app. Both
-CI workflows check out with `submodules: true` and a `SUBMODULES_TOKEN` PAT,
-because the csproj imports it unconditionally — a checkout without it does not
-compile, which is deliberate: guarding the import with `Exists()` would move the
-failure to a confusing "the namespace 'Promo' does not exist".
-
-**Outstanding:** Persistent went live on 2026-08-19, so it should now be promoted
-by its siblings. Add `9PCX2XGQ7CJS` to the submodule's `ids.json`, run
-`refresh.ps1` (Windows only: it fetches the name, blurb and icon from the Store),
-and bump the submodule pointer in all four apps. Until that is done, Persistent is
-the only one of the four whose "Our other apps" page does not list it.
+The page loads the public manifest and icons from GitHub when opened, then
+persists the last successful set in app-local storage. Bundled data is the
+offline first-run fallback. This lets new promotions reach existing installs
+without rebuilding the desktop app. CI still checks out with `submodules: true`
+because the csproj imports the shared page unconditionally.
 
 ## `EnableMsixTooling` is required for the unpackaged build too
 
