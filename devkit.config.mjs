@@ -27,6 +27,13 @@ export default {
   /** A linked worktree needs the primary checkout's ignored local configuration on first start. */
   worktreeFiles: ['.env'],
 
+  /** Replace a worktree's shared dependency link with a runtime-matched local install. */
+  install: {
+    command: ['npm', 'ci'],
+    inputs: ['package.json', 'package-lock.json', '.nvmrc'],
+    output: 'node_modules'
+  },
+
   /** Open the proxied UI only after its API is ready to serve the application. */
   browser: { path: '/', healthPath: '/api/health' },
 

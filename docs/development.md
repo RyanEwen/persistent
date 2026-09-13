@@ -105,14 +105,14 @@ published web port is derived from the checkout path.
 ```bash
 npm run dev:bootstrap          # once per machine
 npm run dev:host -- snapshot   # once in the primary checkout, capture its database baseline
-npm install                    # once in each new worktree
 npm run dev
 ```
 
-On first start, a worktree copies the primary checkout's `.env` only when it has
-none, restores the portable database baseline, applies migrations added by its branch, and
-prints both its proxied `*.localhost` URL and direct Vite URL. Persistent has no
-filesystem baseline paths, so snapshots contain database state only.
+On first start, a worktree copies the primary checkout's `.env` only when it has none, replaces a
+missing or shared dependency tree with a checkout-local `npm ci`, restores the portable database
+baseline, applies migrations added by its branch, and prints both its proxied `*.localhost` URL and
+direct Vite URL. A standalone clone still needs an initial `npm install` to install Devkit itself.
+Persistent has no filesystem baseline paths, so snapshots contain database state only.
 
 The snapshot, rather than `db:seed`, supplies a new worktree's initial users and
 reminders. `npm run db:seed` remains an explicit operation against the current
