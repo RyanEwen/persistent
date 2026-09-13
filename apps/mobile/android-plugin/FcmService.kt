@@ -18,8 +18,8 @@ import com.google.firebase.messaging.RemoteMessage
  * place of Capacitor's own service via the manifest (see setup-android.mjs); both
  * the native action and the JS resync are idempotent, so the overlap is harmless.
  *
- * Mirrors the web service worker (apps/web/public/push-handler.js): dismiss clears
- * the notification; fire/escalate show it; silence downgrades a ringing escalation.
+ * Handles the server's native-device push contract: dismiss clears the
+ * notification; fire/escalate shows it; silence downgrades a ringing escalation.
  * Fidelity note: the push payload carries no sound/prominence, but the chosen tones
  * are mirrored into native storage (AlarmStore.setSyncConfig) so a pushed ring
  * plays the user's sound; shade prominence falls back to INHERIT (device default).

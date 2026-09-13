@@ -1,6 +1,6 @@
 /**
  * Centralizes turning a reminder/occurrence into notification copy, so every
- * channel (web push, FCM, escalation email) shows consistent text. Shares the
+ * channel (FCM, Windows toast, escalation email) shows consistent text. Shares the
  * body formatter with the web client via @persistent/shared.
  */
 import type { Reminder } from '@prisma/client'

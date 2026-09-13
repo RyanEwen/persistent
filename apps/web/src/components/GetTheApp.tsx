@@ -1,93 +1,102 @@
 /**
- * Web-only nudges toward the native Android app (the primary experience, where
- * the hard alarm guarantees live). A compact title-bar button and a dismissible
- * banner; both link to the latest release APK. No-ops in the native app.
- *
- * The Windows tray host gets the banner but not the button. Its flyout is a
- * ~420px column, so a permanent fixture in the title bar costs real space there —
- * whereas the banner is dismissible and its message lands harder, not softer, on
- * that host: the desktop app deliberately provides no alarm, so "the Android app
- * is the one that actually nags you" is something a Windows user needs told.
+ * Nudges toward the native apps. The title-bar button is a web-only app chooser,
+ * while one permanently dismissible banner adapts to its host: Android
+ * promotes Windows, Windows promotes Android, and an ordinary browser presents
+ * both. This keeps the cross-device story visible without advertising the app the
+ * user is already running.
  */
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Button from '@mui/joy/Button'
 import Alert from '@mui/joy/Alert'
+import Box from '@mui/joy/Box'
 import IconButton from '@mui/joy/IconButton'
-import Link from '@mui/joy/Link'
 import Typography from '@mui/joy/Typography'
 import AndroidIcon from '@mui/icons-material/Android'
 import CloseIcon from '@mui/icons-material/Close'
+import DevicesRoundedIcon from '@mui/icons-material/DevicesRounded'
+import WindowRoundedIcon from '@mui/icons-material/WindowRounded'
 import { isNative } from '../native/alarmBridge.js'
 import { isDesktopHost } from '../native/desktopBridge.js'
-import { fetchLatestRelease } from '../native/useUpdate.js'
+import {
+  APP_PROMO_DISMISSED_KEY,
+  getNativeAppsPromotion,
+  type NativeAppsPromoHost
+} from './appPromotion.js'
+import { NativeAppStoreButtons } from './NativeAppStoreButtons.js'
+import { NativeAppsDialog } from './NativeAppsDialog.js'
 
-const RELEASES_URL = 'https://github.com/RyanEwen/persistent/releases/latest'
-const BANNER_DISMISSED_KEY = 'persistent-hide-app-banner'
-
-function useApkUrl(): string {
-  const [url, setUrl] = useState(RELEASES_URL)
-  useEffect(() => {
-    let cancelled = false
-    fetchLatestRelease()
-      .then((r) => {
-        if (!cancelled && r?.apkUrl) setUrl(r.apkUrl)
-      })
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [])
-  return url
+/** Identify the surface so the banner does not promote the app already in use. */
+function currentPromoHost(): NativeAppsPromoHost {
+  if (isNative()) return 'android'
+  if (isDesktopHost()) return 'windows'
+  return 'web'
 }
 
 export function GetTheAppButton() {
-  const url = useApkUrl()
+  const [dialogOpen, setDialogOpen] = useState(false)
   if (isNative() || isDesktopHost()) return null
   return (
-    <Button
-      component="a"
-      href={url}
-      target="_blank"
-      rel="noreferrer"
-      size="sm"
-      variant="soft"
-      color="primary"
-      startDecorator={<AndroidIcon />}
-    >
-      Get the app
-    </Button>
+    <>
+      <Button
+        size="sm"
+        variant="soft"
+        color="primary"
+        startDecorator={<DevicesRoundedIcon />}
+        onClick={() => setDialogOpen(true)}
+      >
+        Get the app
+      </Button>
+      <NativeAppsDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
+    </>
   )
 }
 
-export function NativePromoBanner() {
-  const url = useApkUrl()
-  const [hidden, setHidden] = useState(() => localStorage.getItem(BANNER_DISMISSED_KEY) === '1')
-  if (isNative() || hidden) return null
+export function NativeAppsPromoBanner() {
+  const [hidden, setHidden] = useState(() => localStorage.getItem(APP_PROMO_DISMISSED_KEY) === '1')
+  if (hidden) return null
+
+  const promotion = getNativeAppsPromotion(currentPromoHost())
+  let icon = <DevicesRoundedIcon />
+
+  if (!promotion.showAndroid) {
+    icon = <WindowRoundedIcon />
+  } else if (!promotion.showWindows) {
+    icon = <AndroidIcon />
+  }
+
   return (
     <Alert
       color="primary"
       variant="soft"
-      startDecorator={<AndroidIcon />}
+      startDecorator={icon}
       endDecorator={
         <IconButton
           variant="plain"
           color="neutral"
           size="sm"
-          aria-label="Dismiss"
+          aria-label="Dismiss app notice"
           onClick={() => {
-            localStorage.setItem(BANNER_DISMISSED_KEY, '1')
+            localStorage.setItem(APP_PROMO_DISMISSED_KEY, '1')
             setHidden(true)
           }}
         >
           <CloseIcon />
         </IconButton>
       }
-      sx={{ mb: 2 }}
+      sx={{ mb: 2, alignItems: 'flex-start' }}
     >
-      <Typography level="body-sm">
-        Install the <Link href={url} target="_blank" rel="noreferrer">Android app</Link> for reliable, undismissable
-        alarms — the web is best-effort and the app is the way Persistent is meant to be used.
-      </Typography>
+      <Box>
+        <Typography level="title-sm">{promotion.title}</Typography>
+        <Typography level="body-sm" sx={{ mt: 0.5 }}>
+          {promotion.description}
+        </Typography>
+        <Box sx={{ mt: 1 }}>
+          <NativeAppStoreButtons
+            showAndroid={promotion.showAndroid}
+            showWindows={promotion.showWindows}
+          />
+        </Box>
+      </Box>
     </Alert>
   )
 }

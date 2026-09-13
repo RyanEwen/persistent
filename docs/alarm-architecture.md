@@ -6,26 +6,20 @@ anything about how reminders fire.
 ## The hard reality
 
 Truly **undismissable** notifications and a **repeating alarm sound while the app
-is closed** are native-OS capabilities. The web/PWA platform cannot guarantee
-them:
-
-- Web Push shows a notification, but the OS owns dismissal and sound. Mobile
-  browsers largely ignore `requireInteraction`.
-- A closed PWA cannot run a timer to re-alert; it can only react to a server push.
-- iOS Web Push is limited and gated on installed PWAs.
-
-So we split responsibilities:
+is closed** are native-OS capabilities. Browser notifications cannot meet that
+contract, so Persistent does not support them. We split responsibilities:
 
 | Surface | Role | Guarantee |
 |---|---|---|
-| Web / PWA | manage reminders; soft nags | **best-effort** (`requireInteraction` + re-fire on dismissal in the service worker) |
+| Web / PWA | manage reminders | **none**: install a native app to be alerted |
+| Windows native | tray access + persistent notifications and alarms | **session-bound**: returns after dismissal, repeats configured nags and loops alarm audio while the PC is awake and the app is running |
 | Android native (Capacitor) | notifications + alarms | **hard**: an ongoing notification that re-sounds (Notification level) or a full-screen, continuously-ringing Alarm — until "Done" |
 
 ## Model: device-scheduled + server backup
 
 - **Server is the source of truth.** `apps/api` materializes `ReminderOccurrence`
   rows from each reminder's schedule (timezone-correct, `lib/schedule-expand.ts`)
-  and fires due ones (tick loop), broadcasting over `/ws` and via push.
+  and fires due ones (tick loop), broadcasting over `/ws` and via FCM.
 - **The device schedules its own alarms.** `GET /api/sync/occurrences` returns the
   exact alarms to arm — the server expands each occurrence into a main fire plus, if
   escalation is pending, an escalation alarm (`apps/api/src/lib/device-alarms.ts`),
@@ -669,24 +663,24 @@ the head unit to pull the backlog in. DHU over wireless adb is undocumented by G
 it only ever talks to `localhost:5277`, so it should be transport-agnostic, but USB is
 the supported path if it misbehaves.
 
-## Push channels
+## Native delivery channels
 
-- **Web Push (VAPID)** for browsers — `apps/api/src/lib/delivery/web-push.ts`.
-- **FCM (HTTP v1)** for native Android — `apps/api/src/lib/delivery/fcm-push.ts`.
-- The Windows tray app uses **neither**: it has no push subscription at all and
-  raises its optional toasts from its own `/ws` connection while the process runs
-  (`docs/desktop-architecture.md`). That is why it is not a persistence guarantee —
-  nothing reaches it while it is closed.
-  The dispatcher (`delivery/index.ts`) targets each device by
-  `PushSubscription.kind`; `dispatchToUser` fans `fire`/`escalate`/`dismiss`/
-  `silence` to all channels, and `nudgeNativeSync` sends an FCM-only `sync` on
-  reminder create/update/delete — and on a checklist tick, which rewrites a live
-  notification's body (skipping Web Push, which would surface a blank
-  "site updated" notification; open web clients already converge over `/ws`).
-  The test is whether a device would show or play something different (an armed
-  alarm carries the reminder's own tones as well as its text): collapsing a
-  checklist's ticked items (`hide-checked`) is a reminder write that sends no
-  nudge, because the body is built from the unticked items either way.
+- **FCM (HTTP v1)** backs up native Android's on-device schedule:
+  `apps/api/src/lib/delivery/fcm-push.ts`.
+- The Windows tray app has no push subscription. Its own `/ws` connection triggers
+  a pull of the same server-computed device alarm projection Android consumes, and
+  a one-minute recovery refresh catches missed events while the process runs
+  (`docs/desktop-architecture.md`). That is why it is only session-bound: nothing
+  new reaches it while it is closed or the PC remains asleep.
+- Browsers receive no notifications. Open web clients stay current over `/ws`.
+
+`dispatchToUser` sends `fire`/`escalate`/`dismiss`/`silence` through FCM, and
+`nudgeNativeSync` sends `sync` on reminder create/update/delete and on a
+checklist tick, which rewrites a live notification's body. The test is whether a
+device would show or play something different (an armed alarm carries the
+reminder's own tones as well as its text): collapsing a checklist's ticked items
+(`hide-checked`) is a reminder write that sends no nudge, because the body is
+built from the unticked items either way.
 
 On native, FCM is handled by `FcmService` (Kotlin) — it subclasses
 `@capacitor/push-notifications`' `MessagingService` and is registered in its place

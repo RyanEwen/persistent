@@ -51,15 +51,15 @@ public partial class UserSettings : ObservableObject
     [ObservableProperty] public partial string LastKnownVersion { get; set; } = "";
 
     // ── Notifications ────────────────────────────────────────────────
-    /// <summary>Show Windows toasts for firings. <b>Off by default</b>, and per
-    /// machine: this app is not the persistence guarantee (a sleeping PC shows
-    /// nothing), so it must never be the thing a user assumes is watching for them.
-    /// See <see cref="Notifications.NotificationService"/>.</summary>
+    /// <summary>Keep persistent Windows notifications for firings. <b>Off by
+    /// default</b> and per machine. This is session-bound because a sleeping or
+    /// shut-down PC cannot receive a new local notification; Android remains the
+    /// hard guarantee. See <see cref="Notifications.NotificationService"/>.</summary>
     [ObservableProperty] public partial bool DesktopNotifications { get; set; }
 
     /// <summary>Which duration the toast's snooze picker starts on. The toast offers
-    /// the full list (`ToastNotifier.SnoozeChoices`, mirroring the web's
-    /// SNOOZE_PRESETS); this only decides the initial selection.</summary>
+    /// the five-item subset allowed by Windows; this only decides the initial
+    /// selection.</summary>
     [ObservableProperty] public partial int NotificationSnoozeMinutes { get; set; } = 10;
 
     /// <summary>

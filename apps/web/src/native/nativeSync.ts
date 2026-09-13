@@ -11,7 +11,13 @@
  */
 import { App } from '@capacitor/app'
 import { PushNotifications } from '@capacitor/push-notifications'
-import { type DeviceAgendaEntry, type DeviceAlarm, type Occurrence, ESC_SUFFIX } from '@persistent/shared'
+import {
+  type DeviceAgendaEntry,
+  type DeviceAlarm,
+  type Occurrence,
+  type PushConfig,
+  ESC_SUFFIX
+} from '@persistent/shared'
 import { apiFetch } from '../lib/apiClient.js'
 import { notify } from '../lib/toast.js'
 import { subscribeWs } from '../lib/wsClient.js'
@@ -232,7 +238,7 @@ async function warnIfAlarmsCantShow(): Promise<void> {
 async function initFcm(): Promise<void> {
   let fcmEnabled = false
   try {
-    fcmEnabled = (await apiFetch<{ fcmEnabled: boolean }>('/api/push/config')).fcmEnabled
+    fcmEnabled = (await apiFetch<PushConfig>('/api/push/config')).fcmEnabled
   } catch {
     return
   }

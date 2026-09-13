@@ -1,27 +1,24 @@
 /**
- * Settings: enable browser notifications (Web Push), show account + time zone,
- * and sign out. The native Android app handles its own alarm permissions.
+ * Settings for appearance, native notifications, account access and sign-out.
+ * Browser notifications are deliberately unsupported; Android and Windows each
+ * render their own device-specific controls here.
  *
  * Every host adds its own cards here rather than putting them somewhere of its
  * own: Android's sounds and shade prominence, and the Windows tray app's
  * notifications, startup and window settings (`native/desktop-settings/`). One
  * Settings screen per product, whichever host is showing it.
  */
-import { useEffect, useState } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import Stack from '@mui/joy/Stack'
 import Card from '@mui/joy/Card'
 import Typography from '@mui/joy/Typography'
 import Button from '@mui/joy/Button'
 import Link from '@mui/joy/Link'
-import Alert from '@mui/joy/Alert'
 import Select from '@mui/joy/Select'
 import Option from '@mui/joy/Option'
 import FormControl from '@mui/joy/FormControl'
 import FormLabel from '@mui/joy/FormLabel'
-import { extractErrorMessage } from '@persistent/shared'
 import { useAuth } from '../auth/useAuth.js'
-import { enablePush, disablePush, pushSupported, notificationPermission } from '../lib/push.js'
 import { useSettings, type SoundChoice } from '../settings/useSettings.js'
 import { APP_THEMES } from '../settings/themes.js'
 import { formatDateTime } from '../lib/datetime.js'
@@ -29,11 +26,11 @@ import { SectionHeading } from '../components/SectionHeading.js'
 import { SoundPickerRow } from '../components/SoundPickerRow.js'
 import { AlarmPlugin, isNative, pickSound } from '../native/alarmBridge.js'
 import { mirrorSyncConfig } from '../native/nativeSync.js'
-import { hostSupportsPush } from '../native/desktopBridge.js'
 import { DesktopSettings } from '../native/desktop-settings/DesktopSettings.js'
 import { UpdateSettings } from '../native/UpdateSettings.js'
 import { PasskeysCard } from '../components/PasskeysCard.js'
 import { DeleteAccountCard } from '../components/DeleteAccountCard.js'
+import { NativeAppStoreButtons } from '../components/NativeAppStoreButtons.js'
 
 export function SettingsPage() {
   const { user, logout } = useAuth()
@@ -66,44 +63,6 @@ export function SettingsPage() {
     // Update the native default + re-post any live notifications immediately.
     void AlarmPlugin.setDefaultShadeProminence({ minimized: value === 'MINIMIZED' }).catch(() => {})
   }
-  const [permission, setPermission] = useState(notificationPermission())
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [subscribed, setSubscribed] = useState(false)
-
-  useEffect(() => {
-    if (!pushSupported()) return
-    void navigator.serviceWorker.ready
-      .then((registration) => registration.pushManager.getSubscription())
-      .then((subscription) => setSubscribed(Boolean(subscription)))
-      .catch(() => {})
-  }, [])
-
-  async function onEnable() {
-    setBusy(true)
-    setError(null)
-    try {
-      const ok = await enablePush()
-      setPermission(notificationPermission())
-      setSubscribed(ok)
-      if (!ok) setError('Notification permission was denied.')
-    } catch (err) {
-      setError(extractErrorMessage(err))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function onDisable() {
-    setBusy(true)
-    try {
-      await disablePush()
-      setSubscribed(false)
-    } finally {
-      setBusy(false)
-    }
-  }
-
   return (
     <Stack spacing={1.5}>
       <SectionHeading
@@ -177,36 +136,7 @@ export function SettingsPage() {
         </Card>
       )}
 
-      {/* Web Push is best-effort and only relevant on the web; the native app uses
-          on-device alarms, so this section is hidden there. It is hidden in the
-          Windows tray app too — `hostSupportsPush()` says why the subscription can
-          never work in a WebView2, and that host's own notification setting is the
-          `DesktopSettings` card directly below. Without this the card showed and
-          its button just failed. */}
-      {!isNative() && hostSupportsPush() && (
-        <Card variant="outlined">
-          <Typography level="title-sm">Browser notifications</Typography>
-          <Typography level="body-sm">
-            Best-effort on the web. For undismissable alarms with repeating sound, install the Android app.
-          </Typography>
-          {error && <Alert color="danger">{error}</Alert>}
-          {!pushSupported() ? (
-            <Alert color="warning">This browser doesn't support push notifications.</Alert>
-          ) : subscribed ? (
-            <Button variant="outlined" color="neutral" loading={busy} onClick={onDisable}>
-              Disable notifications
-            </Button>
-          ) : (
-            <Button loading={busy} onClick={onEnable} disabled={permission === 'denied'}>
-              {permission === 'denied' ? 'Notifications blocked in browser' : 'Enable notifications'}
-            </Button>
-          )}
-        </Card>
-      )}
-
-      {/* The Windows tray app's own settings: two cards, the first sitting in the
-          notification slot the card above leaves empty on that host. Renders
-          nothing anywhere else. */}
+      {/* The Windows tray app's own settings. Renders nothing anywhere else. */}
       <DesktopSettings />
 
       <Card variant="outlined">
@@ -240,6 +170,14 @@ export function SettingsPage() {
             How Persistent works
           </Link>
         </Typography>
+      </Card>
+
+      <Card variant="outlined">
+        <Typography level="title-sm">Apps</Typography>
+        <Typography level="body-sm">
+          Get hard alarm guarantees on Android, or persistent alerts while your PC is awake with the Windows companion.
+        </Typography>
+        <NativeAppStoreButtons />
       </Card>
 
       <Card variant="outlined">

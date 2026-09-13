@@ -60,7 +60,7 @@ Data-isolation review scope:
 Logging-coverage review scope (operational logs go through `apps/api/src/lib/logger.ts`):
 - New or changed FAILURE paths must be observable: log via `logger.warn`/`logger.error` rather than silently swallowing. Empty `catch {}` / `.catch(() => …)` that drop a real error (scheduler loops, push delivery, email, the WS hub) are gaps: keep a swallow only when genuinely benign, and say why.
 - Use the right level (failures at `warn`/`error`, not `info`); avoid per-iteration logging in the scheduler tick/sweep hot paths.
-- NEVER log a secret: session secrets, sign-in/email codes, the VAPID private key, push endpoints/FCM tokens, or raw request bodies. Log only error messages and safe identifiers (userId, reminderId, occurrenceId, status codes).
+- NEVER log a secret: session secrets, sign-in/email codes, FCM tokens, or raw request bodies. Log only error messages and safe identifiers (userId, reminderId, occurrenceId, status codes).
 
 Recommended steps:
 1. `git diff --stat` and `git diff --cached --stat`.

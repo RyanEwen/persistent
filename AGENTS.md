@@ -20,15 +20,15 @@ Architecture and conventions are borrowed, thinned, from the sibling
 - **`apps/api`** owns auth, reminder CRUD, the scheduling/escalation engine, push
   delivery, and a per-user WebSocket at `/ws`.
 - **`apps/mobile`**: Capacitor (Android) wrapper of the built web app plus a
-  custom native alarm plugin. The web/PWA is best-effort; the native app is the
-  real persistence guarantee. See `docs/alarm-architecture.md`.
+  custom native alarm plugin. The web/PWA manages reminders but does not notify;
+  the native app is the real persistence guarantee. See `docs/alarm-architecture.md`.
 - **`apps/desktop`**: WinUI 3 (C#) Windows tray app that shows the **hosted PWA**
-  in a WebView2 flyout. A viewing/acting surface, and deliberately not the
-  persistence guarantee: no alarm audio, no badge, nothing while the app is closed
-  or the machine asleep. Hosting the real bundle is what stops it drifting from the
-  done/silence/snooze contract. **Optional** Windows toasts (off by default) are the
-  one signal it offers, raised by the host from its own `/ws` connection: the page
-  is suspended while the flyout is hidden, so it can't deliver anything. See
+  in a WebView2 flyout. The host adds optional, session-bound persistent Windows
+  notifications: dismissed reminders return, configured nags repeat, and alarms
+  loop audio while the PC is awake and the tray process is running. It consumes the
+  server-computed device alarm projection, with `/ws` as the invalidation path, so
+  it does not duplicate reminder rules. It cannot guarantee delivery through sleep,
+  shutdown or an exited process; Android remains the hard guarantee. See
   `docs/desktop-architecture.md`.
 - **`packages/shared`**: the single source of truth for request/response shapes;
   do not duplicate them elsewhere.
@@ -39,9 +39,8 @@ Truly undismissable notifications and repeating alarm sound while the app is
 closed are **native-OS capabilities**, not web/PWA ones. The model is
 **device-scheduled + server backup**: the server is the source of truth and
 materializes occurrences; the native client schedules on-device exact alarms so
-they fire offline; server push (Web Push + FCM) is the cross-device / escalation
-/ ad-hoc backup. Don't try to make the web PWA a hard alarm: it is intentionally
-best-effort (`requireInteraction` + re-fire on dismissal in the service worker).
+they fire offline; FCM is the cross-device / escalation / ad-hoc backup. The web
+PWA is a management surface and deliberately does not send notifications.
 
 ## Core data model
 

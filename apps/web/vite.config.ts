@@ -28,10 +28,8 @@ export default defineConfig(({ mode }) => {
       react(),
       VitePWA({
         registerType: 'autoUpdate',
-        // We hand-author the push handler; inject it into the generated SW.
         injectRegister: null,
         workbox: {
-          importScripts: ['push-handler.js'],
           navigateFallbackDenylist: [/^\/api/, /^\/ws/]
         },
         includeAssets: ['favicon.svg'],

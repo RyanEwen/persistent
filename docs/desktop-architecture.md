@@ -7,27 +7,29 @@ split the way they are.
 
 ## What it is, and what it deliberately is not
 
-**It is a viewing and acting surface. It is not the persistence guarantee.**
+**It is a viewing, acting and session-bound notification surface. It is not the
+hard persistence guarantee.**
 
 The flyout hosts the real web app, so everything the web client can do works here
 — sign in (including passkeys, see below), Done / Snooze / De-escalate, the
-editor, checklists, history. What it does **not** do is guarantee you are told:
-no alarm audio, no on-device scheduled alarms, nothing while the app is closed or
-the machine is asleep. That still lives only in the Android client.
+editor, checklists, history. When notifications are enabled, the native host keeps
+soft reminders present, restores them after dismissal, repeats configured nags and
+loops Windows alarm audio for Alarm reminders and escalations. It catches up from
+the server after startup, reconnect and resume.
+
+What it does **not** do is guarantee delivery while the process is exited or the
+machine remains asleep or shut down. It owns no exact scheduled alarms that can
+wake Windows. That hard guarantee still lives only in the Android client.
 
 This is the honest description and the docs, the Connection page and the About
 page all say it. A Windows app that *looked* like it would nag you, and then
 didn't because the machine was asleep, would be worse than no Windows app.
 
-**Optional Windows toasts are the one signal it offers** — off by default, per
-machine, **transient**, and described in the settings copy as exactly what they
-are. They alert as a reminder fires or escalates and then fade to the Action
-Center; nothing here stays on screen, re-raises or demands dismissal. See
-[Notifications](#notifications) below. Beyond them it is silent: the tray icon is
-a plain mark. An earlier version badged it with a due count; that was dropped, and
-with it the only reason the *page* had to keep running while hidden (see the
-suspend note below) — which is why the toasts are raised by the host process from
-its own connection rather than by the page.
+**Persistent Windows notifications are the native signal it offers**, off by
+default and per machine. They use Windows Default and Alarm scenarios, then a
+host monitor restores dismissed toasts and re-alerts configured soft nags. See
+[Notifications](#notifications) below. The tray icon remains a plain mark. The
+host process, not the suspended page, owns delivery and recovery.
 
 ## Why a WebView, not a native client
 
@@ -124,15 +126,9 @@ detection — the same rule that already governs `hasNativeUpdater()`.
   the screen hierarchy instead, shared with the Android gesture so the two cannot
   answer Back differently. Only the "ran out" case differs: Android leaves the
   app, the flyout closes via `requestClose()`.
-- `hostSupportsPush()` is false on desktop, and **`SettingsPage` must actually
-  call it** — it was written for this and left unimported, so the web
-  "Browser notifications" card showed here and its button simply failed. Two
-  independent things make the web path impossible on this host: WebView2 refuses
-  `Notification.requestPermission()` unless the host handles `PermissionRequested`,
-  and the page is suspended whenever the flyout is hidden, so even a granted
-  subscription could only deliver while the flyout was already open. The Push API
-  may still *report* as present, which is why a capability check alone is not
-  enough.
+- Browser notifications are unsupported on every web surface. The desktop host
+  owns its Windows notification setting and delivery path; the hosted page never
+  requests notification permission or subscribes to Web Push.
 - `navigate` (host -> page) carries an in-app path from a toast click. The host
   does not navigate the WebView itself, for the same reason it doesn't call
   `GoBack()`: reloading would throw away the user's place. The page validates the
@@ -156,10 +152,10 @@ detection — the same rule that already governs `hasNativeUpdater()`.
 - **Handle host messages with an explicit switch and a `default: return`.** Adding
   `checkForUpdate` to a handler that fell through to "treat it as Back" is what
   made the flyout close itself on every open — see the light-dismiss section.
-- The Android promo **banner** shows here (its message — the Android app is the
-  one that actually nags — matters more on this host, not less); the title-bar
-  **button** is hidden, because the flyout is a ~420px column and a permanent
-  fixture costs real space.
+- The adaptive app promo **banner** shows only Android here, because advertising
+  the Windows app inside itself is pointless. Its title-bar **button** is hidden,
+  because the flyout is a ~420px column and a permanent fixture costs real space.
+  The permanent Apps card in Settings links both stores for reference.
 
 Host-side, `AppFlyout.OnWebMessageReceived` ignores any message whose source is
 not the app origin. Web content is not a privileged caller.
@@ -461,18 +457,20 @@ Store installs each process's framework without bundling either one here.
 
 ## Notifications
 
-**Off by default, per machine, and not the persistence guarantee.** The setting is
-on the page's Settings screen ([Settings](#settings)), and its copy says plainly
-that it only works while the PC is awake with Persistent running, never rings an
-alarm and never wakes the machine.
+**Off by default, per machine, and session-bound rather than guaranteed.** The
+setting is on the page's Settings screen ([Settings](#settings)). Its copy says
+plainly that reminders persist and alarms loop while the PC is awake with
+Persistent running, but the app cannot wake a sleeping or shut-down machine.
 
 `Persistent.Desktop/Notifications/` is the whole feature:
 
 | File | Role |
 |---|---|
-| `RealtimeClient.cs` | The host's own `/ws` connection; flattens events to ids + text |
-| `ToastNotifier.cs` | Builds, replaces and removes `AppNotification` toasts |
-| `OccurrenceApi.cs` | The only two domain calls: `ack` and `snooze` |
+| `RealtimeClient.cs` | The host's own `/ws` invalidation and immediate-dismiss connection |
+| `OccurrenceSyncClient.cs` | Reads due, display-ready device alarms for recovery |
+| `NotificationPersistenceMonitor.cs` | Restores dismissed toasts, repeats nags and requests recovery sync |
+| `ToastNotifier.cs` | Builds, inspects, replaces and removes `AppNotification` toasts |
+| `OccurrenceApi.cs` | The three notification actions: `ack`, `snooze` and `silence` |
 | `NotificationService.cs` | Wires those together and owns the lifecycle |
 
 **Why the host connects to `/ws` instead of letting the page do it.** The page has
@@ -480,8 +478,8 @@ its own socket, but the WebView is suspended whenever the flyout is hidden, whic
 freezes its JavaScript and drops that socket. A notification that could only
 arrive while the flyout was already open is useless. A host-owned connection means
 the suspend optimization above survives untouched — do not undo it to make the
-page's notifications work, because the page's notifications cannot work here
-anyway (see `hostSupportsPush()`).
+page notifications work. Browser notifications are unsupported, and this
+host-owned connection is the native Windows delivery path.
 
 **The snooze durations are duplicated on purpose.** `ToastNotifier.SnoozeChoices`
 mirrors `SNOOZE_PRESETS` in `apps/web/src/lib/durations.ts`. That is a list of
@@ -495,21 +493,31 @@ is written to `settings.json`, so a refreshed session is picked up automatically
 and signing out simply makes every call fail. `/ws` authenticates from that cookie
 on the HTTP upgrade, exactly as a browser would.
 
-**What it is allowed to know.** Five fields off an occurrence event: id, reminder
-id, status, title, `details`. Deliberately *not* the medication doses or the
-checklist — rendering those is `reminderBodyText` in `@persistent/shared`, and a
-C# copy of it is precisely the drift this app's design rejects. A medication toast
-therefore shows the title alone, and the doses are one click away in the flyout.
-If that ever needs to change, the fix is for the **server** to render the body
-into the event, not for the host to learn the rules.
+**What it is allowed to know.** The socket carries invalidation signals, not a C#
+reminder model. The host then requests
+`/api/sync/occurrences?alarmsOnly=true`, whose `alarms` array is the same
+server-computed device presentation contract Android consumes. It contains ids,
+already-formatted title/body text, the due instant, alarm and De-escalate flags,
+and the soft nag interval. The server still owns checklist formatting,
+escalation state and every schedule/status decision.
 
-**The toasts are transient, deliberately.** No `AppNotificationScenario` is set,
-so they alert and then fade into the Action Center like any ordinary Windows
-notification. `Reminder` and `Urgent` both pin a toast on screen until it is
-dismissed, which is nagging — and this surface does not nag. Windows gets an
-alert when a reminder fires or escalates, and nothing more. Anything that
-re-raises, re-sounds or refuses to go away belongs on Android, which is the only
-client that can actually guarantee it.
+**The toasts persist while the session can support them.** A soft firing uses
+`AppNotificationScenario.Default`, so its popup retracts automatically while the
+item remains in Notification Center. An inherent or escalated alarm uses
+`AppNotificationScenario.Alarm`, which keeps the popup visible and loops the
+Windows alarm sound. Both carry `AppNotificationPriority.High`, the strongest
+per-notification priority exposed by the Windows App SDK. This does not change the
+user-controlled Top, High, or Normal app setting in Windows. Every five seconds
+the monitor compares the tracked live set with Notification Center and re-shows
+anything the user dismissed. A soft firing with a nag interval is also re-shown
+when that interval elapses, raising it again with sound. Every minute, and after
+each socket connection or relevant event, the host re-pulls the active set so
+startup, reconnect and resume recover anything missed.
+
+This is deliberately not Windows on-device scheduling. If the tray process is
+exited, or Windows is asleep or shut down, no new local notification is armed.
+Recovery starts once the process and network are available again. Android remains
+the only exact-alarm guarantee.
 
 A toast that fails to build shows nothing at all, and the failure is one
 `Logger.Warn` deep in a background handler — easy to ship and never notice. That
@@ -532,8 +540,12 @@ short picker rather than the feature.
   it reads as the buttons changing in place.
 - **A server `dismiss` clears the toast**, so confirming on the phone clears it
   here (`data-event-contract.md`).
-- **Silence is deliberately absent.** It drops an escalation back to an ordinary
-  notification; there is no alarm on this surface to drop.
+- **De-escalate stops a Windows escalation alarm without confirming it.** The
+  server returns the occurrence to its soft persistent notification and prevents
+  that firing from escalating again.
+- **A dismissed toast returns.** The monitor reads Notification Center rather than
+  assuming its in-memory post still exists. Configured soft nags re-alert on their
+  own interval; Alarm scenario audio loops continuously.
 - **A failed action leaves the toast up.** The occurrence is still unconfirmed, and
   clearing it would claim something was done that wasn't.
 

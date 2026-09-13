@@ -1,6 +1,6 @@
 /**
  * Native bootstrap. Bundled into the wrapped web app and invoked once at
- * startup; a no-op on the web (where the service worker handles notifications).
+ * startup; a no-op on the web, which does not support notifications.
  *
  * Wire-up: import and call `initNative()` from the web app's entrypoint behind
  * a native check, or include this module in the Capacitor build. See README.md.

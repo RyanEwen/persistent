@@ -199,12 +199,12 @@ crashlytics / firebase-analytics / posthog / amplitude / gtag returns zero hits)
 | Email address | Yes | Yes | Account management, app functionality | Sign-in codes via Cloudflare; user-set escalation contact |
 | Name | Yes | No | Account management | `displayName`, only if signing in with Google |
 | Other user-generated content | Yes | Yes | App functionality | Reminder titles/details, sent in push payloads and escalation emails |
-| Device or other IDs | Yes | Yes | App functionality | Web Push endpoints / FCM tokens |
+| Device or other IDs | Yes | Yes | App functionality | FCM device tokens |
 | App activity / other actions | Yes | No | App functionality | Occurrence log: fired, acknowledged, snoozed times |
 
-**Declare sharing = Yes.** Three third parties receive user data as a functional
-necessity: Google FCM and browser push services (reminder title + body in push
-payloads), and Cloudflare Email Sending (sign-in codes; escalation emails
+**Declare sharing = Yes.** Two third parties receive user data as a functional
+necessity: Google FCM (reminder title + body in push payloads), and Cloudflare
+Email Sending (sign-in codes; escalation emails
 containing the reminder title and the user's message, sent to an address the user
 chooses). None is a "transfer for advertising."
 

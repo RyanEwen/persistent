@@ -13,7 +13,7 @@ import Link from '@mui/joy/Link'
 // Also the contact address on the Play listing — Google verifies it routes.
 const CONTACT_EMAIL = 'contact@dynamic-solutions.ca'
 
-const LAST_UPDATED = '19 July 2026'
+const LAST_UPDATED = '13 September 2026'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -58,8 +58,8 @@ export function PrivacyPage() {
             and whether and when you confirmed, snoozed, or ignored it.
           </Typography>
           <Typography level="body-sm">
-            <strong>Devices.</strong> A push token or push endpoint for each device you enable notifications
-            on, and the browser/device identifier string that came with it, so alarms can reach that device.
+            <strong>Devices.</strong> An FCM push token and device identifier for each Android device where you
+            enable notifications, so alarms can reach that device.
           </Typography>
           <Typography level="body-sm">
             <strong>Sessions.</strong> A hashed session secret and the browser identifier for each signed-in
@@ -76,9 +76,9 @@ export function PrivacyPage() {
             data brokers.
           </Typography>
           <Typography level="body-sm">
-            <strong>Google Firebase Cloud Messaging</strong> and your browser's push service (Google, Mozilla,
-            or Apple, depending on your browser) deliver notifications to your devices. The notification
-            payload includes the reminder's title and text.
+            <strong>Google Firebase Cloud Messaging</strong> delivers notifications to Android devices. The
+            notification payload includes the reminder&apos;s title and text. Browsers do not receive
+            notifications.
           </Typography>
           <Typography level="body-sm">
             <strong>Cloudflare</strong> sends our email: your sign-in codes, and escalation emails.

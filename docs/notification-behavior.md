@@ -1,10 +1,10 @@
 # Notification & alarm behavior contract
 
 This is the source-of-truth specification for how a reminder behaves once it
-fires — across the in-app UI, the web/PWA notification, the native Android
-notification/alarm, and the Windows tray app's optional toast. It is intentionally
-device-agnostic: every surface (in-app, service worker, native plugin, desktop
-host) must converge on the same outcome.
+fires across the in-app UI, the native Android notification/alarm, and the
+Windows tray app's optional toast. It is intentionally device-agnostic: every
+native surface must converge on the same outcome. The browser manages reminders
+but does not send notifications.
 
 Background model lives in [`alarm-architecture.md`](alarm-architecture.md)
 (device-scheduled + server backup) and the state machine in
@@ -28,10 +28,12 @@ guarantee* those mechanisms exist to deliver.
   the shade and peeks like a newly-arrived notification. A reminder the user has to
   confirm is worth interrupting for twice, and a sound is missable — under a stack
   of newer notifications, or on a muted phone, a re-sound alone is nothing.
-- **Alarm** — the hard nag: looping sound + vibration, full-screen on Android,
-  not dismissable. A reminder is an alarm either because its persistence is
-  `ALARM`, or because a `PERSISTENT` reminder **escalated** (after N minutes, or
-  at a wall-clock time) from notification to alarm.
+- **Alarm:** the hard nag. Android uses looping sound, vibration, and a
+  full-screen surface that is not dismissable. The Windows companion uses its
+  looping Alarm notification while the PC is awake and the app is running. A
+  reminder is an alarm either because its persistence is `ALARM`, or because a
+  `PERSISTENT` reminder **escalated** (after N minutes, or at a wall-clock time)
+  from notification to alarm.
 - **Confirm / Done / acknowledge** — the user explicitly marks the occurrence
   complete. This is the *only* thing that ends a nag for good.
 
@@ -73,10 +75,9 @@ from every surface**: the alarm stops, the notification is cleared, and any
 sibling escalation alarm is cancelled, on every one of the user's devices.
 
 - Server: the occurrence becomes `ACKNOWLEDGED` (terminal) and the server
-  broadcasts a `dismiss` over WebSocket **and** push (Web Push + FCM).
+  broadcasts a `dismiss` over WebSocket and FCM.
 - Native: clears the notification and cancels both the main and `::esc`
   (escalation) on-device alarms; closes the full-screen alarm activity.
-- Web/SW: closes the notification by its occurrence-id tag.
 
 **Done is always a two-tap confirm** on every *tap* surface — the notification, the
 full-screen alarm, and the in-app card (on the reminders list or a reminder's
@@ -186,8 +187,8 @@ ordinary notification that preceded the escalation:
 - It will **never escalate to an alarm again** for this firing
   (`escalationSilencedAt` suppresses both the server sweep and the on-device
   escalation alarm).
-- Silence propagates to every device (WS + push `silence`): the native client
-  downgrades the alarm in place; the web SW re-shows it as a plain nag.
+- Silence propagates to every device (WS + FCM `silence`): the native client
+  downgrades the alarm in place.
 
 Silence is "stop yelling, but keep reminding me." It does **not** acknowledge the
 reminder — only Done does that. And the reverse holds: silencing (or snoozing) an
@@ -226,8 +227,8 @@ firing with a later one:
 - Each must be confirmed **separately**. Confirming 13:00 does **not** clear 9:00;
   acking, snoozing, or silencing one occurrence affects only that occurrence.
 - This holds on every surface: the in-app list (and a reminder's detail view)
-  shows one attention card per pending occurrence; the web SW tags notifications
-  per occurrence; the native client keys notifications and alarms per occurrence.
+  shows one attention card per pending occurrence, and native clients key
+  notifications and alarms per occurrence.
 
 This is a deliberate reversal of the old "one notification per reminder"
 self-collapse (`keepNewestForReminder` / the `SUPERSEDED` status), which would
@@ -282,8 +283,9 @@ the same minute. The Android full-screen surface shows all of them:
 
 The guarantee is unchanged by any of it: each firing is still `FIRED` until its own
 explicit Done, and being on a page the user has not swiped to yet excuses nothing.
-The Windows tray app has no alarm surface at all (§5a), and the web is best-effort;
-this is the Android client's, where the hard alarm lives.
+The Windows tray app has one looping toast per alarm but no full-screen queue,
+and the web does not notify. This multi-alarm control surface belongs to the
+Android client, where the hard guarantee lives.
 
 ## 5. Android Auto: the same actions, on buttons, in the car
 
@@ -372,14 +374,19 @@ The Play build ships neither this screen (Android Auto has no app category a rem
 can honestly claim) nor the notification mirror of §5 — it carries no Android Auto
 integration at all.
 
-## 5a. Windows tray app — the same actions, on a toast
+## 5a. Windows tray app: session-bound persistence on a toast
 
-The Windows tray app (`apps/desktop`) can optionally raise a Windows toast when an
-occurrence fires. Like Android Auto it is a **projection of the same outcome, not a
-new one** — but unlike Auto it is explicitly *not* a guarantee: it appears only
-while that PC is awake with the app running, it never rings an alarm and it never
-wakes the machine. It is off by default and says all of this in its own settings
-copy. The Android client remains the only surface that guarantees anything.
+The Windows tray app (`apps/desktop`) can optionally keep a Windows notification
+active for each occurrence. It is a **projection of the same outcome, not a new
+one**. The server computes the display-ready device alarm contract, and Windows
+presents that result without learning reminder or escalation rules.
+
+Its persistence is explicitly session-bound. Reminders return after dismissal,
+configured nags re-alert, and alarm audio loops while the PC is awake and the tray
+process is running. Startup, reconnect and periodic recovery bring back anything
+still active once the server is reachable. It does not schedule exact wake alarms,
+so it cannot guarantee a new alert while the app is exited or the PC remains
+asleep or shut down. Android remains the hard guarantee.
 
 Within that limit it holds the contract:
 
@@ -400,15 +407,24 @@ Within that limit it holds the contract:
 - **Body tap opens the reminder**, as on every other soft-nag surface.
 - **A `dismiss` from any device clears it**, so confirming on the phone removes the
   desktop toast.
-- **Silence does not appear.** It drops an escalated alarm back to a notification,
-  and there is no alarm on this surface.
+- **Soft notifications return after dismissal.** Windows uses its Default
+  scenario, so the popup retracts automatically while the item remains in
+  Notification Center. The host verifies that the occurrence is still present;
+  a configured nag interval re-presents it with sound.
+- **Alarm reminders and escalations loop Windows alarm audio.** Windows uses its
+  Alarm scenario until the user chooses Done, Snooze, or De-escalate.
+- **Every Windows notification requests High priority.** This is the strongest
+  per-notification hint exposed by the Windows App SDK. It does not override the
+  user's app-wide Top, High, or Normal choice in Windows Settings.
+- **De-escalate appears only when the server says the alarm is an escalation.** It
+  stops the loop, returns the occurrence to its soft notification, and does not
+  mark it done.
 - **A rejected action leaves the toast up.** The server decides whether an ack or
-  snooze is allowed (a 409 on a terminal occurrence); a refusal is reported rather
-  than papered over, because clearing the toast would claim something was done.
+  snooze or silence is allowed; a refusal is reported rather than papered over,
+  because clearing the toast would claim something was done.
 
-The toast shows the reminder's title and its `details`, but **not** a medication's
-doses or a checklist's items: rendering those is `reminderBodyText` in
-`@persistent/shared`, and the host deliberately holds no copy of it. See
+The toast shows the server-formatted notification body, including the still
+unticked checklist items. The host deliberately holds no formatting copy. See
 [`desktop-architecture.md`](desktop-architecture.md).
 
 > Consequence to keep in mind: a reminder a user ignores across several scheduled

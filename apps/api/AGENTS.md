@@ -6,10 +6,10 @@
   lookup by `credentialId` is the one exception: it's the anonymous login path
   that establishes the user). Get it with `requireUserId(request)`. For
   edit/delete, first `findFirst({ where: { id, userId } })` and 404 if missing;
-  never trust a path id alone. `Setting` is the only intentionally global model.
-  `EmailCode` is keyed by **email rather than `userId`** (it predates the user it
-  signs up), so it is neither user-scoped nor cascade-deleted: scope it by the
-  authenticated user's own stored email, and remember it when deleting an account
+  never trust a path id alone. `EmailCode` is keyed by **email rather than
+  `userId`** (it predates the user it signs up), so it is neither user-scoped nor
+  cascade-deleted: scope it by the authenticated user's own stored email, and
+  remember it when deleting an account
   (`docs/auth-architecture.md`).
 - **Validate at the boundary.** Parse request bodies with the Zod schemas from
   `@persistent/shared` (e.g. `reminderInputSchema.safeParse`) and throw
@@ -29,7 +29,7 @@
   `dispatchToUser` / dismiss helpers so notifications stay in sync across devices.
   On reminder writes (which have no fire/dismiss payload) also call
   `nudgeNativeSync(userId)`: an FCM-only `sync` so native devices re-pull
-  `/api/sync/occurrences` (it skips Web Push; web converges over WS). A checklist
+  `/api/sync/occurrences`; open web clients converge over WS. A checklist
   tick needs it too: notification text is built from the firing's *unticked* items
   (`notificationBody(reminder, checkedItemIds)`), so a tick makes an already-armed
   alarm's body stale. Every surface that renders a notification (the fire/escalate

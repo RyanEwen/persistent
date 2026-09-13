@@ -44,15 +44,16 @@ widget does, but it must not infer state from them.
 
 **`Notifications/` and the read-only widget are bounded exceptions**, and they
 are bounded on purpose.
-Optional Windows toasts (off by default) need three things the rule would
-otherwise forbid: a `/ws` client, a flattened read of five fields off an
-occurrence event, and `POST`s to `/api/occurrences/:id/{ack,snooze}` behind the
-toast buttons. What keeps it from becoming the mistake:
+Persistent Windows notifications (off by default) need three things the rule
+would otherwise forbid: a `/ws` invalidation client, a narrowed read of the
+server-computed device alarm projection, and `POST`s to
+`/api/occurrences/:id/{ack,snooze,silence}` behind the toast buttons. What keeps
+it from becoming the mistake:
 
-- It reads **ids and display text**, never a reminder model, a schedule or a
-  status rule. It renders no medication doses and no checklist: that is
-  `reminderBodyText` in `@persistent/shared`, and re-implementing it here is the
-  drift this design exists to prevent. The full body is one click away.
+- It reads **display-ready device alarms**, never a reminder model, a schedule or
+  a status rule. The API computes checklist text, alarm/escalation state, whether
+  De-escalate applies, and the nag interval. Re-implementing any of those in C# is
+  the drift this design exists to prevent.
 - It decides **nothing** about whether an action is allowed; the server's 409 is
   the answer, and a rejection is reported, not worked around.
 - The one user-facing rule it owns is the **two-tap Done**
@@ -62,8 +63,9 @@ toast buttons. What keeps it from becoming the mistake:
 
 The widget receives at most four already-selected, already-formatted Upcoming
 rows through the bridge. Its shared C# contract contains only display strings,
-not a reminder DTO, schedule, status or action. Do not widen either exception.
-Anything else about a reminder still belongs in the PWA.
+not a reminder DTO, schedule, status or action. Keep both exceptions bounded to
+server-produced presentation contracts. Anything else about a reminder still
+belongs in the PWA.
 
 **Host settings rendered by the page are not an exception to this rule, they are
 the same rule pointed the other way.** `HostSettings` sends this app's own
@@ -82,7 +84,7 @@ writer of `settings.json`; the page holds no copy and persists nothing.
 | `Persistent.Desktop/SettingsWindow.xaml.cs` | On-demand `NavigationView` + `Frame` |
 | `Persistent.Desktop/Pages/` | `ConnectionPage`, `AppSettingsPage` (the nav cog), `AboutPage` |
 | `Persistent.Desktop/Classes/Settings/HostSettings.cs` | The settings the PWA's own Settings screen shows and writes |
-| `Persistent.Desktop/Notifications/` | Optional Windows toasts: `/ws` client, toast builder, ack/snooze calls |
+| `Persistent.Desktop/Notifications/` | Session-bound persistent notifications: `/ws` invalidation, alarm sync, toast monitor and actions |
 | `Persistent.Widget/` | Packaged, read-only Windows 11 Upcoming widget provider |
 | `Persistent.Widget/NativeMethods.cs` | Widget-process-only COM and window messaging P/Invoke |
 | `Shared/WidgetSnapshot.cs` | Validated display-only file contract shared by the host and widget process |

@@ -277,7 +277,7 @@ Cleared after the 2026-09-05 production approval; the next submission sets it ag
 gate** in `App.tsx` so it resolves for a logged-out crawler (verified: renders
 with `user: null`, and other signed-out routes still show sign-in).
 
-Covers what's collected, the FCM / Web Push / Cloudflare / Google Sign-In third
+Covers what's collected, the FCM / Cloudflare / Google Sign-In third
 parties, the user-configured escalation contact, retention, and deletion.
 
 Contact address is `contact@dynamic-solutions.ca` — use the same one on the Play

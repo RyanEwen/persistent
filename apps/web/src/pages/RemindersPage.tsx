@@ -18,9 +18,9 @@
  * Tapping a card opens the **editor**. In the app the user already has the
  * reminder in front of them, so the detail view is a stop on the way to the only
  * thing they came to do; the card's own actions don't need it either. The detail
- * view is reached from a **notification** tap instead (`native/nativeSync.ts` and
- * `public/push-handler.js` both navigate to `/reminders/:id`), where the user is
- * arriving cold and reading before acting is the point — and from History. Don't
+ * view is reached from a **native notification** tap instead
+ * (`native/nativeSync.ts` navigates to `/reminders/:id`), where the user is arriving
+ * cold and reading before acting is the point, and from History. Don't
  * collapse those two targets together.
  */
 import { useState } from 'react'

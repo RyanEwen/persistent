@@ -55,8 +55,7 @@ export const queryKeys = {
   reminders: ['reminders'] as const,
   occurrencesActive: ['occurrences', 'active'] as const,
   occurrencesUpcoming: ['occurrences', 'upcoming'] as const,
-  occurrencesHistory: ['occurrences', 'history'] as const,
-  pushConfig: ['push', 'config'] as const
+  occurrencesHistory: ['occurrences', 'history'] as const
 }
 
 export const mutationKeys = {

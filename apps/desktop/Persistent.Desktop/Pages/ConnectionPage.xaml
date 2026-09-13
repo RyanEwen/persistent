@@ -46,9 +46,9 @@
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                     CornerRadius="8" Padding="16,12">
                 <StackPanel Spacing="8">
-                    <TextBlock Text="Alarms stay on your phone" FontWeight="SemiBold" />
+                    <TextBlock Text="Android is the hard guarantee" FontWeight="SemiBold" />
                     <TextBlock Opacity="0.7" TextWrapping="Wrap"
-                               Text="This is a window onto Persistent, not an alarm: it shows what is due and lets you confirm it, but it does not ring, and it cannot nag you if it is closed. The Android app is what guarantees a reminder reaches you." />
+                               Text="Windows can keep reminders present and loop alarm audio while this PC is awake and Persistent is running. It catches up after reconnecting, but it cannot wake a sleeping or shut-down PC. Use Android when delivery must be guaranteed." />
                 </StackPanel>
             </Border>
         </StackPanel>

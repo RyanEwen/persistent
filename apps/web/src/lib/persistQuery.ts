@@ -1,8 +1,8 @@
 /**
  * Persist the TanStack Query cache to localStorage so reminders/occurrences
  * render offline (e.g. the Capacitor WebView with no network) and queued
- * mutations survive a reload. Auth/push queries are excluded — those should
- * always be re-validated against the server, never restored stale.
+ * mutations survive a reload. Auth queries are excluded because they must always
+ * be re-validated against the server, never restored stale.
  *
  * The cache holds DTOs shaped by the version that wrote them, so it is busted on
  * every app version: restoring rows from an older release into newer components
@@ -22,7 +22,7 @@ const persister = createSyncStoragePersister({
   key: 'persistent-query-cache'
 })
 
-const EXCLUDED_PREFIXES = ['auth', 'push']
+const EXCLUDED_PREFIXES = ['auth']
 
 export const persistOptions: Omit<PersistQueryClientOptions, 'queryClient'> = {
   persister,

@@ -6,26 +6,11 @@ using System.Text.Json;
 namespace Persistent.Desktop.Notifications;
 
 /// <summary>
-/// One event from the server's `/ws` channel, flattened to only what a toast
-/// needs. The full contract is `packages/shared/src/ws-events.ts`; this reads a
-/// deliberately tiny slice of it and ignores everything else.
-///
-/// <para>It carries no reminder model, no schedule and no status rules — just an
-/// id to act on and the text to display. Anything richer would be the C# mirror
-/// of <c>@persistent/shared</c> that <c>apps/desktop/AGENTS.md</c> exists to
-/// prevent.</para>
+/// One invalidation signal from the server's `/ws` channel. Display state is
+/// recovered from the server-computed device-alarm list, so realtime parsing needs
+/// only the event type and, for immediate removal, an occurrence id.
 /// </summary>
-internal sealed record RealtimeEvent(
-    string Type,
-    string OccurrenceId,
-    string ReminderId,
-    string Title,
-    string Body,
-    string Status)
-{
-    /// <summary>An escalated occurrence is currently ringing an alarm elsewhere.</summary>
-    public bool IsEscalated => Status == "ESCALATED";
-}
+internal sealed record RealtimeSignal(string Type, string OccurrenceId);
 
 /// <summary>
 /// A host-owned connection to the per-user `/ws` channel, used only to decide
@@ -84,7 +69,8 @@ internal sealed class RealtimeClient : IDisposable
     /// while a machine is simply offline.</summary>
     private const int LoudFailureLimit = 5;
 
-    public event Action<RealtimeEvent>? EventReceived;
+    public event Action? Connected;
+    public event Action<RealtimeSignal>? EventReceived;
 
     public RealtimeClient(Func<Task<string?>> cookieProvider, Func<string> serverUrlProvider)
     {
@@ -196,6 +182,7 @@ internal sealed class RealtimeClient : IDisposable
         await socket.ConnectAsync(uri, token);
         _everConnected = true;
         Logger.Info("Realtime connected to {0}", uri);
+        Connected?.Invoke();
 
         var buffer = new byte[16 * 1024];
         var message = new StringBuilder();
@@ -240,13 +227,19 @@ internal sealed class RealtimeClient : IDisposable
             var root = document.RootElement;
             if (!root.TryGetProperty("type", out var typeElement)) return;
             var type = typeElement.GetString();
-            if (string.IsNullOrEmpty(type) || type == "ping" || type == "reminder.changed") return;
+            if (string.IsNullOrEmpty(type) || type == "ping") return;
+
+            if (type == "reminder.changed")
+            {
+                EventReceived?.Invoke(new RealtimeSignal(type, ""));
+                return;
+            }
 
             if (type is "dismiss" or "silence")
             {
                 var id = root.TryGetProperty("occurrenceId", out var occ) ? occ.GetString() : null;
                 if (string.IsNullOrEmpty(id)) return;
-                EventReceived?.Invoke(new RealtimeEvent(type, id, "", "", "", ""));
+                EventReceived?.Invoke(new RealtimeSignal(type, id));
                 return;
             }
 
@@ -255,23 +248,7 @@ internal sealed class RealtimeClient : IDisposable
 
             string occurrenceId = GetString(occurrence, "id");
             if (occurrenceId.Length == 0) return;
-            string reminderId = GetString(occurrence, "reminderId");
-            string status = GetString(occurrence, "status");
-
-            string title = "";
-            string body = "";
-            if (occurrence.TryGetProperty("reminder", out var reminder))
-            {
-                title = GetString(reminder, "title");
-                // Only `details` — deliberately not the medication doses or checklist
-                // items. Rendering those is `reminderBodyText` in @persistent/shared,
-                // and re-implementing it here is exactly the duplication this app is
-                // built to avoid. The full body is one click away in the flyout.
-                body = GetString(reminder, "details");
-            }
-            if (title.Length == 0) return;
-
-            EventReceived?.Invoke(new RealtimeEvent(type, occurrenceId, reminderId, title, body, status));
+            EventReceived?.Invoke(new RealtimeSignal(type, occurrenceId));
         }
         catch (Exception ex)
         {

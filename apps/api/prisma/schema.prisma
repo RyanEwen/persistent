@@ -16,13 +16,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/// Tiny server-wide key/value store (e.g. the generated VAPID keypair). Not
-/// user-scoped — these are global app settings.
-model Setting {
-  key   String @id
-  value String
-}
-
 /// What kind of thing a reminder is; selects the extra fields it carries in
 /// `typeData`. See shared reminderTypeSchema.
 enum ReminderType {
@@ -59,7 +52,6 @@ enum OccurrenceStatus {
 }
 
 enum PushKind {
-  WEB
   FCM
 }
 
@@ -234,15 +226,13 @@ model ReminderOccurrence {
   @@index([status, scheduledFor])
 }
 
-/// A registered push target (browser Web Push endpoint or native FCM token).
+/// A registered native Android FCM target.
 model PushSubscription {
   id           String   @id @default(cuid())
   userId       String
   kind         PushKind
-  /// WEB: the push service endpoint URL. FCM: the device token.
+  /// The FCM device token.
   endpoint     String   @unique
-  /// WEB only: { p256dh, auth }.
-  keys         Json?
   userAgent    String?
   createdAt    DateTime @default(now())
 

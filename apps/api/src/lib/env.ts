@@ -40,10 +40,6 @@ const envSchema = z.object({
   CLOUDFLARE_EMAIL_FROM_EMAIL: z.string().optional(),
   CLOUDFLARE_EMAIL_FROM_NAME: z.string().optional(),
 
-  VAPID_PUBLIC_KEY: z.string().optional(),
-  VAPID_PRIVATE_KEY: z.string().optional(),
-  VAPID_SUBJECT: z.string().optional(),
-
   FCM_SERVICE_ACCOUNT_FILE: z.string().optional(),
   FCM_PROJECT_ID: z.string().optional(),
 

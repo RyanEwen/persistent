@@ -12,8 +12,8 @@ schemas in `@persistent/shared`.
 The query cache is persisted to localStorage (`apps/web/src/lib/persistQuery.ts`)
 so reminders/occurrences render offline; reminder writes apply optimistically and
 queue while offline, replaying on reconnect via mutation defaults registered in
-`lib/queryClient.ts` (`resumePausedMutations`). Auth/push queries are excluded
-from persistence.
+`lib/queryClient.ts` (`resumePausedMutations`). Auth queries are excluded from
+persistence.
 
 **History pages; the other feeds don't.** `GET /api/occurrences?scope=history`
 returns `{ occurrences, nextCursor }` (`occurrenceListSchema`) and takes a
@@ -59,16 +59,18 @@ Event types (`packages/shared/src/ws-events.ts`):
 | `occurrence.fired` | an occurrence became due | invalidate active/upcoming/history occurrences + reminders (a one-time reminder drops off the list once its latest occurrence is acknowledged) |
 | `occurrence.changed` | status changed (ack/snooze/escalate) | invalidate active/upcoming/history occurrences + reminders |
 | `reminder.changed` | a reminder was created/updated/deleted | invalidate reminders + occurrences (active/upcoming/history) |
-| `dismiss` | clear a shown notification everywhere | service worker / native closes it |
-| `silence` | stop an escalation alarm but keep nagging | SW re-shows as a soft nag; native downgrades the alarm |
+| `dismiss` | clear a shown notification everywhere | native clients close it |
+| `silence` | stop an escalation alarm but keep nagging | native clients downgrade the alarm |
 | `ping` | heartbeat | ignored |
 
 The web client is not the only consumer. The Windows tray app opens its **own**
 `/ws` connection when its optional notifications are turned on, because the page
-it hosts is suspended while the flyout is hidden — see
-[`desktop-architecture.md`](desktop-architecture.md). It reads a deliberately tiny
-slice (an occurrence's id, reminder id, status, title and `details`) and ignores
-every other field and event type, so events stay free to grow.
+it hosts is suspended while the flyout is hidden. The socket is only an
+invalidation and immediate-dismiss path. On startup, reconnect and relevant
+events, the host pulls the server-computed device alarm projection from
+`/api/sync/occurrences?alarmsOnly=true`. This gives it display-ready text and
+presentation flags without duplicating reminder or escalation rules. See
+[`desktop-architecture.md`](desktop-architecture.md).
 
 The Windows widget is a downstream projection of the normal web queries, not
 another API or socket consumer. While the authenticated page is awake,
@@ -82,9 +84,9 @@ reminder DTO crosses into the provider. See
 
 ## Cross-device dismiss
 
-When an occurrence is acknowledged or snoozed (from any device or the SW action),
-the server broadcasts `dismiss` over WS **and** sends a `dismiss` push, so the
-notification clears on every one of the user's devices. This is the same actor's
+When an occurrence is acknowledged or snoozed from any device, the server
+broadcasts `dismiss` over WS and sends an FCM `dismiss` push, so the notification
+clears on every one of the user's native clients. This is the same actor's
 devices only — there is no cross-user delivery. Each occurrence is independent, so
 a `dismiss` only ever clears the one occurrence that was acked/snoozed — a
 reminder's other still-unconfirmed firings keep nagging on their own.
@@ -95,7 +97,7 @@ after the cascade), giving a real schedule to a previously **unscheduled**
 reminder (schedule kind `none`), which retires the single firing it got for being
 unscheduled, and turning a reminder into a **note** (schedule kind `never`), which
 retires every live firing because the reminder no longer reminds. All three
-broadcast over WS and push `dismiss` per occurrence, exactly as an ack does. See
+broadcast over WS and send an FCM `dismiss` per occurrence, exactly as an ack does. See
 `docs/notification-behavior.md` §6 for why rescheduling is otherwise never allowed
 to clear an unconfirmed firing, and §7 for what a note is.
 
@@ -152,8 +154,8 @@ firing (`notification-behavior.md` §1). The server broadcasts `occurrence.chang
 over WS **and** sends a sync nudge: the notification body is only the *unticked*
 items, so a tick changes the text of an already-armed alarm. Native devices re-pull
 `/api/sync/occurrences` and re-post the nag silently (`alertOnce`, so a refreshed
-body never re-alerts); web clients converge over the WS event, which is why there
-is still no push. The web client applies the toggle optimistically
+body never re-alerts); web clients converge over the WS event, while the FCM sync
+nudge is only for Android. The web client applies the toggle optimistically
 (`mutationKeys.checkOccurrenceItem`) — a checkbox that waits for a round trip feels
 broken.
 
@@ -313,10 +315,8 @@ Reminder create/update/delete has no self-contained fire/dismiss payload, but a
 device still needs to re-derive what it should schedule/show (a renamed reminder, a
 changed schedule, a deletion) — as does a checklist tick, which rewrites a live
 notification's body. Alongside the `reminder.changed` WS broadcast, the
-server sends an **FCM-only** `sync` push (`nudgeNativeSync`) so a native device with
-a live bridge resyncs promptly. It is deliberately not sent over Web Push (a push
-that shows no notification makes browsers surface a generic "site updated" one) —
-open web clients already converge over `/ws`. A fully-closed device can't act on the
+server sends an FCM `sync` push (`nudgeNativeSync`) so a native device with a live
+bridge resyncs promptly. Open web clients converge over `/ws`. A fully-closed device can't act on the
 `sync` push itself (that resync needs the WebView's session), but it no longer has to
 wait for its next open: the native `SyncWorker` re-pulls and reconciles autonomously
 (~15 min + on connectivity, authenticating with the WebView cookie — see

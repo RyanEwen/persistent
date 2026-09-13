@@ -5,14 +5,14 @@ using System.Text;
 namespace Persistent.Desktop.Notifications;
 
 /// <summary>
-/// The two writes a toast button can make: acknowledge an occurrence, or snooze
-/// it. Nothing else.
+/// The writes a Windows notification can make: acknowledge, snooze or silence an
+/// escalated occurrence. Nothing else.
 ///
 /// <para><b>This is a deliberate, narrow exception to the rule in
 /// <c>apps/desktop/AGENTS.md</c></b> that the host never calls a domain API. It
 /// exists because toast buttons that only open the flyout were judged not worth
-/// having; the trade is that this is now a second caller of the ack/snooze
-/// endpoints and has to stay faithful to them.</para>
+/// having; the trade is that this is now a second caller of the
+/// ack/snooze/silence endpoints and has to stay faithful to them.</para>
 ///
 /// <para>What keeps it faithful: it sends an id and (for snooze) a duration, and
 /// takes the server's answer as final. It holds no occurrence state, decides
@@ -52,6 +52,10 @@ internal sealed class OccurrenceApi
         PostAsync(
             $"/api/occurrences/{Uri.EscapeDataString(occurrenceId)}/snooze",
             $"{{\"minutes\":{minutes}}}");
+
+    /// <summary>Drop an escalated alarm back to its soft persistent notification.</summary>
+    public Task<bool> SilenceAsync(string occurrenceId) =>
+        PostAsync($"/api/occurrences/{Uri.EscapeDataString(occurrenceId)}/silence", null);
 
     private async Task<bool> PostAsync(string path, string? jsonBody)
     {

@@ -134,8 +134,9 @@ worker. Its ~15-min syncs then keep the session alive as long as the app is
 installed and periodically online.
 
 The **Windows tray app** is the other non-browser caller, when its optional
-notifications are on: its `/ws` client and the ack/snooze behind a toast button
-read the cookie straight out of the WebView2 profile per call
+notifications are on: its `/ws` client, notification recovery sync, and the
+ack/snooze/silence actions behind a toast button read the cookie straight out of
+the WebView2 profile per call
 (`AppFlyout.GetSessionCookieAsync`). Unlike the Android worker it caches nothing
 and mirrors nothing — it has a WebView right there — so a refreshed session is
 picked up automatically and signing out simply makes its calls fail. Nothing about
@@ -152,8 +153,7 @@ returns the id inside handlers.
 
 The whole boundary is: **every domain query filters by `userId`.** There is no
 row-level tenancy magic — it is explicit in each query, and edit/delete first
-re-fetch `{ id, userId }`. The only non-user-scoped model is `Setting` (global
-config such as the generated VAPID keypair).
+re-fetch `{ id, userId }`. Every account-owned model is user-scoped.
 
 ## Account deletion
 

@@ -6,7 +6,7 @@
  * Dispositions:
  * - `ok`          2xx: delivered.
  * - `prune`       404/403: the device token is unregistered or belongs to another
- *                 sender — drop it (matches Web Push's 404/410 pruning).
+ *                 sender, so drop the dead device token.
  * - `authRefresh` 401: OUR OAuth access token was rejected, not the device token.
  *                 Re-mint the service-account token and retry; never prune here.
  * - `fail`        anything else: a transient/unknown error — log, don't prune.

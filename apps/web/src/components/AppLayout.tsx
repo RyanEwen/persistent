@@ -21,7 +21,7 @@ import IconButton from '@mui/joy/IconButton'
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline'
 import { BottomNav } from './BottomNav.js'
 import { BrandMark } from './BrandMark.js'
-import { GetTheAppButton, NativePromoBanner } from './GetTheApp.js'
+import { GetTheAppButton, NativeAppsPromoBanner } from './GetTheApp.js'
 import { AlarmPermissionsBanner } from './AlarmPermissionsBanner.js'
 import { useSettings } from '../settings/useSettings.js'
 import { getTheme, themeSx } from '../settings/themes.js'
@@ -83,7 +83,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         }}
       >
         <AlarmPermissionsBanner />
-        <NativePromoBanner />
+        <NativeAppsPromoBanner />
         {children}
       </Box>
       <BottomNav />

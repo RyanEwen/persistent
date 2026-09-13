@@ -13,6 +13,7 @@ import Chip from '@mui/joy/Chip'
 import Link from '@mui/joy/Link'
 import { SectionHeading } from '../components/SectionHeading.js'
 import { isNative } from '../native/alarmBridge.js'
+import { isDesktopHost } from '../native/desktopBridge.js'
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -20,6 +21,55 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
       <Typography level="title-sm">{title}</Typography>
       {children}
     </Card>
+  )
+}
+
+/** Explain the notification capability of the host currently rendering Help. */
+function NotificationsOnThisDevice() {
+  if (isNative()) {
+    return (
+      <Section title="Permissions on this device">
+        <Typography level="body-sm">
+          For alarms to ring reliably, Android needs permission to schedule exact alarms, to show full-screen
+          alarms, and to ignore battery optimizations for Persistent. You can set notification and alarm sounds and
+          the default shade prominence in{' '}
+          <Link component={RouterLink} to="/settings">
+            Settings
+          </Link>
+          .
+        </Typography>
+      </Section>
+    )
+  }
+
+  if (isDesktopHost()) {
+    return (
+      <Section title="Windows notifications">
+        <Typography level="body-sm">
+          The Windows companion keeps notifications visible, restores them after dismissal, repeats configured nags,
+          and loops alarm audio for Alarm reminders and escalations. Done, Snooze, and De-escalate work directly from
+          the notification. This requires the PC to be awake with Persistent running; it catches up after reconnecting
+          but cannot wake a sleeping or shut-down PC. Turn it on in{' '}
+          <Link component={RouterLink} to="/settings">
+            Settings
+          </Link>
+          .
+        </Typography>
+      </Section>
+    )
+  }
+
+  return (
+    <Section title="Notifications require an app">
+      <Typography level="body-sm">
+        The browser is for managing reminders and does not send notifications. Install the Android app for reliable
+        alarms, or the Windows companion for persistent alerts while your PC is awake. Both are linked in{' '}
+        <Link component={RouterLink} to="/settings">
+          Settings
+        </Link>
+        .
+      </Typography>
+    </Section>
   )
 }
 
@@ -146,29 +196,7 @@ export function HelpPage() {
         </Typography>
       </Section>
 
-      <Section title={isNative() ? 'Permissions on this device' : 'Web vs the Android app'}>
-        {isNative() ? (
-          <Typography level="body-sm">
-            For alarms to ring reliably, Android needs permission to schedule exact alarms, to show full-screen
-            alarms, and to ignore battery optimizations for Persistent. You can set notification and alarm sounds and
-            the default shade prominence in{' '}
-            <Link component={RouterLink} to="/settings">
-              Settings
-            </Link>
-            .
-          </Typography>
-        ) : (
-          <Typography level="body-sm">
-            On the web, notifications are <b>best-effort</b> — the browser can&apos;t guarantee an undismissable
-            alarm or repeating sound while the tab is closed. For the real persistence guarantee (hard alarms that
-            reach you even offline), install the <b>Android app</b>. Enable browser notifications in{' '}
-            <Link component={RouterLink} to="/settings">
-              Settings
-            </Link>
-            .
-          </Typography>
-        )}
-      </Section>
+      <NotificationsOnThisDevice />
     </Stack>
   )
 }

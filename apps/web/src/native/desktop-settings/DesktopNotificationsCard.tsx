@@ -1,6 +1,5 @@
 /**
- * Windows notifications, in the notification slot the web push card leaves empty
- * on this host (`hostSupportsPush()` is false in a WebView2).
+ * Windows notification controls shown only inside the desktop host.
  *
  * The durations come from the host, not from `SNOOZE_PRESETS`: Windows caps a
  * toast's picker at five items, so offering the app's full seven here would let the
@@ -21,13 +20,14 @@ export function DesktopNotificationsCard({ settings, update }: HostSettingsProps
     <Card variant="outlined">
       <Typography level="title-sm">Windows notifications</Typography>
       <FormControl orientation="horizontal" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-        <FormLabel>Notify me on this PC</FormLabel>
+        <FormLabel>Persistent notifications on this PC</FormLabel>
         <Switch checked={settings.notifications} onChange={(e) => update({ notifications: e.target.checked })} />
       </FormControl>
       <Typography level="body-xs">
-        Shows a Windows notification when a reminder is due, with Done and Snooze on it. Only while this PC is awake
-        and Persistent is running: it never rings an alarm and never wakes the machine, so don't rely on it alone.
-        The Android app is the one that guarantees you'll be told.
+        Keeps each reminder visible and brings it back if dismissed. Alarm reminders loop the Windows alarm sound;
+        escalations can be de-escalated without marking them done. This works while the PC is awake and Persistent is
+        running, and catches up after reconnecting. It cannot wake a sleeping or shut-down PC, so Android remains the
+        hard alarm guarantee.
       </Typography>
       {/* The duration only means anything while the notifications are on, so it
           follows the toggle rather than sitting there looking editable. */}

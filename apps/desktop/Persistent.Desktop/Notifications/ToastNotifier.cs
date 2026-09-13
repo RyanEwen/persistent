@@ -37,6 +37,7 @@ internal sealed class ToastNotifier
     public const string ActionConfirmDone = "confirm-done";
     public const string ActionNotYet = "not-yet";
     public const string ActionSnooze = "snooze";
+    public const string ActionSilence = "silence";
 
     /// <summary>Which duration the toast's picker is on, read back on activation.</summary>
     public const string SnoozeChoiceKey = "snoozeMinutes";
@@ -131,26 +132,21 @@ internal sealed class ToastNotifier
     }
 
     /// <summary>
-    /// The ordinary firing toast: what it is, and the two things you can do about
-    /// it.
-    ///
-    /// <para><b>Transient by design.</b> No <c>AppNotificationScenario</c> is set, so
-    /// this behaves like any ordinary Windows toast: it alerts, then fades into the
-    /// Action Center. It deliberately does not use <c>Reminder</c> or <c>Urgent</c>,
-    /// which pin a toast on screen until dismissed — that is nagging, and this
-    /// surface does not nag. Windows gets an alert each time a reminder fires or
-    /// escalates and nothing more; the persistence guarantee lives on Android
-    /// (docs/desktop-architecture.md).</para>
+    /// Show or replace one persistent firing. Soft notifications use the Default
+    /// scenario so the popup retracts while the item remains in Notification
+    /// Center. Inherent and escalated alarms use Alarm so Windows keeps the popup
+    /// visible and loops its alarm audio until the user acts.
     /// </summary>
-    public void ShowOccurrence(RealtimeEvent occurrence, int defaultSnoozeMinutes)
+    public bool ShowOccurrence(NotificationOccurrence occurrence, int defaultSnoozeMinutes)
     {
-        if (!_registered) return;
+        if (!_registered) return false;
         try
         {
             var builder = new AppNotificationBuilder()
                 .AddText(occurrence.Title)
                 .SetTag(occurrence.OccurrenceId)
                 .SetGroup(Group)
+                .SetScenario(ScenarioFor(occurrence))
                 // Body clicks and button clicks arrive through the same handler, so
                 // every toast carries the ids its actions will need.
                 .AddArgument(ActionKey, ActionOpen)
@@ -158,11 +154,9 @@ internal sealed class ToastNotifier
                 .AddArgument(ReminderKey, occurrence.ReminderId);
 
             if (occurrence.Body.Length > 0) builder.AddText(occurrence.Body);
-            if (occurrence.IsEscalated)
+            if (occurrence.Alarm)
             {
-                // The alarm itself is ringing on a device that can actually ring;
-                // say so rather than implying this window is the alarm.
-                builder.AddText("Escalated - still not confirmed.");
+                builder.AddText("Alarm - still not confirmed.");
             }
 
             // A picker, not a fixed duration: snoozing is a choice about when to be
@@ -181,11 +175,18 @@ internal sealed class ToastNotifier
                 .AddButton(Button(ActionDone, occurrence, "Done"))
                 .AddButton(Button(ActionSnooze, occurrence, "Snooze"));
 
-            AppNotificationManager.Default.Show(builder.BuildNotification());
+            if (occurrence.CanSilence)
+            {
+                builder.AddButton(Button(ActionSilence, occurrence, "De-escalate"));
+            }
+
+            ShowHighPriority(builder);
+            return true;
         }
         catch (Exception ex)
         {
             Logger.Warn(ex, "Showing a toast failed for occurrence {0}", occurrence.OccurrenceId);
+            return false;
         }
     }
 
@@ -194,9 +195,9 @@ internal sealed class ToastNotifier
     /// place rather than stacking a second one. "Not yet" restores the original and
     /// changes nothing, exactly as it does in-app.
     /// </summary>
-    public void ShowDoneConfirm(RealtimeEvent occurrence)
+    public bool ShowDoneConfirm(NotificationOccurrence occurrence)
     {
-        if (!_registered) return;
+        if (!_registered) return false;
         try
         {
             var builder = new AppNotificationBuilder()
@@ -204,17 +205,45 @@ internal sealed class ToastNotifier
                 .AddText("Mark this done?")
                 .SetTag(occurrence.OccurrenceId)
                 .SetGroup(Group)
+                .SetScenario(ScenarioFor(occurrence))
                 .AddArgument(ActionKey, ActionOpen)
                 .AddArgument(OccurrenceKey, occurrence.OccurrenceId)
                 .AddArgument(ReminderKey, occurrence.ReminderId)
                 .AddButton(Button(ActionConfirmDone, occurrence, "Confirm done"))
                 .AddButton(Button(ActionNotYet, occurrence, "Not yet"));
 
-            AppNotificationManager.Default.Show(builder.BuildNotification());
+            ShowHighPriority(builder);
+            return true;
         }
         catch (Exception ex)
         {
             Logger.Warn(ex, "Showing the confirm toast failed for occurrence {0}", occurrence.OccurrenceId);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Read the occurrence tags still present in Notification Center. A successful
+    /// empty set means the user dismissed them; <c>null</c> means Windows could not
+    /// answer and must not trigger a mass re-post.
+    /// </summary>
+    public async Task<HashSet<string>?> GetShownOccurrenceIdsAsync()
+    {
+        if (!_registered) return null;
+
+        try
+        {
+            var notifications = await AppNotificationManager.Default.GetAllAsync();
+            return notifications
+                .Where(notification => notification.Group == Group)
+                .Select(notification => notification.Tag)
+                .Where(tag => !string.IsNullOrEmpty(tag))
+                .ToHashSet(StringComparer.Ordinal);
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn(ex, "Reading shown notifications failed");
+            return null;
         }
     }
 
@@ -251,6 +280,26 @@ internal sealed class ToastNotifier
     }
 
     /// <summary>
+    /// Choose Windows presentation behavior without changing persistence policy.
+    /// Default popups retract on their own but stay in Notification Center. Alarm
+    /// popups remain visible and audible because that is the requested hard nag.
+    /// </summary>
+    private static AppNotificationScenario ScenarioFor(NotificationOccurrence occurrence) =>
+        occurrence.Alarm ? AppNotificationScenario.Alarm : AppNotificationScenario.Default;
+
+    /// <summary>
+    /// Show a notification with Persistent's per-notification urgency hint. Windows
+    /// still owns the user's app-wide Top, High, or Normal preference and may apply
+    /// Focus Assist or other system policy.
+    /// </summary>
+    private static void ShowHighPriority(AppNotificationBuilder builder)
+    {
+        var notification = builder.BuildNotification();
+        notification.Priority = AppNotificationPriority.High;
+        AppNotificationManager.Default.Show(notification);
+    }
+
+    /// <summary>
     /// The offered duration closest to <paramref name="minutes"/>. The stored
     /// default comes from a settings combo that may be edited by hand or predate a
     /// change to the list, and a picker whose selection matches no item renders
@@ -279,7 +328,7 @@ internal sealed class ToastNotifier
         return minutes is >= 1 and <= 525_600 ? minutes : null;
     }
 
-    private static AppNotificationButton Button(string action, RealtimeEvent occurrence, string label) =>
+    private static AppNotificationButton Button(string action, NotificationOccurrence occurrence, string label) =>
         new AppNotificationButton(label)
             .AddArgument(ActionKey, action)
             .AddArgument(OccurrenceKey, occurrence.OccurrenceId)

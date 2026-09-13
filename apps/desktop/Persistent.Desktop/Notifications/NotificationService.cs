@@ -6,16 +6,14 @@ using System.Collections.Concurrent;
 namespace Persistent.Desktop.Notifications;
 
 /// <summary>
-/// Optional Windows toasts for the tray app: the one piece of this host that is
-/// about reminders rather than windows.
+/// Persistent Windows notifications for the tray app: the one piece of this host
+/// that is about reminders rather than windows.
 ///
 /// <para><b>Read docs/desktop-architecture.md before changing this.</b> The app was
 /// built as a viewing and acting surface with no OS notifications at all, and this
-/// is a deliberate, bounded reversal of that: off by default, opt-in per machine,
-/// and still not a persistence guarantee — a sleeping machine, a closed app or a
-/// dropped connection all mean no toast, and there is no alarm audio and no
-/// on-device scheduling. The Android client remains the only surface that
-/// guarantees anything.</para>
+/// is a deliberate, bounded reversal of that. It remains session-bound: prolonged
+/// sleep, shutdown or a closed tray process can delay delivery, while Android is
+/// still the only exact-alarm guarantee.</para>
 ///
 /// <para>What it does own is small and stated here so it can be checked against
 /// docs/notification-behavior.md:</para>
@@ -25,12 +23,11 @@ namespace Persistent.Desktop.Notifications;
 ///         toast with a confirm variant rather than acking on first click.</item>
 ///   <item>A server <c>dismiss</c> clears the toast, so acting on any device clears
 ///         it here (cross-device dismiss, docs/data-event-contract.md).</item>
-///   <item>Snooze and Done are the server's calls to accept or reject; this holds
-///         no opinion about when either is allowed.</item>
+///   <item>Soft notifications return after dismissal and may re-alert on their nag
+///         interval; alarm notifications loop audio until acted on.</item>
+///   <item>Snooze, Done and De-escalate are the server's calls to accept or reject;
+///         this holds no opinion about when any is allowed.</item>
 /// </list>
-///
-/// <para>Silence is deliberately absent: it drops an escalation back to an
-/// ordinary notification, and this surface has no alarm to silence.</para>
 /// </summary>
 internal static class NotificationService
 {
@@ -39,14 +36,18 @@ internal static class NotificationService
     private static readonly ToastNotifier Toasts = new();
     private static RealtimeClient? _realtime;
     private static OccurrenceApi? _api;
+    private static OccurrenceSyncClient? _syncClient;
+    private static NotificationPersistenceMonitor? _monitor;
+    private static readonly SemaphoreSlim RefreshGate = new(1, 1);
+    private static volatile bool _enabled;
+    private static int _lifecycleVersion;
 
     /// <summary>
-    /// The last event seen per occurrence, so the confirm toast can be rebuilt with
-    /// the same title and body when Done is armed, and restored on "Not yet".
-    /// Bounded by how many firings are unconfirmed at once, and entries are dropped
-    /// as soon as they are dismissed.
+    /// The server-projected active notification plus its local presentation state.
+    /// Bounded by how many firings are unconfirmed at once; dismissing a toast does
+    /// not remove an entry because restoring it is the defining behavior.
     /// </summary>
-    private static readonly ConcurrentDictionary<string, RealtimeEvent> Live = new();
+    private static readonly ConcurrentDictionary<string, TrackedNotification> Live = new();
 
     /// <summary>
     /// Bring the service in line with the current setting. Safe to call repeatedly —
@@ -99,65 +100,162 @@ internal static class NotificationService
         Classes.StartupDiagnostics.Mark("notifications: enabled, toast registration OK");
 
         _api ??= new OccurrenceApi(AppFlyout.GetSessionCookieAsync, () => SettingsManager.Current.EffectiveServerUrl);
+        _syncClient ??= new OccurrenceSyncClient(
+            AppFlyout.GetSessionCookieAsync,
+            () => SettingsManager.Current.EffectiveServerUrl);
         _realtime ??= new RealtimeClient(AppFlyout.GetSessionCookieAsync, () => SettingsManager.Current.EffectiveServerUrl);
+        _monitor ??= new NotificationPersistenceMonitor(Live, Toasts, ShowAndTrack, RequestRefresh);
+
+        _realtime.Connected -= RequestRefresh;
+        _realtime.Connected += RequestRefresh;
         _realtime.EventReceived -= OnRealtimeEvent;
         _realtime.EventReceived += OnRealtimeEvent;
+
+        _enabled = true;
+        Interlocked.Increment(ref _lifecycleVersion);
         _realtime.Start();
+        _monitor.Start();
         return true;
     }
 
     private static void Disable()
     {
+        _enabled = false;
+        _monitor?.Stop();
         _realtime?.Stop();
         Live.Clear();
-        // Clear before unregistering: removal goes through the same manager.
-        _ = Toasts.RemoveAllAsync().ContinueWith(_ => Toasts.Unregister(), TaskScheduler.Default);
+        int disabledVersion = Interlocked.Increment(ref _lifecycleVersion);
+        _ = ClearAndUnregisterAsync(disabledVersion);
     }
 
     /// <summary>Release the toast registration on exit.</summary>
     public static void Shutdown()
     {
+        _enabled = false;
+        _monitor?.Stop();
         _realtime?.Stop();
         Toasts.Unregister();
     }
 
-    private static void OnRealtimeEvent(RealtimeEvent occurrence)
+    /// <summary>
+    /// Clear before unregistering because removal goes through the notification
+    /// manager. A rapid off/on toggle invalidates this teardown before it can
+    /// unregister the newly re-enabled service.
+    /// </summary>
+    private static async Task ClearAndUnregisterAsync(int disabledVersion)
     {
-        switch (occurrence.Type)
+        await Toasts.RemoveAllAsync();
+        if (!_enabled && Volatile.Read(ref _lifecycleVersion) == disabledVersion)
         {
-            case "occurrence.fired":
-                Live[occurrence.OccurrenceId] = occurrence;
-                Toasts.ShowOccurrence(occurrence, SnoozeMinutes);
-                break;
+            Toasts.Unregister();
+        }
+    }
 
-            case "occurrence.changed":
-                // Only an escalation is worth re-raising: it is the firing getting
-                // louder. An ack or a snooze arrives as `dismiss` instead, and
-                // re-showing on every status change would resurrect toasts the user
-                // has already dealt with.
-                if (occurrence.IsEscalated)
-                {
-                    Live[occurrence.OccurrenceId] = occurrence;
-                    Toasts.ShowOccurrence(occurrence, SnoozeMinutes);
-                }
-                break;
+    /// <summary>
+    /// Remove the departing account's personal notification content immediately.
+    /// The service remains enabled so the realtime retry loop can recover after a
+    /// later sign-in without changing the machine setting.
+    /// </summary>
+    public static void UserSignedOut()
+    {
+        Live.Clear();
+        _ = Toasts.RemoveAllAsync();
+    }
 
+    private static void OnRealtimeEvent(RealtimeSignal signal)
+    {
+        switch (signal.Type)
+        {
             case "dismiss":
-                Live.TryRemove(occurrence.OccurrenceId, out _);
-                _ = Toasts.RemoveAsync(occurrence.OccurrenceId);
+                Live.TryRemove(signal.OccurrenceId, out _);
+                _ = Toasts.RemoveAsync(signal.OccurrenceId);
                 break;
 
-            // "silence" stops an escalation alarm but keeps the occurrence nagging.
-            // There is no alarm here to stop and the toast should stay, so: nothing.
+            case "silence":
+                // Stop the looping alarm immediately. The refresh replaces it with
+                // the server-computed soft notification.
+                Live.TryRemove(signal.OccurrenceId, out _);
+                _ = Toasts.RemoveAsync(signal.OccurrenceId);
+                RequestRefresh();
+                break;
+
             default:
+                // Occurrence and reminder events are invalidation hints. Pull the
+                // canonical device-alarm projection rather than reproducing its
+                // persistence, escalation or checklist rules in C#.
+                RequestRefresh();
                 break;
         }
     }
 
     /// <summary>
-    /// Which duration the toast's snooze picker starts on. Only a starting point —
-    /// the user picks from the full list on the toast itself, the same list every
-    /// other surface offers.
+    /// Refresh the active set from the server. Calls are serialized so a burst of
+    /// realtime invalidations cannot race an older response over a newer one.
+    /// </summary>
+    private static void RequestRefresh() => _ = RefreshAsync();
+
+    private static async Task RefreshAsync()
+    {
+        if (!_enabled || _syncClient == null) return;
+
+        await RefreshGate.WaitAsync();
+        try
+        {
+            if (!_enabled) return;
+
+            var result = await _syncClient.GetActiveAsync();
+            if (result == null || !_enabled) return;
+            if (!result.Authorized)
+            {
+                UserSignedOut();
+                return;
+            }
+
+            var occurrences = result.Occurrences;
+
+            var incoming = occurrences
+                .Select(occurrence => occurrence.OccurrenceId)
+                .ToHashSet(StringComparer.Ordinal);
+
+            foreach (string occurrenceId in Live.Keys)
+            {
+                if (incoming.Contains(occurrenceId)) continue;
+
+                Live.TryRemove(occurrenceId, out _);
+                _ = Toasts.RemoveAsync(occurrenceId);
+            }
+
+            foreach (var occurrence in occurrences)
+            {
+                if (Live.TryGetValue(occurrence.OccurrenceId, out var tracked)
+                    && tracked.Occurrence == occurrence)
+                {
+                    continue;
+                }
+
+                ShowAndTrack(occurrence);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn(ex, "Refreshing active Windows notifications failed");
+        }
+        finally
+        {
+            RefreshGate.Release();
+        }
+    }
+
+    /// <summary>Show one occurrence and record the successful presentation time.</summary>
+    private static void ShowAndTrack(NotificationOccurrence occurrence)
+    {
+        if (!_enabled || !Toasts.ShowOccurrence(occurrence, SnoozeMinutes)) return;
+        Live[occurrence.OccurrenceId] = new TrackedNotification(occurrence, DateTimeOffset.UtcNow);
+    }
+
+    /// <summary>
+    /// Which duration the toast's snooze picker starts on. This is only a starting
+    /// point; Windows offers the five-item subset its combo box permits.
     /// </summary>
     private static int SnoozeMinutes
     {
@@ -186,22 +284,37 @@ internal static class NotificationService
             {
                 case ToastNotifier.ActionDone:
                     // First tap only arms it (§1). Nothing is acknowledged yet.
-                    if (Live.TryGetValue(occurrenceId, out var armed)) Toasts.ShowDoneConfirm(armed);
+                    if (Live.TryGetValue(occurrenceId, out var armed)
+                        && Toasts.ShowDoneConfirm(armed.Occurrence))
+                    {
+                        Live[occurrenceId] = armed with
+                        {
+                            LastShownAt = DateTimeOffset.UtcNow,
+                            ConfirmingDone = true
+                        };
+                    }
                     break;
 
                 case ToastNotifier.ActionNotYet:
                     if (Live.TryGetValue(occurrenceId, out var restored))
-                        Toasts.ShowOccurrence(restored, SnoozeMinutes);
+                        ShowAndTrack(restored.Occurrence);
                     break;
 
                 case ToastNotifier.ActionConfirmDone:
-                    _ = ActAsync(occurrenceId, ack: true);
+                    _ = ActAsync(occurrenceId, ToastNotifier.ActionConfirmDone);
                     break;
 
                 case ToastNotifier.ActionSnooze:
                     // Whatever the toast's picker was left on; the app setting only
                     // decided which item started selected.
-                    _ = ActAsync(occurrenceId, ack: false, ToastNotifier.ChosenSnoozeMinutes(args.UserInput) ?? SnoozeMinutes);
+                    _ = ActAsync(
+                        occurrenceId,
+                        ToastNotifier.ActionSnooze,
+                        ToastNotifier.ChosenSnoozeMinutes(args.UserInput) ?? SnoozeMinutes);
+                    break;
+
+                case ToastNotifier.ActionSilence:
+                    _ = ActAsync(occurrenceId, ToastNotifier.ActionSilence);
                     break;
 
                 default:
@@ -222,12 +335,18 @@ internal static class NotificationService
     /// left showing on purpose: the occurrence is still unconfirmed, and clearing it
     /// would tell the user something was done that wasn't.
     /// </summary>
-    private static async Task ActAsync(string occurrenceId, bool ack, int snoozeMinutes = 0)
+    private static async Task ActAsync(string occurrenceId, string action, int snoozeMinutes = 0)
     {
         if (_api == null) return;
-        bool ok = ack
-            ? await _api.AckAsync(occurrenceId)
-            : await _api.SnoozeAsync(occurrenceId, snoozeMinutes > 0 ? snoozeMinutes : SnoozeMinutes);
+        bool ok = action switch
+        {
+            ToastNotifier.ActionConfirmDone => await _api.AckAsync(occurrenceId),
+            ToastNotifier.ActionSnooze => await _api.SnoozeAsync(
+                occurrenceId,
+                snoozeMinutes > 0 ? snoozeMinutes : SnoozeMinutes),
+            ToastNotifier.ActionSilence => await _api.SilenceAsync(occurrenceId),
+            _ => false
+        };
 
         if (ok)
         {
@@ -236,12 +355,13 @@ internal static class NotificationService
             // socket latency, and RemoveAsync is idempotent.
             Live.TryRemove(occurrenceId, out _);
             await Toasts.RemoveAsync(occurrenceId);
+            if (action == ToastNotifier.ActionSilence) RequestRefresh();
             return;
         }
 
         Logger.Warn("Toast {0} failed for occurrence {1}; leaving the toast up",
-            ack ? "Done" : "Snooze", occurrenceId);
-        if (Live.TryGetValue(occurrenceId, out var unchanged)) Toasts.ShowOccurrence(unchanged, SnoozeMinutes);
+            action, occurrenceId);
+        if (Live.TryGetValue(occurrenceId, out var unchanged)) ShowAndTrack(unchanged.Occurrence);
     }
 
     private static void OpenInFlyout(string? reminderId)

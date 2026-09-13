@@ -13,8 +13,9 @@ facing overview is in the root `README.md`.)
   full-screen + looping sound), an in-app updater, a passkey/Credential Manager
   bridge, and Google sign-in. See `apps/mobile/README.md`.
 - **`apps/desktop`** — WinUI 3 (C#) Windows tray app. Hosts the *hosted* web UI in
-  a WebView2 flyout; it shows and confirms reminders but deliberately never rings.
-  See `docs/desktop-architecture.md`.
+  a WebView2 flyout and adds session-bound persistent notifications and alarm
+  audio while the PC is awake and the process is running. See
+  `docs/desktop-architecture.md`.
 - **`packages/shared`** — Zod schemas + inferred types shared by API and web.
 
 ## The persistence reality
@@ -22,8 +23,9 @@ facing overview is in the root `README.md`.)
 Truly undismissable notifications and repeating alarm sound while the app is
 closed are native-OS capabilities, not web/PWA ones. So:
 
-- The **web/PWA** is the management surface + best-effort reminders (re-fire on
-  close, `requireInteraction` on desktop).
+- The **web/PWA** is the management surface and does not send notifications.
+- The **Windows native app** persistently alerts while its tray process and the PC
+  are awake, but cannot guarantee delivery through sleep or shutdown.
 - The **Android native app** is where the real guarantee lives.
 
 Reminders fire reliably even offline via **device-scheduled local alarms** synced
@@ -159,7 +161,7 @@ Deploy target comes from your local `.env` (`DEPLOY_SSH_HOST`, `DEPLOY_REPO_PATH
 
 The server's `.env` is **not** copied into the image — `.dockerignore` excludes it,
 because `lib/env.ts` does `import 'dotenv/config'` and would otherwise read a
-baked-in copy, embedding secrets (DB password, VAPID private key, Cloudflare
+baked-in copy, embedding secrets (DB password, Cloudflare
 token) in a distributable layer and hiding the container's real configuration from
 `docker inspect`.
 

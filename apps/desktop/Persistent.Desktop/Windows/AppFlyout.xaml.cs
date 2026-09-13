@@ -26,10 +26,11 @@ namespace Persistent.Desktop.Windows;
 /// reimplementation — and no way for this surface to drift from
 /// docs/notification-behavior.md.
 ///
-/// It still does NOT provide the persistence guarantee: no alarm audio, no
-/// on-device scheduling, nothing while the machine sleeps. Optional Windows toasts
+/// It still does NOT provide the hard persistence guarantee: the host can persist
+/// and ring Windows notifications while its process and the PC are awake, but owns
+/// no exact wake schedule for sleep or shutdown. Optional Windows notifications
 /// (<see cref="Notifications.NotificationService"/>, off by default) are raised by
-/// the host from its own `/ws` connection, not by this page — the WebView is
+/// the host from server-computed alarm data, not by this page. The WebView is
 /// suspended while the flyout is hidden, so nothing in here can be relied on to
 /// deliver anything. See docs/desktop-architecture.md.
 /// </summary>
@@ -527,6 +528,10 @@ public sealed partial class AppFlyout : Window
                     if (!root.TryGetProperty("snapshot", out var widgetSnapshot)) break;
                     var snapshot = widgetSnapshot.Clone();
                     DispatcherQueue.TryEnqueue(() => StoreWidgetSnapshot(snapshot));
+                    break;
+
+                case "signedOut":
+                    Notifications.NotificationService.UserSignedOut();
                     break;
 
                 // The page's Settings screen showing this app's own settings; see

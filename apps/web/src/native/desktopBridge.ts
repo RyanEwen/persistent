@@ -208,30 +208,6 @@ export function isDesktopHost(): boolean {
 }
 
 /**
- * Whether *this page* can subscribe to Web Push on this host.
- *
- * False in the desktop host, for two independent reasons — either alone is fatal:
- *
- * - WebView2 refuses `Notification.requestPermission()` unless the native host
- *   handles `PermissionRequested`, so the subscription can never be granted. The
- *   Push API may still *report* as present, which is why a capability check alone
- *   (`pushSupported()`) is not enough and this exists.
- * - The WebView is suspended whenever the flyout is hidden, freezing the page and
- *   its service worker. Even a granted subscription could only ever deliver while
- *   the flyout was already open, which is precisely when a notification is
- *   pointless.
- *
- * The tray app's Windows notifications are the answer on that host, and they are
- * raised by the host process from its own connection, not from here. They are
- * turned on from this very Settings page (`DesktopSettings.tsx`), which is why
- * hiding this card costs the user nothing: the control that works on this host is
- * a few lines below it (`docs/desktop-architecture.md`).
- */
-export function hostSupportsPush(): boolean {
-  return !isDesktopHost()
-}
-
-/**
  * Subscribe to messages from the host. Returns an unsubscribe function; a no-op
  * on every other host.
  *
@@ -318,6 +294,11 @@ export function clearWidgetSnapshot(): void {
     generatedAt: new Date().toISOString(),
     items: []
   })
+}
+
+/** Clear native Windows notifications before the departing session is removed. */
+export function notifyHostSignedOut(): void {
+  postToHost({ type: 'signedOut' })
 }
 
 /**

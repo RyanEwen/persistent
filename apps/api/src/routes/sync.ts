@@ -43,6 +43,11 @@ const AGENDA_MAX_TIMED = 200
 syncRouter.get('/occurrences', async (request, response) => {
   const userId = requireUserId(request)
   const now = new Date()
+  // Native notification hosts only need the alarm contract for catch-up and
+  // reconciliation. Avoid projecting the seven-day agenda on every background
+  // refresh when the caller explicitly asks for that narrower response.
+  const alarmsOnly = request.query.alarmsOnly === 'true'
+  const queryUntil = new Date(now.getTime() + (alarmsOnly ? SYNC_WINDOW_MS : AGENDA_WINDOW_MS))
   // One query for both windows: the agenda is the wider of the two, and the armed set
   // is the near slice of it. Two queries would let them disagree mid-flight. Soonest
   // first, so the `take` can only ever cost the far end of the *agenda* — the armed
@@ -51,7 +56,7 @@ syncRouter.get('/occurrences', async (request, response) => {
     where: {
       userId,
       status: { in: ['PENDING', 'FIRED', 'SNOOZED', 'ESCALATED'] },
-      scheduledFor: { lte: new Date(now.getTime() + AGENDA_WINDOW_MS) }
+      scheduledFor: { lte: queryUntil }
     },
     include: { reminder: true },
     orderBy: { scheduledFor: 'asc' },
@@ -80,16 +85,18 @@ syncRouter.get('/occurrences', async (request, response) => {
         ? null
         : escalateAtFor(base, o.scheduledFor, o.reminder, tz)
     const checkedItemIds = toCheckedItemIds(o.checkedItems)
-    timed.push({
-      occurrenceId: o.id,
-      reminderId: o.reminderId,
-      title: o.reminder.title,
-      body: notificationBody(o.reminder, checkedItemIds),
-      // A snoozed firing is due when its snooze ends, matching the alarm the device
-      // arms for it — the list must not say 09:00 for something that returns at 10:00.
-      fireAtMs: (o.status === 'SNOOZED' && o.snoozedUntil ? o.snoozedUntil : o.scheduledFor).getTime(),
-      note: false
-    })
+    if (!alarmsOnly) {
+      timed.push({
+        occurrenceId: o.id,
+        reminderId: o.reminderId,
+        title: o.reminder.title,
+        body: notificationBody(o.reminder, checkedItemIds),
+        // A snoozed firing is due when its snooze ends, matching the alarm the device
+        // arms for it. The list must not say 09:00 for something that returns at 10:00.
+        fireAtMs: (o.status === 'SNOOZED' && o.snoozedUntil ? o.snoozedUntil : o.scheduledFor).getTime(),
+        note: false
+      })
+    }
     // Beyond the armed window it is agenda only: listable, never armed. `scheduledFor`
     // rather than the snooze end, so a long snooze can't push a firing out of the set
     // the device is holding an alarm for.
@@ -97,7 +104,14 @@ syncRouter.get('/occurrences', async (request, response) => {
     // The server expands each occurrence into the exact alarms the device should
     // arm, so the JS bridge and the native background worker share one transform.
     alarms.push(...buildDeviceAlarms(o, escalateAt))
-    serialized.push({ ...toOccurrence(o), escalateAt: escalateAt?.toISOString() ?? null })
+    if (!alarmsOnly) {
+      serialized.push({ ...toOccurrence(o), escalateAt: escalateAt?.toISOString() ?? null })
+    }
+  }
+
+  if (alarmsOnly) {
+    response.json({ serverTime: now.toISOString(), alarms })
+    return
   }
 
   // The rest of the agenda comes from the definitions, because there are no rows for it

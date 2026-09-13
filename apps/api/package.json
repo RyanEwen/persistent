@@ -24,7 +24,6 @@
     "google-auth-library": "^10.7.0",
     "helmet": "^8.1.0",
     "luxon": "^3.5.0",
-    "web-push": "^3.6.7",
     "ws": "^8.18.0",
     "zod": "^3.24.2"
   },
@@ -33,7 +32,6 @@
     "@types/express": "^5.0.1",
     "@types/luxon": "^3.4.2",
     "@types/node": "^22.13.14",
-    "@types/web-push": "^3.6.4",
     "@types/ws": "^8.5.13",
     "prisma": "^6.5.0",
     "tsx": "^4.19.3"

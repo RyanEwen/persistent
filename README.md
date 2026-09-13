@@ -79,12 +79,14 @@ you *actually mark it done*. It's built for the things you can't afford to miss.
 ## Get it
 
 **Web:** open [persistent.dynamic-solutions.ca](https://persistent.dynamic-solutions.ca)
-in any browser and sign up free. It installs as a web app, with best-effort
-reminders — same account and same live data as every other surface.
+in any browser and sign up free. It installs as a web app for managing reminders,
+with the same account and live data as every other surface. Browser notifications
+are not supported; install a native app to be alerted.
 
-**Android (recommended):** download the APK from the
-[latest release](https://github.com/RyanEwen/persistent/releases/latest). The app
-is where the unmissable alarm guarantees live, and it updates itself.
+**Android (recommended):** install Persistent from
+[Google Play](https://play.google.com/store/apps/details?id=ca.dynamicsolutions.persistent).
+The app is where the unmissable alarm guarantees live, and Google Play keeps it
+up to date.
 
 **Windows:** a tray app that keeps Persistent one click from the notification
 area. Install it from the
@@ -93,10 +95,12 @@ up to date on its own. If you'd rather not install anything, the portable zip fo
 your architecture (x64 or ARM64) is on the
 [latest `desktop-v*` release](https://github.com/RyanEwen/persistent/releases?q=desktop&expanded=true):
 unzip and run. It's for seeing and confirming reminders at your desk, and it can
-show optional Windows notifications with Done and Snooze on them. The Store build
+keep Windows notifications present until you act, restore them after dismissal,
+repeat configured nags, and loop alarm audio for Alarm reminders and escalations.
+Done, Snooze, and De-escalate are available on the notification. The Store build
 also provides a Windows 11 widget with the next two reminders at small size, four
-compact rows at medium size, or four expanded rows at large size. It never rings
-an alarm and can't reach you when it's closed or the PC is asleep.
+compact rows at medium size, or four expanded rows at large size. It catches up
+after reconnecting, but cannot reach you while it is closed or the PC is asleep.
 
 > Both apps publish into the same release list, so browsing it raw interleaves
 > them. The Android app is tagged `vX.Y.Z` and is always the one marked **Latest**;

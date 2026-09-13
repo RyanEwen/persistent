@@ -2,7 +2,7 @@
  * Settings card for permanent account deletion.
  *
  * Deletion is irreversible and takes every reminder, occurrence, passkey, and
- * push subscription with it, so the dialog requires the user to type their own
+ * native push registration with it, so the dialog requires the user to type their own
  * email address before the button arms — the same "make it deliberate" stance
  * the Done confirm takes, for a much less reversible action. Google Play
  * requires an in-app deletion path; see apps/mobile/store/play-readiness.md.

@@ -1,8 +1,8 @@
 /**
  * Bridge to the native Android AlarmPlugin (Kotlin), which schedules on-device
  * exact alarms that fire offline and show an ongoing/full-screen notification.
- * On the web (non-native) these are no-ops — the service worker path handles
- * best-effort notifications there. See docs/alarm-architecture.md.
+ * On the web (non-native) these are no-ops; browsers do not notify. See
+ * docs/alarm-architecture.md.
  */
 import { Capacitor, registerPlugin } from '@capacitor/core'
 import type { DeviceAgendaEntry, SoundChoice } from '@persistent/shared'

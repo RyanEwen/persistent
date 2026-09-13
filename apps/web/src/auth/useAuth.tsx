@@ -8,6 +8,7 @@ import type { PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/brow
 import { extractErrorMessage, type AuthState, type RequestCodeResponse, type SessionUser } from '@persistent/shared'
 import { apiFetch } from '../lib/apiClient.js'
 import { passkeyAuthenticate } from '../native/passkeyClient.js'
+import { notifyHostSignedOut } from '../native/desktopBridge.js'
 import { queryClient, queryKeys } from '../lib/queryClient.js'
 import { notify } from '../lib/toast.js'
 import { startWs, stopWs } from '../lib/wsClient.js'
@@ -55,16 +56,19 @@ function dropSignedOutData(): void {
 }
 
 /**
- * Cancel every alarm armed on this device for the account being signed out.
+ * Clear native alerts belonging to the account being signed out.
  *
- * On-device alarms are scheduled natively and outlive the web session: without
- * this, a reminder belonging to the previous account can still ring after
- * sign-out (and even after it is deleted server-side, since the cancel broadcast
- * only reaches devices that are still signed in as its owner). No-op on the web.
+ * Android alarms and Windows notifications outlive the web session that armed
+ * them. Without this cleanup, a reminder belonging to the previous account can
+ * still appear after sign-out. Both host calls are no-ops in a normal browser.
  */
-async function clearDeviceAlarms(): Promise<void> {
-  if (!isNative()) return
-  await AlarmPlugin.cancelAll().catch(() => {})
+async function clearNativeAlerts(): Promise<void> {
+  notifyHostSignedOut()
+  if (isNative()) {
+    // Local cleanup is best-effort during sign-out. A native bridge failure must
+    // not leave the authenticated web session or cached account data in place.
+    await AlarmPlugin.cancelAll().catch(() => {})
+  }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -130,7 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Optimistically drop the session so the UI returns to sign-in immediately,
       // regardless of how the network call goes.
       stopWs()
-      await clearDeviceAlarms()
+      await clearNativeAlerts()
       queryClient.setQueryData<AuthState>(queryKeys.auth, { user: null })
       try {
         await apiFetch('/api/auth/logout', { method: 'POST' })
@@ -145,7 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // just tear down local state (including the persisted query cache, which
       // would otherwise leave the deleted account's reminders readable offline).
       stopWs()
-      await clearDeviceAlarms()
+      await clearNativeAlerts()
       queryClient.setQueryData<AuthState>(queryKeys.auth, { user: null })
       dropSignedOutData()
     }

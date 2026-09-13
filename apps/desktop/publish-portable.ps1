@@ -81,9 +81,10 @@ A bell icon appears in the notification area (you may need to drag it out of the
 hidden-icons overflow). Left-click it for the reminders flyout, right-click for
 the menu.
 
-What this app does NOT do: it never rings, and it cannot reach you while it is
-closed. It shows what is due and lets you confirm it. The Android app is what
-guarantees a reminder actually reaches you.
+When Windows notifications are enabled, reminders stay present, configured nags
+repeat, and alarms loop while this PC is awake and Persistent is running. It
+catches up after reconnecting, but cannot wake a sleeping or shut-down PC. Use
+Android when delivery must be guaranteed.
 
 Settings and logs: %AppData%\Persistent
 To remove it: exit from the tray menu, then delete this folder (and
