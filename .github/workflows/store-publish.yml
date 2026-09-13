@@ -153,5 +153,9 @@ jobs:
         run: |
           $pkg = ".\Persistent.DesktopMSIX\Persistent.Desktop_${{ steps.version.outputs.VERSION }}.msixupload"
           if (-not (Test-Path $pkg)) { throw "Package not found: $pkg" }
-          msstore publish $pkg -id 9PCX2XGQ7CJS ${{ inputs.mode == 'publish' && '' || '-nc' }}
+          if ("${{ inputs.mode }}" -eq 'publish') {
+            msstore publish $pkg -id 9PCX2XGQ7CJS
+          } else {
+            msstore publish $pkg -id 9PCX2XGQ7CJS -nc
+          }
           if ($LASTEXITCODE -ne 0) { throw 'msstore publish failed' }
