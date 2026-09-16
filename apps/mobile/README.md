@@ -86,6 +86,10 @@ the core firing), provision Firebase — it stays inert until you do:
 > npm run verify:android     # re-sync android-plugin/ + compile Kotlin *and* Java
 > ```
 >
+> Both commands stop Gradle after the build and cap it at two workers by default,
+> which prevents an Android compile from starving WSL. Set
+> `ANDROID_GRADLE_WORKERS` for a deliberate local override.
+>
 > Use `verify:android` as the quick check after editing `android-plugin/` — it
 > re-copies the sources and compiles them (no full APK). It runs both
 > `:app:compileDebugKotlin` and `:app:compileDebugJavaWithJavac`: the plugin is
@@ -100,11 +104,12 @@ USB passthrough into the development container is unreliable, so connect to a ph
 device over the network (Android **Wireless debugging**):
 
 ```bash
-adb pair    <phone-ip>:<pair-port>   # one time, enter the 6-digit code
-adb connect <phone-ip>:<debug-port>  # NOT 5555 — see below
-adb devices                          # confirm it shows up
-npm run assemble:android             # build the direct-flavor debug APK
-adb install -r android/app/build/outputs/apk/direct/debug/app-direct-debug.apk
+npm run android:pair -- <phone-ip>:<pair-port>
+npm run android:discover -- <phone-ip>
+adb devices
+npm run android:build
+npm run android:install
+npm run android:launch
 ```
 
 The adb auth key lives in `~/.android`, which the development stack persists in a
@@ -137,6 +142,14 @@ see the header of `adb-discover.py`. To re-find the phone by hand:
 python3 scripts/dev/adb-discover.py            # scan using remembered/.env hints
 python3 scripts/dev/adb-discover.py 192.168.2.98:40001   # try a known endpoint first
 ```
+
+From the repository root, `npm run android:test-device -- <phone-ip>` performs
+native overlay setup, direct-debug assembly, rotating-port discovery, install,
+and launch in one command. Use `npm run android:logs` to stream logcat for only
+the running direct-debug process. Pairing ports and six-digit codes are
+temporary; never store them in `.env` or shell scripts.
+Both commands temporarily maximize the phone's display timeout while active and
+restore the exact prior value when they finish or fail.
 
 ## Rebuild + run after web changes
 

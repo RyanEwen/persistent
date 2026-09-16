@@ -22,7 +22,9 @@ verify them by compiling: from here, `npm run verify:android` (re-syncs
 Java tasks for **both product flavors**). All four tasks matter: the plugin is
 Kotlin but `MainActivity.java` is Java, and the Kotlin task alone compiles right
 past a broken `MainActivity`. Run `npm run prepare:android` once first if the
-generated `android/` project doesn't exist yet.
+generated `android/` project doesn't exist yet. The scripted Gradle commands
+disable the persistent daemon and default to two workers so a compile cannot
+starve WSL; only raise `ANDROID_GRADLE_WORKERS` deliberately.
 
 ## Two Android flavors
 

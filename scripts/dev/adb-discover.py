@@ -12,8 +12,8 @@ and a plain port scan both work. So we emulate discovery by scanning.
 Strategy (fast path first, each tier only runs if the prior found nothing):
   0. Try `adb mdns services` anyway -- costs nothing and future-proofs the day
      multicast forwarding exists (mirrored WSL networking, host avahi, etc.).
-  1. Try known endpoints directly (CLI arg, then the saved last-good endpoint,
-     then ADB_CONNECT from .env) via `adb connect host:port`.
+  1. Try known endpoints directly (an authoritative CLI arg, otherwise the
+     saved last-good endpoint and ADB_CONNECT from .env) via `adb connect`.
   2. For each known host whose saved port is stale, tiered port scan:
        last-good port window -> common band -> full ephemeral range.
   3. If no known host answers at all, sweep the last-good /24 for the last-good
@@ -110,11 +110,15 @@ def load_candidates(cli_host):
 
     if cli_host:
         add(cli_host)
+        # A supplied address identifies the phone being tested. Do not spend a
+        # full port-range scan on remembered devices from unrelated sessions.
+        return cands
     if STATE.exists():
         for line in STATE.read_text().splitlines():
             add(line)
-    add(os.environ.get("ADB_CONNECT", ""))
-    env_path = Path(__file__).resolve().parent.parent / ".env"
+    for token in re.split(r"[,\s]+", os.environ.get("ADB_CONNECT", "")):
+        add(token)
+    env_path = Path(__file__).resolve().parents[2] / ".env"
     if env_path.exists():
         for line in env_path.read_text().splitlines():
             m = re.match(r"^\s*ADB_CONNECT\s*=\s*(.+?)\s*(#.*)?$", line)

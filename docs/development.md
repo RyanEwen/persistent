@@ -71,6 +71,19 @@ history.
 compile-check it with `npm run verify:android` (from `apps/mobile`) — see
 `apps/mobile/README.md`.
 
+For a paired physical phone, the root `android:*` npm commands cover wireless
+pairing, rotating-port discovery, direct-debug assembly, installation, launch,
+and focused logcat output. `npm run android:test-device -- <phone-ip>` runs the
+normal device smoke-test sequence. Pairing codes are transient and must not be
+stored in repository configuration. Android builds use no persistent Gradle
+daemon and at most two workers by default to keep WSL responsive; set
+`ANDROID_GRADLE_WORKERS` only when the host has known spare capacity.
+
+The `$test-android-device` Codex skill follows that same physical-device
+workflow. The repository-local Codex hook rejects patches to generated files
+and to `apps/mobile/android/`; change the tracked native overlay or setup script
+and regenerate instead.
+
 It doesn't cover `apps/desktop` (C#) either, and the app can't be *built* here:
 the Windows App SDK's XAML compiler and `MakePri.exe` are Windows-only binaries,
 so the build dies before it reaches any C#. `.github/workflows/build-desktop-msix.yml`

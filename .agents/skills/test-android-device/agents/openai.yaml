@@ -1,0 +1,4 @@
+interface:
+  display_name: "Test Android device"
+  short_description: "Build and smoke-test on a wireless ADB device"
+  default_prompt: "Use $test-android-device to build and launch this checkout on my paired Android phone."

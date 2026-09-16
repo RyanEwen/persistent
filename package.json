@@ -35,7 +35,17 @@
     "validate": "npm run lint && npm run test && npm run typecheck && npm run prisma:validate --workspace @persistent/api",
     "verify:desktop": "apps/desktop/verify-csharp.sh",
     "install:desktop": "apps/desktop/install-dev-msix.sh",
-    "android:origin": "node scripts/dev/android-origin.mjs"
+    "android:build": "scripts/dev/android-debug-build.sh",
+    "android:connect": "scripts/dev/adb-connect.sh",
+    "android:discover": "python3 scripts/dev/adb-discover.py",
+    "android:install": "adb install -r apps/mobile/android/app/build/outputs/apk/direct/debug/app-direct-debug.apk",
+    "android:launch": "adb shell am start -W -n ca.persistent.app/.MainActivity",
+    "android:logs": "scripts/dev/android-logcat.sh",
+    "android:origin": "node scripts/dev/android-origin.mjs",
+    "android:pair": "adb pair",
+    "android:prepare": "npm --prefix apps/mobile run prepare:android",
+    "android:test-device": "scripts/dev/android-device-test.sh",
+    "android:verify": "npm --prefix apps/mobile run verify:android"
   },
   "devDependencies": {
     "@eslint/js": "^9.24.0",
