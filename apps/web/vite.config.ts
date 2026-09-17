@@ -3,6 +3,8 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import { webBuildIdPlugin } from './webBuildIdPlugin'
+import { navigationCaching } from './serviceWorkerConfig'
 
 // App version, surfaced to the client (the native update check compares it to the
 // latest GitHub release).
@@ -26,11 +28,15 @@ export default defineConfig(({ mode }) => {
     define: { __APP_VERSION__: JSON.stringify(appVersion) },
     plugins: [
       react(),
+      webBuildIdPlugin(),
       VitePWA({
         registerType: 'autoUpdate',
         injectRegister: null,
         workbox: {
-          navigateFallbackDenylist: [/^\/api/, /^\/ws/]
+          navigateFallback: undefined,
+          directoryIndex: null,
+          globIgnores: ['**/build-id.json'],
+          runtimeCaching: [navigationCaching]
         },
         includeAssets: ['favicon.svg'],
         manifest: {

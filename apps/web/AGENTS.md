@@ -77,13 +77,14 @@
   anyway: look enum-ish values up defensively (`components/ReminderIcons.tsx`),
   because a React element type that resolves to `undefined` takes down the whole
   view rather than one row.
-- **Staying current:** the service worker is `registerType: 'autoUpdate'`, so a new
-  build takes over and reloads on its own. However, the browser only *looks* for one on
-  a navigation and on its own ~24h timer. A page opened once and left running for
-  days never navigates, so `lib/swUpdate.ts` asks explicitly when the page becomes
-  visible and hourly while it stays visible. Don't move this back to a bare
-  `registerSW()`: the Windows tray app navigates exactly once per process and
-  suspends the page in between, so without it that host never updates at all.
+- **Staying current:** `lib/swUpdate.ts` registers the auto-activating worker with
+  `registerSW` and an `onNeedReload` override. Checks run on visibility, hourly while
+  visible, and desktop host resume. Worker activation triggers the same build comparison as polling: only a
+  confirmed mismatch between the loaded HTML stamp and uncached `build-id.json`
+  reloads the page. `webBuildIdPlugin.ts` covers HTML, bundled and public assets.
+  Never restore unconditional worker reloads: a fresh launch may already run the
+  new UI while the offline cache is catching up. Navigation uses current network
+  HTML with a precached offline fallback, and reload attempts are guarded per target.
 - **Notifications are native-only.** The browser/PWA manages reminders and stays
   current over WebSocket, but it does not request notification permission,
   subscribe to Web Push, or show notifications. The **native FCM** registration

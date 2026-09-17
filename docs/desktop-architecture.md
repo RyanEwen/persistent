@@ -90,6 +90,12 @@ still serve the bundle it started with. So `SetWebViewIdle(false)` posts
 `checkForUpdate` to the page on every resume (`lib/swUpdate.ts` acts on it, and
 also listens for `visibilitychange`, which collapsing the controller is supposed to
 drive — the message exists because that link cannot be verified outside Windows).
+Worker activation and these checks compare the loaded page's build identity with
+an uncached `build-id.json` probe. They refresh only for a confirmed mismatch, so a
+fresh page is not reloaded again when its worker catches up. The identity includes
+HTML and public assets as well as bundled code. Online navigations use network HTML;
+offline navigations fall back to the worker's precached shell.
+
 Tray -> **Reload** remains the manual lever, since it is a real navigation.
 
 The Windows widget is the one bounded exception. When its card becomes visible,
