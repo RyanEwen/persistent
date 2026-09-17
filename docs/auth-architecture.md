@@ -66,6 +66,13 @@ build's certificate is Google's, not the upload key's. Both entries must be pres
 here and both origins in `ANDROID_APP_ORIGIN`; `npm run android:origin -- <SHA-256>`
 converts a fingerprint to the origin form.
 
+When auditing a Play install, verify the certificate actually used by the device,
+not just the upload certificate or the oldest certificate in an APK's signing
+history. Play key rotation can make newer Android versions use a different signer.
+If that happens, authorize every supported app-signing certificate in this file
+and its matching server origin. Never authorize an APK source-stamp certificate;
+it identifies distribution, not the app's signing identity.
+
 This was wrong from the moment the Play flavor got its own `applicationId` until
 production opened on 2026-09-05: only `ca.persistent.app` was listed, so passkeys
 were dead on every Play build while working perfectly on the sideloaded one a
@@ -73,12 +80,25 @@ developer tests with. If a flavor, package name or signing key ever changes agai
 this file is the thing to change with it.
 
 ⚠️ **Do not paste Play Console's Digital Asset Links snippet over this file.** The
-App signing page offers one and invites you to merge it, but it declares
-`delegate_permission/common.handle_all_urls`, which is Android App Links. Passkeys
-need `delegate_permission/common.get_login_creds`. Merging the two relations is
-harmless; replacing the file with the Console's version silently kills passkeys on
-both builds. The app declares no `autoVerify` intent filter and claims no web URLs,
-so the App Links statement is not wanted at all.
+App signing page offers one and invites you to merge it, but each package entry
+must retain **both** `delegate_permission/common.get_login_creds` and
+`delegate_permission/common.handle_all_urls`. Bitwarden's native passkey origin
+validator checks `handle_all_urls`, even for credentials: publishing only
+`get_login_creds` produces "Passkeys not supported for this app". Keep the
+credential relation for other providers too. The app declares no `autoVerify`
+intent filter; publishing the additional relation does not itself make it
+intercept web URLs.
+
+Verify both relations through Google's Digital Asset Links API using the exact
+installed package and app-signing certificate. A successful HTTP response from
+our `assetlinks.json` is not enough: Google may still serve an older cached
+document. `statements:list` shows which relations its service currently sees,
+and `assetlinks:check` tests an individual relation. After deployment, distinguish
+a cached negative result from a new credential failure; do not reinstall the app
+or change its signing identity to work around that cache. The regression test in
+`scripts/dev/android-asset-links.test.ts` protects both distribution entries.
+
+Provider reference: [Bitwarden's origin validator](https://github.com/bitwarden/android/blob/main/app/src/main/kotlin/com/x8bit/bitwarden/data/credentials/manager/OriginManagerImpl.kt).
 
 ## Sign in with Google
 
