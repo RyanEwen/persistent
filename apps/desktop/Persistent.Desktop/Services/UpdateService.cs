@@ -32,9 +32,9 @@ namespace Persistent.Desktop.Services;
 /// reads the release list rather than `releases/latest` (that endpoint returns the
 /// newest release of *any* kind, which for this repo is usually an Android build).
 ///
-/// The Store half is ported from the sibling TechnicallyReal apps rather than
-/// written fresh; the comments below carry the traps they hit in production, and
-/// each one is load-bearing.
+/// The Store half is ported from the sibling Dynamic Solutions Canada apps
+/// rather than written fresh; the comments below carry the traps they hit in
+/// production, and each one is load-bearing.
 /// </summary>
 public static class UpdateService
 {

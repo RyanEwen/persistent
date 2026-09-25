@@ -23,7 +23,7 @@
   <Properties>
     <DisplayName>Persistent</DisplayName>
     <!-- Must match the Partner Center publisher display name exactly. -->
-    <PublisherDisplayName>TechnicallyReal</PublisherDisplayName>
+    <PublisherDisplayName>Dynamic Solutions Canada</PublisherDisplayName>
     <Logo>Images\StoreLogo.png</Logo>
   </Properties>
 

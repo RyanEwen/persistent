@@ -51,8 +51,8 @@
 
   <!-- Shared "Our other apps" cross-promo page.
        A git submodule (apps/desktop/external/promo) shared with the sibling
-       TechnicallyReal Store apps. It is the one place a reminder-shaped rule does
-       not apply, because it says nothing about reminders: it lists the
+       Dynamic Solutions Canada Store apps. It is the one place a reminder-shaped
+       rule does not apply, because it says nothing about reminders: it lists the
        publisher's other apps from a public runtime manifest, persists the last
        successful refresh, and hides whichever app it is running inside by package
        family name. Bundled data remains the offline first-run fallback.

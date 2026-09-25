@@ -11,8 +11,8 @@
 #
 # The last four are what the Microsoft Store Developer CLI authenticates with in
 # store-publish.yml. The names match the sibling Little Launcher repo on purpose:
-# the same Entra app registration and seller account back every TechnicallyReal
-# app, so rotating the client secret is the same value in every repo rather than
+# the same Entra app registration and seller account back every Dynamic Solutions
+# Canada app, so rotating the client secret is the same value in every repo rather
 # four different names for one credential.
 #
 # Values are read with the terminal echo off, piped to `gh secret set` over stdin,

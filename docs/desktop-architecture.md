@@ -655,8 +655,8 @@ MSIX refuses to reinstall the same version with different content, so bump
 
 ## The Microsoft Store
 
-The app ships on the Store as product **9PCX2XGQ7CJS**, published by
-TechnicallyReal alongside the sibling WinUI apps (Repilot, Little Launcher,
+The app ships on the Store as product **9PCX2XGQ7CJS**, published by Dynamic
+Solutions Canada alongside the sibling WinUI apps (Repilot, Little Launcher,
 ImmichDrive). Everything here follows what those three already do; where this one
 differs, it says why.
 
@@ -676,8 +676,12 @@ character:
 |---|---|
 | `Identity/Name` | `27766TechnicallyReal.Persistent` |
 | `Identity/Publisher` | `CN=C21E6CEF-D0D1-4497-93F9-3718D054DA0E` |
-| `Properties/PublisherDisplayName` | `TechnicallyReal` |
+| `Properties/PublisherDisplayName` | `Dynamic Solutions Canada` |
 | Package family name | `27766TechnicallyReal.Persistent_gfb69tsnc4jnp` |
+
+The legacy `TechnicallyReal` text in the package name and package family is part
+of the app's immutable Store identity. It must not be renamed when the publisher
+display name changes.
 
 **`build-msix.ps1` has two modes, and they differ in identity, not just signing.**
 
@@ -742,8 +746,8 @@ certification will accept it. So version one goes up by hand:
    it to go live.
 
 **Updates after that are automated** by `.github/workflows/store-publish.yml`
-(manual dispatch, `draft` by default). This is the one TechnicallyReal app where
-that works: the `msstore` CLI supports **free** products only, and the paid
+(manual dispatch, `draft` by default). This is the one Dynamic Solutions Canada
+app where that works: the `msstore` CLI supports **free** products only, and the paid
 siblings fall back to a manual upload every time. If Persistent ever gains a
 price, the workflow stops working and the fallback is dragging the two `.msix`
 files into Partner Center.
@@ -772,8 +776,8 @@ stdin only when `--body` is **absent**. `--body -` does not mean "read stdin" â€
 stores a literal hyphen and silently discards the pipe.
 
 The names match Little Launcher's rather than describing this workflow, because
-the same Entra app registration and seller account back every TechnicallyReal app
-â€” a rotation is then the same four values in every repo. They cannot be copied
+the same Entra app registration and seller account back every Dynamic Solutions
+Canada app. A rotation is then the same four values in every repo. They cannot be copied
 between repos programmatically: GitHub returns secret *names* only, never values,
 and the script deliberately never writes them to disk.
 

@@ -20,7 +20,7 @@
   </a>
 </p>
 
-<!-- The official Store badge, matching the sibling TechnicallyReal apps. It sits on
+<!-- The official Store badge, matching the sibling Dynamic Solutions Canada apps. It sits on
      its own row rather than beside the shields badges above because it is 56px tall
      and they are not. Windows has no shields badge any more: the Store is the
      install route, and the portable zip on a release is covered under "Get it". -->
