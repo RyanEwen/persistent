@@ -7,6 +7,7 @@ import {
   reminderInputSchema,
   reminderSchema,
   selectableReminderTypes,
+  initialSharesSchema,
   toReminderSounds,
   todoItems,
   todoProgress,
@@ -285,11 +286,18 @@ test('saving the editor form cannot change whether checked items are hidden', ()
   assert.equal('hideCheckedItems' in parsed, false)
 })
 
-// --- Withheld types ----------------------------------------------------------
+// --- Type availability -------------------------------------------------------
 
-test('medication is not offered for a new reminder while it is withheld', () => {
-  assert.equal(selectableReminderTypes.includes('MEDICATION'), false)
-  assert.deepEqual([...selectableReminderTypes], ['NONE', 'TODO'])
+test('medication is offered for a new reminder', () => {
+  assert.deepEqual([...selectableReminderTypes], ['NONE', 'TODO', 'MEDICATION'])
+})
+
+test('initial sharing grants normalize email and reject unsupported access', () => {
+  assert.deepEqual(initialSharesSchema.parse([{ email: '  RYAN@Example.com ', permission: 'ACT' }]), [
+    { email: 'ryan@example.com', permission: 'ACT' }
+  ])
+  assert.equal(initialSharesSchema.safeParse([{ email: 'ryan@example.com', permission: 'OWNER' }]).success, false)
+  assert.equal(initialSharesSchema.safeParse(Array(21).fill({ email: 'a@example.com', permission: 'VIEW' })).success, false)
 })
 
 test('medication is still a valid stored type — existing reminders keep their doses', () => {

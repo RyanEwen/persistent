@@ -13,6 +13,8 @@ import { RemindersPage } from './pages/RemindersPage.js'
 import { UpcomingPage } from './pages/UpcomingPage.js'
 import { NotesPage } from './pages/NotesPage.js'
 import { ReminderDetailPage } from './pages/ReminderDetailPage.js'
+import { SharedReminderPage } from './pages/SharedReminderPage.js'
+import { AssignmentsPage } from './pages/AssignmentsPage.js'
 import { ReminderEditorPage } from './pages/reminder-editor/ReminderEditorPage.js'
 import { HistoryPage } from './pages/HistoryPage.js'
 import { SettingsPage } from './pages/SettingsPage.js'
@@ -74,6 +76,8 @@ export function App() {
         <Route path="/notes" element={<NotesPage />} />
         <Route path="/reminders/new" element={<ReminderEditorPage />} />
         <Route path="/reminders/:id" element={<ReminderDetailPage />} />
+        <Route path="/shared/:id" element={<SharedReminderPage />} />
+        <Route path="/assigned" element={<AssignmentsPage />} />
         <Route path="/reminders/:id/edit" element={<ReminderEditorPage />} />
         <Route path="/history" element={<HistoryPage />} />
         <Route path="/settings" element={<SettingsPage />} />

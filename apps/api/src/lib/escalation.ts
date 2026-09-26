@@ -46,6 +46,23 @@ export function shouldEscalateNow(escalateAt: Date | null, snoozedUntil: Date | 
 }
 
 /**
+ * The covering email waits for its configured delay and for every current
+ * participant's snooze to end. Callers supply only recipients who still have a
+ * share grant; a former participant must not postpone the group's email.
+ */
+export function groupEmailEscalationAt(
+  firedAt: Date,
+  afterMinutes: number,
+  snoozedUntil: ReadonlyArray<Date | null>
+): Date {
+  let latest = firedAt.getTime() + afterMinutes * 60_000
+  for (const until of snoozedUntil) {
+    if (until && until.getTime() > latest) latest = until.getTime()
+  }
+  return new Date(latest)
+}
+
+/**
  * Absolute escalation instant: the first "HH:mm" in the user's zone at or after
  * the firing. We anchor on the occurrence's local day, then roll to the next day
  * when that wall-clock time is not strictly after the firing — otherwise a

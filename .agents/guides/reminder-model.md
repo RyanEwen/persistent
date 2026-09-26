@@ -9,10 +9,7 @@ shared package. The detailed user-facing guarantee lives in
 ## Types and checklist ownership
 
 A reminder's `type` (`NONE`, `TODO`, or `MEDICATION`) selects the extra fields in
-`typeData`. `MEDICATION` remains valid for stored reminders but is temporarily
-withheld from the picker through `selectableReminderTypes`. Do not point the
-picker back at `reminderTypes` or add health framing to the Play listing while
-that restriction stands.
+`typeData`. All three types are available in the editor.
 
 A `TODO` owns its checklist item definitions, while an occurrence owns which
 items are checked. Each repeating firing therefore starts blank. Notification
@@ -35,6 +32,12 @@ persistence guarantee.
 Each `ReminderOccurrence` is independent. A later firing never suppresses an
 older unacknowledged one, and acknowledging one occurrence never clears another.
 `SUPERSEDED` is legacy-only and must not be produced.
+
+Shared reminders keep creator-owned firings and give every participant edit and
+completion access. Assigned reminders instead belong to one assignee. Their
+creator has a separate read-only progress record and receives no firing alerts.
+For a pending email invitation, create and schedule the reminder only after
+verified sign-in establishes the assignee and their time zone.
 
 The editor's When choice maps to three real schedule states:
 

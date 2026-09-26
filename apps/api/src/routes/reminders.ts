@@ -10,6 +10,7 @@ import {
   addTodoItemInputSchema,
   checkItemInputSchema,
   hideCheckedInputSchema,
+  initialSharesSchema,
   MAX_TODO_ITEMS,
   reminderInputSchema,
   renameTodoItemInputSchema,
@@ -17,8 +18,8 @@ import {
   todoItems,
   type TypeData
 } from '@persistent/shared'
-import type { Prisma } from '@prisma/client'
 import { prisma } from '../lib/prisma.js'
+import { toReminderData } from '../lib/reminder-data.js'
 import { requireUser, requireUserId } from '../lib/auth-middleware.js'
 import { badRequest, notFound } from '../lib/http-error.js'
 import { toReminder } from '../lib/serializers.js'
@@ -28,6 +29,8 @@ import { materializeReminder, fireDueForReminder, ensureUnscheduledFiring } from
 import { broadcast } from '../lib/realtime.js'
 import { dispatchToUser, nudgeNativeSync } from '../lib/delivery/index.js'
 import { logger } from '../lib/logger.js'
+import { actionableReminder, editableReminder, broadcastSharedChange, participantIds } from '../lib/share-access.js'
+import { sendShareInvitation } from '../lib/share-invitations.js'
 
 export const remindersRouter = Router()
 remindersRouter.use(requireUser)
@@ -54,10 +57,57 @@ remindersRouter.post('/', async (request, response) => {
   const userId = requireUserId(request)
   const parsed = reminderInputSchema.safeParse(request.body)
   if (!parsed.success) throw badRequest(parsed.error.issues[0]?.message ?? 'Invalid reminder.')
+  const parsedShares = initialSharesSchema.safeParse(request.body?.shares ?? [])
+  if (!parsedShares.success) throw badRequest('Invalid sharing list.')
+
+  // Resolve grants before writing. Unknown addresses become pending invitations,
+  // which only grant access after that address is verified at sign-in.
+  const owner = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { email: true, displayName: true } })
+  const recipients = new Map<string, { recipientId: string; permission: 'EDIT' }>()
+  const invitations = new Map<string, { email: string; permission: 'EDIT' }>()
+  for (const share of parsedShares.data) {
+    const recipient = await prisma.user.findFirst({
+      where: { email: { equals: share.email, mode: 'insensitive' } },
+      select: { id: true }
+    })
+    if (share.email === owner.email.toLowerCase()) throw badRequest('You already own this reminder.')
+    if (!recipient) {
+      invitations.set(share.email, { email: share.email, permission: 'EDIT' })
+      continue
+    }
+    if (recipient.id === userId) throw badRequest('You already own this reminder.')
+    recipients.set(recipient.id, { recipientId: recipient.id, permission: 'EDIT' })
+  }
 
   const reminder = await prisma.reminder.create({
-    data: { ...toReminderData(parsed.data), userId }
+    data: {
+      ...toReminderData(parsed.data),
+      userId,
+      shares: { create: [...recipients.values()] },
+      invitations: { create: [...invitations.values()] }
+    }
   })
+
+  for (const share of parsedShares.data) {
+    await prisma.shareRecipient.upsert({
+      where: { ownerId_email: { ownerId: userId, email: share.email } },
+      create: { ownerId: userId, email: share.email },
+      update: { lastSharedAt: new Date() }
+    })
+  }
+  const failedInvitations: string[] = []
+  for (const invitation of invitations.values()) {
+    try {
+      await sendShareInvitation({
+        ownerId: userId,
+        email: invitation.email,
+        ownerName: owner.displayName || owner.email
+      })
+    } catch (error) {
+      failedInvitations.push(invitation.email)
+      logger.warn('share invitation email failed', { error: String(error), reminderId: reminder.id })
+    }
+  }
 
   // An unscheduled reminder's one firing is minted here rather than by
   // materialization (see `ensureUnscheduledFiring`), anchored to the instant the
@@ -68,8 +118,9 @@ remindersRouter.post('/', async (request, response) => {
   // its "now" default), so the reminder nags immediately instead of after a tick.
   await fireDueForReminder(reminder.id)
   broadcast(userId, { type: 'reminder.changed', reminderId: reminder.id })
+  await broadcastSharedChange(reminder.id, userId)
   void nudgeNativeSync(userId).catch((error) => logger.warn('sync nudge failed', { error: String(error) }))
-  response.status(201).json({ reminder: toReminder(reminder) })
+  response.status(201).json({ reminder: toReminder(reminder), failedInvitations })
 })
 
 remindersRouter.put('/:id', async (request, response) => {
@@ -77,8 +128,9 @@ remindersRouter.put('/:id', async (request, response) => {
   const parsed = reminderInputSchema.safeParse(request.body)
   if (!parsed.success) throw badRequest(parsed.error.issues[0]?.message ?? 'Invalid reminder.')
 
-  const existing = await prisma.reminder.findFirst({ where: { id: request.params.id, userId } })
+  const existing = await editableReminder(request.params.id, userId)
   if (!existing) throw notFound('Reminder not found.')
+  const ownerId = existing.userId
 
   // Last-edit-wins: ignore an offline edit that predates the stored version (a
   // newer edit already landed). The stale client reconciles on its next refetch.
@@ -94,7 +146,7 @@ remindersRouter.put('/:id', async (request, response) => {
   })
 
   // Drop not-yet-fired occurrences so the new schedule re-materializes cleanly.
-  await prisma.reminderOccurrence.deleteMany({ where: { reminderId: reminder.id, status: 'PENDING' } })
+  await prisma.reminderOccurrence.deleteMany({ where: { reminderId: reminder.id, userId: ownerId, status: 'PENDING' } })
   // Only moving between a real schedule, no schedule and a note touches an
   // existing firing; see `scheduleTransition` for why each direction does what
   // it does.
@@ -102,11 +154,11 @@ remindersRouter.put('/:id', async (request, response) => {
   const transition = scheduleTransition(beforeKind, parsed.data.schedule.kind)
   if (transition === 'retire') {
     const retired = await prisma.reminderOccurrence.findMany({
-      where: { reminderId: reminder.id, userId, status: { in: ['FIRED', 'ESCALATED', 'SNOOZED'] } },
+      where: { reminderId: reminder.id, userId: ownerId, status: { in: ['FIRED', 'ESCALATED', 'SNOOZED'] } },
       select: { id: true }
     })
     if (retired.length > 0) {
-      await prisma.reminderOccurrence.deleteMany({ where: { userId, id: { in: retired.map((o) => o.id) } } })
+      await prisma.reminderOccurrence.deleteMany({ where: { userId: ownerId, id: { in: retired.map((o) => o.id) } } })
       logger.info('retired live firings on schedule change', {
         reminderId: reminder.id,
         count: retired.length,
@@ -116,11 +168,14 @@ remindersRouter.put('/:id', async (request, response) => {
         to: parsed.data.schedule.kind
       })
       // Clear the live notification/alarm on every device, same as a delete does.
+      const participants = await participantIds(reminder.id, ownerId)
       for (const occurrence of retired) {
-        broadcast(userId, { type: 'dismiss', occurrenceId: occurrence.id })
-        await dispatchToUser(userId, { type: 'dismiss', occurrenceId: occurrence.id }).catch((error) =>
-          logger.warn('retire dismiss dispatch failed', { error: String(error), occurrenceId: occurrence.id })
-        )
+        for (const participantId of participants) {
+          broadcast(participantId, { type: 'dismiss', occurrenceId: occurrence.id })
+          await dispatchToUser(participantId, { type: 'dismiss', occurrenceId: occurrence.id }).catch((error) =>
+            logger.warn('retire dismiss dispatch failed', { error: String(error), occurrenceId: occurrence.id })
+          )
+        }
       }
     }
   }
@@ -128,10 +183,11 @@ remindersRouter.put('/:id', async (request, response) => {
   // just took the schedule off, so dating it back to when the reminder was made
   // would put it before the reminder's own start date.
   if (transition === 'mint') await ensureUnscheduledFiring(reminder, reminder.updatedAt)
-  await materializeForUser(reminder.id, userId)
+  await materializeForUser(reminder.id, ownerId)
   await fireDueForReminder(reminder.id)
-  broadcast(userId, { type: 'reminder.changed', reminderId: reminder.id })
-  void nudgeNativeSync(userId).catch((error) => logger.warn('sync nudge failed', { error: String(error) }))
+  broadcast(ownerId, { type: 'reminder.changed', reminderId: reminder.id })
+  await broadcastSharedChange(reminder.id, ownerId)
+  void nudgeNativeSync(ownerId).catch((error) => logger.warn('sync nudge failed', { error: String(error) }))
   response.json({ reminder: toReminder(reminder) })
 })
 
@@ -158,8 +214,9 @@ remindersRouter.post('/:id/items', async (request, response) => {
   // here is a client bug rather than something to explain in Zod's words.
   if (!parsed.success) throw badRequest('Invalid checklist item.')
 
-  const existing = await prisma.reminder.findFirst({ where: { id: request.params.id, userId } })
+  const existing = await editableReminder(request.params.id, userId)
   if (!existing) throw notFound('Reminder not found.')
+  const ownerId = existing.userId
   if (existing.type !== 'TODO') throw badRequest('This reminder has no checklist.')
   // Read first for two reasons: a full list is refused with a sentence the user can
   // act on, and the statement below manipulates `typeData.items` as jsonb, which
@@ -198,11 +255,11 @@ remindersRouter.post('/:id/items', async (request, response) => {
         -- older edit replayed from another device must lose to it (isStaleWrite).
         "updatedAt" = NOW()
     WHERE "id" = ${existing.id}
-      AND "userId" = ${userId}
+      AND "userId" = ${ownerId}
       AND NOT COALESCE("typeData" -> 'items', '[]'::jsonb) @> jsonb_build_array(jsonb_build_object('id', ${itemId}::text))
       AND jsonb_array_length(COALESCE("typeData" -> 'items', '[]'::jsonb)) < ${MAX_TODO_ITEMS}
   `
-  const updated = await prisma.reminder.findFirstOrThrow({ where: { id: existing.id, userId } })
+  const updated = await prisma.reminder.findFirstOrThrow({ where: { id: existing.id, userId: ownerId } })
   // Nothing updated and the item isn't there: a racing add took the last slot
   // between the check above and the statement. An id that IS there is the idempotent
   // case — the stored list is already what the client asked for, so it goes back
@@ -216,9 +273,10 @@ remindersRouter.post('/:id/items', async (request, response) => {
   // converge on the WS event, native devices re-pull /api/sync/occurrences and
   // re-post the nag silently (`alertOnce`). A note is the exception, as it is for
   // a tick: it notifies nobody, so no device has anything to re-render.
-  broadcast(userId, { type: 'reminder.changed', reminderId: updated.id })
+  broadcast(ownerId, { type: 'reminder.changed', reminderId: updated.id })
+  await broadcastSharedChange(updated.id, ownerId)
   if ((updated.schedule as unknown as { kind?: string }).kind !== 'never') {
-    void nudgeNativeSync(userId).catch((error) =>
+    void nudgeNativeSync(ownerId).catch((error) =>
       logger.warn('checklist add sync nudge failed', { error: String(error), reminderId: updated.id })
     )
   }
@@ -244,8 +302,9 @@ remindersRouter.post('/:id/items/order', async (request, response) => {
   const parsed = reorderTodoItemsInputSchema.safeParse(request.body)
   if (!parsed.success) throw badRequest('Invalid checklist order.')
 
-  const existing = await prisma.reminder.findFirst({ where: { id: request.params.id, userId } })
+  const existing = await editableReminder(request.params.id, userId)
   if (!existing) throw notFound('Reminder not found.')
+  const ownerId = existing.userId
   if (existing.type !== 'TODO') throw badRequest('This reminder has no checklist.')
   // Same shape guard as the add route, and for the same reason: the statement treats
   // `items` as a jsonb array, and Postgres does not promise to evaluate a WHERE-clause
@@ -278,16 +337,17 @@ remindersRouter.post('/:id/items/order', async (request, response) => {
           true
         ),
         "updatedAt" = NOW()
-    WHERE "id" = ${existing.id} AND "userId" = ${userId}
+    WHERE "id" = ${existing.id} AND "userId" = ${ownerId}
   `
-  const updated = await prisma.reminder.findFirstOrThrow({ where: { id: existing.id, userId } })
+  const updated = await prisma.reminder.findFirstOrThrow({ where: { id: existing.id, userId: ownerId } })
 
   // The notification body lists the unticked items *in order*, so a reorder changes the
   // text of an already-armed alarm exactly as adding one does — hence the same nudge,
   // and the same exception for a note, which notifies nobody.
-  broadcast(userId, { type: 'reminder.changed', reminderId: updated.id })
+  broadcast(ownerId, { type: 'reminder.changed', reminderId: updated.id })
+  await broadcastSharedChange(updated.id, ownerId)
   if ((updated.schedule as unknown as { kind?: string }).kind !== 'never') {
-    void nudgeNativeSync(userId).catch((error) =>
+    void nudgeNativeSync(ownerId).catch((error) =>
       logger.warn('checklist reorder sync nudge failed', { error: String(error), reminderId: updated.id })
     )
   }
@@ -320,8 +380,9 @@ remindersRouter.post('/:id/items/:itemId', async (request, response, next) => {
   const parsed = renameTodoItemInputSchema.safeParse(request.body)
   if (!parsed.success) throw badRequest('Invalid checklist item.')
 
-  const existing = await prisma.reminder.findFirst({ where: { id: request.params.id, userId } })
+  const existing = await editableReminder(request.params.id, userId)
   if (!existing) throw notFound('Reminder not found.')
+  const ownerId = existing.userId
   if (existing.type !== 'TODO') throw badRequest('This reminder has no checklist.')
   // Same shape guard as the sibling routes: the statement treats `items` as a jsonb
   // array and Postgres does not promise to evaluate a type check before the expression
@@ -358,16 +419,17 @@ remindersRouter.post('/:id/items/:itemId', async (request, response, next) => {
           true
         ),
         "updatedAt" = NOW()
-    WHERE "id" = ${existing.id} AND "userId" = ${userId}
+    WHERE "id" = ${existing.id} AND "userId" = ${ownerId}
   `
-  const updated = await prisma.reminder.findFirstOrThrow({ where: { id: existing.id, userId } })
+  const updated = await prisma.reminder.findFirstOrThrow({ where: { id: existing.id, userId: ownerId } })
 
   // The renamed line is part of the notification body, so an armed alarm's text is now
   // stale — the same nudge adding and reordering send, and the same exception for a
   // note, which notifies nobody.
-  broadcast(userId, { type: 'reminder.changed', reminderId: updated.id })
+  broadcast(ownerId, { type: 'reminder.changed', reminderId: updated.id })
+  await broadcastSharedChange(updated.id, ownerId)
   if ((updated.schedule as unknown as { kind?: string }).kind !== 'never') {
-    void nudgeNativeSync(userId).catch((error) =>
+    void nudgeNativeSync(ownerId).catch((error) =>
       logger.warn('checklist rename sync nudge failed', { error: String(error), reminderId: updated.id })
     )
   }
@@ -391,7 +453,7 @@ remindersRouter.post('/:id/check', async (request, response) => {
   const parsed = checkItemInputSchema.safeParse(request.body)
   if (!parsed.success) throw badRequest('Invalid checklist item.')
 
-  const existing = await prisma.reminder.findFirst({ where: { id: request.params.id, userId } })
+  const existing = await actionableReminder(request.params.id, userId)
   if (!existing) throw notFound('Reminder not found.')
   if (existing.type !== 'TODO') throw badRequest('This reminder has no checklist.')
   const kind = (existing.schedule as unknown as { kind?: string }).kind
@@ -411,14 +473,15 @@ remindersRouter.post('/:id/check', async (request, response) => {
       WHEN ${checked}::boolean THEN ("checkedItems" - ${itemId}::text) || jsonb_build_array(${itemId}::text)
       ELSE "checkedItems" - ${itemId}::text
     END
-    WHERE "id" = ${existing.id} AND "userId" = ${userId}
+    WHERE "id" = ${existing.id} AND "userId" = ${existing.userId}
   `
-  const updated = await prisma.reminder.findFirstOrThrow({ where: { id: existing.id, userId } })
+  const updated = await prisma.reminder.findFirstOrThrow({ where: { id: existing.id, userId: existing.userId } })
 
   // WS only. A note notifies nobody, so there is no notification to re-render and
   // nothing for a device to re-sync — this just lets the user's other open clients
   // converge on the same list.
-  broadcast(userId, { type: 'reminder.changed', reminderId: updated.id })
+  broadcast(existing.userId, { type: 'reminder.changed', reminderId: updated.id })
+  await broadcastSharedChange(updated.id, existing.userId)
   response.json({ reminder: toReminder(updated) })
 })
 
@@ -441,8 +504,9 @@ remindersRouter.post('/:id/hide-checked', async (request, response) => {
   const parsed = hideCheckedInputSchema.safeParse(request.body)
   if (!parsed.success) throw badRequest('Invalid checklist view state.')
 
-  const existing = await prisma.reminder.findFirst({ where: { id: request.params.id, userId } })
+  const existing = await editableReminder(request.params.id, userId)
   if (!existing) throw notFound('Reminder not found.')
+  const ownerId = existing.userId
   if (existing.type !== 'TODO') throw badRequest('This reminder has no checklist.')
 
   const updated = await prisma.reminder.update({
@@ -453,7 +517,8 @@ remindersRouter.post('/:id/hide-checked', async (request, response) => {
   // WS only, for the same reason there is no push: this is what one list looks
   // like, not what the user owes anyone. Other open clients converge; devices
   // have nothing to re-schedule.
-  broadcast(userId, { type: 'reminder.changed', reminderId: updated.id })
+  broadcast(ownerId, { type: 'reminder.changed', reminderId: updated.id })
+  await broadcastSharedChange(updated.id, ownerId)
   response.json({ reminder: toReminder(updated) })
 })
 
@@ -468,57 +533,42 @@ remindersRouter.delete('/:id', async (request, response) => {
     where: { reminderId: existing.id, userId, status: { in: ['FIRED', 'ESCALATED', 'SNOOZED'] } },
     select: { id: true }
   })
+  const recipients = await prisma.reminderShare.findMany({
+    where: { reminderId: existing.id, reminder: { userId } },
+    select: { recipientId: true }
+  })
+  const memberIds = [userId, ...recipients.map((recipient) => recipient.recipientId)]
 
-  await prisma.reminder.delete({ where: { id: existing.id } })
+  const assignment = await prisma.reminderAssignment.findFirst({
+    where: { reminderId: existing.id, recipientId: userId, state: 'ACTIVE' },
+    select: { creatorId: true }
+  })
+  await prisma.$transaction([
+    prisma.reminderAssignment.updateMany({
+      where: { reminderId: existing.id, recipientId: userId, state: 'ACTIVE' },
+      data: { state: 'DECLINED', declinedAt: new Date() }
+    }),
+    prisma.reminder.delete({ where: { id: existing.id } })
+  ])
   broadcast(userId, { type: 'reminder.changed', reminderId: existing.id })
+  if (assignment) broadcast(assignment.creatorId, { type: 'assignment.changed' })
+  for (const recipient of recipients) broadcast(recipient.recipientId, { type: 'share.changed' })
 
   // Dismiss any active notification/alarm for the deleted reminder on every device.
   for (const occurrence of active) {
-    broadcast(userId, { type: 'dismiss', occurrenceId: occurrence.id })
-    await dispatchToUser(userId, { type: 'dismiss', occurrenceId: occurrence.id }).catch((error) =>
-      logger.warn('delete dismiss dispatch failed', { error: String(error), occurrenceId: occurrence.id })
-    )
+    for (const memberId of memberIds) {
+      broadcast(memberId, { type: 'dismiss', occurrenceId: occurrence.id })
+      await dispatchToUser(memberId, { type: 'dismiss', occurrenceId: occurrence.id }).catch((error) =>
+        logger.warn('delete dismiss dispatch failed', { error: String(error), occurrenceId: occurrence.id })
+      )
+    }
   }
   // Nudge native devices to drop the deleted reminder's future on-device alarms.
-  void nudgeNativeSync(userId).catch((error) => logger.warn('sync nudge failed', { error: String(error) }))
+  for (const memberId of memberIds) {
+    void nudgeNativeSync(memberId).catch((error) => logger.warn('sync nudge failed', { error: String(error) }))
+  }
   response.json({ ok: true })
 })
-
-// Shared column mapping for create + update. Excludes userId: create adds it, and
-// update must never reassign ownership.
-function toReminderData(
-  input: ReturnType<typeof reminderInputSchema.parse>
-): Omit<Prisma.ReminderUncheckedCreateInput, 'userId'> {
-  return {
-    title: input.title,
-    details: input.details ?? null,
-    type: input.type,
-    typeData: input.typeData as Prisma.InputJsonValue,
-    schedule: input.schedule as unknown as Prisma.InputJsonValue,
-    persistence: input.persistence,
-    soundIntervalSeconds: input.soundIntervalSeconds,
-    sounds: input.sounds as unknown as Prisma.InputJsonValue,
-    shadeProminence: input.shadeProminence,
-    escalateAfterMinutes: input.escalateAfterMinutes,
-    escalateAtTime: input.escalateAtTime,
-    escalateEmail: input.escalateEmail,
-    escalateEmailMessage: input.escalateEmailMessage,
-    escalateEmailAfterMinutes: input.escalateEmailAfterMinutes,
-    active: input.active,
-    startDate: input.startDate,
-    endDate: input.endDate,
-    // Ticks against the definition only mean something for a note. The moment one
-    // gains a schedule its firings own the checked state again (each starting
-    // blank), so leaving these would strand ticks that nothing reads — and hand
-    // them back, weeks stale, if it ever became a note again.
-    ...(input.schedule.kind === 'never' ? {} : { checkedItems: [] })
-    // `hideCheckedItems` is deliberately absent, so an edit leaves it as it was.
-    // It is not a field of the form — it's set by a button on the card — and
-    // unlike ticks there is nothing stale to strand: it says how to draw a list,
-    // so the worst a leftover can do is collapse a checklist the user themselves
-    // collapsed, and only once something is ticked again.
-  }
-}
 
 async function materializeForUser(reminderId: string, userId: string): Promise<void> {
   const reminder = await prisma.reminder.findUnique({ where: { id: reminderId } })

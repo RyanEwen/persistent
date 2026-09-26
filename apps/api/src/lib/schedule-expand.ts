@@ -17,6 +17,8 @@ export interface ExpandInput {
   timeZone: string
   from: Date
   to: Date
+  /** Stop after the first matching day that supplies this many instants. */
+  maxResults?: number
 }
 
 /** Luxon weekday is 1=Mon..7=Sun; our schedule uses 0=Sun..6=Sat. */
@@ -25,7 +27,7 @@ function luxonWeekdayToSun0(weekday: number): number {
 }
 
 export function expandSchedule(input: ExpandInput): Date[] {
-  const { schedule, startDate, endDate, timeZone, from, to } = input
+  const { schedule, startDate, endDate, timeZone, from, to, maxResults } = input
   const zone = timeZone || 'UTC'
 
   const anchor = DateTime.fromISO(startDate, { zone }).startOf('day')
@@ -56,10 +58,15 @@ export function expandSchedule(input: ExpandInput): Date[] {
       }
     }
 
+    // Keep all instants from this day before sorting, since timesOfDay need not
+    // be stored in order. Callers asking only for the next fire can stop here.
+    if (maxResults != null && results.length >= maxResults) break
+
     if (schedule.kind === 'once') break // a one-shot only fires on its start day
   }
 
-  return results.sort((a, b) => a.getTime() - b.getTime())
+  const sorted = results.sort((a, b) => a.getTime() - b.getTime())
+  return maxResults == null ? sorted : sorted.slice(0, maxResults)
 }
 
 function isActiveDay(day: DateTime, anchor: DateTime, schedule: Schedule): boolean {

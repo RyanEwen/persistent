@@ -63,9 +63,9 @@ export function DeleteAccountPage() {
             What gets deleted
           </Typography>
           <Typography level="body-sm">
-            Everything, straight away: your account and email address, every reminder and its settings, your full
-            reminder history, your saved passkeys, your signed-in sessions, and every device registered to receive
-            notifications. Nothing is retained afterwards, and no backup copy is kept for later restoration.
+            Your account and email address, every reminder and its settings, your reminder history, saved
+            passkeys, signed-in sessions, and device registrations are deleted immediately. If someone assigned
+            a reminder to you, their status record remains without your email address. There is no restore window.
           </Typography>
         </Box>
 

@@ -32,6 +32,7 @@ import Button from '@mui/joy/Button'
 import Chip from '@mui/joy/Chip'
 import SnoozeIcon from '@mui/icons-material/Snooze'
 import EditIcon from '@mui/icons-material/Edit'
+import ShareIcon from '@mui/icons-material/Share'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import { MAX_TODO_ITEMS, reminderBodyText, todoItems } from '@persistent/shared'
 import {
@@ -61,11 +62,15 @@ import { OccurrenceActions } from '../components/OccurrenceActions.js'
 import { TodoChecklist } from '../components/TodoChecklist.js'
 import { TodoAddItem } from '../components/TodoAddItem.js'
 import { SnoozeDialog } from '../components/SnoozeDialog.js'
+import { ReminderSharing } from '../components/ReminderSharing.js'
 import { PullToRefresh } from '../components/PullToRefresh.js'
+import { useReceivedShares } from '../data/shares.js'
+import { SharedReminderPage } from './SharedReminderPage.js'
 
 export function ReminderDetailPage() {
   const { id } = useParams()
   const reminders = useReminders()
+  const received = useReceivedShares()
   const active = useActiveOccurrences()
   const ack = useAckOccurrence()
   const snooze = useSnoozeOccurrence()
@@ -77,14 +82,18 @@ export function ReminderDetailPage() {
   const hideChecked = useSetHideCheckedItems()
   const { timeFormat } = useSettings()
   const [snoozeFor, setSnoozeFor] = useState<string | null>(null)
+  const [shareOpen, setShareOpen] = useState(false)
 
   const reminder = reminders.data?.find((r) => r.id === id)
+  const shared = received.data?.some((item) => item.id === id)
+
+  if (!reminder && shared) return <SharedReminderPage />
 
   // The reminder may still be loading (deep link from a notification) or gone.
   if (!reminder) {
     return (
       <Stack spacing={2}>
-        {reminders.isLoading ? (
+        {reminders.isLoading || received.isLoading ? (
           <Typography level="body-sm">Loading…</Typography>
         ) : (
           <>
@@ -122,15 +131,20 @@ export function ReminderDetailPage() {
           >
             Back
           </Button>
-          <Button
-            component={RouterLink}
-            to={`/reminders/${reminder.id}/edit`}
-            variant="outlined"
-            size="sm"
-            startDecorator={<EditIcon />}
-          >
-            Edit
-          </Button>
+          <Stack direction="row" spacing={0.5}>
+            <Button variant="plain" size="sm" startDecorator={<ShareIcon />} onClick={() => setShareOpen(true)}>
+              Share
+            </Button>
+            <Button
+              component={RouterLink}
+              to={`/reminders/${reminder.id}/edit`}
+              variant="outlined"
+              size="sm"
+              startDecorator={<EditIcon />}
+            >
+              Edit
+            </Button>
+          </Stack>
         </Stack>
 
         <Box>
@@ -285,6 +299,7 @@ export function ReminderDetailPage() {
           setSnoozeFor(null)
         }}
       />
+      <ReminderSharing open={shareOpen} onClose={() => setShareOpen(false)} reminderId={reminder.id} />
     </PullToRefresh>
   )
 }

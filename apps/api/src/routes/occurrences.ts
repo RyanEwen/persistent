@@ -26,6 +26,9 @@ import { dispatchToUser, nudgeNativeSync } from '../lib/delivery/index.js'
 import { notificationTitle, notificationBody } from '../lib/notification-format.js'
 import { ackDecision } from '../lib/occurrence-ack.js'
 import { logger } from '../lib/logger.js'
+import { actionableOccurrence, broadcastSharedChange, participantIds, personalOccurrence } from '../lib/share-access.js'
+import { occurrenceForActor } from '../lib/recipient-alert-state.js'
+import { broadcastAssignmentProgress } from '../lib/assignment-progress.js'
 
 export const occurrencesRouter = Router()
 occurrencesRouter.use(requireUser)
@@ -55,8 +58,11 @@ occurrencesRouter.get('/', async (request, response) => {
       typeof request.query.cursor === 'string' && request.query.cursor.length > 0 ? request.query.cursor : undefined
 
     const rows = await prisma.reminderOccurrence.findMany({
-      where: { userId, status: { in: HISTORY_STATUSES } },
-      include: { reminder: true },
+      where: {
+        OR: [{ userId }, { reminder: { shares: { some: { recipientId: userId } } } }],
+        status: { in: HISTORY_STATUSES }
+      },
+      include: { reminder: true, recipientAlerts: { where: { recipientId: userId } } },
       // A *total* ordering, deliberately. One reminder can't have two firings at
       // the same instant (@@unique([reminderId, scheduledFor])), but *different*
       // reminders routinely share one — every reminder set to 09:00 fires
@@ -74,71 +80,86 @@ occurrencesRouter.get('/', async (request, response) => {
     const hasMore = rows.length > HISTORY_PAGE_SIZE
     const page = hasMore ? rows.slice(0, HISTORY_PAGE_SIZE) : rows
     response.json({
-      occurrences: page.map(toOccurrence),
+      occurrences: page.map((row) => toOccurrence(occurrenceForActor(row, userId, row.recipientAlerts[0]))),
       nextCursor: hasMore ? (page[page.length - 1]?.id ?? null) : null
     })
     return
   }
 
-  const where =
+  const statusWhere =
     scope === 'upcoming'
-      ? { userId, status: 'PENDING' as OccurrenceStatus }
-      : { userId, status: { in: ACTIVE_STATUSES } }
+      ? { status: 'PENDING' as OccurrenceStatus }
+      : { status: { in: ACTIVE_STATUSES } }
 
   const occurrences = await prisma.reminderOccurrence.findMany({
-    where,
-    include: { reminder: true },
+    where: {
+      ...statusWhere,
+      OR: [{ userId }, { reminder: { shares: { some: { recipientId: userId } } } }]
+    },
+    include: { reminder: true, recipientAlerts: { where: { recipientId: userId } } },
     orderBy: { scheduledFor: scope === 'upcoming' ? 'asc' : 'desc' },
     take: scope === 'upcoming' ? 100 : 200
   })
-  response.json({ occurrences: occurrences.map(toOccurrence), nextCursor: null })
+  response.json({
+    occurrences: occurrences.map((row) => toOccurrence(occurrenceForActor(row, userId, row.recipientAlerts[0]))),
+    nextCursor: null
+  })
 })
 
 occurrencesRouter.post('/:id/ack', async (request, response) => {
   const userId = requireUserId(request)
-  const existing = await prisma.reminderOccurrence.findFirst({
-    where: { id: request.params.id, userId },
-    include: { reminder: true }
-  })
+  const existing = await actionableOccurrence(request.params.id, userId)
   if (!existing) throw notFound('Occurrence not found.')
+  const personal = await personalOccurrence(existing, userId)
 
   // An ack confirms a *nagging* occurrence is done; acking one that is not yet
   // due would silently cancel its firing (the tick only fires PENDING). Log every
   // ack with its prior status + client so a premature ack is traceable.
   const now = new Date()
-  const decision = ackDecision(existing.status, existing.scheduledFor, now)
+  const decision = ackDecision(personal.status, existing.scheduledFor, now)
   logger.info('occurrence ack', {
     occurrenceId: existing.id,
     reminderId: existing.reminderId,
-    priorStatus: existing.status,
+    priorStatus: personal.status,
     decision,
     userAgent: request.get('user-agent') ?? undefined
   })
 
   if (decision === 'reject') {
-    throw conflict(`Cannot acknowledge a ${existing.status} occurrence.`)
+    throw conflict(`Cannot acknowledge a ${personal.status} occurrence.`)
   }
   if (decision === 'noop') {
     // Idempotent retry: already acknowledged and already dismissed everywhere.
-    response.json({ occurrence: toOccurrence(existing) })
+    response.json({ occurrence: toOccurrence(personal) })
     return
   }
 
-  const updated = await prisma.reminderOccurrence.update({
-    where: { id: existing.id },
+  // Another participant may finish between the read and write. Do not let a
+  // delayed request overwrite that terminal state or send a second dismissal.
+  const claimed = await prisma.reminderOccurrence.updateMany({
+    where: { id: existing.id, status: { in: ['PENDING', 'FIRED', 'ESCALATED', 'SNOOZED'] } },
     data: {
       status: 'ACKNOWLEDGED',
       acknowledgedAt: now,
       // A due PENDING ack (native alarm beat the server tick) never got a firedAt;
       // stamp it from scheduledFor so history/escalation anchors stay coherent.
       ...(existing.firedAt ? {} : { firedAt: existing.scheduledFor })
-    },
+    }
+  })
+  const updated = await prisma.reminderOccurrence.findUniqueOrThrow({
+    where: { id: existing.id },
     include: { reminder: true }
   })
+  if (claimed.count === 0) {
+    response.json({ occurrence: toOccurrence(occurrenceForActor(updated, userId, null)) })
+    return
+  }
 
-  await dismissEverywhere(userId, updated.id)
-  broadcast(userId, { type: 'occurrence.changed', occurrence: toOccurrence(updated) })
-  response.json({ occurrence: toOccurrence(updated) })
+  const members = await participantIds(existing.reminderId, existing.userId)
+  for (const memberId of members) await dismissEverywhere(memberId, updated.id)
+  broadcast(existing.userId, { type: 'occurrence.changed', occurrence: toOccurrence(updated) })
+  await broadcastSharedChange(existing.reminderId, existing.userId)
+  response.json({ occurrence: toOccurrence(occurrenceForActor(updated, userId, null)) })
 })
 
 occurrencesRouter.post('/:id/snooze', async (request, response) => {
@@ -146,28 +167,48 @@ occurrencesRouter.post('/:id/snooze', async (request, response) => {
   const parsed = snoozeInputSchema.safeParse(request.body)
   if (!parsed.success) throw badRequest('Invalid snooze duration.')
 
-  const existing = await prisma.reminderOccurrence.findFirst({
-    where: { id: request.params.id, userId },
-    include: { reminder: true }
-  })
+  const existing = await actionableOccurrence(request.params.id, userId)
   if (!existing) throw notFound('Occurrence not found.')
+  const personal = await personalOccurrence(existing, userId)
 
   // Only a nagging occurrence can be snoozed — a queued device snooze draining
   // after an ack must not resurrect a terminal occurrence (same guard as silence).
-  if (existing.status !== 'FIRED' && existing.status !== 'ESCALATED' && existing.status !== 'SNOOZED') {
-    response.json({ occurrence: toOccurrence(existing) })
+  if (personal.status !== 'FIRED' && personal.status !== 'ESCALATED' && personal.status !== 'SNOOZED') {
+    response.json({ occurrence: toOccurrence(personal) })
     return
   }
 
   const snoozedUntil = new Date(Date.now() + parsed.data.minutes * 60_000)
-  const updated = await prisma.reminderOccurrence.update({
-    where: { id: existing.id },
-    data: { status: 'SNOOZED', snoozedUntil },
-    include: { reminder: true }
-  })
+  if (userId === existing.userId) {
+    const changed = await prisma.reminderOccurrence.updateMany({
+      where: { id: existing.id, status: { in: ['FIRED', 'ESCALATED', 'SNOOZED'] } },
+      data: { status: 'SNOOZED', snoozedUntil }
+    })
+    const updated = await prisma.reminderOccurrence.findUniqueOrThrow({
+      where: { id: existing.id },
+      include: { reminder: true }
+    })
+    if (changed.count === 0) {
+      response.json({ occurrence: toOccurrence(updated) })
+      return
+    }
+    await dismissEverywhere(userId, updated.id)
+    broadcast(userId, { type: 'occurrence.changed', occurrence: toOccurrence(updated) })
+    await broadcastAssignmentProgress(existing.reminderId)
+    response.json({ occurrence: toOccurrence(updated) })
+    return
+  }
 
+  const state = await prisma.recipientAlertState.upsert({
+    where: { occurrenceId_recipientId: { occurrenceId: existing.id, recipientId: userId } },
+    create: { occurrenceId: existing.id, recipientId: userId, snoozedUntil },
+    update: { snoozedUntil }
+  })
+  const updated = occurrenceForActor(existing, userId, state)
   await dismissEverywhere(userId, updated.id)
   broadcast(userId, { type: 'occurrence.changed', occurrence: toOccurrence(updated) })
+  broadcast(userId, { type: 'reminder.changed', reminderId: existing.reminderId })
+  await broadcastAssignmentProgress(existing.reminderId)
   response.json({ occurrence: toOccurrence(updated) })
 })
 
@@ -183,10 +224,7 @@ occurrencesRouter.post('/:id/check', async (request, response) => {
   const parsed = checkItemInputSchema.safeParse(request.body)
   if (!parsed.success) throw badRequest('Invalid checklist item.')
 
-  const existing = await prisma.reminderOccurrence.findFirst({
-    where: { id: request.params.id, userId },
-    include: { reminder: true }
-  })
+  const existing = await actionableOccurrence(request.params.id, userId)
   if (!existing) throw notFound('Occurrence not found.')
   if (existing.reminder.type !== 'TODO') throw badRequest('This reminder has no checklist.')
 
@@ -218,10 +256,10 @@ occurrencesRouter.post('/:id/check', async (request, response) => {
       WHEN ${checked}::boolean THEN ("checkedItems" - ${itemId}::text) || jsonb_build_array(${itemId}::text)
       ELSE "checkedItems" - ${itemId}::text
     END
-    WHERE "id" = ${existing.id} AND "userId" = ${userId}
+    WHERE "id" = ${existing.id} AND "userId" = ${existing.userId}
   `
   const updated = await prisma.reminderOccurrence.findFirstOrThrow({
-    where: { id: existing.id, userId },
+    where: { id: existing.id, userId: existing.userId },
     include: { reminder: true }
   })
 
@@ -231,8 +269,9 @@ occurrencesRouter.post('/:id/check', async (request, response) => {
   // with `alertOnce`, so refreshing the list never re-alerts).
   // Not awaited: working down a checklist is a burst of taps, and none of them
   // should wait on an FCM round trip to answer.
-  broadcast(userId, { type: 'occurrence.changed', occurrence: toOccurrence(updated) })
-  void nudgeNativeSync(userId).catch((error) =>
+  broadcast(existing.userId, { type: 'occurrence.changed', occurrence: toOccurrence(updated) })
+  await broadcastSharedChange(existing.reminderId, existing.userId)
+  void nudgeNativeSync(existing.userId).catch((error) =>
     logger.warn('checklist sync nudge failed', { error: String(error), occurrenceId: updated.id })
   )
   response.json({ occurrence: toOccurrence(updated) })
@@ -244,31 +283,56 @@ occurrencesRouter.post('/:id/check', async (request, response) => {
 // dismiss the notification; it downgrades it across every device.
 occurrencesRouter.post('/:id/silence', async (request, response) => {
   const userId = requireUserId(request)
-  const existing = await prisma.reminderOccurrence.findFirst({
-    where: { id: request.params.id, userId },
-    include: { reminder: true }
-  })
+  const existing = await actionableOccurrence(request.params.id, userId)
   if (!existing) throw notFound('Occurrence not found.')
+  const personal = await personalOccurrence(existing, userId)
 
   // Silence only means something for a nagging occurrence. It must NEVER touch a
   // terminal one: a device can queue a silence and an ack for the same occurrence
   // and drain them in one batch — without this guard the trailing silence flipped
   // the just-ACKNOWLEDGED occurrence back to FIRED, resurrecting a done reminder.
-  if (existing.status !== 'FIRED' && existing.status !== 'ESCALATED' && existing.status !== 'SNOOZED') {
-    response.json({ occurrence: toOccurrence(existing) })
+  if (personal.status !== 'FIRED' && personal.status !== 'ESCALATED' && personal.status !== 'SNOOZED') {
+    response.json({ occurrence: toOccurrence(personal) })
     return
   }
 
-  const updated = await prisma.reminderOccurrence.update({
-    where: { id: existing.id },
+  if (userId !== existing.userId) {
+    const state = await prisma.recipientAlertState.upsert({
+      where: { occurrenceId_recipientId: { occurrenceId: existing.id, recipientId: userId } },
+      create: {
+        occurrenceId: existing.id,
+        recipientId: userId,
+        escalationSilencedAt: new Date()
+      },
+      update: { escalationSilencedAt: personal.escalationSilencedAt ?? new Date(), snoozedUntil: null }
+    })
+    const updated = occurrenceForActor(existing, userId, state)
+    await silenceEverywhere(userId, updated)
+    broadcast(userId, { type: 'occurrence.changed', occurrence: toOccurrence(updated) })
+    broadcast(userId, { type: 'reminder.changed', reminderId: existing.reminderId })
+    await broadcastAssignmentProgress(existing.reminderId)
+    response.json({ occurrence: toOccurrence(updated) })
+    return
+  }
+
+  const changed = await prisma.reminderOccurrence.updateMany({
+    where: { id: existing.id, status: { in: ['FIRED', 'ESCALATED', 'SNOOZED'] } },
     // Back to FIRED (still nagging); keep firedAt as the original anchor. The
     // silenced stamp is what stops re-escalation, not the status.
-    data: { status: 'FIRED', escalationSilencedAt: existing.escalationSilencedAt ?? new Date(), snoozedUntil: null },
+    data: { status: 'FIRED', escalationSilencedAt: existing.escalationSilencedAt ?? new Date(), snoozedUntil: null }
+  })
+  const updated = await prisma.reminderOccurrence.findUniqueOrThrow({
+    where: { id: existing.id },
     include: { reminder: true }
   })
+  if (changed.count === 0) {
+    response.json({ occurrence: toOccurrence(updated) })
+    return
+  }
 
   await silenceEverywhere(userId, updated)
   broadcast(userId, { type: 'occurrence.changed', occurrence: toOccurrence(updated) })
+  await broadcastAssignmentProgress(existing.reminderId)
   response.json({ occurrence: toOccurrence(updated) })
 })
 

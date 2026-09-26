@@ -20,6 +20,7 @@ import {
   type HideCheckedInput,
   type Occurrence,
   type Reminder,
+  type ReminderCreateInput,
   type ReminderInput,
   type RenameTodoItemInput,
   type ReorderTodoItemsInput
@@ -53,6 +54,9 @@ export const queryClient = new QueryClient({
 export const queryKeys = {
   auth: ['auth'] as const,
   reminders: ['reminders'] as const,
+  receivedShares: ['shares', 'received'] as const,
+  assignmentsSent: ['assignments', 'sent'] as const,
+  assignmentsReceived: ['assignments', 'received'] as const,
   occurrencesActive: ['occurrences', 'active'] as const,
   occurrencesUpcoming: ['occurrences', 'upcoming'] as const,
   occurrencesHistory: ['occurrences', 'history'] as const
@@ -131,7 +135,10 @@ interface OccurrencesSnapshot {
  */
 export function registerMutationDefaults(): void {
   const reminders = () => queryClient.getQueryData<Reminder[]>(queryKeys.reminders)
-  const invalidateReminders = () => queryClient.invalidateQueries({ queryKey: queryKeys.reminders })
+  const invalidateReminders = () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.reminders })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.receivedShares })
+  }
   const rollback = (_e: unknown, _v: unknown, ctx: RemindersSnapshot | undefined) => {
     if (ctx?.previous) queryClient.setQueryData(queryKeys.reminders, ctx.previous)
   }
@@ -142,9 +149,9 @@ export function registerMutationDefaults(): void {
   }
 
   queryClient.setMutationDefaults(mutationKeys.createReminder, {
-    mutationFn: (input: ReminderInput) =>
-      apiFetch<{ reminder: Reminder }>('/api/reminders', { method: 'POST', body: JSON.stringify(input) }),
-    onMutate: async (input: ReminderInput): Promise<RemindersSnapshot> => {
+    mutationFn: (input: ReminderCreateInput) =>
+      apiFetch<{ reminder: Reminder; failedInvitations: string[] }>('/api/reminders', { method: 'POST', body: JSON.stringify(input) }),
+    onMutate: async (input: ReminderCreateInput): Promise<RemindersSnapshot> => {
       await queryClient.cancelQueries({ queryKey: queryKeys.reminders })
       const previous = reminders()
       queryClient.setQueryData<Reminder[]>(queryKeys.reminders, [optimisticReminder(input), ...(previous ?? [])])
@@ -321,6 +328,7 @@ export function registerMutationDefaults(): void {
   const invalidateOccurrences = () => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.occurrencesActive })
     void queryClient.invalidateQueries({ queryKey: queryKeys.occurrencesUpcoming })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.receivedShares })
   }
 
   queryClient.setMutationDefaults(mutationKeys.ackOccurrence, {

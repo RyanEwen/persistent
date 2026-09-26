@@ -35,6 +35,9 @@ import { rateLimit } from '../lib/rate-limit.js'
 import { isReviewAccount, isReviewLogin } from '../lib/review-access.js'
 import { logger } from '../lib/logger.js'
 import { toPasskey, toSessionUser } from '../lib/serializers.js'
+import { claimShareInvitations } from '../lib/share-invitations.js'
+import { claimPendingAssignments } from '../lib/assignments.js'
+import { broadcast } from '../lib/realtime.js'
 
 export const authRouter = Router()
 
@@ -96,6 +99,9 @@ authRouter.post('/verify-code', async (request, response) => {
     }
   })
 
+  await claimShareInvitations(user)
+  await claimPendingAssignments(user)
+
   const session = await createSession(user.id, request)
   setSessionCookie(response, session.secret, session.expiresAt)
   response.json({ user: toSessionUser(user) })
@@ -139,6 +145,9 @@ authRouter.post('/google', async (request, response) => {
     }
   })
 
+  await claimShareInvitations(user)
+  await claimPendingAssignments(user)
+
   const session = await createSession(user.id, request)
   setSessionCookie(response, session.secret, session.expiresAt)
   response.json({ user: toSessionUser(user) })
@@ -179,12 +188,29 @@ authRouter.delete('/me', async (request, response) => {
     throw badRequest("That email doesn't match this account.")
   }
 
+  const affectedAssignments = await prisma.reminderAssignment.findMany({
+    where: { recipientId: userId },
+    select: { creatorId: true }
+  })
+
   // EmailCode is keyed by email address, not userId, so it has no cascade —
   // clear it explicitly or the address outlives the account it identified.
   await prisma.$transaction([
     prisma.emailCode.deleteMany({ where: { email: user.email } }),
+    prisma.reminderAssignment.updateMany({
+      where: { recipientId: userId, state: 'ACTIVE' },
+      data: { state: 'DECLINED', declinedAt: new Date() }
+    }),
+    prisma.reminderAssignment.updateMany({
+      where: { recipientId: userId },
+      data: { recipientEmail: '(deleted account)' }
+    }),
+    prisma.shareRecipient.deleteMany({ where: { email: user.email.toLowerCase() } }),
     prisma.user.delete({ where: { id: userId } })
   ])
+  for (const assignment of affectedAssignments) {
+    broadcast(assignment.creatorId, { type: 'assignment.changed' })
+  }
   clearSessionCookie(response)
   // Irreversible and user-initiated: worth an operational record, but it is a
   // successful action rather than a failure, so info rather than warn.

@@ -20,6 +20,10 @@ contract, so Persistent does not support them. We split responsibilities:
 - **Server is the source of truth.** `apps/api` materializes `ReminderOccurrence`
   rows from each reminder's schedule (timezone-correct, `lib/schedule-expand.ts`)
   and fires due ones (tick loop), broadcasting over `/ws` and via FCM.
+  An assigned reminder is owned and scheduled for its assignee alone, using that
+  account's timezone. Its creator receives status updates but no device alarm.
+  Shared reminders keep the owner's schedule and firing instants; each person's
+  own devices display those instants in their local timezone.
 - **The device schedules its own alarms.** `GET /api/sync/occurrences` returns the
   exact alarms to arm — the server expands each occurrence into a main fire plus, if
   escalation is pending, an escalation alarm (`apps/api/src/lib/device-alarms.ts`),

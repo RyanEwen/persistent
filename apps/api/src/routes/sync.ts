@@ -18,6 +18,7 @@ import { escalateAtFor } from '../lib/escalation.js'
 import { expandSchedule } from '../lib/schedule-expand.js'
 import { buildDeviceAlarms } from '../lib/device-alarms.js'
 import { notificationBody } from '../lib/notification-format.js'
+import { occurrenceForActor } from '../lib/recipient-alert-state.js'
 
 export const syncRouter = Router()
 syncRouter.use(requireUser)
@@ -54,11 +55,14 @@ syncRouter.get('/occurrences', async (request, response) => {
   // window is at the head of the list and is never the thing that gets cut.
   const occurrences = await prisma.reminderOccurrence.findMany({
     where: {
-      userId,
+      OR: [{ userId }, { reminder: { shares: { some: { recipientId: userId } } } }],
       status: { in: ['PENDING', 'FIRED', 'SNOOZED', 'ESCALATED'] },
       scheduledFor: { lte: queryUntil }
     },
-    include: { reminder: true },
+    include: {
+      reminder: { include: { user: { select: { timeZone: true } } } },
+      recipientAlerts: { where: { recipientId: userId } }
+    },
     orderBy: { scheduledFor: 'asc' },
     take: 500
   })
@@ -73,7 +77,9 @@ syncRouter.get('/occurrences', async (request, response) => {
   const timed: DeviceAgendaEntry[] = []
   const notes: DeviceAgendaEntry[] = []
   const serialized: ReturnType<typeof toOccurrence>[] = []
-  for (const o of occurrences) {
+  for (const stored of occurrences) {
+    const o = occurrenceForActor(stored, userId, stored.recipientAlerts[0])
+    const tz = o.reminder.user.timeZone
     // Escalation is a hard backstop anchored to the first fire, so the "after N
     // minutes" threshold counts from firedAt (or the scheduled time before it
     // fires) — never from the snooze.
@@ -127,7 +133,11 @@ syncRouter.get('/occurrences', async (request, response) => {
   // they never produce an occurrence at all. They belong here for the reason they get a
   // tab of their own in the app: a kept list or a door code is reference material, and
   // the car screen is where a driver reads it.
-  const reminders = await prisma.reminder.findMany({ where: { userId }, orderBy: { createdAt: 'desc' } })
+  const reminders = await prisma.reminder.findMany({
+    where: { OR: [{ userId }, { shares: { some: { recipientId: userId } } }] },
+    include: { user: { select: { timeZone: true } } },
+    orderBy: { createdAt: 'desc' }
+  })
   // What the rows above already cover, so a projection can't duplicate a real firing in
   // the overlap (materialization runs every 5 minutes, so its horizon drifts).
   const materialized = new Set(occurrences.map((o) => `${o.reminderId}@${o.scheduledFor.getTime()}`))
@@ -155,7 +165,7 @@ syncRouter.get('/occurrences', async (request, response) => {
       schedule,
       startDate: reminder.startDate,
       endDate: reminder.endDate,
-      timeZone: tz,
+      timeZone: reminder.user.timeZone,
       from: now,
       to: agendaUntil
     })

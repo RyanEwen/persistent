@@ -60,6 +60,12 @@
   (`usePastOccurrences` is a `useInfiniteQuery`: read it as `data.pages.flatMap`,
   not `data.map`); it only ever grows, so it loads a page at a time behind "Show
   more". Active and upcoming are small by construction and load whole.
+- **Sharing and assignment:** the reminder editor opens `ReminderSharing` from
+  the action row beside Save and Cancel. New reminders stage either shared
+  recipients or one assignee until creation. An assignee owns their reminder and
+  cannot add further recipients; the creator sees only `AssignmentsPage` status.
+  Exclude creator progress and received-share projections from the persisted
+  offline cache.
 - **Auth:** use the `useAuth()` hook (`auth/useAuth.tsx`). The WebSocket starts/
   stops with the session automatically. `App.tsx` renders `SignInPage` for anyone
   signed out, so a route that must work **without** a session (currently only

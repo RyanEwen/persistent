@@ -6,6 +6,40 @@ import type { Schedule } from '@persistent/shared'
 
 const TZ = 'America/Toronto'
 
+test('a shared firing is one instant displayed in each participant time zone', () => {
+  const schedule: Schedule = { kind: 'daily', timesOfDay: ['09:00'] }
+  const next = (from: string) => expandSchedule({
+    schedule,
+    startDate: '2026-03-01',
+    endDate: null,
+    timeZone: TZ,
+    from: new Date(from),
+    to: new Date('2026-04-01T00:00:00.000Z'),
+    maxResults: 1
+  })[0]!
+
+  const beforeTorontoDst = next('2026-03-07T00:00:00.000Z')
+  const afterTorontoDst = next('2026-03-09T00:00:00.000Z')
+  assert.equal(DateTime.fromJSDate(beforeTorontoDst, { zone: TZ }).toFormat('HH:mm'), '09:00')
+  assert.equal(DateTime.fromJSDate(beforeTorontoDst, { zone: 'Europe/London' }).toFormat('HH:mm'), '14:00')
+  assert.equal(DateTime.fromJSDate(afterTorontoDst, { zone: TZ }).toFormat('HH:mm'), '09:00')
+  assert.equal(DateTime.fromJSDate(afterTorontoDst, { zone: 'Europe/London' }).toFormat('HH:mm'), '13:00')
+})
+
+test('next-fire expansion sorts a day before applying its result limit', () => {
+  const dates = expandSchedule({
+    schedule: { kind: 'daily', timesOfDay: ['18:00', '08:00'] },
+    startDate: '2026-06-01',
+    endDate: null,
+    timeZone: TZ,
+    from: new Date('2026-06-01T00:00:00.000Z'),
+    to: new Date('2026-06-03T00:00:00.000Z'),
+    maxResults: 1
+  })
+  assert.equal(DateTime.fromJSDate(dates[0]!, { zone: TZ }).toFormat('HH:mm'), '08:00')
+  assert.equal(dates.length, 1)
+})
+
 function window(fromIso: string, toIso: string) {
   return {
     from: DateTime.fromISO(fromIso, { zone: TZ }).toJSDate(),

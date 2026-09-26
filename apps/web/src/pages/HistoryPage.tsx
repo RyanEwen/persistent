@@ -22,6 +22,7 @@ import { ReminderListItem } from '../components/ReminderListItem.js'
 import { PullToRefresh } from '../components/PullToRefresh.js'
 import { NewReminderFab } from '../components/NewReminderFab.js'
 import { SectionHeading } from '../components/SectionHeading.js'
+import { useAuth } from '../auth/useAuth.js'
 
 /**
  * "2 of 3 checked" for a past checklist firing — how much of it was actually
@@ -36,6 +37,7 @@ function checklistProgress(occurrence: Occurrence): string | undefined {
 
 export function HistoryPage() {
   const past = usePastOccurrences()
+  const { user } = useAuth()
   const { timeFormat } = useSettings()
 
   // `?? []` on `pages`, not just on `data`: this key used to hold a plain
@@ -66,7 +68,7 @@ export function HistoryPage() {
               title={occurrence.reminder.title}
               status={occurrence.status}
               description={reminderBodyText(occurrence.reminder)}
-              subtitle={formatWhen(occurrence.scheduledFor, timeFormat)}
+              subtitle={formatWhen(occurrence.scheduledFor, timeFormat, user?.timeZone)}
               secondary={checklistProgress(occurrence)}
             />
           ))}

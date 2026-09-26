@@ -63,10 +63,13 @@ notification content.
 
 ## Data isolation (the one rule)
 
-There is no multi-tenancy. Ownership is per-user: **every query for a domain row
-must filter by the authenticated `userId`** (`requireUserId(request)`). This is
-the entire data-isolation boundary. See `docs/auth-architecture.md` and the
-directory guide `apps/api/AGENTS.md`.
+There is no multi-tenancy. Ownership is per-user. Domain queries must filter by
+the authenticated `userId` (`requireUserId(request)`), except reminder sharing:
+recipient reads and permitted actions must prove an explicit `ReminderShare`
+grant for that recipient and reminder. Firings remain owned by the creator.
+An assigned reminder belongs to the assignee; its creator reads only the
+`ReminderAssignment` progress record scoped by `creatorId`.
+See `docs/auth-architecture.md` and `apps/api/AGENTS.md`.
 
 ## Shared helpers (do not duplicate)
 

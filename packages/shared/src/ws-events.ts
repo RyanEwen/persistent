@@ -15,6 +15,10 @@ export const wsEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('occurrence.changed'), occurrence: occurrenceSchema }),
   // A reminder definition was created/updated/deleted — refetch the list.
   z.object({ type: z.literal('reminder.changed'), reminderId: z.string().nullable() }),
+  // One of this user's received shares was granted, changed, or revoked.
+  z.object({ type: z.literal('share.changed') }),
+  // A creator's assigned-reminder progress or invitation status changed.
+  z.object({ type: z.literal('assignment.changed') }),
   // Clear a shown notification across all of this user's open clients.
   z.object({ type: z.literal('dismiss'), occurrenceId: z.string() }),
   // Silence an escalation alarm across all clients: stop the alarm but keep the

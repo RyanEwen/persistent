@@ -298,6 +298,7 @@ export async function initNative(): Promise<void> {
       scheduleResync()
     } else if (
       event.type === 'reminder.changed' ||
+      event.type === 'share.changed' ||
       event.type === 'occurrence.changed' ||
       event.type === 'occurrence.fired'
     ) {

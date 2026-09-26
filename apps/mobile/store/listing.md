@@ -6,18 +6,9 @@ Package: `ca.dynamicsolutions.persistent` (Play) · Category: Productivity
 The sideloaded GitHub build keeps `ca.persistent.app`; only the Play flavor carries
 the new applicationId, so the two can coexist on a device.
 
-> **No health framing while the Medication type is withheld.** Play requires an
-> organization developer account for an app that handles health data, and the
-> switch from an individual account takes up to 30 days. Until it lands the app
-> does not offer the Medication type (`selectableReminderTypes` in
-> `packages/shared/src/reminders.ts`), so this listing must not advertise
-> medication, doses or "not a medical device" — that copy is what routes a listing
-> into health-app review. Everything withheld here goes back at the same time the
-> type does; the removed passages are recoverable from git history.
->
-> **Screenshots:** all six are regenerated and medication-free (see *Captured
-> screenshots*). Play reads the images as much as the copy, so any future edit to
-> this listing has to keep them in step.
+> Medication reminders are available again under the organization developer account.
+> Keep this listing, its screenshots, the privacy policy, and Play Console's Health apps
+> and Data safety declarations aligned with the hosted app.
 
 ---
 
@@ -42,7 +33,7 @@ Reminders that nag until you confirm them done. Real alarms, not a silent ping.
 ```
 Every other reminder app lets you swipe the notification away and forget. Persistent doesn't.
 
-A Persistent reminder keeps nagging until you explicitly confirm it's done. Dismiss the notification and it comes back. Ignore it long enough and it escalates into a full-screen alarm that rings and vibrates until you deal with it. It's built for the reminders you genuinely cannot afford to miss — the ones you already forgot once this week.
+A Persistent reminder keeps nagging until you confirm it. Dismiss it and it comes back. Ignore it long enough and it can escalate into a full-screen alarm.
 
 WON'T TAKE A SWIPE FOR AN ANSWER
 Marking a reminder Done is the only thing that ends it. Not dismissing it, not unlocking your phone, not tapping it by accident in your pocket — Done is a deliberate two-tap confirm on every surface.
@@ -56,10 +47,10 @@ Choose how hard a reminder pushes:
 Alarms are scheduled on the device as exact alarms, so they fire on time even with no network connection and even when the app is closed.
 
 EVERY FIRING IS ITS OWN REMINDER
-Set a reminder for 9:00 and 13:00 and they are two separate obligations. If the 9:00 one is still unconfirmed when 13:00 fires, both nag — each with its own Done. Confirming the afternoon one never silently erases the morning one you actually missed. Most reminder apps collapse these into one notification; that's exactly how the missed one disappears.
+Set a reminder for 9:00 and 13:00 and they are two separate obligations. If the 9:00 one is still unconfirmed when 13:00 fires, both nag, each with its own Done. Confirming one never silently erases the other.
 
 THREE HONEST ACTIONS
-• Done — confirms it and clears it from every device you own
+• Done — confirms it and clears it for everyone sharing that firing
 • Snooze — clears it now and rings again later (snoozing an alarm re-rings an alarm; it doesn't quietly downgrade)
 • De-escalate — stops an alarm from yelling but keeps the reminder nagging as a notification, so it still isn't finished
 
@@ -69,8 +60,17 @@ If a reminder goes unconfirmed, Persistent can escalate beyond the device in fro
 SYNCS EVERYWHERE, INSTANTLY
 Confirm on your phone and it clears on your tablet and in your browser at the same moment. Manage reminders from any browser at persistent.dynamic-solutions.ca — same account, live-synced.
 
+SHARE THE REMINDER
+Invite someone by email, even if they have not signed up yet. Everyone with access can edit the reminder and mark it done for the group. Each person's snooze and alarm escalation stay personal.
+
 CHECKLISTS
-Some reminders cover several things at once. Tag one as a Checklist, list the items, and tick them off as you go — each firing tracks its own ticks, so a repeating checklist starts fresh every time. Hide the ticked ones to see just what's left, on every device. It still keeps nagging until you confirm it: ticking the last item doesn't let you off the hook.
+List items and tick them off as you go. Each firing tracks its own ticks, so a repeating checklist starts fresh every time. Hide finished items on every device. Ticking the last item still does not confirm the reminder.
+
+ASSIGN IT TO SOMEONE ELSE
+Create a reminder for one other person. They own the alerts and can edit, finish or decline it. Track each firing and its completion time in your Assigned by me view.
+
+MEDICATION REMINDERS
+Keep the medicine name and dose with a reminder. Persistent helps you remember; it is not a medical device and does not provide medical advice.
 
 SCHEDULING
 • One-off reminders at a date and time
@@ -86,17 +86,13 @@ SIGN IN WITHOUT A PASSWORD
 There is no password to forget or leak. Sign in with a one-time email code, with Google, or with a passkey.
 
 WHAT IT'S FOR
-Watering, feeding, and cleaning schedules. Bins out on the right night. Physio and stretches. Timesheets, invoices, and renewals. Anything where "I'll do it in a minute" has already cost you once.
+Medication, watering, feeding, bins out, physio, timesheets and renewals. Anything where "I'll do it in a minute" has already cost you once.
 
 Persistent requires a free account so your reminders can sync across devices and escalate when you miss one.
 ```
 
-*(3,880 of the 4,000 characters — 120 spare. Don't hand-count this: the figure
-this note used to carry was wrong by 1,500 and the description sat over the limit
-unnoticed, and* `wc -m` *reports bytes unless the locale is UTF-8, which
-over-counts every* — *and* • *by two. The publisher is the authority and refuses
-to push an over-limit description:*
-`node scripts/play-publish.mjs --listing store/listing.md --check`*.)*
+Validate the character count with `node apps/mobile/scripts/play-publish.mjs --listing
+apps/mobile/store/listing.md --check` before publishing.
 
 ---
 
@@ -199,54 +195,46 @@ crashlytics / firebase-analytics / posthog / amplitude / gtag returns zero hits)
 | Email address | Yes | Yes | Account management, app functionality | Sign-in codes via Cloudflare; user-set escalation contact |
 | Name | Yes | No | Account management | `displayName`, only if signing in with Google |
 | Other user-generated content | Yes | Yes | App functionality | Reminder titles/details, sent in push payloads and escalation emails |
+| Health info | Yes | Yes | App functionality | Medication names and doses; reminder text can reach FCM push and user-chosen escalation email |
 | Device or other IDs | Yes | Yes | App functionality | FCM device tokens |
-| App activity / other actions | Yes | No | App functionality | Occurrence log: fired, acknowledged, snoozed times |
+| App activity / other actions | Yes | Yes | App functionality | Occurrence log: fired, acknowledged, snoozed times; assignment creators can see firing status and completion times |
 
-**Declare sharing = Yes.** Two third parties receive user data as a functional
-necessity: Google FCM (reminder title + body in push payloads), and Cloudflare
-Email Sending (sign-in codes; escalation emails
-containing the reminder title and the user's message, sent to an address the user
-chooses). None is a "transfer for advertising."
+**Declare sharing = Yes.** Google FCM receives reminder titles and bodies in push
+payloads. Cloudflare Email Sending handles sign-in codes and invitation and
+escalation emails. A user can share reminder content with other participants,
+and an assignment creator can see the assignee's firing and completion status.
+None of this is a transfer for advertising.
 
 Security practices to declare:
 - ✅ Data is encrypted in transit (HTTPS everywhere; `cleartext: false`, HSTS-style proxy, `Secure`/`HttpOnly` session cookie)
 - ⚠️ **At rest, Postgres columns are plaintext** — only session secrets and email codes are hashed. Don't over-claim encryption at rest.
 - ✅ **"Users can request data deletion" is true, so claim it.** Two routes, both live: in-app at Settings → Delete account, and the public URL above for anyone who cannot sign in. `DELETE /api/auth/me` requires the caller to type their own email, so a session cookie alone will not fire it. Verified end to end against a throwaway account: the user, reminders, occurrences, sessions and the `EmailCode` rows (keyed by address, so they have no cascade and are deleted explicitly) all go.
 
-**Health info was declared here and is not any more**, because the Medication type
-is withheld from the picker — the app collects no new drug names or doses. Restore
-the row (`Health info | Yes | Yes | App functionality | Medication reminders store
-drug name + dose; push payloads carry titles`) the moment the type comes back;
-until it does, expect the listing to skip **health-app review**, which is the point
-of withholding it.
-
-One caveat worth resolving before you submit: reminders created *before* the type
-was withheld keep their doses, and are still displayed, still edited as
-medications, and still sent in push payloads. No new user can produce that data —
-but if Play's reading of "collects" covers data the app still stores and
-transmits for existing users, the row belongs back on the form. Confirm which way
-you're declaring it rather than assuming this file settled it.
+Medication reminders store medicine names and doses. The Health info row above
+must be restored in Play Console's Data safety form and Medication and Treatment
+Management selected in its Health apps declaration. Check the current published
+forms before marking this complete.
 
 ---
 
 ## Captured screenshots
 
-All six live in `graphics/screenshots/`, taken against the seeded demo account and
-free of health data. Ordered as they should appear in Play.
+All six live in `graphics/screenshots/`, taken against the seeded demo account
+with synthetic health data only. Ordered as they should appear in Play.
 
-The root `README.md` embeds three of them — `00`, `01` and `04` — from this
+The root `README.md` embeds three of them: `00`, `01` and `04`, from this
 directory directly rather than keeping its own copies, so regenerating those
 updates the README too, and renaming one breaks it. That is deliberate: the same
-"no health framing" constraint applies in both places, and two copies would drift.
+synthetic-data constraint applies in both places, and two copies would drift.
 
 | File | Shows | Size | Source |
 | --- | --- | --- | --- |
 | `00-ringing-alarm.png` | The full-screen alarm mid two-tap confirm — the thing no other reminder app does. Lead with this. | 960x2142 | device |
 | `01-current.png` | Three distinct reminders still waiting to be confirmed, each with its own Done | 1120x2495 | `npm run shots` |
-| `02-reminder-detail.png` | Reminder detail: the 3x daily schedule and what it is still waiting on | 1120x2495 | `npm run shots` |
-| `03-escalation-settings.png` | Escalate-to-alarm settings: delay presets, escalate-at-a-time, email a contact | 1120x2495 | `npm run shots` |
+| `02-medication-reminder.png` | A synthetic vitamin reminder with medicine name and dose | 1120x2495 | `npm run shots` |
+| `03-sharing.png` | Share or assign dialog with a staged sample recipient | 1120x2495 | `npm run shots` |
 | `04-notification-actions.png` | Notification shade: Done / Snooze on the notification itself, five distinct reminders nagging | 960x1425 | device |
-| `05-history.png` | History: what was confirmed and when | 1120x2495 | `npm run shots` |
+| `05-assigned.png` | Assigned by me status with a synthetic completion record | 1120x2495 | `npm run shots` |
 
 Sizes differ between the scripted and device shots; the aspect ratios match to
 within a rounding error (0.449 vs 0.448) and Play scales them, so the carousel
@@ -259,27 +247,12 @@ that way.
 
 ### Regenerating
 
-> ⚠️ **The set predates two UI passes and is due a regeneration with the release
-> that ships them.**
->
-> - **The New reminder FAB.** `01` still shows the old full-width "New reminder"
->   bar above the cards, and `05` (History) has no create action at all — both now
->   carry a floating button (`apps/web/src/components/NewReminderFab.tsx`).
-> - **Headings and their one-line subtitles.** Every screen title now goes through
->   `apps/web/src/components/SectionHeading.tsx`, and the subtitle copy under each
->   was shortened — so `01`, `02`, `03` and `05` all show wording and spacing that
->   no longer match the app.
->
-> Left alone deliberately: these are store assets and should match the build a
-> user can actually download, which has neither change yet. Regenerate at release
-> time, not before. `00` and `04` are native/OS surfaces and unaffected by both.
-
 Four of the six are scripted. Do the whole set in one go — the copy and the UI both
 move, and this set went stale twice over before anyone noticed (medication content,
 then a fourth nav tab):
 
 ```
-npm run dev                                        # web + api
+npm run dev                                        # only if Devkit is not already running
 npm run db:seed:demo -- --email=<demo account>     # the reminders the shots need
 npm run shots -- --email=<demo account>            # renders 01/02/03/05
 ```

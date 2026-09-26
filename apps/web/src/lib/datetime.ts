@@ -35,7 +35,7 @@ export function formatTimeOfDay(hhmm: string, format: TimeFormat): string {
 }
 
 /** Format an instant (ISO string or Date) as date + time, no seconds. */
-export function formatDateTime(value: string | Date, format: TimeFormat): string {
+export function formatDateTime(value: string | Date, format: TimeFormat, timeZone?: string): string {
   const date = typeof value === 'string' ? new Date(value) : value
   if (Number.isNaN(date.getTime())) return ''
   return new Intl.DateTimeFormat(undefined, {
@@ -44,7 +44,8 @@ export function formatDateTime(value: string | Date, format: TimeFormat): string
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
-    hour12: format === '12h'
+    hour12: format === '12h',
+    timeZone
   }).format(date)
 }
 
@@ -52,26 +53,33 @@ export function formatDateTime(value: string | Date, format: TimeFormat): string
  * Compact relative day + time, e.g. "Today, 9:00 AM" / "Tomorrow, 9:00 AM" /
  * "Yesterday, 8:00 PM" / "Jun 24, 9:00 AM". Used in the reminder lists.
  */
-export function formatWhen(value: string | Date, format: TimeFormat): string {
+export function formatWhen(value: string | Date, format: TimeFormat, timeZone?: string, now = new Date()): string {
   const date = typeof value === 'string' ? new Date(value) : value
   if (Number.isNaN(date.getTime())) return ''
   const time = new Intl.DateTimeFormat(undefined, {
     hour: 'numeric',
     minute: '2-digit',
-    hour12: format === '12h'
+    hour12: format === '12h',
+    timeZone
   }).format(date)
 
-  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
-  const dayDiff = Math.round((startOfDay(date) - startOfDay(new Date())) / 86_400_000)
+  const calendarDay = (instant: Date) => {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      year: 'numeric', month: '2-digit', day: '2-digit', timeZone
+    }).formatToParts(instant)
+    const part = (type: string) => Number(parts.find((item) => item.type === type)?.value)
+    return Date.UTC(part('year'), part('month') - 1, part('day'))
+  }
+  const dayDiff = Math.round((calendarDay(date) - calendarDay(now)) / 86_400_000)
   if (dayDiff === 0) return `Today, ${time}`
   if (dayDiff === 1) return `Tomorrow, ${time}`
   if (dayDiff === -1) return `Yesterday, ${time}`
-  return `${formatDate(date)}, ${time}`
+  return `${formatDate(date, timeZone)}, ${time}`
 }
 
 /** Format an instant as date only. */
-export function formatDate(value: string | Date): string {
+export function formatDate(value: string | Date, timeZone?: string): string {
   const date = typeof value === 'string' ? new Date(value) : value
   if (Number.isNaN(date.getTime())) return ''
-  return new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: 'numeric' }).format(date)
+  return new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: 'numeric', timeZone }).format(date)
 }

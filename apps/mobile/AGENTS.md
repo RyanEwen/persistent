@@ -66,16 +66,16 @@ on `hasNativeUpdater()` (`apps/web/src/native/alarmBridge.ts`), never
 ## Play listing assets
 
 **Regenerated, not hand-made.** From the repo root, `npm run db:seed:demo --
---email=…` fills the **store demo account** with the small, health-data-free set
+--email=…` fills the **store demo account** with a small set containing synthetic health data
 the screenshots are taken against, and `npm run shots -- --email=…` renders four
 of the six store screenshots from the running dev web app (Playwright, kept out
 of `package.json`; the script prints the one-off install). The full-screen alarm
 and the notification shade are native/OS surfaces and still need a device.
 `store/listing.md` is the source of truth for the copy *and* the screenshot set;
 both are pushed to Play by the manual `play-listing` workflow
-(`scripts/play-publish.mjs --listing`). See `store/play-readiness.md`, and keep
-the listing free of health framing while `MEDICATION` is withheld from the picker
-(root `AGENTS.md`).
+(`scripts/play-publish.mjs --listing`). See `store/play-readiness.md`. Medication
+reminders are available again, so the listing and Play Console's Health apps and
+Data safety declarations must accurately cover medicine names and doses.
 
 ## Reaching a wider Play track
 

@@ -18,7 +18,8 @@ import Tabs from '@mui/joy/Tabs'
 import TabList from '@mui/joy/TabList'
 import Tab, { tabClasses } from '@mui/joy/Tab'
 import TabPanel from '@mui/joy/TabPanel'
-import { extractErrorMessage, isTimeless, type ReminderType, type ScheduleKind } from '@persistent/shared'
+import ShareIcon from '@mui/icons-material/Share'
+import { extractErrorMessage, isTimeless, type ReminderType, type ScheduleKind, type ShareInput } from '@persistent/shared'
 import {
   useReminders,
   useCreateReminder,
@@ -27,10 +28,14 @@ import {
   useCheckReminderItem
 } from '../../data/reminders.js'
 import { useActiveOccurrences, useCheckOccurrenceItem } from '../../data/occurrences.js'
+import { useReceivedShares } from '../../data/shares.js'
+import { useCreateAssignment, useReceivedAssignments } from '../../data/assignments.js'
 import { compareFirings } from '../../lib/firingOrder.js'
 import { isNote as isNoteReminder } from '../../lib/notes.js'
 import { fireSummary } from '../../lib/schedule-preview.js'
+import { formatWhen } from '../../lib/datetime.js'
 import { useSettings } from '../../settings/useSettings.js'
+import { useAuth } from '../../auth/useAuth.js'
 import { useToast } from '../../components/ToastProvider.js'
 import { setBackInterceptor } from '../../native/backInterceptor.js'
 import { parentRoute } from '../../native/useNativeBack.js'
@@ -39,6 +44,7 @@ import { ScheduleTab } from './ScheduleTab.js'
 import { NotificationsTab } from './NotificationsTab.js'
 import { EscalationTab } from './EscalationTab.js'
 import { DiscardChangesDialog } from './DiscardChangesDialog.js'
+import { ReminderSharing } from '../../components/ReminderSharing.js'
 import {
   defaultKindForType,
   emptyForm,
@@ -57,17 +63,30 @@ export function ReminderEditorPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const reminders = useReminders()
+  const received = useReceivedShares()
+  const receivedAssignments = useReceivedAssignments()
   const create = useCreateReminder()
+  const createAssignment = useCreateAssignment()
   const update = useUpdateReminder()
   const remove = useDeleteReminder()
   const [error, setError] = useState<string | null>(null)
+  const [shareOpen, setShareOpen] = useState(false)
+  const [draftShares, setDraftShares] = useState<ShareInput[]>([])
+  const [draftMode, setDraftMode] = useState<'share' | 'assign'>('share')
+  const [draftAssignee, setDraftAssignee] = useState('')
   const toast = useToast()
   const { timeFormat } = useSettings()
+  const { user } = useAuth()
 
   const active = useActiveOccurrences()
   const checkOccurrenceItem = useCheckOccurrenceItem()
   const checkNoteItem = useCheckReminderItem()
-  const existing = useMemo(() => reminders.data?.find((r) => r.id === id), [reminders.data, id])
+  const shared = received.data?.find((item) => item.id === id && item.permission === 'EDIT')
+  const assignedToMe = receivedAssignments.data?.find((item) => item.reminderId === id)
+  const existing = useMemo(
+    () => reminders.data?.find((r) => r.id === id) ?? shared?.editableReminder ?? undefined,
+    [reminders.data, shared, id]
+  )
   const [form, setForm] = useState<FormState>(() => (existing ? fromReminder(existing) : emptyForm()))
   // The state the editor was opened in, to tell edits from the untouched form.
   const [original, setOriginal] = useState<FormState>(form)
@@ -87,7 +106,7 @@ export function ReminderEditorPage() {
     setHydratedId(existing.id)
   }
 
-  const dirty = !leaving && isFormDirty(original, form)
+  const dirty = !leaving && (isFormDirty(original, form) || (!id && (draftShares.length > 0 || draftMode === 'assign')))
 
   // Android Back: ask before dropping edits instead of discarding silently.
   useEffect(() => {
@@ -146,9 +165,7 @@ export function ReminderEditorPage() {
   // Repeat themselves. Existing reminders keep their saved schedule. Medication
   // implies a real schedule, so it also flips the reminder to scheduled — but only
   // from the untouched default, so neither explicit When choice (Schedule it, or
-  // Never) is ever undone by picking a type. (That medication clause is dormant
-  // while the type is withheld from the picker — see `selectableReminderTypes` —
-  // since only a new reminder reaches it and a new one can no longer be one.)
+  // Never) is ever undone by picking a type.
   function setType(type: ReminderType) {
     setForm((prev) => ({
       ...prev,
@@ -196,7 +213,17 @@ export function ReminderEditorPage() {
     event.preventDefault()
     setError(null)
     const input = toInput(form)
-    const destination = landingTab(input.schedule.kind)
+    if (!id && draftMode === 'assign' && !draftAssignee) {
+      setError('Choose an assignee in Share before creating this reminder.')
+      return
+    }
+    if (!id && draftMode === 'assign' && !navigator.onLine) {
+      setError('Connect to the internet to assign this reminder.')
+      return
+    }
+    const destination = !id && draftMode === 'assign'
+      ? '/assigned'
+      : shared ? `/shared/${id}` : landingTab(input.schedule.kind)
     const savedMessage = id ? 'Saved' : 'Created'
     setLeaving(true)
     // Capture the edit time now (survives offline queueing) so the server can
@@ -206,15 +233,24 @@ export function ReminderEditorPage() {
     // replayed on reconnect — so navigate immediately instead of awaiting it.
     if (!navigator.onLine) {
       if (id) update.mutate({ id, input, editedAt })
-      else create.mutate(input)
+      else create.mutate({ ...input, shares: draftShares })
       toast(savedMessage)
       navigate(destination)
       return
     }
     try {
+      let failedInvitations: string[] = []
       if (id) await update.mutateAsync({ id, input, editedAt })
-      else await create.mutateAsync(input)
-      toast(savedMessage)
+      else if (draftMode === 'assign') {
+        const result = await createAssignment.mutateAsync({ recipientEmail: draftAssignee, reminder: input })
+        if (result.invitationFailed) failedInvitations = [draftAssignee]
+      } else failedInvitations = (await create.mutateAsync({ ...input, shares: draftShares })).failedInvitations
+      toast(failedInvitations.length > 0
+        ? draftMode === 'assign'
+          ? 'Assigned, but the invitation email could not be sent. Resend it from Assigned by me.'
+          : 'Created, but an invitation email could not be sent. Open Share to resend.'
+        : draftMode === 'assign' ? 'Assigned' : savedMessage,
+        failedInvitations.length > 0 ? 'danger' : 'neutral')
       navigate(destination)
     } catch (err) {
       // Still here, edits intact — re-arm the guard that the departure disabled.
@@ -228,13 +264,13 @@ export function ReminderEditorPage() {
     setLeaving(true)
     if (!navigator.onLine) {
       remove.mutate(id)
-      toast('Deleted', 'neutral')
+      toast(assignedToMe ? 'Assignment declined' : 'Deleted', 'neutral')
       navigate('/')
       return
     }
     try {
       await remove.mutateAsync(id)
-      toast('Deleted', 'neutral')
+      toast(assignedToMe ? 'Assignment declined' : 'Deleted', 'neutral')
       navigate('/')
     } catch (err) {
       setLeaving(false)
@@ -279,23 +315,44 @@ export function ReminderEditorPage() {
       ? (itemId: string, checked: boolean) => checkNoteItem.mutate({ id: noteTicks.id, arg: { itemId, checked } })
       : undefined
 
-  const busy = create.isPending || update.isPending
+  const busy = create.isPending || createAssignment.isPending || update.isPending
   // Driven purely by the toggle now that `none` and `never` are real saved states:
   // editing an unscheduled reminder (or a note) must keep showing it as what it is
   // — and offer to give it a schedule — instead of forcing the date/time controls
   // open.
   const showSchedule = form.when === 'scheduled'
   const isNote = form.when === 'never'
-  const fireSummaryText = fireSummary(previewInput(form), timeFormat)
+  // The local browser preview cannot interpret the owner's recurring calendar
+  // through DST. Recipients see the server's saved next instant instead.
+  const fireSummaryText = shared ? null : fireSummary(previewInput(form), timeFormat)
   // Caught here rather than left to the server: saving offline queues the mutation
   // and navigates away, so a rejection would surface much later as a stray toast.
   const missingTodoItems = todoNeedsItems(form)
+
+  if (id && !existing) {
+    return <Typography level="body-sm">
+      {reminders.isLoading || received.isLoading ? 'Loading…' : 'Reminder not found or you do not have edit access.'}
+    </Typography>
+  }
 
   return (
     <form onSubmit={onSubmit}>
       <Sheet variant="outlined" sx={{ p: 2, borderRadius: 'md', bgcolor: 'background.surface' }}>
         <Stack spacing={2}>
           <Typography level="title-lg">{id ? 'Edit reminder' : 'New reminder'}</Typography>
+          {shared && (
+            <Typography level="body-sm">
+              Shared by {shared.ownerName}. Recurring times are set in {shared.ownerTimeZone};
+              {shared.nextScheduledFor
+                ? ` your next notification is ${formatWhen(shared.nextScheduledFor, timeFormat, user?.timeZone)} in your time zone.`
+                : ' you will see notifications in your time zone.'}
+            </Typography>
+          )}
+          {assignedToMe && (
+            <Typography level="body-sm">
+              Assigned by {assignedToMe.creatorName}. You can edit, finish, snooze, or decline this reminder.
+            </Typography>
+          )}
           {error && <Alert color="danger">{error}</Alert>}
 
           <Tabs defaultValue="details" sx={{ bgcolor: 'transparent' }}>
@@ -398,6 +455,10 @@ export function ReminderEditorPage() {
             <Alert color="warning" variant="soft" size="sm">
               Add at least one checklist item on the Details tab.
             </Alert>
+          ) : !id && draftMode === 'assign' ? (
+            <Alert color="primary" variant="soft" size="sm">
+              The assignee receives this reminder on their own schedule and in their local time zone. You can track its firings in Assigned by me.
+            </Alert>
           ) : isNote ? (
             // Ahead of the paused case on purpose: "won't fire until you turn it
             // on" is a promise a note can't keep — turning it on changes nothing.
@@ -414,6 +475,10 @@ export function ReminderEditorPage() {
             <Alert color={id ? 'neutral' : 'primary'} variant="soft" size="sm">
               {id ? 'Already notified you when you created it — nothing more scheduled.' : 'Notifies you right away'}
             </Alert>
+          ) : shared && showSchedule ? (
+            <Alert color="primary" variant="soft" size="sm">
+              Schedule changes will notify everyone at the same instant. The next time shown above reflects the saved schedule.
+            </Alert>
           ) : fireSummaryText ? (
             <Alert color="primary" variant="soft" size="sm">
               {fireSummaryText}
@@ -425,14 +490,25 @@ export function ReminderEditorPage() {
           )}
 
           <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+            {!shared && !assignedToMe && (
+              <Button
+                type="button"
+                variant="outlined"
+                size="sm"
+                startDecorator={<ShareIcon />}
+                onClick={() => setShareOpen(true)}
+              >
+                Share
+              </Button>
+            )}
             <Button type="submit" loading={busy} disabled={missingTodoItems} sx={{ flex: 1 }}>
-              {id ? 'Save' : 'Create'}
+              {id ? 'Save' : draftMode === 'assign' ? 'Assign' : 'Create'}
             </Button>
             <Button variant="outlined" color="neutral" onClick={() => leaveFor('/')}>
               Cancel
             </Button>
           </Stack>
-          {id && (
+          {id && !shared && (
             <Button
               variant="plain"
               color="danger"
@@ -441,7 +517,7 @@ export function ReminderEditorPage() {
               onClick={onDelete}
               sx={{ alignSelf: 'center', mt: 0.5 }}
             >
-              Delete reminder
+              {assignedToMe ? 'Decline assignment' : 'Delete reminder'}
             </Button>
           )}
         </Stack>
@@ -456,6 +532,19 @@ export function ReminderEditorPage() {
           navigate(to)
         }}
       />
+      {!shared && !assignedToMe && (
+        <ReminderSharing
+          open={shareOpen}
+          onClose={() => setShareOpen(false)}
+          reminderId={id}
+          draftShares={draftShares}
+          onDraftSharesChange={setDraftShares}
+          draftMode={draftMode}
+          onDraftModeChange={setDraftMode}
+          draftAssignee={draftAssignee}
+          onDraftAssigneeChange={setDraftAssignee}
+        />
+      )}
     </form>
   )
 }

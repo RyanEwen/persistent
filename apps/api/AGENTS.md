@@ -11,6 +11,21 @@
   cascade-deleted: scope it by the authenticated user's own stored email, and
   remember it when deleting an account
   (`docs/auth-architecture.md`).
+- **Shared reminders are the only cross-user grant.** A recipient query must
+  filter `ReminderShare.recipientId` by `requireUserId(request)` and join through
+  that exact reminder. Every grant permits editing and completion. Owner-only
+  sharing and deletion routes still scope the reminder by its owner's `userId`.
+  Completion and definition changes reach all participants; snooze and alarm
+  escalation belong to the participant acting on the firing. A recipient may
+  delete their own share without deleting the owner's reminder. Invitations for
+  unknown addresses never grant access until a verified sign-in claims them;
+  past recipient suggestions are scoped by their owner id.
+- **Assignment is distinct from sharing.** A known assignee owns the new
+  `Reminder` and all its firings. An unknown address keeps a validated draft in
+  `ReminderAssignment` until verified sign-in creates the assignee-owned reminder.
+  The creator can only read progress through a `creatorId`-scoped assignment query;
+  they cannot edit, finish, or receive alerts for the assignee's reminder. A
+  recipient's deletion records a decline before removing their reminder.
 - **Validate at the boundary.** Parse request bodies with the Zod schemas from
   `@persistent/shared` (e.g. `reminderInputSchema.safeParse`) and throw
   `badRequest` on failure. Don't hand-roll shape checks.

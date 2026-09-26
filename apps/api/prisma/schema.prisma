@@ -55,6 +55,18 @@ enum PushKind {
   FCM
 }
 
+enum SharePermission {
+  VIEW
+  ACT
+  EDIT
+}
+
+enum AssignmentState {
+  PENDING
+  ACTIVE
+  DECLINED
+}
+
 model User {
   id          String   @id @default(cuid())
   email       String   @unique
@@ -65,6 +77,11 @@ model User {
 
   sessions      Session[]
   reminders     Reminder[]
+  receivedShares ReminderShare[]
+  recipientAlerts RecipientAlertState[]
+  shareRecipients ShareRecipient[]
+  assignmentsCreated ReminderAssignment[] @relation("AssignmentCreator")
+  assignmentsReceived ReminderAssignment[] @relation("AssignmentRecipient")
   occurrences   ReminderOccurrence[]
   subscriptions PushSubscription[]
   passkeys      Passkey[]
@@ -179,9 +196,79 @@ model Reminder {
 
   user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   occurrences ReminderOccurrence[]
+  shares      ReminderShare[]
+  invitations ReminderInvitation[]
+  assignment ReminderAssignment?
 
   @@index([userId])
   @@index([userId, active])
+}
+
+/// Explicit collaboration grant. The reminder and firing remain owner-scoped,
+/// while each recipient can edit or complete and receives personal alerts.
+model ReminderShare {
+  reminderId  String
+  recipientId String
+  permission  SharePermission @default(EDIT)
+  createdAt   DateTime @default(now())
+
+  reminder  Reminder @relation(fields: [reminderId], references: [id], onDelete: Cascade)
+  recipient User     @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@id([reminderId, recipientId])
+  @@index([recipientId])
+}
+
+/// Access requested for an email address that has not signed up yet. A verified
+/// sign-in for this address converts the invitation into a normal share.
+model ReminderInvitation {
+  reminderId String
+  email String
+  permission SharePermission @default(EDIT)
+  createdAt DateTime @default(now())
+
+  reminder Reminder @relation(fields: [reminderId], references: [id], onDelete: Cascade)
+
+  @@id([reminderId, email])
+  @@index([email])
+}
+
+/// Owner-scoped history for the recipient picker, retained after access removal.
+model ShareRecipient {
+  ownerId String
+  email String
+  lastSharedAt DateTime @default(now())
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@id([ownerId, email])
+  @@index([ownerId, lastSharedAt])
+}
+
+/// A reminder created for one other person. The assignee owns the actual
+/// reminder and its firings; the creator retains only this progress record.
+model ReminderAssignment {
+  id String @id @default(cuid())
+  creatorId String
+  recipientId String?
+  recipientEmail String
+  reminderId String? @unique
+  title String
+  /// Validated reminder input awaiting account creation; cleared on claim.
+  draft Json?
+  state AssignmentState @default(PENDING)
+  createdAt DateTime @default(now())
+  acceptedAt DateTime?
+  declinedAt DateTime?
+  lastCompletedAt DateTime?
+
+  creator User @relation("AssignmentCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  recipient User? @relation("AssignmentRecipient", fields: [recipientId], references: [id], onDelete: SetNull)
+  reminder Reminder? @relation(fields: [reminderId], references: [id], onDelete: SetNull)
+
+  @@index([creatorId, createdAt])
+  @@index([recipientEmail, state])
+  @@index([recipientId, state])
 }
 
 /// A single materialized firing of a reminder. The persistence guarantee =
@@ -219,11 +306,30 @@ model ReminderOccurrence {
 
   reminder Reminder @relation(fields: [reminderId], references: [id], onDelete: Cascade)
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipientAlerts RecipientAlertState[]
 
   // Idempotent materialization: one occurrence per (reminder, instant).
   @@unique([reminderId, scheduledFor])
   @@index([userId, status])
   @@index([status, scheduledFor])
+}
+
+/// Personal notification state for a recipient of a shared firing. The owning
+/// occurrence remains the one source of truth for Done and checklist progress.
+model RecipientAlertState {
+  occurrenceId String
+  recipientId String
+  snoozedUntil DateTime?
+  escalatedAt DateTime?
+  escalationSilencedAt DateTime?
+  lastNotifiedAt DateTime?
+
+  occurrence ReminderOccurrence @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+  recipient User @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@id([occurrenceId, recipientId])
+  @@index([recipientId, snoozedUntil])
+  @@index([snoozedUntil])
 }
 
 /// A registered native Android FCM target.

@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { DateTime } from 'luxon'
-import { escalateAtFor, shouldEscalateNow } from './escalation.js'
+import { escalateAtFor, groupEmailEscalationAt, shouldEscalateNow } from './escalation.js'
 
 const TZ = 'America/Toronto'
 
@@ -68,4 +68,17 @@ test('escalates again the moment the snooze elapses', () => {
 
 test('no escalation configured never escalates, snooze or not', () => {
   assert.equal(shouldEscalateNow(null, null, SNOOZE_NOW), false)
+})
+
+test('covering email waits for the latest participant snooze', () => {
+  const firedAt = new Date('2026-06-24T11:00:00.000Z')
+  const ownerUntil = new Date('2026-06-24T11:20:00.000Z')
+  const recipientUntil = new Date('2026-06-24T11:45:00.000Z')
+  assert.deepEqual(groupEmailEscalationAt(firedAt, 30, [ownerUntil, recipientUntil]), recipientUntil)
+})
+
+test('covering email still waits for its configured delay when all snoozes end earlier', () => {
+  const firedAt = new Date('2026-06-24T11:00:00.000Z')
+  const earlierSnooze = new Date('2026-06-24T11:20:00.000Z')
+  assert.deepEqual(groupEmailEscalationAt(firedAt, 30, [earlierSnooze, null]), new Date('2026-06-24T11:30:00.000Z'))
 })

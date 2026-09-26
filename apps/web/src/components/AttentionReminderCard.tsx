@@ -31,6 +31,7 @@ export function AttentionReminderCard({
   reminder,
   occurrence,
   timeFormat,
+  timeZone,
   onDone,
   doneLoading,
   onSnooze,
@@ -45,6 +46,8 @@ export function AttentionReminderCard({
   reminder: Reminder
   occurrence: Occurrence
   timeFormat: TimeFormat
+  /** Shared firings use the recipient's account zone for display. */
+  timeZone?: string
   onDone: () => void
   doneLoading: boolean
   onSnooze: () => void
@@ -105,11 +108,11 @@ export function AttentionReminderCard({
           {/* pre-wrap so the line breaks the user typed into details survive. */}
           {body && <Typography level="body-sm" sx={{ whiteSpace: 'pre-wrap' }}>{body}</Typography>}
           <Typography level="body-xs" sx={{ mt: 0.5 }}>
-            {formatWhen(occurrence.scheduledFor, timeFormat)}
+            {formatWhen(occurrence.scheduledFor, timeFormat, timeZone)}
           </Typography>
           {occurrence.status === 'SNOOZED' && occurrence.snoozedUntil && (
             <Typography level="body-xs" color="primary" startDecorator={<SnoozeIcon sx={{ fontSize: 14 }} />}>
-              Snoozed until {formatWhen(occurrence.snoozedUntil, timeFormat)}
+              Snoozed until {formatWhen(occurrence.snoozedUntil, timeFormat, timeZone)}
             </Typography>
           )}
         </Box>

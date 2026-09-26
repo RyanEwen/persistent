@@ -1,8 +1,8 @@
 /**
- * Persist the TanStack Query cache to localStorage so reminders/occurrences
- * render offline (e.g. the Capacitor WebView with no network) and queued
- * mutations survive a reload. Auth queries are excluded because they must always
- * be re-validated against the server, never restored stale.
+ * Persist the TanStack Query cache to localStorage so owned reminders and
+ * firings render offline (e.g. the Capacitor WebView with no network), and
+ * queued mutations survive a reload. Auth, share, and assignment queries are excluded;
+ * occurrence feeds are saved with recipient firings removed.
  *
  * The cache holds DTOs shaped by the version that wrote them, so it is busted on
  * every app version: restoring rows from an older release into newer components
@@ -16,13 +16,16 @@
  */
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
 import type { PersistQueryClientOptions } from '@tanstack/react-query-persist-client'
+import { serializeOwnedCache } from './serializeOwnedCache.js'
 
 const persister = createSyncStoragePersister({
   storage: window.localStorage,
-  key: 'persistent-query-cache'
+  key: 'persistent-query-cache',
+  serialize: serializeOwnedCache
 })
 
-const EXCLUDED_PREFIXES = ['auth']
+// A revoked share must not remain readable from an offline cache.
+const EXCLUDED_PREFIXES = ['auth', 'shares', 'assignments']
 
 export const persistOptions: Omit<PersistQueryClientOptions, 'queryClient'> = {
   persister,

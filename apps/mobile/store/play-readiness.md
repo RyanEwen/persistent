@@ -356,10 +356,10 @@ for every way an app can be ineligible for a track. Nothing was written either t
 the edit was dropped uncommitted and `internal`/`alpha` kept serving 47. The second
 attempt was worth making only to establish that a newer build does not clear it.
 
-The likeliest cause was Google's closed-testing rule for personal developer accounts
-(at least 12 testers opted in for 14 continuous days). Note the account is **still
-personal** as of 2026-09-05, so the individual-to-organization transfer was not what
-unblocked it, and the `MEDICATION` withholding that transfer governs still stands.
+At the time, the likeliest cause was Google's closed-testing rule for personal
+developer accounts (at least 12 testers opted in for 14 continuous days). The
+account has since moved to an organization. Medication creation is enabled again;
+the Health apps and Data safety declarations must be updated after this deployment.
 The other candidates, all Console-side, were incomplete App content declarations
 (privacy policy, data safety, content rating, target audience) and the countries the
 release would go to. None of it is waivable or diagnosable from the API, which is why
@@ -537,6 +537,12 @@ no-health-framing rule always covered but which only the listing had been checke
 against. `android:allowBackup="false"` landed the same day and is the one that does
 need a build, so **versionCode 47 still ships `true`**; answer Data Safety for the
 build that is actually live.
+
+Medication reminders are available again in the hosted web app. Update the
+Health apps declaration for medication reminders and restore the Health info
+Data safety entry before describing the current app as fully declared. The
+hosted web change does not require a new Android binary; the listing and its
+screenshots must still match the current app.
 
 All listing screenshots are captured, including the ringing full-screen alarm
 (`graphics/screenshots/00-ringing-alarm.png`), taken on Android 15 during the

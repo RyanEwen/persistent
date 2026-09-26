@@ -8,10 +8,8 @@
  * because this one has a different job: produce a small, believable account that
  * photographs well. Two rules follow from that.
  *
- * **No health data.** The listing must not read as a medical app while the
- * MEDICATION type is withheld (see `selectableReminderTypes`), and screenshots
- * are read by reviewers regardless of what the copy says. Nothing here is a drug,
- * a dose, or a symptom.
+ * **Synthetic health data only.** Medication reminders are available again,
+ * and screenshots show a generic vitamin rather than anyone's prescription.
  *
  * **No screen repeats a reminder.** Two cards for one reminder is the app's
  * headline behavior (independent occurrences), but as a *picture* it reads as a
@@ -249,6 +247,17 @@ const seeds: Seed[] = [
       startDate: isoDay(1)
     },
     occurrences: [{ scheduledFor: at(day(1), '17:30'), status: 'PENDING' }]
+  },
+  {
+    note: 'synthetic medication, scheduled for tomorrow so the editor shows the dose without a live alarm',
+    reminder: {
+      title: 'Take vitamin D',
+      type: 'MEDICATION',
+      typeData: { medications: [{ name: 'Vitamin D', quantity: 1000, unit: 'IU' }] },
+      schedule: { kind: 'once', timesOfDay: ['09:00'] },
+      startDate: isoDay(1)
+    },
+    occurrences: [{ scheduledFor: at(day(1), '09:00'), status: 'PENDING' }]
   },
   {
     note: 'a note — sits under Notes on Current, never fires',

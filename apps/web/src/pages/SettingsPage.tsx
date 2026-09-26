@@ -148,7 +148,7 @@ export function SettingsPage() {
             <Option value="24h">24-hour (13:30)</Option>
           </Select>
         </FormControl>
-        <Typography level="body-xs">Example: {formatDateTime(new Date(), timeFormat)}</Typography>
+        <Typography level="body-xs">Example: {formatDateTime(new Date(), timeFormat, user?.timeZone)}</Typography>
       </Card>
 
       <Card variant="outlined">

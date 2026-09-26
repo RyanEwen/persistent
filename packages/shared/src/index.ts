@@ -6,6 +6,7 @@
 export * from './errors.js'
 export * from './auth.js'
 export * from './reminders.js'
+export * from './assignments.js'
 export * from './device-alarms.js'
 export * from './push.js'
 export * from './ws-events.js'

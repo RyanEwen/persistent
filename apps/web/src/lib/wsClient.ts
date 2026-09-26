@@ -37,9 +37,21 @@ function handleEvent(event: WsEvent): void {
       break
     case 'reminder.changed':
       void queryClient.invalidateQueries({ queryKey: queryKeys.reminders })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.receivedShares })
       void queryClient.invalidateQueries({ queryKey: queryKeys.occurrencesActive })
       void queryClient.invalidateQueries({ queryKey: queryKeys.occurrencesUpcoming })
       void queryClient.invalidateQueries({ queryKey: queryKeys.occurrencesHistory })
+      break
+    case 'share.changed':
+      // Remove old content immediately: this event may mean access was revoked.
+      queryClient.setQueryData(queryKeys.receivedShares, [])
+      void queryClient.invalidateQueries({ queryKey: queryKeys.receivedShares })
+      void queryClient.invalidateQueries({ queryKey: ['shares'] })
+      void queryClient.resetQueries({ queryKey: ['occurrences'] })
+      break
+    case 'assignment.changed':
+      void queryClient.invalidateQueries({ queryKey: queryKeys.assignmentsSent })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.assignmentsReceived })
       break
     case 'dismiss':
       // Another device acked/snoozed/deleted: clear any OS notification we're
@@ -76,6 +88,14 @@ function closeDeviceNotification(occurrenceId: string): void {
 
 function connect(): void {
   socket = new WebSocket(wsUrl())
+  socket.onopen = () => {
+    // Recheck grants after reconnect: access can be revoked while this device
+    // was offline, and a missed invalidation cannot authorize a cached view.
+    queryClient.setQueryData(queryKeys.receivedShares, [])
+    void queryClient.resetQueries({ queryKey: ['occurrences'] })
+    void queryClient.invalidateQueries({ queryKey: ['shares'] })
+    void queryClient.invalidateQueries({ queryKey: ['assignments'] })
+  }
   socket.onmessage = (message) => {
     try {
       const parsed = wsEventSchema.safeParse(JSON.parse(message.data as string))

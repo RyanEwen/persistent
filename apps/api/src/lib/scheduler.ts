@@ -24,10 +24,17 @@ import { expandSchedule } from './schedule-expand.js'
 import { notificationTitle, notificationBody, escalationEmailText } from './notification-format.js'
 import { dispatchToUser } from './delivery/index.js'
 import { sendCloudflareEmail } from './cloudflare-email.js'
-import { escalateAtFor, shouldEscalateNow } from './escalation.js'
+import { escalateAtFor, groupEmailEscalationAt, shouldEscalateNow } from './escalation.js'
 import { firingSounds } from './reminder-sounds.js'
 import { toOccurrence, toCheckedItemIds } from './serializers.js'
 import { broadcast } from './realtime.js'
+import { broadcastSharedChange, participantIds } from './share-access.js'
+import { broadcastAssignmentProgress } from './assignment-progress.js'
+import {
+  claimRecipientEscalation,
+  claimRecipientSnoozeRevival,
+  occurrenceForActor
+} from './recipient-alert-state.js'
 
 /** Statuses that still have a firing in front of the user (i.e. not terminal). */
 const LIVE_STATUSES: OccurrenceStatus[] = ['PENDING', 'FIRED', 'ESCALATED', 'SNOOZED']
@@ -178,8 +185,10 @@ async function fireOccurrence(occurrenceId: string): Promise<void> {
   // Each occurrence nags on its own — a fresh fire never supersedes an earlier
   // still-unconfirmed firing of the same reminder. A reminder with several times
   // of day shows one notification per fired occurrence, each confirmed separately.
-  fireNotification(occurrence, false)
+  const members = await participantIds(occurrence.reminderId, occurrence.userId)
+  for (const memberId of members) fireNotificationFor(occurrence, memberId, false)
   broadcast(occurrence.userId, { type: 'occurrence.fired', occurrence: toOccurrence(occurrence) })
+  await broadcastSharedChange(occurrence.reminderId, occurrence.userId)
 }
 
 /**
@@ -215,19 +224,68 @@ async function sweep(): Promise<void> {
     // An unelapsed snooze is honored: re-escalate only once the snooze ends, not
     // on every 60s sweep (else a 5-min snooze rings again in ~1 min).
     if (shouldEscalateNow(escalateAt, occurrence.snoozedUntil, now)) {
-      const updated = await prisma.reminderOccurrence.update({
+      const claimed = await prisma.reminderOccurrence.updateMany({
+        where: { id: occurrence.id, status: { in: ['FIRED', 'SNOOZED'] }, escalationSilencedAt: null },
+        data: { status: 'ESCALATED', escalatedAt: now, lastNotifiedAt: now, snoozedUntil: null }
+      })
+      if (claimed.count === 0) continue
+      const updated = await prisma.reminderOccurrence.findUniqueOrThrow({
         where: { id: occurrence.id },
-        data: { status: 'ESCALATED', escalatedAt: now, lastNotifiedAt: now, snoozedUntil: null },
         include: { reminder: true }
       })
       await escalate(updated)
       broadcast(updated.userId, { type: 'occurrence.changed', occurrence: toOccurrence(updated) })
+      await broadcastAssignmentProgress(updated.reminderId)
     }
   }
 
-  // 1b) Email escalation — independent of the alarm escalation, with its own
-  // "how late". Sent once per occurrence (escalationEmailedAt guard), anchored to
-  // the original fire.
+  // A recipient's escalation is independent of the owner's snooze or alarm.
+  // Email escalation remains one message on the canonical occurrence below.
+  const sharedFirings = await prisma.reminderOccurrence.findMany({
+    where: {
+      status: { in: ['FIRED', 'SNOOZED', 'ESCALATED'] },
+      firedAt: { not: null },
+      reminder: { shares: { some: {} } }
+    },
+    include: {
+      reminder: { include: { shares: true, user: { select: { timeZone: true } } } },
+      recipientAlerts: true
+    },
+    take: 200
+  })
+  for (const occurrence of sharedFirings) {
+    const tz = occurrence.reminder.user.timeZone
+    const escalateAt = escalateAtFor(occurrence.firedAt as Date, occurrence.scheduledFor, occurrence.reminder, tz)
+    for (const share of occurrence.reminder.shares) {
+      const state = occurrence.recipientAlerts.find((alert) => alert.recipientId === share.recipientId)
+      if (state?.escalatedAt || state?.escalationSilencedAt) continue
+      if (!shouldEscalateNow(escalateAt, state?.snoozedUntil ?? null, now)) continue
+
+      const updatedState = await claimRecipientEscalation(occurrence.id, share.recipientId, now)
+      if (!updatedState) continue
+
+      // Completion or removal can happen while the claim is in flight. Fetch
+      // current content before preparing a push from this scheduler snapshot.
+      const current = await prisma.reminderOccurrence.findFirst({
+        where: {
+          id: occurrence.id,
+          status: { in: ['FIRED', 'SNOOZED', 'ESCALATED'] },
+          reminder: { shares: { some: { recipientId: share.recipientId } } }
+        },
+        include: { reminder: true }
+      })
+      if (!current) continue
+
+      const personal = occurrenceForActor(current, share.recipientId, updatedState)
+      await dispatchToUser(share.recipientId, buildPayload('escalate', personal, true)).catch((error) =>
+        logger.warn('shared escalation dispatch failed', { error: String(error), occurrenceId: occurrence.id })
+      )
+      broadcast(share.recipientId, { type: 'reminder.changed', reminderId: occurrence.reminderId })
+    }
+  }
+
+  // 1b) The covering email is shared, so it waits for the configured delay AND
+  // the latest snooze among current participants. Alarm escalation stays personal.
   const emailable = await prisma.reminderOccurrence.findMany({
     where: {
       status: { in: ['FIRED', 'SNOOZED', 'ESCALATED'] },
@@ -235,16 +293,45 @@ async function sweep(): Promise<void> {
       escalationEmailedAt: null,
       reminder: { is: { escalateEmail: { not: null }, escalateEmailAfterMinutes: { not: null } } }
     },
-    include: { reminder: true },
+    include: {
+      reminder: { include: { shares: { select: { recipientId: true } } } },
+      recipientAlerts: { select: { recipientId: true, snoozedUntil: true } }
+    },
     take: 200
   })
   for (const occurrence of emailable) {
     const r = occurrence.reminder
     if (r.escalateEmailAfterMinutes == null || !r.escalateEmail) continue
-    const emailAt = (occurrence.firedAt as Date).getTime() + r.escalateEmailAfterMinutes * 60_000
-    if (now.getTime() < emailAt) continue
+    const currentRecipients = new Set(r.shares.map((share) => share.recipientId))
+    const groupSnoozes = [
+      occurrence.snoozedUntil,
+      ...occurrence.recipientAlerts
+        .filter((alert) => currentRecipients.has(alert.recipientId))
+        .map((alert) => alert.snoozedUntil)
+    ]
+    const emailAt = groupEmailEscalationAt(occurrence.firedAt as Date, r.escalateEmailAfterMinutes, groupSnoozes)
+    if (now < emailAt) continue
     // Mark first so a slow send can't double-fire across overlapping sweeps.
-    await prisma.reminderOccurrence.update({ where: { id: occurrence.id }, data: { escalationEmailedAt: now } })
+    const claimed = await prisma.reminderOccurrence.updateMany({
+      where: {
+        id: occurrence.id,
+        status: { in: ['FIRED', 'SNOOZED', 'ESCALATED'] },
+        escalationEmailedAt: null,
+        AND: [
+          { OR: [{ snoozedUntil: null }, { snoozedUntil: { lte: now } }] },
+          {
+            recipientAlerts: {
+              none: {
+                snoozedUntil: { gt: now },
+                recipient: { receivedShares: { some: { reminderId: occurrence.reminderId } } }
+              }
+            }
+          }
+        ]
+      },
+      data: { escalationEmailedAt: now }
+    })
+    if (claimed.count === 0) continue
     await sendEscalationEmail(r, toCheckedItemIds(occurrence.checkedItems)).catch((error) =>
       logger.warn('escalate email failed', { error: String(error), reminderId: r.id })
     )
@@ -260,14 +347,50 @@ async function sweep(): Promise<void> {
     take: 200
   })
   for (const occurrence of snoozed) {
-    const updated = await prisma.reminderOccurrence.update({
+    const claimed = await prisma.reminderOccurrence.updateMany({
+      where: { id: occurrence.id, status: 'SNOOZED', snoozedUntil: { lte: now } },
+      data: { status: 'FIRED', lastNotifiedAt: now, snoozedUntil: null }
+    })
+    if (claimed.count === 0) continue
+    const updated = await prisma.reminderOccurrence.findUniqueOrThrow({
       where: { id: occurrence.id },
-      data: { status: 'FIRED', lastNotifiedAt: now, snoozedUntil: null },
       include: { reminder: true }
     })
     // A revived snooze nags again on its own; it never supersedes its siblings.
     fireNotification(updated, false)
     broadcast(updated.userId, { type: 'occurrence.fired', occurrence: toOccurrence(updated) })
+    await broadcastAssignmentProgress(updated.reminderId)
+  }
+
+  const recipientSnoozes = await prisma.recipientAlertState.findMany({
+    where: {
+      snoozedUntil: { lte: now },
+      occurrence: { status: { in: ['FIRED', 'SNOOZED', 'ESCALATED'] } }
+    },
+    include: { occurrence: { include: { reminder: { include: { shares: true } } } } },
+    take: 200
+  })
+  for (const state of recipientSnoozes) {
+    const occurrence = state.occurrence
+    if (!occurrence.reminder.shares.some((share) => share.recipientId === state.recipientId)) continue
+
+    const updatedState = await claimRecipientSnoozeRevival(state.occurrenceId, state.recipientId, now)
+    if (!updatedState) continue
+
+    const current = await prisma.reminderOccurrence.findFirst({
+      where: {
+        id: state.occurrenceId,
+        status: { in: ['FIRED', 'SNOOZED', 'ESCALATED'] },
+        reminder: { shares: { some: { recipientId: state.recipientId } } }
+      },
+      include: { reminder: true }
+    })
+    if (!current) continue
+
+    const personal = occurrenceForActor(current, state.recipientId, updatedState)
+    fireNotificationFor(personal, state.recipientId, personal.status === 'ESCALATED')
+    broadcast(state.recipientId, { type: 'occurrence.fired', occurrence: toOccurrence(personal) })
+    broadcast(state.recipientId, { type: 'reminder.changed', reminderId: current.reminderId })
   }
 
   // NOTE: there is deliberately no "auto-miss" step. The persistence guarantee is
@@ -303,6 +426,7 @@ async function reviveMissed(): Promise<void> {
       })
       fireNotification(updated, false)
       broadcast(updated.userId, { type: 'occurrence.fired', occurrence: toOccurrence(updated) })
+      await broadcastSharedChange(updated.reminderId, updated.userId)
       revived++
     }
   }
@@ -338,7 +462,12 @@ function buildPayload(type: PushPayload['type'], occurrence: OccurrenceForNotifi
 }
 
 function fireNotification(occurrence: OccurrenceForNotification, alarm: boolean): void {
-  void dispatchToUser(occurrence.userId, buildPayload('fire', occurrence, alarm)).catch((error) =>
+  fireNotificationFor(occurrence, occurrence.userId, alarm)
+}
+
+/** Send one participant's own alert while retaining the shared occurrence id. */
+function fireNotificationFor(occurrence: OccurrenceForNotification, userId: string, alarm: boolean): void {
+  void dispatchToUser(userId, buildPayload('fire', occurrence, alarm)).catch((error) =>
     logger.warn('fire dispatch failed', { error: String(error) })
   )
 }
@@ -369,4 +498,3 @@ async function sendEscalationEmail(reminder: Reminder, checkedItemIds: readonly 
     text: escalationEmailText(reminder, checkedItemIds)
   })
 }
-

@@ -18,23 +18,8 @@ export const reminderTypes = ['NONE', 'TODO', 'MEDICATION'] as const
 export const reminderTypeSchema = z.enum(reminderTypes)
 export type ReminderType = (typeof reminderTypes)[number]
 
-/**
- * The types the editor offers when picking one — currently every type except
- * MEDICATION.
- *
- * **Temporary.** Google Play requires an organization developer account for an
- * app that handles health data, and the switch from an individual account takes
- * up to 30 days; until it lands the app takes on no new health data. MEDICATION
- * stays a fully valid *stored* type throughout — this withholds it from the
- * picker, nothing more. Reminders that already are one keep their doses, still
- * show them everywhere, and still edit as medications (the picker re-admits the
- * type when the reminder it is editing already carries it).
- *
- * To restore: delete this and point the picker back at `reminderTypes`.
- */
-export const selectableReminderTypes: readonly ReminderType[] = reminderTypes.filter(
-  (type) => type !== 'MEDICATION'
-)
+/** Types offered by the editor. */
+export const selectableReminderTypes: readonly ReminderType[] = reminderTypes
 
 /**
  * How hard the reminder nags:
@@ -455,6 +440,54 @@ export const reminderSchema = z.object({
   updatedAt: z.string().datetime()
 })
 export type Reminder = z.infer<typeof reminderSchema>
+
+/** Access belongs to a verified account; an unregistered email stays pending. */
+export const sharePermissionSchema = z.enum(['VIEW', 'ACT', 'EDIT'])
+export type SharePermission = z.infer<typeof sharePermissionSchema>
+export const shareInputSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(254),
+  permission: sharePermissionSchema
+})
+export type ShareInput = z.infer<typeof shareInputSchema>
+/** Initial grants are created with the reminder, so a queued create keeps them together. */
+export const initialSharesSchema = z.array(shareInputSchema).max(20)
+export type ReminderCreateInput = ReminderInput & { shares?: ShareInput[] }
+
+/** Owner view of an active share or an invitation awaiting account creation. */
+export const reminderShareSchema = z.object({
+  recipientId: z.string().nullable(),
+  email: z.string(),
+  displayName: z.string().nullable(),
+  permission: sharePermissionSchema,
+  pending: z.boolean()
+})
+export type ReminderShare = z.infer<typeof reminderShareSchema>
+
+/** Recipient view omits the owner's escalation contact and device settings. */
+export const sharedReminderSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  details: z.string().nullable(),
+  type: reminderTypeSchema,
+  typeData: typeDataSchema,
+  checkedItemIds: z.array(z.string()),
+  isNote: z.boolean(),
+  active: z.boolean(),
+  ownerName: z.string(),
+  ownerTimeZone: z.string(),
+  nextScheduledFor: z.string().datetime().nullable(),
+  permission: sharePermissionSchema,
+  activeFirings: z.array(z.object({
+    id: z.string(),
+    status: occurrenceStatusSchema,
+    scheduledFor: z.string().datetime(),
+    snoozedUntil: z.string().datetime().nullable(),
+    checkedItemIds: z.array(z.string())
+  })),
+  editableReminder: reminderSchema.nullable(),
+  updatedAt: z.string().datetime()
+})
+export type SharedReminder = z.infer<typeof sharedReminderSchema>
 
 /** "YYYY-MM-DD" calendar date in the user's time zone. */
 export const calendarDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD')

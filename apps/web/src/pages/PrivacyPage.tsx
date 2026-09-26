@@ -13,7 +13,7 @@ import Link from '@mui/joy/Link'
 // Also the contact address on the Play listing — Google verifies it routes.
 const CONTACT_EMAIL = 'contact@dynamic-solutions.ca'
 
-const LAST_UPDATED = '13 September 2026'
+const LAST_UPDATED = '26 September 2026'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -51,11 +51,18 @@ export function PrivacyPage() {
           <Typography level="body-sm">
             <strong>Your reminders.</strong> The title, details, schedule, and settings of every reminder you
             create, including the items on a checklist reminder and any structured fields the reminder&rsquo;s
-            type adds.
+            type adds. Medication reminders can include a medicine name and dose. Persistent is a reminder
+            tool, not a medical device or a source of medical advice.
           </Typography>
           <Typography level="body-sm">
             <strong>Reminder history.</strong> When each reminder notified you, which checklist items you ticked off,
             and whether and when you confirmed, snoozed, or ignored it.
+          </Typography>
+          <Typography level="body-sm">
+            <strong>Assignments.</strong> If you create a reminder for someone else, we keep the address you
+            selected, your reminder title, its status, and when its firings were completed. The assignee owns
+            the reminder and receives its alerts. A pending assignment stores its content until the invited
+            person signs in with that address.
           </Typography>
           <Typography level="body-sm">
             <strong>Devices.</strong> An FCM push token and device identifier for each Android device where you
@@ -66,7 +73,7 @@ export function PrivacyPage() {
             session, so you can stay signed in and we can expire sessions.
           </Typography>
           <Typography level="body-sm">
-            We do not collect your location, contacts, photos, phone number, or payment details.
+            We do not collect your location, address book, photos, phone number, or payment details.
           </Typography>
         </Section>
 
@@ -81,7 +88,21 @@ export function PrivacyPage() {
             notifications.
           </Typography>
           <Typography level="body-sm">
-            <strong>Cloudflare</strong> sends our email: your sign-in codes, and escalation emails.
+            <strong>Cloudflare</strong> sends our email: your sign-in codes, sharing and assignment invitations,
+            and escalation emails.
+          </Typography>
+          <Typography level="body-sm">
+            <strong>People you share with.</strong> When you share a reminder, its recipients can see and edit
+            its content, schedule, and notification and escalation settings. They can mark it done for everyone;
+            each person&apos;s snooze and alarm escalation remain personal. If a recipient does not yet have an
+            account, we email them an invitation without the reminder&apos;s content. We keep an owner-specific
+            list of addresses you have shared with so you can choose them again.
+          </Typography>
+          <Typography level="body-sm">
+            <strong>People you assign to.</strong> When you make a reminder for one other person, that person
+            can see and change its content and is the only person alerted. You can see its status and completion
+            times, but cannot edit or finish it. They can decline it. If they do not have an account yet,
+            their invitation email does not include the reminder content.
           </Typography>
           <Typography level="body-sm">
             <strong>Google Sign-In</strong> is used only if you choose it, and returns your email address and
@@ -105,8 +126,10 @@ export function PrivacyPage() {
 
         <Section title="How long we keep it">
           <Typography level="body-sm">
-            Reminders and their history are kept until you delete them or delete your account. Sign-in codes
-            expire within minutes. Sessions expire on their own and can be revoked by signing out.
+            Reminders and their history are kept until their owner deletes them or their account. A creator's
+            assignment status record remains after an assignee declines and is deleted when the creator deletes
+            their account. Sign-in codes expire within minutes. Sessions expire on their own and can be revoked
+            by signing out.
           </Typography>
         </Section>
 
@@ -114,7 +137,8 @@ export function PrivacyPage() {
           <Typography level="body-sm">
             Open <strong>Settings → Delete account</strong> in the app or on the web. Deletion is immediate
             and permanent: your account, reminders, history, passkeys, sessions, and device registrations are
-            all removed, and there is no restore window.
+            all removed, and there is no restore window. If someone assigned a reminder to you, their status
+            record remains without your email address after you delete your account.
           </Typography>
           <Typography level="body-sm">
             If you cannot sign in, email <Link href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</Link> from the

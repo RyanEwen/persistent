@@ -216,6 +216,27 @@ elapses (it does not silently degrade into a soft notification).
   snooze (escalation is a hard backstop, not a thing you can indefinitely defer
   by snoozing).
 
+For a shared reminder, each participant has their own snooze and alarm escalation
+state. Snoozing clears only that person's devices. Done confirms the single
+shared firing and clears it for every participant. Checklist ticks and reminder
+edits also apply to everyone.
+
+The reminder's covering email is sent once per firing. Its configured delay
+starts at the original fire, but an active snooze by any current participant
+postpones it until the latest group snooze ends. A person who leaves or loses
+access no longer affects that deadline. Done by anyone cancels the email.
+
+Shared firings have one absolute instant. Each participant sees that instant in
+their account time zone. Recurring schedule fields stay anchored to the creator's time
+zone, so a recipient's displayed time can shift during weeks when the two zones
+change daylight saving time on different dates.
+
+An assigned reminder has only the assignee as its owner and alert recipient.
+They can edit, finish, and snooze it as their own reminder, or decline it by
+removing it. The creator receives no alarm or firing card and has a read-only
+status view with completion times. Repeating times use the assignee's time zone;
+a pending email assignment starts scheduling after that person signs in.
+
 ## 4. Multiple times / repeats are independent
 
 A reminder with several times of day, or a repeating schedule, is treated as

@@ -10,6 +10,7 @@ import type {
   CheckItemInput,
   HideCheckedInput,
   Reminder,
+  ReminderCreateInput,
   ReminderInput,
   RenameTodoItemInput,
   ReorderTodoItemsInput
@@ -25,7 +26,7 @@ export function useReminders() {
 }
 
 export function useCreateReminder() {
-  return useMutation<{ reminder: Reminder }, Error, ReminderInput>({ mutationKey: mutationKeys.createReminder })
+  return useMutation<{ reminder: Reminder; failedInvitations: string[] }, Error, ReminderCreateInput>({ mutationKey: mutationKeys.createReminder })
 }
 
 export function useUpdateReminder() {

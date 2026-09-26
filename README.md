@@ -70,6 +70,13 @@ you *actually mark it done*. It's built for the things you can't afford to miss.
   you have left. Hide the ticked ones to see just what's outstanding — a long list
   stays collapsed the way you left it, on every device you use. Ticking everything
   still doesn't confirm it — only you do.
+- **Share a reminder.** Invite someone by email, including someone who has not signed up yet.
+  Everyone with access can edit it and mark a firing done for the group. Snoozes and alarm
+  escalation are personal, so one person's snooze does not silence another person's alert.
+- **Assign a reminder.** Create one for a single other person. They own its alerts and actions;
+  you can see when each firing was handled in Assigned by me. They can decline it.
+- **Medication reminders.** Keep a medicine name and dose with a reminder. Persistent helps
+  you remember; it does not provide medical advice.
 - **Simple sign-in.** A one-time email code, a passkey, or Sign in with Google —
   there is no password to forget or leak.
 - **Your data stays yours.** No ads, no analytics, no tracking. Delete your

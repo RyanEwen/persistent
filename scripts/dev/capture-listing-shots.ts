@@ -1,11 +1,11 @@
 /**
  * Render the Play listing's in-app screenshots from the running dev web app.
  *
- *   npm run dev                       # in another shell — needs web + api up
+ *   npm run dev                       # only if the Devkit web + api are not already up
  *   npm run db:seed:demo -- --email=you@example.com
  *   npm run shots -- --email=you@example.com
  *
- * Why not a phone: these four shots are pure web UI — the Android app loads the
+ * Why not a phone: these four shots are pure web UI. The Android app loads the
  * same bundle, so a scripted browser renders them identically and, unlike a
  * device, does it reproducibly. The set has to be re-shot every time the copy or
  * the UI moves (the last one went stale twice over: medication content, then a
@@ -27,7 +27,8 @@
 import crypto from 'node:crypto'
 import { mkdirSync } from 'node:fs'
 import { PrismaClient } from '@prisma/client'
-import type { Page } from 'playwright'
+import type { Browser, Page } from 'playwright'
+import { DateTime } from 'luxon'
 
 /**
  * Playwright is deliberately NOT a dependency: it plus a browser download is a
@@ -49,6 +50,7 @@ async function loadChromium() {
 }
 
 const prisma = new PrismaClient()
+const ZONE = 'America/Toronto'
 
 const args = process.argv.slice(2)
 const emailArg = args.find((a) => a.startsWith('--email='))?.split('=')[1]
@@ -72,13 +74,13 @@ const SCALE = 2.5
  * sentence with a link in the middle of it, and hiding the link alone leaves
  * "Install the for reliable, undismissable alarms" in the shot.
  */
-const BANNER_DISMISSED_KEY = 'persistent-hide-app-banner'
+const BANNER_DISMISSED_KEY = 'persistent-hide-native-apps-banner'
 
 async function hideWebOnlyChrome(page: Page): Promise<void> {
   await page.evaluate(() => {
-    for (const anchor of document.querySelectorAll('a')) {
-      if (anchor.textContent?.trim() === 'Get the app') {
-        ;(anchor as HTMLElement).style.display = 'none'
+    for (const button of document.querySelectorAll('button')) {
+      if (button.textContent?.trim() === 'Get the app') {
+        button.style.display = 'none'
       }
     }
   })
@@ -98,8 +100,11 @@ async function main(): Promise<void> {
   if (!user) throw new Error(`No user with email ${emailArg}.`)
 
   const hero = await prisma.reminder.findFirst({ where: { userId: user.id, title: 'Feed the puppy' } })
-  const escalating = await prisma.reminder.findFirst({ where: { userId: user.id, title: 'Submit the timesheet' } })
-  if (!hero || !escalating) throw new Error('Seed the demo account first: npm run db:seed:demo.')
+  const medication = await prisma.reminder.findFirst({ where: { userId: user.id, title: 'Take vitamin D' } })
+  if (!hero || !medication) throw new Error('Seed the demo account first: npm run db:seed:demo.')
+  if (await prisma.reminderAssignment.count({ where: { creatorId: user.id } })) {
+    throw new Error('The demo account has assignments. Clear them before taking a public screenshot.')
+  }
 
   // Mint a session rather than driving the sign-in form: the code arrives by
   // email, which is not automatable, and this is the same row that flow creates.
@@ -116,8 +121,11 @@ async function main(): Promise<void> {
   })
 
   mkdirSync(outDir, { recursive: true })
-  const browser = await (await loadChromium()).launch()
+  let demoAssignmentId: string | null = null
+  let demoRecipientId: string | null = null
+  let browser: Browser | null = null
   try {
+    browser = await (await loadChromium()).launch()
     const context = await browser.newContext({
       viewport: VIEWPORT,
       deviceScaleFactor: SCALE,
@@ -125,7 +133,7 @@ async function main(): Promise<void> {
       locale: 'en-CA',
       // Must match the demo account's zone, or the times render shifted — the
       // same trap the seed script fixes on the account itself.
-      timezoneId: 'America/Toronto'
+      timezoneId: ZONE
     })
     await context.addCookies([
       { name: 'persistent_auth', value: secret, domain: 'localhost', path: '/', httpOnly: true, sameSite: 'Lax' }
@@ -143,28 +151,67 @@ async function main(): Promise<void> {
         }
       },
       {
-        file: '02-reminder-detail.png',
-        shows: 'Reminder detail: the 3x daily schedule and what it is still waiting on',
+        file: '02-medication-reminder.png',
+        shows: 'Synthetic medication reminder with a visible dose',
         go: async () => {
-          await page.goto(`${baseUrl}/reminders/${hero.id}`)
-          await page.getByText('Every day at').first().waitFor()
+          await page.goto(`${baseUrl}/reminders/${medication.id}/edit`)
+          await page.locator('input[value="Take vitamin D"]').waitFor()
         }
       },
       {
-        file: '03-escalation-settings.png',
-        shows: 'Escalate-to-alarm settings: delay presets, escalate-at-a-time, email a contact',
+        file: '03-sharing.png',
+        shows: 'Share or assign dialog with a staged sample recipient',
         go: async () => {
-          await page.goto(`${baseUrl}/reminders/${escalating.id}/edit`)
-          await page.getByRole('tab', { name: 'Escalation' }).click()
-          await page.getByText('Escalate to an alarm if ignored').waitFor()
+          await page.goto(`${baseUrl}/reminders/new`)
+          await page.getByRole('textbox', { name: 'Title' }).fill('Plan the weekend trip')
+          await page.getByRole('button', { name: 'Share' }).click()
+          await page.getByRole('combobox', { name: 'Their email address' }).fill('alex@example.test')
+          await page.getByRole('button', { name: 'Add person' }).click()
+          await page.getByText('alex@example.test').waitFor()
         }
       },
       {
-        file: '05-history.png',
-        shows: 'History: what was confirmed and when',
+        file: '05-assigned.png',
+        shows: 'Read-only assignment status with completion time',
         go: async () => {
-          await page.goto(`${baseUrl}/history`)
-          await page.getByText('Feed the puppy').first().waitFor()
+          const recipient = await prisma.user.create({
+            data: { email: 'alex@example.test', timeZone: ZONE }
+          })
+          demoRecipientId = recipient.id
+          const finishedAt = new Date(Date.now() - 60 * 60_000)
+          const reminder = await prisma.reminder.create({
+            data: {
+              userId: recipient.id,
+              title: 'Pick up the parcel',
+              schedule: { kind: 'none', timesOfDay: [] },
+              startDate: DateTime.fromJSDate(finishedAt).setZone(ZONE).toISODate()!
+            }
+          })
+          await prisma.reminderOccurrence.create({
+            data: {
+              reminderId: reminder.id,
+              userId: recipient.id,
+              scheduledFor: new Date(finishedAt.getTime() - 15 * 60_000),
+              firedAt: new Date(finishedAt.getTime() - 15 * 60_000),
+              acknowledgedAt: finishedAt,
+              status: 'ACKNOWLEDGED'
+            }
+          })
+          const assignment = await prisma.reminderAssignment.create({
+            data: {
+              creatorId: user.id,
+              recipientId: recipient.id,
+              recipientEmail: recipient.email,
+              reminderId: reminder.id,
+              title: reminder.title,
+              state: 'ACTIVE',
+              acceptedAt: new Date(finishedAt.getTime() - 30 * 60_000),
+              lastCompletedAt: finishedAt
+            }
+          })
+          demoAssignmentId = assignment.id
+          await page.goto(`${baseUrl}/assigned`)
+          await page.getByText('Pick up the parcel').first().waitFor()
         }
       }
     ]
@@ -177,7 +224,9 @@ async function main(): Promise<void> {
     }
     await context.close()
   } finally {
-    await browser.close()
+    await browser?.close()
+    if (demoAssignmentId) await prisma.reminderAssignment.delete({ where: { id: demoAssignmentId } })
+    if (demoRecipientId) await prisma.user.delete({ where: { id: demoRecipientId } })
     // Not swallowed: failing to revoke leaves a live session for this account
     // for an hour. Harmless on a dev box, worth knowing about anywhere else —
     // and the id is enough to delete it by hand.

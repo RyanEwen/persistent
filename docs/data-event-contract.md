@@ -13,7 +13,10 @@ The query cache is persisted to localStorage (`apps/web/src/lib/persistQuery.ts`
 so reminders/occurrences render offline; reminder writes apply optimistically and
 queue while offline, replaying on reconnect via mutation defaults registered in
 `lib/queryClient.ts` (`resumePausedMutations`). Auth queries are excluded from
-persistence.
+persistence. Received shared firings are removed from the persisted offline cache;
+recipient access is rechecked by the server on reconnect or mutation.
+Assignment queries are also excluded from the offline cache. An assigned
+reminder is owned by its assignee and follows the normal owned-reminder cache.
 
 **History pages; the other feeds don't.** `GET /api/occurrences?scope=history`
 returns `{ occurrences, nextCursor }` (`occurrenceListSchema`) and takes a
@@ -59,6 +62,8 @@ Event types (`packages/shared/src/ws-events.ts`):
 | `occurrence.fired` | an occurrence became due | invalidate active/upcoming/history occurrences + reminders (a one-time reminder drops off the list once its latest occurrence is acknowledged) |
 | `occurrence.changed` | status changed (ack/snooze/escalate) | invalidate active/upcoming/history occurrences + reminders |
 | `reminder.changed` | a reminder was created/updated/deleted | invalidate reminders + occurrences (active/upcoming/history) |
+| `share.changed` | a grant or invitation changed | invalidate received reminders and owner share lists; reset received caches after access removal |
+| `assignment.changed` | an invitation or assignee firing changed | invalidate the creator's status view and assignee assignment labels |
 | `dismiss` | clear a shown notification everywhere | native clients close it |
 | `silence` | stop an escalation alarm but keep nagging | native clients downgrade the alarm |
 | `ping` | heartbeat | ignored |
@@ -86,8 +91,9 @@ reminder DTO crosses into the provider. See
 
 When an occurrence is acknowledged or snoozed from any device, the server
 broadcasts `dismiss` over WS and sends an FCM `dismiss` push, so the notification
-clears on every one of the user's native clients. This is the same actor's
-devices only — there is no cross-user delivery. Each occurrence is independent, so
+clears on every one of the user's native clients. A shared completion also clears
+that firing for every participant; a personal snooze clears only the actor's
+devices. Each occurrence is independent, so
 a `dismiss` only ever clears the one occurrence that was acked/snoozed — a
 reminder's other still-unconfirmed firings keep nagging on their own.
 

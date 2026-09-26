@@ -14,6 +14,8 @@ import { HttpError } from './lib/http-error.js'
 import { logger } from './lib/logger.js'
 import { authRouter } from './routes/auth.js'
 import { remindersRouter } from './routes/reminders.js'
+import { sharesRouter } from './routes/shares.js'
+import { assignmentsRouter } from './routes/assignments.js'
 import { occurrencesRouter } from './routes/occurrences.js'
 import { pushRouter } from './routes/push.js'
 import { syncRouter } from './routes/sync.js'
@@ -59,6 +61,8 @@ export function createApp() {
 
   app.use('/api/auth', authRouter)
   app.use('/api/reminders', remindersRouter)
+  app.use('/api/shares', sharesRouter)
+  app.use('/api/assignments', assignmentsRouter)
   app.use('/api/occurrences', occurrencesRouter)
   app.use('/api/push', pushRouter)
   app.use('/api/sync', syncRouter)

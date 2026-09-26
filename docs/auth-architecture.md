@@ -171,9 +171,29 @@ returns the id inside handlers.
 
 ## Data isolation
 
-The whole boundary is: **every domain query filters by `userId`.** There is no
-row-level tenancy magic — it is explicit in each query, and edit/delete first
-re-fetch `{ id, userId }`. Every account-owned model is user-scoped.
+Every account-owned model is user-scoped. A reminder owner may grant another
+account access through a `ReminderShare` row. An unknown address gets a
+`ReminderInvitation` and a generic email invitation. The grant becomes active
+only after sign-in verifies that address; deleting the invitation prevents that
+claim. `ShareRecipient` keeps an owner-scoped list of past addresses for the
+sharing picker, including people whose access was later removed. Recipient reads filter
+by that row's `recipientId`; action and edit routes require that grant before
+touching the owner's reminder or firing. Every current grant permits editing,
+checklist changes, and completion. Completion dismisses the one shared firing
+for everyone. Snooze and alarm escalation are per participant.
+The owner grants, revokes, and deletes. A recipient may also leave a shared
+reminder, which deletes only their own grant. The firing stays owned by the creator,
+but each participant receives their own native alarms. The full editor includes
+the reminder's escalation settings, so sharing also discloses those settings.
+
+An assignment has one recipient and is separate from sharing. For an existing
+account, the reminder and firings are owned by the assignee immediately. For an
+unknown address, `ReminderAssignment` holds a validated draft and a generic
+invitation until verified sign-in creates the assignee-owned reminder. Its creator
+can read only an assignment progress projection filtered by `creatorId`, with
+firing status and completion times. They cannot read or edit the assignee's
+reminder through owner routes. The assignee may edit, complete, snooze, or delete
+it; deletion preserves a declined progress record for the creator.
 
 ## Account deletion
 
@@ -186,8 +206,11 @@ enough. The web entry point is Settings → Delete account, whose confirm button
 stays disabled until the typed address matches.
 
 Everything the user owns goes with it. `Session`, `Passkey`, `Reminder`,
-`ReminderOccurrence`, and `PushSubscription` all carry `onDelete: Cascade` on
+`ReminderOccurrence`, `ReminderShare`, and `PushSubscription` carry `onDelete: Cascade` on
 their `User` relation, so deleting the `User` row removes them atomically.
+An assignment creator's progress rows cascade with their account. When an
+assignee deletes their account, the creator's progress row remains declined,
+with its recipient address removed.
 
 **`EmailCode` is the exception**: it is keyed by email address rather than
 `userId` (it has to exist before any user does — it is the sign-up path), so it
