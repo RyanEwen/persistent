@@ -70,7 +70,7 @@ ASSIGN IT TO SOMEONE ELSE
 Create a reminder for one other person. They own the alerts and can edit, finish or decline it. Track each firing and its completion time in your Assigned by me view.
 
 MEDICATION REMINDERS
-Keep the medicine name and dose with a reminder. Persistent helps you remember; it is not a medical device and does not provide medical advice.
+Keep the medicine name and dose with a reminder. Persistent is not a medical device and does not diagnose, treat, cure, or prevent any medical condition. Consult a healthcare professional for medical advice, diagnosis, or treatment.
 
 SCHEDULING
 • One-off reminders at a date and time
