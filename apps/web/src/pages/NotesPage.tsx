@@ -15,8 +15,9 @@
  * what a note is instead of showing an empty list.
  *
  * Nothing here has a status, a Done or a Snooze, because a note has no occurrence to
- * act on (`docs/notification-behavior.md` §7). The cards themselves are
- * `components/NotesSection.tsx`, which the editor's landing tab and this page share.
+ * act on (`docs/notification-behavior.md` §7). Cards in
+ * `components/NotesSection.tsx` open the reading dialog, where a note checklist
+ * remains tickable.
  */
 import Stack from '@mui/joy/Stack'
 import Typography from '@mui/joy/Typography'

@@ -1,7 +1,7 @@
 /**
  * History: past entries — occurrences that were acknowledged or missed, most
- * recent first. Rendered the same way as the current list, and each links to its
- * reminder's detail view (where it can be opened, edited, or revived).
+ * recent first. Uses the same reminder card layout as Current and Upcoming;
+ * a card opens the reading dialog with the reminder's current details.
  *
  * Loaded a page at a time (see `usePastOccurrences`). Nothing prunes confirmed
  * firings, so this list only ever grows; fetching it whole meant a bigger payload
@@ -13,16 +13,18 @@
 import Button from '@mui/joy/Button'
 import Stack from '@mui/joy/Stack'
 import Typography from '@mui/joy/Typography'
-import { reminderBodyText, todoItems, todoProgress } from '@persistent/shared'
+import { todoItems, todoProgress } from '@persistent/shared'
 import type { Occurrence } from '@persistent/shared'
 import { usePastOccurrences } from '../data/occurrences.js'
 import { formatWhen } from '../lib/datetime.js'
 import { useSettings } from '../settings/useSettings.js'
-import { ReminderListItem } from '../components/ReminderListItem.js'
+import { ReminderPreviewCard } from '../components/ReminderPreviewCard.js'
+import { StatusChip } from '../components/ReminderIcons.js'
 import { PullToRefresh } from '../components/PullToRefresh.js'
 import { NewReminderFab } from '../components/NewReminderFab.js'
 import { SectionHeading } from '../components/SectionHeading.js'
 import { useAuth } from '../auth/useAuth.js'
+import { useReminderDialogs } from '../components/reminderDialogContext.js'
 
 /**
  * "2 of 3 checked" for a past checklist firing — how much of it was actually
@@ -36,6 +38,7 @@ function checklistProgress(occurrence: Occurrence): string | undefined {
 }
 
 export function HistoryPage() {
+  const dialogs = useReminderDialogs()
   const past = usePastOccurrences()
   const { user } = useAuth()
   const { timeFormat } = useSettings()
@@ -61,14 +64,13 @@ export function HistoryPage() {
 
         <Stack spacing={1.5}>
           {occurrences.map((occurrence) => (
-            <ReminderListItem
+            <ReminderPreviewCard
               key={occurrence.id}
-              to={`/reminders/${occurrence.reminderId}`}
-              type={occurrence.reminder.type}
-              title={occurrence.reminder.title}
-              status={occurrence.status}
-              description={reminderBodyText(occurrence.reminder)}
-              subtitle={formatWhen(occurrence.scheduledFor, timeFormat, user?.timeZone)}
+              reminder={occurrence.reminder}
+              onOpen={() => dialogs.view(occurrence.reminderId)}
+              status={<StatusChip status={occurrence.status} />}
+              checkedItemIds={occurrence.checkedItemIds}
+              when={formatWhen(occurrence.scheduledFor, timeFormat, user?.timeZone)}
               secondary={checklistProgress(occurrence)}
             />
           ))}

@@ -27,6 +27,10 @@ carries a denormalized copy of its reminder — whereas active ("what is nagging
 and upcoming ("what is next") are small by construction and still return whole
 with `nextCursor: null`.
 
+The occurrence's reminder projection includes `hideCheckedItems`. History cards
+use it with that occurrence's checked ids so they draw the same collapsed
+checklist preview as Current and Upcoming.
+
 The page query orders by `[scheduledFor desc, id desc]`, a **total** order. One
 reminder cannot have two firings at the same instant
 (`@@unique([reminderId, scheduledFor])`), but different reminders routinely share
@@ -42,6 +46,16 @@ The PUT route ignores a write whose `clientEditedAt` predates the stored row's
 `updatedAt` (`lib/conflict.ts`), so a late-replayed stale edit can't clobber a
 newer one; the stale client reconciles on its next refetch. Creates always apply
 (new id, no conflict).
+
+## Editing text in the reading dialog
+
+`PATCH /api/reminders/:id/content` accepts a validated title or note body change.
+It updates only those columns, leaving schedules, checklist items, ticks, and
+sharing untouched. Body edits are limited to non-checklist notes; checklists use
+their item operations. The route requires ownership or an explicit edit grant,
+broadcasts `reminder.changed`, and nudges native devices when notification text
+could have changed. The web updates its reminder cache optimistically and
+invalidates owner and received-share projections on settle.
 
 ## Live updates (WebSocket `/ws`)
 
@@ -168,7 +182,7 @@ broken.
 ## Adding a checklist item
 
 `POST /api/reminders/:id/items` appends one item to a `TODO` reminder's
-`typeData.items` — the add row every card's checklist carries, so extending a list
+`typeData.items`. The reading dialog keeps Add item visible while a new row is typed, so extending a list
 doesn't mean a trip to the editor. Rejected for anything that is not a `TODO`, and
 at the 50-item cap (`MAX_TODO_ITEMS`).
 
@@ -201,10 +215,23 @@ types the next one.
 Ticks are untouched. Adding an item is not a statement about what this firing has
 done, and it never confirms or excuses one (`notification-behavior.md` §1a).
 
+## Deleting a checklist item
+
+`DELETE /api/reminders/:id/items/:itemId` removes one item from the reminder
+definition. The owner or a recipient with an edit grant may call it. The SQL
+statement filters the current `typeData.items` array and clears that id from a
+note's saved `checkedItems` atomically. A missing id is an idempotent no-op, so an
+offline replay cannot remove a different item. A deletion changes live
+notification text, so it broadcasts `reminder.changed` and nudges native devices;
+notes need only the broadcast. The web applies `withoutTodoItem` optimistically.
+
+Deleting the final item leaves an empty checklist with its Add item control, so
+the reminder can be filled again without changing its type.
+
 ## Reordering a checklist
 
 `POST /api/reminders/:id/items/order` takes `{ itemIds }` — the whole list, in the order
-it should be in — and is what the drag handles on a card write. Rejected for anything
+it should be in, and is what the drag handles in the reading dialog write. Rejected for anything
 that is not a `TODO`.
 
 The body is a **ranking, not a replacement**, and the endpoint applies it as one: items
@@ -223,7 +250,7 @@ same rule in TypeScript for the optimistic cache update, so the two agree.
 lists the unticked items *in order*, so a reorder changes the text of an already-armed
 alarm. A note skips the nudge, as always.
 
-**One write per gesture.** The card holds the order locally while the finger is down and
+**One write per gesture.** The checklist holds the order locally while the finger is down and
 sends it once the drag settles (`components/TodoChecklist.tsx` + `lib/useDragReorder.ts`
 `onCommit`); writing on every row crossed would put a request, a broadcast and a push on
 each step of a single drag. The editor needs none of that — it reorders form state, and
@@ -235,7 +262,7 @@ ticked state as it moves (`notification-behavior.md` §1a).
 ## Renaming a checklist item
 
 `POST /api/reminders/:id/items/:itemId` takes `{ text }` and is what clicking an item's
-text on a card, or typing in its row in the editor, ends up calling. Rejected for
+text in the reading dialog, or typing in its row in the editor, ends up calling. Rejected for
 anything that is not a `TODO`, and **404 for an id the list no longer has** — a rename
 queued offline and drained after someone deleted that item must not resurrect it.
 
@@ -282,7 +309,7 @@ done/nag guarantee is affected. Applied optimistically on the web
 (`mutationKeys.hideCheckedItems`), like the tick it sits beside.
 
 Deliberately not part of `PUT /api/reminders/:id`: that endpoint replaces the
-whole definition from the editor form, and this is set by a button on a card the
+whole definition from the editor form, and this is set by a button in the reading dialog the
 editor never shows — routing it through the form would make every collapse a
 full-definition write racing a real edit from another device. So the update path
 leaves the column alone, and nothing clears it: the worst a leftover can do is

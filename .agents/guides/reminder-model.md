@@ -16,9 +16,9 @@ items are checked. Each repeating firing therefore starts blank. Notification
 content includes only unticked items. Checking every item does not acknowledge
 the occurrence; only Done does.
 
-Card item additions, reordering, and renames update the reminder definition and
-future firings. Additions arrive unticked; ranking-based reorder must not drop a
-concurrent item; renames retain item identity. These writes also update live
+Checklist item additions, deletions, reordering, and renames update the reminder definition and
+future firings. Additions arrive unticked; deletions discard saved note ticks;
+ranking-based reorder must not drop a concurrent item; renames retain item identity. These writes also update live
 notification content.
 
 A note is the exception because it has no occurrences. Its checked item IDs live

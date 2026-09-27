@@ -11,8 +11,8 @@
  * you got there. That's what this implements (the standard bottom-nav behaviour):
  *
  * - A dialog open? It swallows Back and closes. Nothing else happens.
- * - A screen claiming Back (the editor, asking about unsaved changes)? It decides.
- * - On a detail/editor screen? Go up to its parent — the list — regardless of the
+ * - A screen claiming Back? It decides.
+ * - On a detail screen? Go up to its parent, the list, regardless of the
  *   route you arrived from (a notification tap lands deep with no trail behind it,
  *   and Back must still go somewhere sensible).
  * - On a bottom-nav tab other than the first? Go to the first tab.
@@ -55,15 +55,7 @@ const SETTINGS_CHILDREN = ['/help', '/privacy', '/delete-account']
 export function parentRoute(pathname: string): string | null {
   if (TAB_ROUTES.includes(pathname)) return null
   if (SETTINGS_CHILDREN.includes(pathname)) return '/settings'
-  // Everything else — /reminders/new, /reminders/:id, and the editor — sits
-  // directly under the list.
-  //
-  // The editor used to go up to the reminder's detail view, which stopped being
-  // true when in-app list taps started opening the editor directly: Back then
-  // landed the user on a screen they had never passed through on the way in, and
-  // took two presses to leave. Detail is now a notification/History landing page,
-  // not a step in the main hierarchy, so the editor's parent is the list. This
-  // also matches the editor's own Cancel button, which already went there.
+  // Legacy editor URLs and notification detail links sit directly under the list.
   return HOME_ROUTE
 }
 

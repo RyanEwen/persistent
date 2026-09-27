@@ -56,10 +56,9 @@ Two things hold on every surface regardless of which action the user takes:
   start; see the trampoline note in [`alarm-architecture.md`](alarm-architecture.md).
 - **A multi-line description renders on multiple lines.** Details are authored in a
   multi-line textarea, so those line breaks are content: the web detail view and
-  attention cards use `pre-wrap`, the native notification uses `BigTextStyle`, the
+  list previews use `pre-wrap`, the native notification uses `BigTextStyle`, the
   full-screen alarm renders them as-is, and the escalation email is plain text. The
-  compact list row is the one deliberate exception — it is single-line by design, so
-  breaks collapse to spaces there. A checklist reminder's body is its still-unticked
+  compact shared-reminder row is the one deliberate exception. A checklist reminder's body is its still-unticked
   items (§1a), one per line, and depends on exactly the same thing.
 
 The three user actions on a firing are **Done**, **Silence**, and **Snooze**.
@@ -67,10 +66,16 @@ Their guaranteed effects follow. (Silence is labeled **"De-escalate"** in the UI
 it only ever appears on an escalated alarm, and that's what it does; the internal
 action/API name remains `silence`.)
 
+Reminder cards on Current, Upcoming, Notes, and History open a reading dialog.
+Clicking its title, or a non-checklist note's body, opens a focused text field.
+Enter or blur saves a title; blur or Ctrl+Enter saves a body. Escape cancels.
+The write applies only that text. The full editor opens
+from the dialog footer for schedule and other definition changes.
+
 ## 1. Done — clears the reminder everywhere
 
 Marking an occurrence done — from the alarm surface, the notification action, or
-the in-app card, on any device — acknowledges that occurrence and **removes it
+the in-app reading dialog, on any device, acknowledges that occurrence and **removes it
 from every surface**: the alarm stops, the notification is cleared, and any
 sibling escalation alarm is cancelled, on every one of the user's devices.
 
@@ -80,8 +85,8 @@ sibling escalation alarm is cancelled, on every one of the user's devices.
   (escalation) on-device alarms; closes the full-screen alarm activity.
 
 **Done is always a two-tap confirm** on every *tap* surface — the notification, the
-full-screen alarm, and the in-app card (on the reminders list or a reminder's
-detail view). The first tap arms the action (swapping
+full-screen alarm, and the in-app reading dialog (also available as a detail route
+from a notification). The first tap arms the action (swapping
 the controls to *Confirm done* / *Not yet*, with the alarm still ringing); only
 the confirm tap acknowledges. This guards a persistence-grade reminder against a
 stray pocket tap or misclick clearing it by accident. *Not yet* restores the
@@ -118,8 +123,8 @@ hides nothing.
 The escalation email is the one snapshot: it lists what was unticked at the moment
 it was sent, since an email cannot be revised afterwards.
 
-**Items can be added from the card, and what they join is the definition.** Every
-checklist the app draws carries an add row (`POST /api/reminders/:id/items`), so
+**Items can be added from the reading dialog, and what they join is the definition.** Every
+editable checklist in that dialog carries an add row (`POST /api/reminders/:id/items`), so
 extending a list does not mean opening the editor — the thing a list needs most
 often was the thing that cost the most taps. What it adds is an *item*, and items
 belong to the reminder: every later firing carries it too, and every card drawing
@@ -129,15 +134,15 @@ body of whatever is nagging right now, exactly as an item added in the editor wo
 touches no ticks: adding a line to a list says nothing about what was done this
 time, and it neither confirms nor excuses a firing. Only Done does that.
 
-**An item's text can be rewritten from the card too** (`POST
+**An item's text can be rewritten from the reading dialog too** (`POST
 /api/reminders/:id/items/:itemId`) — click it and type. It is the same kind of write as
 adding and reordering: the wording belongs to the reminder, so every later firing says
 the new thing and the notification body follows. The item's **id does not change**,
 which is what keeps a firing's ticks against the same lines: renaming changes what a
 line says, never which line it is.
 
-**The order is part of the definition too, and can be changed from the card.** Drag
-handles sit on every checklist the app draws (`POST /api/reminders/:id/items/order`), so
+**The order is part of the definition too, and can be changed from the reading dialog.** Drag
+handles sit on its checklist rows (`POST /api/reminders/:id/items/order`), so
 a list can be re-ordered where it is being worked through rather than only in the
 editor. It moves *items*, so the new order is the one every later firing shows and the
 order the notification body lists them in — which is why it nudges devices to re-post,
@@ -146,6 +151,12 @@ ticked state with it as it moves, and a reorder neither confirms nor excuses any
 With the ticked items hidden, the rows on screen are only part of the list; the ones out
 of sight keep their places relative to their neighbours rather than being flung to the
 end.
+
+**An item can be deleted from the reading dialog.** Its X appears on hover or
+keyboard focus and stays visible on touch screens. Deletion removes the item from
+the reminder definition, clears its saved note tick, and updates live notification
+text (`DELETE /api/reminders/:id/items/:itemId`). An empty checklist keeps Add item
+available.
 
 **A note's checklist is the exception, and only because it cannot be a firing's.**
 A note (§7) has no occurrences, so `ReminderOccurrence.checkedItems` has nothing to
@@ -159,14 +170,14 @@ is nothing to confirm.
 
 **Hiding the ticked items is a view, and belongs to the reminder.** "Hide
 checked" collapses the ticked rows out of a checklist so a long list shows only
-what is left. That choice is stored (`Reminder.hideCheckedItems`, via `POST
+what is left. The list previews also honor it. That choice is stored (`Reminder.hideCheckedItems`, via `POST
 /api/reminders/:id/hide-checked`) so a list stays the way the user left it — on
 that device and on their others.
 
 It is per *reminder* even though the ticks are per firing, and that is not a
 contradiction: ticks reset each firing, so a fresh nag starts with nothing ticked
 and a remembered "hidden" hides nothing until the user ticks something themselves.
-The card a notification lands on therefore still shows the whole list.
+The reading view a notification lands on therefore still shows the whole list.
 
 Hiding changes nothing this contract guarantees. It is presentation only: the
 notification body is built from the *unticked* items either way, hiding is not

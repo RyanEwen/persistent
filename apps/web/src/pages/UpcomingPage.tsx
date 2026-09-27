@@ -2,13 +2,11 @@
  * Upcoming: every reminder that isn't nagging right now, in soonest-fire order,
  * with paused and finished ones sinking to the bottom.
  *
- * This is also the app's *management* list — the place you come to look over what
- * you have set up and change it — so rows open the editor directly, and the New
- * reminder action (`components/NewReminderFab.tsx`, a floating button shared with
- * Current and History) is to hand here too.
+ * Rows open the reading dialog, with Edit one step away. New reminder remains
+ * available from the floating action button.
  *
  * Reminders with an active firing are deliberately absent: they are on Current,
- * as attention cards with their own Done/Snooze. One reminder therefore appears in
+ * as attention cards. One reminder therefore appears in
  * exactly one of the two tabs at a time, which is what stops a busy morning
  * listing the same thing twice with different affordances.
  *
@@ -21,17 +19,18 @@ import Typography from '@mui/joy/Typography'
 import Chip from '@mui/joy/Chip'
 import { SectionHeading } from '../components/SectionHeading.js'
 import { NewReminderFab } from '../components/NewReminderFab.js'
-import { reminderBodyText } from '@persistent/shared'
 import { useReminders } from '../data/reminders.js'
 import { useActiveOccurrences } from '../data/occurrences.js'
 import { scheduleSummary } from '../lib/scheduleSummary.js'
 import { formatWhen } from '../lib/datetime.js'
 import { selectUpcomingReminders } from '../lib/upcomingReminders.js'
 import { useSettings } from '../settings/useSettings.js'
-import { ReminderListItem } from '../components/ReminderListItem.js'
+import { ReminderPreviewCard } from '../components/ReminderPreviewCard.js'
 import { PullToRefresh } from '../components/PullToRefresh.js'
+import { useReminderDialogs } from '../components/reminderDialogContext.js'
 
 export function UpcomingPage() {
+  const dialogs = useReminderDialogs()
   const reminders = useReminders()
   const active = useActiveOccurrences()
   const { timeFormat } = useSettings()
@@ -57,17 +56,17 @@ export function UpcomingPage() {
                 History is for. */}
             {idle.map(({ reminder, next }) => {
               const isRepeating = reminder.schedule.kind !== 'once'
-              const when = next ? formatWhen(next, timeFormat) : 'Paused'
+              const when = next
+                ? formatWhen(next, timeFormat)
+                : reminder.active ? 'No upcoming notification' : undefined
               return (
-                <ReminderListItem
+                <ReminderPreviewCard
                   key={reminder.id}
-                  to={`/reminders/${reminder.id}/edit`}
-                  type={reminder.type}
-                  title={reminder.title}
-                  description={reminderBodyText(reminder)}
-                  subtitle={when}
+                  reminder={reminder}
+                  onOpen={() => dialogs.view(reminder.id)}
+                  when={when}
                   secondary={isRepeating ? scheduleSummary(reminder.schedule, timeFormat) : undefined}
-                  trailing={
+                  status={
                     !reminder.active ? (
                       <Chip size="sm" color="neutral" variant="outlined">
                         paused

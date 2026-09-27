@@ -59,8 +59,14 @@ import {
   type TodoRow
 } from './formState.js'
 
-export function ReminderEditorPage() {
-  const { id } = useParams()
+export function ReminderEditorPage({ reminderId, onClose, onFinished, registerClose }: {
+  reminderId?: string
+  onClose?: () => void
+  onFinished?: (destination: string) => void
+  registerClose?: (handler: () => void) => void
+} = {}) {
+  const { id: routeId } = useParams()
+  const id = reminderId ?? routeId
   const navigate = useNavigate()
   const reminders = useReminders()
   const received = useReceivedShares()
@@ -108,6 +114,14 @@ export function ReminderEditorPage() {
 
   const dirty = !leaving && (isFormDirty(original, form) || (!id && (draftShares.length > 0 || draftMode === 'assign')))
 
+  useEffect(() => {
+    if (!registerClose) return
+    registerClose(() => {
+      if (dirty) setDiscardTo('__close__')
+      else onClose?.()
+    })
+  }, [dirty, onClose, registerClose])
+
   // Android Back: ask before dropping edits instead of discarding silently.
   useEffect(() => {
     return setBackInterceptor(() => {
@@ -119,7 +133,13 @@ export function ReminderEditorPage() {
 
   /** Leave for `to`, pausing on the discard prompt when there are unsaved edits. */
   function leaveFor(to: string) {
-    if (dirty) setDiscardTo(to)
+    if (dirty) setDiscardTo(onClose ? '__close__' : to)
+    else if (onClose) onClose()
+    else navigate(to)
+  }
+
+  function finish(to: string) {
+    if (onFinished) onFinished(to)
     else navigate(to)
   }
 
@@ -235,7 +255,7 @@ export function ReminderEditorPage() {
       if (id) update.mutate({ id, input, editedAt })
       else create.mutate({ ...input, shares: draftShares })
       toast(savedMessage)
-      navigate(destination)
+      finish(destination)
       return
     }
     try {
@@ -251,7 +271,7 @@ export function ReminderEditorPage() {
           : 'Created, but an invitation email could not be sent. Open Share to resend.'
         : draftMode === 'assign' ? 'Assigned' : savedMessage,
         failedInvitations.length > 0 ? 'danger' : 'neutral')
-      navigate(destination)
+      finish(destination)
     } catch (err) {
       // Still here, edits intact — re-arm the guard that the departure disabled.
       setLeaving(false)
@@ -265,13 +285,13 @@ export function ReminderEditorPage() {
     if (!navigator.onLine) {
       remove.mutate(id)
       toast(assignedToMe ? 'Assignment declined' : 'Deleted', 'neutral')
-      navigate('/')
+      finish('/')
       return
     }
     try {
       await remove.mutateAsync(id)
       toast(assignedToMe ? 'Assignment declined' : 'Deleted', 'neutral')
-      navigate('/')
+      finish('/')
     } catch (err) {
       setLeaving(false)
       setError(extractErrorMessage(err))
@@ -337,7 +357,15 @@ export function ReminderEditorPage() {
 
   return (
     <form onSubmit={onSubmit}>
-      <Sheet variant="outlined" sx={{ p: 2, borderRadius: 'md', bgcolor: 'background.surface' }}>
+      <Sheet
+        variant="outlined"
+        sx={{
+          p: onClose ? 0 : 2,
+          border: onClose ? 'none' : undefined,
+          borderRadius: 'md',
+          bgcolor: onClose ? 'transparent' : 'background.surface'
+        }}
+      >
         <Stack spacing={2}>
           <Typography level="title-lg">{id ? 'Edit reminder' : 'New reminder'}</Typography>
           {shared && (
@@ -529,7 +557,8 @@ export function ReminderEditorPage() {
           const to = discardTo ?? '/'
           setDiscardTo(null)
           setLeaving(true)
-          navigate(to)
+          if (to === '__close__') onClose?.()
+          else navigate(to)
         }}
       />
       {!shared && !assignedToMe && (

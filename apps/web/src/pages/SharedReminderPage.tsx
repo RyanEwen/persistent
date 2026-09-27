@@ -1,4 +1,4 @@
-/** Recipient view of a shared reminder, with shared Done and personal Snooze. */
+/** Recipient view of a shared reminder, with shared Done, personal Snooze, and focused text edits for editors. */
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom'
 import { useState } from 'react'
 import Stack from '@mui/joy/Stack'
@@ -9,19 +9,25 @@ import Checkbox from '@mui/joy/Checkbox'
 import ModalDialog from '@mui/joy/ModalDialog'
 import DialogTitle from '@mui/joy/DialogTitle'
 import DialogActions from '@mui/joy/DialogActions'
-import { reminderBodyText, todoItems } from '@persistent/shared'
+import { formatMedications, reminderBodyText, todoItems } from '@persistent/shared'
 import { useLeaveSharedReminder, useReceivedShares } from '../data/shares.js'
 import { BackAwareModal } from '../components/BackAwareModal.js'
 import { SectionHeading } from '../components/SectionHeading.js'
 import { SnoozeDialog } from '../components/SnoozeDialog.js'
 import { useAckOccurrence, useCheckOccurrenceItem, useSnoozeOccurrence } from '../data/occurrences.js'
-import { useCheckReminderItem } from '../data/reminders.js'
+import { useCheckReminderItem, useUpdateReminderContent } from '../data/reminders.js'
+import { InlineReminderText } from '../components/InlineReminderText.js'
 import { formatDateTime, formatWhen } from '../lib/datetime.js'
 import { useSettings } from '../settings/useSettings.js'
 import { useAuth } from '../auth/useAuth.js'
 
-export function SharedReminderPage() {
-  const { id } = useParams()
+export function SharedReminderPage({ reminderId, onClose, onEdit }: {
+  reminderId?: string
+  onClose?: () => void
+  onEdit?: () => void
+} = {}) {
+  const { id: routeId } = useParams()
+  const id = reminderId ?? routeId
   const received = useReceivedShares()
   const leave = useLeaveSharedReminder()
   const navigate = useNavigate()
@@ -30,36 +36,63 @@ export function SharedReminderPage() {
   const snooze = useSnoozeOccurrence()
   const check = useCheckOccurrenceItem()
   const checkNote = useCheckReminderItem()
+  const updateContent = useUpdateReminderContent()
   const { timeFormat } = useSettings()
   const { user } = useAuth()
   const [snoozeId, setSnoozeId] = useState<string | null>(null)
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [leaveOpen, setLeaveOpen] = useState(false)
+  const canEdit = Boolean(onClose && reminder?.permission === 'EDIT')
+  const canEditBody = Boolean(canEdit && reminder?.isNote && reminder?.type !== 'TODO')
+  let body = reminder ? (reminder.type === 'TODO' ? reminder.details : reminderBodyText(reminder)) : null
+  if (canEditBody && reminder) {
+    body = reminder.type === 'MEDICATION' ? formatMedications(reminder.typeData) : null
+  }
 
   return (
     <Stack spacing={2}>
-      <Button component={RouterLink} to="/" variant="plain" color="neutral" sx={{ alignSelf: 'flex-start' }}>
-        Back
-      </Button>
+      {!onClose && (
+        <Button component={RouterLink} to="/" variant="plain" color="neutral" sx={{ alignSelf: 'flex-start' }}>
+          Back
+        </Button>
+      )}
       {received.isLoading ? (
         <Typography level="body-sm">Loading...</Typography>
       ) : !reminder ? (
         <Typography level="body-sm">This reminder is no longer shared with you.</Typography>
       ) : (
         <>
-          <SectionHeading title={reminder.title} subtitle={`Shared by ${reminder.ownerName}`} />
+          {canEdit ? (
+            <Stack spacing={0.5}>
+              <InlineReminderText
+                kind="title"
+                text={reminder.title}
+                onSave={(title) => updateContent.mutate({ id: reminder.id, arg: { title } })}
+              />
+              <Typography level="body-sm" sx={{ color: 'text.tertiary' }}>Shared by {reminder.ownerName}</Typography>
+            </Stack>
+          ) : (
+            <SectionHeading title={reminder.title} subtitle={`Shared by ${reminder.ownerName}`} />
+          )}
           {reminder.nextScheduledFor && (
             <Typography level="body-sm">
               Next notification for you: {formatWhen(reminder.nextScheduledFor, timeFormat, user?.timeZone)} (your time zone)
             </Typography>
           )}
-          <Button component={RouterLink} to={`/reminders/${reminder.id}/edit`} variant="outlined" sx={{ alignSelf: 'flex-start' }}>
-            Edit reminder
-          </Button>
+          {!onClose && reminder.permission === 'EDIT' && (
+            <Button component={onEdit ? 'button' : RouterLink} to={onEdit ? undefined : `/reminders/${reminder.id}/edit`} onClick={onEdit} variant="outlined" sx={{ alignSelf: 'flex-start' }}>
+              Edit reminder
+            </Button>
+          )}
           <Card variant="soft">
-            <Typography level="body-sm" sx={{ whiteSpace: 'pre-wrap' }}>
-              {reminder.type === 'TODO' ? reminder.details : reminderBodyText(reminder)}
-            </Typography>
+            {body && <Typography level="body-sm" sx={{ whiteSpace: 'pre-wrap' }}>{body}</Typography>}
+            {canEditBody && (
+              <InlineReminderText
+                kind="body"
+                text={reminder.details ?? ''}
+                onSave={(details) => updateContent.mutate({ id: reminder.id, arg: { details: details || null } })}
+              />
+            )}
             {reminder.type === 'TODO' && reminder.activeFirings.length === 0 && (
               <Stack spacing={0.5}>
                 {todoItems(reminder.typeData).map((item) => (

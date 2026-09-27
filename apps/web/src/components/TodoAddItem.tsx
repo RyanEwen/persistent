@@ -1,10 +1,9 @@
 /**
- * The add row under a checklist on a card — the way to extend a list without
+ * The add row under a checklist in the reading dialog or editor: extend a list without
  * opening the editor.
  *
- * Collapsed to one quiet text button until it is used. The card it sits on already
- * has Done on it, and Done is the app's entire guarantee: nothing that merely adds
- * to a list may compete with it for attention (see apps/web/AGENTS.md).
+ * The quiet add button stays visible when a draft row opens above it, so the new
+ * item occupies the list rather than replacing the control that created it.
  *
  * Once open it *stays* open after each item, focus intact — a list is usually
  * extended by more than one line, and having to re-open the field between lines is
@@ -20,7 +19,9 @@ import { useRef, useState } from 'react'
 import Input from '@mui/joy/Input'
 import Button from '@mui/joy/Button'
 import IconButton from '@mui/joy/IconButton'
+import Stack from '@mui/joy/Stack'
 import AddIcon from '@mui/icons-material/Add'
+import CloseIcon from '@mui/icons-material/Close'
 import { MAX_TODO_ITEM_TEXT, type TodoItem } from '@persistent/shared'
 import { newTodoItemId } from '../lib/todoItemId.js'
 
@@ -45,75 +46,77 @@ export function TodoAddItem({
     }
     onAdd({ id: newTodoItemId(), text: trimmed })
     setText('')
-    // Tapping the add icon moves focus onto it, so put it back for the next line.
+    // Tapping the save icon moves focus onto it, so put it back for the next line.
     input.current?.focus()
   }
 
-  if (!open) {
-    return (
+  return (
+    <Stack spacing={0.5} sx={{ width: '100%' }}>
+      {open && (
+        <Input
+          autoFocus
+          size="sm"
+          value={text}
+          disabled={disabled}
+          placeholder="New item"
+          onChange={(event) => setText(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              commit()
+            } else if (event.key === 'Escape') {
+              setText('')
+              setOpen(false)
+            }
+          }}
+          onBlur={() => {
+            if (!text.trim()) setOpen(false)
+          }}
+          slotProps={{
+            input: {
+              ref: input,
+              'aria-label': 'New checklist item',
+              maxLength: MAX_TODO_ITEM_TEXT,
+              enterKeyHint: 'done'
+            }
+          }}
+          endDecorator={
+            <IconButton
+              size="sm"
+              variant="plain"
+              color="neutral"
+              aria-label={text.trim() ? 'Save new item' : 'Cancel new item'}
+              disabled={disabled}
+              onClick={() => {
+                if (text.trim()) commit()
+                else setOpen(false)
+              }}
+            >
+              {text.trim() ? <AddIcon /> : <CloseIcon />}
+            </IconButton>
+          }
+          sx={{ flex: 1, minWidth: 0 }}
+        />
+      )}
       <Button
         variant="plain"
         color="neutral"
         size="sm"
         disabled={disabled}
         startDecorator={<AddIcon />}
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          if (open && text.trim()) commit()
+          else {
+            setOpen(true)
+            input.current?.focus()
+          }
+        }}
         // A real tap target, like "Hide checked" beside it: this is used one-handed
         // and sometimes against a ringing alarm.
-        sx={{ minHeight: 32, px: 1, fontSize: 'xs', fontWeight: 'md' }}
+        sx={{ minHeight: 32, px: 1, fontSize: 'xs', fontWeight: 'md', alignSelf: 'flex-start' }}
       >
         Add item
       </Button>
-    )
-  }
-
-  return (
-    <Input
-      autoFocus
-      size="sm"
-      value={text}
-      disabled={disabled}
-      placeholder="New item"
-      onChange={(event) => setText(event.target.value)}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter') {
-          // No card is a <form>, but the native app's Back and the editor's submit
-          // both live one level up — so own the key rather than letting it bubble.
-          event.preventDefault()
-          commit()
-        } else if (event.key === 'Escape') {
-          setText('')
-          setOpen(false)
-        }
-      }}
-      // Only an *empty* field closes on blur. Tapping the add icon blurs the input
-      // first, so closing on any blur would pull the button out from under the tap.
-      onBlur={() => {
-        if (!text.trim()) setOpen(false)
-      }}
-      slotProps={{
-        input: {
-          ref: input,
-          'aria-label': 'New checklist item',
-          // Stop at the stored limit rather than letting the server reject the line.
-          maxLength: MAX_TODO_ITEM_TEXT,
-          // The soft keyboard's action key adds the line instead of dismissing.
-          enterKeyHint: 'done'
-        }
-      }}
-      endDecorator={
-        <IconButton
-          size="sm"
-          variant="plain"
-          color="neutral"
-          aria-label="Add item"
-          disabled={disabled || text.trim() === ''}
-          onClick={commit}
-        >
-          <AddIcon />
-        </IconButton>
-      }
-      sx={{ flex: 1, minWidth: 0 }}
-    />
+    </Stack>
   )
 }

@@ -3,11 +3,11 @@
  * "n of m done" progress line, a control to hide the ticked ones, and — where the
  * caller has somewhere to put it — a row for adding an item.
  *
- * **A row is three regions, each doing exactly one thing**: the checkbox ticks, the
- * text opens for editing, the handle drags. The whole row used to tick, which was the
- * better tap target but left nowhere to put editing; the checkbox keeps a deliberately
+ * A row has a leading handle, checkbox, editable text, and trailing delete button.
+ * The whole row used to tick, which was the better tap target but left nowhere
+ * to put editing; the checkbox keeps a deliberately
  * generous hit area to pay some of that back, because ticking is what happens
- * one-handed against a ringing alarm. The same three regions appear in the editor's
+ * one-handed against a ringing alarm. The same controls appear in the editor's
  * checklist field, so the list behaves the same in both places.
  *
  * Ticking and adding write different objects, which is the one thing to keep
@@ -37,10 +37,12 @@ import { useRef, useState } from 'react'
 import Stack from '@mui/joy/Stack'
 import Box from '@mui/joy/Box'
 import Button from '@mui/joy/Button'
+import IconButton from '@mui/joy/IconButton'
 import Checkbox from '@mui/joy/Checkbox'
 import Typography from '@mui/joy/Typography'
 import LinearProgress from '@mui/joy/LinearProgress'
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator'
+import CloseIcon from '@mui/icons-material/Close'
 import { MAX_TODO_ITEMS, todoProgress, type TodoItem } from '@persistent/shared'
 import { REORDER_ROW_ATTR, useDragReorder } from '../lib/useDragReorder.js'
 import { moveTodoItem } from '../lib/todoOrder.js'
@@ -62,6 +64,7 @@ export function TodoChecklist({
   onToggle,
   onAddItem,
   onRenameItem,
+  onRemoveItem,
   onReorder,
   hideChecked = false,
   onHideCheckedChange,
@@ -70,7 +73,7 @@ export function TodoChecklist({
 }: {
   items: TodoItem[]
   checkedItemIds: readonly string[]
-  onToggle: (itemId: string, checked: boolean) => void
+  onToggle?: (itemId: string, checked: boolean) => void
   /**
    * Append an item to the list, without going to the editor. Unlike a tick this
    * writes the *reminder* — items belong to the definition — so a caller wires it
@@ -84,6 +87,8 @@ export function TodoChecklist({
    * the write; the text is then plain and inert.
    */
   onRenameItem?: (itemId: string, text: string) => void
+  /** Delete an item from the reminder definition. */
+  onRemoveItem?: (itemId: string) => void
   /**
    * Store a new order for the list, as the full set of ids in the order they should
    * be in. Like adding, this writes the *reminder*. Omitted where nothing owns that
@@ -134,7 +139,7 @@ export function TodoChecklist({
     : items
   const checked = new Set(checkedItemIds)
   const { done, total } = todoProgress(items, checkedItemIds)
-  const allDone = done === total
+  const allDone = total > 0 && done === total
   // Ticking is the only way to hide an item, and unticking is the only way back —
   // so the control stays visible while anything is hidden, however few are left.
   const visible = hideChecked ? ordered.filter((item) => !checked.has(item.id)) : ordered
@@ -160,23 +165,62 @@ export function TodoChecklist({
     onReorder?.(settled)
   })
 
-  if (items.length === 0) return null
-
   return (
     <Box>
       <Stack spacing={0.25} ref={listRef} sx={{ mb: visible.length > 0 ? 1 : 0 }}>
         {visible.map((item, index) => {
           const isChecked = checked.has(item.id)
-          const row = (
-            <Stack direction="row" alignItems="center" sx={{ minHeight: ROW_MIN_HEIGHT, borderRadius: 'sm' }}>
+          return (
+            <Stack
+              key={item.id}
+              direction="row"
+              alignItems="center"
+              {...{ [REORDER_ROW_ATTR]: '' }}
+              sx={{
+                minHeight: ROW_MIN_HEIGHT,
+                borderRadius: 'sm',
+                '&:hover .todo-remove, &:focus-within .todo-remove': { opacity: 1 },
+                '@media (hover: none)': { '& .todo-remove': { opacity: 1 } },
+                ...(draggingIndex === index
+                  ? {
+                      bgcolor: 'background.level1',
+                      boxShadow: 'sm',
+                      position: 'relative',
+                      zIndex: 1,
+                      transform: `translateY(${dragOffset}px)`
+                    }
+                  : {})
+              }}
+            >
+              {reorderable && (
+                <Box
+                  {...handleProps(index)}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`Reorder ${item.text}. Use the up and down arrow keys to move it.`}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    flexShrink: 0,
+                    alignSelf: 'stretch',
+                    px: 0.5,
+                    color: 'text.tertiary',
+                    borderRadius: 'sm',
+                    '&:active': { cursor: 'grabbing' },
+                    '&:hover': { color: 'text.secondary' }
+                  }}
+                >
+                  <DragIndicatorIcon fontSize="small" />
+                </Box>
+              )}
               {/* The tick target is now the box alone rather than the whole line, so it
                   carries padding of its own to stay thumb-sized. It is labelled by the
                   item, since the text beside it is a separate control now. */}
               <Checkbox
                 size="md"
-                disabled={disabled}
+                disabled={disabled || !onToggle}
                 checked={isChecked}
-                onChange={(event) => onToggle(item.id, event.target.checked)}
+                onChange={(event) => onToggle?.(item.id, event.target.checked)}
                 aria-label={item.text}
                 sx={{
                   p: 0.75,
@@ -192,56 +236,20 @@ export function TodoChecklist({
                 disabled={disabled}
                 onRename={onRenameItem ? (text) => onRenameItem(item.id, text) : undefined}
               />
-            </Stack>
-          )
-          if (!reorderable) return <Box key={item.id}>{row}</Box>
-          return (
-            <Stack
-              key={item.id}
-              direction="row"
-              alignItems="center"
-              {...{ [REORDER_ROW_ATTR]: '' }}
-              // The row being dragged lifts off the list and follows the pointer, so
-              // it reads as carried rather than teleporting a slot at a time; the
-              // others shuffle underneath it. The same treatment the editor gives its
-              // rows.
-              sx={{
-                borderRadius: 'sm',
-                ...(draggingIndex === index
-                  ? {
-                      bgcolor: 'background.level1',
-                      boxShadow: 'sm',
-                      position: 'relative',
-                      zIndex: 1,
-                      transform: `translateY(${dragOffset}px)`
-                    }
-                  : {})
-              }}
-            >
-              <Box sx={{ flex: 1, minWidth: 0 }}>{row}</Box>
-              {/* Trailing, unlike the editor's leading handle, because here the row
-                  *starts* with the checkbox and the whole line is the tick target: a
-                  handle in front of it would put a drag zone exactly where the thumb
-                  reaches to tick. Only the handle drags; everywhere else still ticks. */}
-              <Box
-                {...handleProps(index)}
-                tabIndex={0}
-                role="button"
-                aria-label={`Reorder ${item.text}. Use the up and down arrow keys to move it.`}
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  flexShrink: 0,
-                  alignSelf: 'stretch',
-                  px: 0.5,
-                  color: 'text.tertiary',
-                  borderRadius: 'sm',
-                  '&:active': { cursor: 'grabbing' },
-                  '&:hover': { color: 'text.secondary' }
-                }}
-              >
-                <DragIndicatorIcon fontSize="small" />
-              </Box>
+              {onRemoveItem && (
+                <IconButton
+                  className="todo-remove"
+                  size="sm"
+                  variant="plain"
+                  color="danger"
+                  disabled={disabled}
+                  aria-label={`Remove ${item.text}`}
+                  onClick={() => onRemoveItem(item.id)}
+                  sx={{ opacity: 0, transition: 'opacity 150ms ease', flexShrink: 0 }}
+                >
+                  <CloseIcon fontSize="small" />
+                </IconButton>
+              )}
             </Stack>
           )
         })}
@@ -255,13 +263,13 @@ export function TodoChecklist({
           <TodoAddItem onAdd={onAddItem} disabled={disabled} />
         </Box>
       )}
-      <LinearProgress
+      {total > 0 && onToggle && <LinearProgress
         determinate
         value={total > 0 ? (done / total) * 100 : 0}
         color={allDone ? 'success' : 'warning'}
         sx={{ '--LinearProgress-thickness': '4px' }}
-      />
-      <Stack
+      />}
+      {total > 0 && onToggle && <Stack
         direction="row"
         alignItems="center"
         justifyContent="space-between"
@@ -292,7 +300,7 @@ export function TodoChecklist({
             {hideChecked ? 'Show checked' : 'Hide checked'}
           </Button>
         )}
-      </Stack>
+      </Stack>}
     </Box>
   )
 }

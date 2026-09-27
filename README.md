@@ -69,7 +69,9 @@ you *actually mark it done*. It's built for the things you can't afford to miss.
   repeating checklist starts fresh every time, and the notification lists only what
   you have left. Hide the ticked ones to see just what's outstanding — a long list
   stays collapsed the way you left it, on every device you use. Ticking everything
-  still doesn't confirm it — only you do.
+  still doesn't confirm it; only you do. Reminder cards open a reading dialog;
+  click a title or note body to edit its text, or add, reorder, rename, and remove
+  checklist items there. Edit opens the full form when you need it.
 - **Share a reminder.** Invite someone by email, including someone who has not signed up yet.
   Everyone with access can edit it and mark a firing done for the group. Snoozes and alarm
   escalation are personal, so one person's snooze does not silence another person's alert.

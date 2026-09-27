@@ -13,6 +13,7 @@ import {
   extractErrorMessage,
   toReminderSounds,
   withTodoItem,
+  withoutTodoItem,
   withTodoItemText,
   withTodoOrder,
   type AddTodoItemInput,
@@ -20,6 +21,7 @@ import {
   type HideCheckedInput,
   type Occurrence,
   type Reminder,
+  type ReminderContentInput,
   type ReminderCreateInput,
   type ReminderInput,
   type RenameTodoItemInput,
@@ -65,6 +67,7 @@ export const queryKeys = {
 export const mutationKeys = {
   createReminder: ['reminders', 'create'] as const,
   updateReminder: ['reminders', 'update'] as const,
+  updateReminderContent: ['reminders', 'update-content'] as const,
   deleteReminder: ['reminders', 'delete'] as const,
   ackOccurrence: ['occurrences', 'ack'] as const,
   snoozeOccurrence: ['occurrences', 'snooze'] as const,
@@ -72,6 +75,7 @@ export const mutationKeys = {
   checkOccurrenceItem: ['occurrences', 'check'] as const,
   checkReminderItem: ['reminders', 'check'] as const,
   addTodoItem: ['reminders', 'add-item'] as const,
+  removeTodoItem: ['reminders', 'remove-item'] as const,
   reorderTodoItems: ['reminders', 'reorder-items'] as const,
   renameTodoItem: ['reminders', 'rename-item'] as const,
   hideCheckedItems: ['reminders', 'hide-checked'] as const
@@ -198,6 +202,23 @@ export function registerMutationDefaults(): void {
     onSettled: invalidateReminders
   })
 
+  // Inline reading edits touch only title or note body. Preserve the other fields
+  // in the optimistic row, matching the focused server PATCH.
+  queryClient.setMutationDefaults(mutationKeys.updateReminderContent, {
+    mutationFn: ({ id, arg }: { id: string; arg: ReminderContentInput }) =>
+      apiFetch(`/api/reminders/${id}/content`, { method: 'PATCH', body: JSON.stringify(arg) }),
+    onMutate: async ({ id, arg }: { id: string; arg: ReminderContentInput }): Promise<RemindersSnapshot> => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.reminders })
+      const previous = reminders()
+      queryClient.setQueryData<Reminder[]>(queryKeys.reminders, (list) =>
+        (list ?? []).map((reminder) => reminder.id === id ? { ...reminder, ...arg } : reminder)
+      )
+      return { previous }
+    },
+    onError: rollback,
+    onSettled: invalidateReminders
+  })
+
   queryClient.setMutationDefaults(mutationKeys.deleteReminder, {
     mutationFn: (id: string) => apiFetch(`/api/reminders/${id}`, { method: 'DELETE' }),
     onMutate: async (id: string): Promise<RemindersSnapshot> => {
@@ -235,7 +256,7 @@ export function registerMutationDefaults(): void {
     onSettled: invalidateReminders
   })
 
-  // Adding an item from a card writes the reminder's *definition*, so it applies to
+  // Adding an item from the reading dialog writes the reminder's definition, so it applies to
   // the same cache the checklist is drawn from. Optimistic because the add row stays
   // open for the next line: the item the user just typed has to be on the list
   // before they type the next one, or they lose their place. `withTodoItem` skips an
@@ -249,6 +270,29 @@ export function registerMutationDefaults(): void {
       queryClient.setQueryData<Reminder[]>(queryKeys.reminders, (list) =>
         (list ?? []).map((reminder) =>
           reminder.id === id ? { ...reminder, typeData: withTodoItem(reminder.typeData, arg) } : reminder
+        )
+      )
+      return { previous }
+    },
+    onError: rollback,
+    onSettled: invalidateReminders
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.removeTodoItem, {
+    mutationFn: ({ id, itemId }: { id: string; itemId: string }) =>
+      apiFetch(`/api/reminders/${id}/items/${encodeURIComponent(itemId)}`, { method: 'DELETE' }),
+    onMutate: async ({ id, itemId }: { id: string; itemId: string }): Promise<RemindersSnapshot> => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.reminders })
+      const previous = reminders()
+      queryClient.setQueryData<Reminder[]>(queryKeys.reminders, (list) =>
+        (list ?? []).map((reminder) =>
+          reminder.id === id
+            ? {
+                ...reminder,
+                typeData: withoutTodoItem(reminder.typeData, itemId),
+                checkedItemIds: reminder.checkedItemIds.filter((checkedId) => checkedId !== itemId)
+              }
+            : reminder
         )
       )
       return { previous }

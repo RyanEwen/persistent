@@ -1,7 +1,6 @@
 /**
- * One row in a reminder list — used by both the current list and History so they
- * render identically. A tappable card linking to the reminder's detail view,
- * showing the type icon, title + status, and a "when" line (with an optional
+ * One row in a reminder list, opening a reading dialog or a deep-link route.
+ * It is a tappable card showing the type icon, title + status, and a "when" line (with an optional
  * secondary recurrence line). Kept compact (small card padding, single-line
  * description) so many reminders fit on a phone screen.
  */
@@ -16,6 +15,7 @@ import { TypeIcon, StatusChip } from './ReminderIcons.js'
 
 export function ReminderListItem({
   to,
+  onOpen,
   type,
   title,
   status,
@@ -24,7 +24,8 @@ export function ReminderListItem({
   secondary,
   trailing
 }: {
-  to: string
+  to?: string
+  onOpen?: () => void
   type: ReminderType
   title: string
   status?: OccurrenceStatus | null
@@ -34,7 +35,14 @@ export function ReminderListItem({
   trailing?: ReactNode
 }) {
   return (
-    <Card component={RouterLink} to={to} variant="outlined" size="sm" sx={{ textDecoration: 'none' }}>
+    <Card
+      component={onOpen ? 'button' : RouterLink}
+      to={onOpen ? undefined : to}
+      onClick={onOpen}
+      variant="outlined"
+      size="sm"
+      sx={{ textDecoration: 'none', textAlign: 'left', width: '100%', cursor: 'pointer' }}
+    >
       <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
         <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
           <TypeIcon type={type} size={24} />

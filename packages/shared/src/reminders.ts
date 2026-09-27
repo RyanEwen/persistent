@@ -315,6 +315,13 @@ export function withTodoItem(typeData: TypeData, item: TodoItem): TypeData {
   return { ...typeData, items: [...items, item] }
 }
 
+/** Remove one checklist definition without disturbing its other fields or item order. */
+export function withoutTodoItem(typeData: TypeData, itemId: string): TypeData {
+  const items = todoItems(typeData)
+  if (!items.some((item) => item.id === itemId)) return typeData
+  return { ...typeData, items: items.filter((item) => item.id !== itemId) }
+}
+
 /**
  * The checklist as notification/email text — one item per line, so the native
  * `BigTextStyle` body and the plain-text escalation email both read as a list.
@@ -557,6 +564,15 @@ export const reminderInputSchema = z
 export type ReminderInput = z.input<typeof reminderInputSchema>
 export type ReminderInputParsed = z.output<typeof reminderInputSchema>
 
+/** A focused reading-view edit that cannot replace unrelated reminder fields. */
+export const reminderContentInputSchema = z.object({
+  title: z.string().trim().min(1).max(200).optional(),
+  details: z.string().trim().max(2000).nullable().optional()
+}).refine((value) => Number(value.title !== undefined) + Number(value.details !== undefined) === 1, {
+  message: 'Choose one text field to update.'
+})
+export type ReminderContentInput = z.infer<typeof reminderContentInputSchema>
+
 // --- Occurrence DTO ---
 
 export const occurrenceSchema = z.object({
@@ -587,12 +603,14 @@ export const occurrenceSchema = z.object({
   // blank — yesterday's ticks say nothing about today's. Ids of since-deleted
   // items may linger here; read them through `todoProgress`, which filters.
   checkedItemIds: z.array(z.string()).default([]),
-  // Denormalized snapshot of the parent reminder for the "due now" list.
+  // Denormalized parent projection for Current and History previews. The saved
+  // collapse setting belongs here so History applies it to that firing's ticks.
   reminder: reminderSchema.pick({
     title: true,
     details: true,
     type: true,
     typeData: true,
+    hideCheckedItems: true,
     persistence: true,
     soundIntervalSeconds: true,
     shadeProminence: true

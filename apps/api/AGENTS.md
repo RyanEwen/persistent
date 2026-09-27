@@ -56,11 +56,17 @@
   (and push), because collapsing ticked items is presentation only: the body is
   built from the unticked items either way, so no armed alarm goes stale. WS alone
   is enough there. `POST /api/reminders/:id/items`, `POST
-  /api/reminders/:id/items/order` and `POST /api/reminders/:id/items/:itemId` are the
-  opposite case and do nudge: an added item arrives *unticked*, a reorder changes the
-  order the body lists them in, and a rename changes the words in it, so all three
+  /api/reminders/:id/items/order`, `POST /api/reminders/:id/items/:itemId`, and
+  `DELETE /api/reminders/:id/items/:itemId` are the opposite case and do nudge:
+  an added item arrives *unticked*, a reorder changes the order the body lists
+  items in, and a rename or deletion changes its words, so these writes
   change what a live firing shows, except on a note, which notifies nobody and so has
   nothing to re-post.
+- **Reading-view text edits:** `PATCH /api/reminders/:id/content` validates a
+  title or note body with the shared schema and updates only those fields. It
+  uses the same owner or explicit share-grant lookup as other edits. A changed
+  scheduled reminder nudges native devices because its alert text may change;
+  a note only needs the WebSocket broadcast.
 - **Scheduler:** `lib/scheduler.ts` owns materialization, the tick loop, and the
   snooze/escalation/miss sweeps. On reminder create/update, materialize the
   changed reminder immediately (don't wait for the 5-min cycle); on update, drop

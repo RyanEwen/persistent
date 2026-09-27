@@ -4,6 +4,7 @@ import {
   hideCheckedInputSchema,
   MAX_TODO_ITEMS,
   reminderBodyText,
+  reminderContentInputSchema,
   reminderInputSchema,
   reminderSchema,
   selectableReminderTypes,
@@ -12,6 +13,7 @@ import {
   todoItems,
   todoProgress,
   withTodoItem,
+  withoutTodoItem,
   withTodoItemText,
   withTodoOrder
 } from './reminders.js'
@@ -357,6 +359,22 @@ test('withTodoItem leaves the rest of typeData alone', () => {
   // checklist line must not be the write that drops them.
   const next = withTodoItem({ medications: [{ name: 'Ibuprofen' }] }, { id: 'a', text: 'Milk' })
   assert.deepEqual(next.medications, [{ name: 'Ibuprofen' }])
+})
+
+test('withoutTodoItem removes only the named item and is safe to replay', () => {
+  const typeData = { items: [{ id: 'a', text: 'Milk' }, { id: 'b', text: 'Bread' }], other: 'kept' }
+  const next = withoutTodoItem(typeData, 'a')
+  assert.deepEqual(todoItems(next), [{ id: 'b', text: 'Bread' }])
+  assert.equal(next.other, 'kept')
+  assert.equal(withoutTodoItem(next, 'a'), next)
+})
+
+test('reading-view text edits contain exactly one valid field', () => {
+  assert.equal(reminderContentInputSchema.safeParse({ title: 'Updated' }).success, true)
+  assert.equal(reminderContentInputSchema.safeParse({ details: null }).success, true)
+  assert.equal(reminderContentInputSchema.safeParse({ title: '   ' }).success, false)
+  assert.equal(reminderContentInputSchema.safeParse({ title: 'Updated', details: 'Body' }).success, false)
+  assert.equal(reminderContentInputSchema.safeParse({}).success, false)
 })
 
 test('a checklist is capped at MAX_TODO_ITEMS', () => {

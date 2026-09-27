@@ -1,5 +1,5 @@
 /**
- * One checklist item's text, on a card: read it, or click it to rewrite it.
+ * One checklist item's text in the reading dialog: read it, or click it to rewrite it.
  *
  * The row's three regions each do exactly one thing — the checkbox ticks, this edits,
  * the handle drags — so nothing is guessed from where a tap landed. That is a real

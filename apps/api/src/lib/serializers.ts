@@ -92,6 +92,7 @@ export function toOccurrence(row: ReminderOccurrence & { reminder: ReminderRow }
       details: row.reminder.details,
       type: row.reminder.type,
       typeData: (row.reminder.typeData ?? {}) as TypeData,
+      hideCheckedItems: row.reminder.hideCheckedItems,
       persistence: row.reminder.persistence,
       soundIntervalSeconds: row.reminder.soundIntervalSeconds,
       shadeProminence: row.reminder.shadeProminence

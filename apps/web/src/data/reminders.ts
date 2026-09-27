@@ -10,6 +10,7 @@ import type {
   CheckItemInput,
   HideCheckedInput,
   Reminder,
+  ReminderContentInput,
   ReminderCreateInput,
   ReminderInput,
   RenameTodoItemInput,
@@ -35,6 +36,13 @@ export function useUpdateReminder() {
   })
 }
 
+/** Change only a title or note body from the reading dialog. */
+export function useUpdateReminderContent() {
+  return useMutation<unknown, Error, { id: string; arg: ReminderContentInput }>({
+    mutationKey: mutationKeys.updateReminderContent
+  })
+}
+
 export function useDeleteReminder() {
   return useMutation<unknown, Error, string>({ mutationKey: mutationKeys.deleteReminder })
 }
@@ -51,7 +59,7 @@ export function useCheckReminderItem() {
 }
 
 /**
- * Append one item to a reminder's checklist from a card, instead of opening the
+ * Append one item to a reminder's checklist from the reading dialog, instead of opening the
  * editor for it. Items belong to the reminder, so this writes the definition —
  * every later firing carries the new item, and it starts unticked.
  */
@@ -61,8 +69,15 @@ export function useAddTodoItem() {
   })
 }
 
+/** Delete a checklist item from the reminder definition. */
+export function useRemoveTodoItem() {
+  return useMutation<unknown, Error, { id: string; itemId: string }>({
+    mutationKey: mutationKeys.removeTodoItem
+  })
+}
+
 /**
- * Reorder a reminder's checklist from a card. Sent as the full set of ids in their new
+ * Reorder a reminder's checklist from the reading dialog. Sent as the full set of ids in their new
  * order and applied by the server as a *ranking*, so a reorder that lands late can
  * reshuffle but never drop an item added in the meantime.
  */
@@ -73,7 +88,7 @@ export function useReorderTodoItems() {
 }
 
 /**
- * Retitle one checklist item, from a card or from the editor's row. Last-write-wins:
+ * Retitle one checklist item, from the reading dialog or the editor's row. Last-write-wins:
  * free text has no merge, so the later edit is the one that stands.
  */
 export function useRenameTodoItem() {

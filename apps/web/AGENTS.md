@@ -9,25 +9,32 @@
   further down (`pages/reminder-editor/DetailsTab.tsx`, `autoFocusTitle`).
 - **Joy UI only** for components; theme in `src/theme.ts`. Don't pull in MUI
   Material or other component kits.
+- **Reminder lists are previews.** Current, Upcoming, Notes, and History cards open the
+  reading dialog with a full-card tap. Keep Edit, Snooze, Done, and checklist
+  controls in the dialog. Checklist previews show the saved checked state and
+  honor the reminder's hide-checked preference without adding nested buttons.
+  The editor opens as a separate dialog, while saved editor URLs continue to
+  resolve for older links. A title or note body becomes an inline text field only
+  when selected in the reading dialog; its focused PATCH updates only that text.
 - **The loudest control on a screen is the one that finishes work.** Done
   (`components/OccurrenceActions.tsx`, solid `success`) is the app's entire
   guarantee, so nothing that merely *creates* or navigates may outrank it:
   no solid accent fill, no larger size, no position above it. Done is also the only
-  **labelled** control on that row: Edit and Snooze are icon-only (`aria-label` +
-  `title`), which is what makes Done the thing you reach for and what keeps a
-  four-control row inside a phone's width. Don't reverse that trade: an icon-only
+  **labelled** control on that row: Snooze is icon-only (`aria-label` +
+  `title`), which is what makes Done the thing you reach for. Edit and Share sit
+  in the reading dialog footer with Close. This row belongs in the reading
+  dialog, where the full reminder and its firings are visible. Don't reverse
+  that trade: an icon-only
   Done would make the app's one terminal action the hardest to find. "New reminder" was
   exactly that mistake: a full-width solid `primary` bar sitting directly on top
   of the Done it competed with. It is a soft floating button now
   (`components/NewReminderFab.tsx`), accent-*tinted* so it reads as tappable but
   never accent-*filled*: that line is the whole rule, and solid is what crossed
   it last time. The rule is about emphasis, not position:
-  that button sits in the conventional bottom-right corner and may overlap a
-  card's actions at narrow widths, which is a documented trade-off rather than a
-  licence to outrank Done visually.
-- **A checklist row is three regions, and they mean the same thing everywhere.** The
-  checkbox ticks, the text opens for editing, the handle drags to reorder: on a card
-  (`components/TodoChecklist.tsx`) and in the editor's field
+  that button sits in the conventional bottom-right corner.
+- **A checklist row uses the same controls everywhere.** The leading handle drags,
+  the checkbox ticks, the text opens for editing, and the trailing X deletes: in the
+  reading dialog (`components/TodoChecklist.tsx`) and in the editor's field
   (`pages/reminder-editor/TodoItemsField.tsx`) alike, and adding a line is the same
   `components/TodoAddItem.tsx` in both. Don't reintroduce a surface-specific gesture
   (the whole row used to tick, which left nowhere to put editing); if a region has to

@@ -120,6 +120,8 @@ export function TodoItemsField({
             // underneath it.
             sx={{
               borderRadius: 'sm',
+              '&:hover .todo-remove, &:focus-within .todo-remove': { opacity: 1 },
+              '@media (hover: none)': { '& .todo-remove': { opacity: 1 } },
               ...(draggingIndex === index
                 ? {
                     bgcolor: 'background.level1',
@@ -187,24 +189,21 @@ export function TodoItemsField({
                 insertAt(index + 1)
               }}
             />
-            {multiple && (
-              <IconButton
+            <IconButton
+                className="todo-remove"
                 size="sm"
                 variant="plain"
                 color="danger"
                 aria-label={`Remove ${item.text || `item ${index + 1}`}`}
                 onClick={() => onRemove(index)}
+                sx={{ opacity: 0, transition: 'opacity 150ms ease' }}
               >
                 <CloseIcon />
               </IconButton>
-            )}
           </Stack>
         ))}
-        {/* The same control the cards use, so adding a line is the same gesture in both
-            places: type it, press Enter, keep typing. It replaces a button that
-            appended an *empty* row for you to find and fill, which is a different
-            interaction for the same intent. Enter inside a row still inserts one below,
-            since that is how a list gets typed straight through. */}
+        {/* The draft row appears above its persistent Add button. Enter inside an
+            existing row still inserts below that row for keyboard list entry. */}
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
           <TodoAddItem onAdd={(item) => onInsert(todos.length, item)} />
         </Box>

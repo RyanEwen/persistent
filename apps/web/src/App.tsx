@@ -3,11 +3,12 @@
  * gets the app shell (reminders list, editor, settings).
  */
 import { useEffect } from 'react'
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom'
 import CircularProgress from '@mui/joy/CircularProgress'
 import Box from '@mui/joy/Box'
 import { useAuth } from './auth/useAuth.js'
 import { AppLayout } from './components/AppLayout.js'
+import { ReminderDialogProvider } from './components/ReminderDialogs.js'
 import { SignInPage } from './pages/SignInPage.js'
 import { RemindersPage } from './pages/RemindersPage.js'
 import { UpcomingPage } from './pages/UpcomingPage.js'
@@ -15,7 +16,7 @@ import { NotesPage } from './pages/NotesPage.js'
 import { ReminderDetailPage } from './pages/ReminderDetailPage.js'
 import { SharedReminderPage } from './pages/SharedReminderPage.js'
 import { AssignmentsPage } from './pages/AssignmentsPage.js'
-import { ReminderEditorPage } from './pages/reminder-editor/ReminderEditorPage.js'
+import { useReminderDialogs } from './components/reminderDialogContext.js'
 import { HistoryPage } from './pages/HistoryPage.js'
 import { SettingsPage } from './pages/SettingsPage.js'
 import { HelpPage } from './pages/HelpPage.js'
@@ -66,6 +67,7 @@ export function App() {
 
   return (
     <AppLayout>
+      <ReminderDialogProvider>
       <UpdateCheck />
       <DesktopWidgetSync />
       <Routes>
@@ -74,11 +76,11 @@ export function App() {
         {/* Routed unconditionally even though its tab is hidden without notes: a saved
             note lands here, and a link to it must not fall through to Current. */}
         <Route path="/notes" element={<NotesPage />} />
-        <Route path="/reminders/new" element={<ReminderEditorPage />} />
+        <Route path="/reminders/new" element={<LegacyEditorLink />} />
         <Route path="/reminders/:id" element={<ReminderDetailPage />} />
         <Route path="/shared/:id" element={<SharedReminderPage />} />
         <Route path="/assigned" element={<AssignmentsPage />} />
-        <Route path="/reminders/:id/edit" element={<ReminderEditorPage />} />
+        <Route path="/reminders/:id/edit" element={<LegacyEditorLink />} />
         <Route path="/history" element={<HistoryPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/help" element={<HelpPage />} />
@@ -86,6 +88,22 @@ export function App() {
         <Route path="/delete-account" element={<DeleteAccountPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </ReminderDialogProvider>
     </AppLayout>
   )
+}
+
+/** Keep saved editor links useful while the editor itself lives in a dialog. */
+function LegacyEditorLink() {
+  const { id } = useParams()
+  const navigate = useNavigate()
+  const dialogs = useReminderDialogs()
+
+  useEffect(() => {
+    navigate('/', { replace: true })
+    if (id) dialogs.edit(id)
+    else dialogs.create()
+  }, [id, navigate, dialogs])
+
+  return null
 }

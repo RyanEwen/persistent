@@ -1,6 +1,6 @@
 /**
  * Current: what needs dealing with right now. Each FIRED/ESCALATED/SNOOZED
- * occurrence is its own attention card (Done/Snooze/De-escalate) — a reminder with
+ * occurrence is its own attention card. A reminder with
  * several times of day can show several cards at once, each confirmed
  * independently, most recently fired first (`lib/firingOrder.ts`).
  *
@@ -15,38 +15,19 @@
  * into a scroll. Nothing about a note belongs to it either: no status, no Done, no
  * Snooze, because there is no occurrence to act on.
  *
- * Tapping a card opens the **editor**. In the app the user already has the
- * reminder in front of them, so the detail view is a stop on the way to the only
- * thing they came to do; the card's own actions don't need it either. The detail
- * view is reached from a **native notification** tap instead
- * (`native/nativeSync.ts` navigates to `/reminders/:id`), where the user is arriving
- * cold and reading before acting is the point, and from History. Don't
- * collapse those two targets together.
+ * Tapping a card opens the reading dialog. Its actions live with the full content,
+ * while native notification links still resolve to the detail route.
  */
-import { useState } from 'react'
 import Stack from '@mui/joy/Stack'
 import Typography from '@mui/joy/Typography'
 import { SectionHeading } from '../components/SectionHeading.js'
 import { NewReminderFab } from '../components/NewReminderFab.js'
-import {
-  useAddTodoItem,
-  useReminders,
-  useRenameTodoItem,
-  useReorderTodoItems,
-  useSetHideCheckedItems
-} from '../data/reminders.js'
-import {
-  useActiveOccurrences,
-  useAckOccurrence,
-  useSnoozeOccurrence,
-  useSilenceOccurrence,
-  useCheckOccurrenceItem
-} from '../data/occurrences.js'
+import { useReminders } from '../data/reminders.js'
+import { useActiveOccurrences } from '../data/occurrences.js'
 import { compareFirings } from '../lib/firingOrder.js'
 import { formatWhen } from '../lib/datetime.js'
 import { useSettings } from '../settings/useSettings.js'
 import { AttentionReminderCard } from '../components/AttentionReminderCard.js'
-import { SnoozeDialog } from '../components/SnoozeDialog.js'
 import { PullToRefresh } from '../components/PullToRefresh.js'
 import { ReminderListItem } from '../components/ReminderListItem.js'
 import { useReceivedShares } from '../data/shares.js'
@@ -54,23 +35,16 @@ import { useAuth } from '../auth/useAuth.js'
 import { useSentAssignments } from '../data/assignments.js'
 import Button from '@mui/joy/Button'
 import { Link as RouterLink } from 'react-router-dom'
+import { useReminderDialogs } from '../components/reminderDialogContext.js'
 
 export function RemindersPage() {
+  const dialogs = useReminderDialogs()
   const reminders = useReminders()
   const active = useActiveOccurrences()
   const received = useReceivedShares()
   const sentAssignments = useSentAssignments()
   const { user } = useAuth()
-  const ack = useAckOccurrence()
-  const snooze = useSnoozeOccurrence()
-  const silence = useSilenceOccurrence()
-  const checkItem = useCheckOccurrenceItem()
-  const addItem = useAddTodoItem()
-  const reorderItems = useReorderTodoItems()
-  const renameItem = useRenameTodoItem()
-  const hideChecked = useSetHideCheckedItems()
   const { timeFormat } = useSettings()
-  const [snoozeFor, setSnoozeFor] = useState<string | null>(null)
 
   // Every active occurrence is its own attention card — a reminder with several
   // times of day can have more than one pending at once, each acked separately.
@@ -110,20 +84,6 @@ export function RemindersPage() {
                 occurrence={occurrence}
                 timeFormat={timeFormat}
                 timeZone={received.data?.some((share) => share.id === reminder.id) ? user?.timeZone : undefined}
-                onDone={() => ack.mutate({ id: occurrence.id, arg: undefined })}
-                doneLoading={ack.isPending}
-                onSnooze={() => setSnoozeFor(occurrence.id)}
-                onSilence={() => silence.mutate({ id: occurrence.id, arg: undefined })}
-                silenceLoading={silence.isPending}
-                onToggleItem={(itemId, checked) => checkItem.mutate({ id: occurrence.id, arg: { itemId, checked } })}
-                // Keyed by the reminder, like hiding: an item is part of the
-                // definition, so it outlives this firing and joins the next.
-                onAddItem={(item) => addItem.mutate({ id: reminder.id, arg: item })}
-                onReorderItems={(itemIds) => reorderItems.mutate({ id: reminder.id, arg: { itemIds } })}
-                onRenameItem={(itemId, text) => renameItem.mutate({ id: reminder.id, itemId, arg: { text } })}
-                // Keyed by the *reminder*, not the occurrence: collapsing is how
-                // the user wants this list drawn, not something about one firing.
-                onHideChecked={(hidden) => hideChecked.mutate({ id: reminder.id, arg: { hidden } })}
               />
             ))}
           </Stack>
@@ -135,7 +95,7 @@ export function RemindersPage() {
             {received.data.map((reminder) => (
               <ReminderListItem
                 key={reminder.id}
-                to={`/shared/${reminder.id}`}
+                onOpen={() => dialogs.view(reminder.id)}
                 type={reminder.type}
                 title={reminder.title}
                 subtitle={`From ${reminder.ownerName}${reminder.nextScheduledFor ? ` · Next: ${formatWhen(reminder.nextScheduledFor, timeFormat, user?.timeZone)}` : ''}`}
@@ -155,15 +115,6 @@ export function RemindersPage() {
 
         <NewReminderFab />
 
-        <SnoozeDialog
-          open={snoozeFor !== null}
-          busy={snooze.isPending}
-          onClose={() => setSnoozeFor(null)}
-          onSnooze={(minutes) => {
-            if (snoozeFor) snooze.mutate({ id: snoozeFor, arg: minutes })
-            setSnoozeFor(null)
-          }}
-        />
       </Stack>
     </PullToRefresh>
   )

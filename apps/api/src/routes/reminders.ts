@@ -12,6 +12,7 @@ import {
   hideCheckedInputSchema,
   initialSharesSchema,
   MAX_TODO_ITEMS,
+  reminderContentInputSchema,
   reminderInputSchema,
   renameTodoItemInputSchema,
   reorderTodoItemsInputSchema,
@@ -191,11 +192,44 @@ remindersRouter.put('/:id', async (request, response) => {
   response.json({ reminder: toReminder(reminder) })
 })
 
+/** Save only the text opened in the reading dialog, preserving schedule and checklist state. */
+remindersRouter.patch('/:id/content', async (request, response) => {
+  const userId = requireUserId(request)
+  const parsed = reminderContentInputSchema.safeParse(request.body)
+  if (!parsed.success) throw badRequest(parsed.error.issues[0]?.message ?? 'Invalid reminder text.')
+
+  const existing = await editableReminder(request.params.id, userId)
+  if (!existing) throw notFound('Reminder not found.')
+  if (parsed.data.details !== undefined && (existing.schedule as { kind?: string }).kind !== 'never') {
+    throw badRequest('Only a note body can be edited here.')
+  }
+  if (parsed.data.details !== undefined && existing.type === 'TODO') {
+    throw badRequest('A checklist note is edited through its items.')
+  }
+
+  await prisma.reminder.updateMany({
+    where: { id: existing.id, userId: existing.userId },
+    data: {
+      ...(parsed.data.title !== undefined ? { title: parsed.data.title } : {}),
+      ...(parsed.data.details !== undefined ? { details: parsed.data.details } : {})
+    }
+  })
+  const updated = await prisma.reminder.findFirstOrThrow({ where: { id: existing.id, userId: existing.userId } })
+  broadcast(existing.userId, { type: 'reminder.changed', reminderId: updated.id })
+  await broadcastSharedChange(updated.id, existing.userId)
+  if ((updated.schedule as { kind?: string }).kind !== 'never') {
+    void nudgeNativeSync(existing.userId).catch((error) =>
+      logger.warn('reminder text sync nudge failed', { error: String(error), reminderId: updated.id })
+    )
+  }
+  response.json({ reminder: toReminder(updated) })
+})
+
 /**
  * Append one item to this reminder's checklist.
  *
- * The add row on a card — Current's attention cards, a note, the detail view —
- * exists so extending a list doesn't mean opening the editor. Kept off `PUT
+ * The add row in the reading dialog exists so extending a list doesn't mean
+ * opening the full editor. Kept off `PUT
  * /api/reminders/:id` for the same reason `hide-checked` is: that endpoint
  * replaces the whole definition from the editor form, so routing an added line
  * through it would make a card restate every field it doesn't show, racing a real
@@ -284,7 +318,7 @@ remindersRouter.post('/:id/items', async (request, response) => {
 })
 
 /**
- * Reorder this reminder's checklist — the drag handles on a card, so the order a list
+ * Reorder this reminder's checklist: the drag handles in the reading dialog let the order a list
  * is worked through can be changed where it is being worked through rather than only
  * in the editor.
  *
@@ -357,7 +391,7 @@ remindersRouter.post('/:id/items/order', async (request, response) => {
 /**
  * Retitle one checklist item.
  *
- * The third card write on the same list, and the one that changes what a line *says*
+ * Another focused write on the same list, changing what a line *says*
  * without changing which line it is: ids and order are untouched, so a firing part-way
  * through the checklist keeps its ticks against the same items. Last-write-wins is the
  * honest model for free text — two devices renaming one line have no merge, and the
@@ -436,6 +470,55 @@ remindersRouter.post('/:id/items/:itemId', async (request, response, next) => {
   response.json({ reminder: toReminder(updated) })
 })
 
+/** Delete an item from the definition atomically, including a note's saved tick. */
+remindersRouter.delete('/:id/items/:itemId', async (request, response) => {
+  const userId = requireUserId(request)
+  const existing = await editableReminder(request.params.id, userId)
+  if (!existing) throw notFound('Reminder not found.')
+  if (existing.type !== 'TODO') throw badRequest('This reminder has no checklist.')
+
+  const stored = (existing.typeData ?? {}) as { items?: unknown }
+  if (typeof stored !== 'object' || Array.isArray(stored) || (stored.items !== undefined && !Array.isArray(stored.items))) {
+    throw badRequest("This reminder's checklist needs saving in the editor before it can be edited here.")
+  }
+
+  const itemId = request.params.itemId
+  const removed = await prisma.$executeRaw`
+    UPDATE "Reminder"
+    SET "typeData" = jsonb_set(
+          "typeData",
+          '{items}',
+          COALESCE(
+            (
+              SELECT jsonb_agg(item ORDER BY ordinality)
+              FROM jsonb_array_elements(COALESCE("typeData" -> 'items', '[]'::jsonb)) WITH ORDINALITY AS t(item, ordinality)
+              WHERE item ->> 'id' <> ${itemId}
+            ),
+            '[]'::jsonb
+          ),
+          true
+        ),
+        "checkedItems" = "checkedItems" - ${itemId}::text,
+        "updatedAt" = NOW()
+    WHERE "id" = ${existing.id}
+      AND "userId" = ${existing.userId}
+      AND COALESCE("typeData" -> 'items', '[]'::jsonb) @> jsonb_build_array(jsonb_build_object('id', ${itemId}::text))
+  `
+  const updated = await prisma.reminder.findFirstOrThrow({ where: { id: existing.id, userId: existing.userId } })
+
+  // Offline replays of an already deleted id are safe and do not issue another nudge.
+  if (removed > 0) {
+    broadcast(existing.userId, { type: 'reminder.changed', reminderId: updated.id })
+    await broadcastSharedChange(updated.id, existing.userId)
+    if ((updated.schedule as unknown as { kind?: string }).kind !== 'never') {
+      void nudgeNativeSync(existing.userId).catch((error) =>
+        logger.warn('checklist delete sync nudge failed', { error: String(error), reminderId: updated.id })
+      )
+    }
+  }
+  response.json({ reminder: toReminder(updated) })
+})
+
 /**
  * Tick or untick one item on a **note's** checklist.
  *
@@ -495,7 +578,7 @@ remindersRouter.post('/:id/check', async (request, response) => {
  * way, and no armed alarm goes stale because someone collapsed a list.
  *
  * Kept off `PUT /api/reminders/:id` deliberately. That endpoint replaces the
- * whole definition from the editor form, and this is set by a button on a card
+ * whole definition from the editor form, and this is set by a button in the reading dialog
  * the editor never sees — routing it through the form would make every collapse
  * a full-definition write, racing a real edit made on another device.
  */

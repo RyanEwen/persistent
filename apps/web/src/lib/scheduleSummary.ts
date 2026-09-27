@@ -1,9 +1,9 @@
 /**
- * Human-readable one-liner for a Schedule, used in the reminder list. Times are
+ * Human-readable one-liner for a Schedule, used in reminder previews and details. Times are
  * rendered with the user's 12h/24h preference (pass it from a useSettings call).
  */
-import type { Schedule } from '@persistent/shared'
-import { formatTimeOfDay, type TimeFormat } from './datetime.js'
+import type { Reminder, Schedule } from '@persistent/shared'
+import { formatDate, formatTimeOfDay, type TimeFormat } from './datetime.js'
 import { joinList, ordinal } from './format.js'
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -41,4 +41,22 @@ export function scheduleSummary(schedule: Schedule, timeFormat: TimeFormat): str
     default:
       return times
   }
+}
+
+/**
+ * Reading-view schedule line. A one-time schedule needs its calendar date, which
+ * the generic recurrence summary cannot supply from Schedule alone. Interpret
+ * startDate as a calendar date, not as an instant in the browser's time zone.
+ */
+export function reminderScheduleLine(
+  reminder: Pick<Reminder, 'schedule' | 'startDate'>,
+  timeFormat: TimeFormat
+): string {
+  const { schedule, startDate } = reminder
+  if (schedule.kind !== 'once') return scheduleSummary(schedule, timeFormat)
+
+  const date = formatDate(`${startDate}T12:00:00Z`, 'UTC')
+  const time = schedule.timesOfDay.map((value) => formatTimeOfDay(value, timeFormat)).join(', ')
+  if (!date) return scheduleSummary(schedule, timeFormat)
+  return time ? `${date} at ${time}` : date
 }

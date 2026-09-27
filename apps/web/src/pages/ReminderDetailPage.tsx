@@ -1,26 +1,19 @@
 /**
- * Single-reminder detail: a focused, mostly read-only view of one reminder with
- * its active occurrences' Done / Snooze / De-escalate actions. This is where a
+ * Single-reminder detail: a reading view with focused title and note-body edits,
+ * plus active occurrences' Done / Snooze / De-escalate actions. This is where a
  * **notification tap** lands, and where History links — editing is one step away,
  * behind the Edit button, so the common case (confirm / snooze a nag) is front and
  * center and the large tabbed form isn't in the way.
  *
- * In-app list taps deliberately skip it and open the editor directly: there the
- * user already has the reminder in front of them, so this view is a stop on the
- * way to the only thing they came to do. That is also why the editor's parent is
- * the list rather than this page (`native/useNativeBack.ts`) — Back must not
- * strand them on a screen they never passed through.
+ * In-app list taps present this content in a dialog. Notification links continue
+ * to use the route so they can open directly from outside the app.
  *
  * Every active occurrence of the reminder is confirmed independently (a reminder
  * with several times of day can have more than one pending at once), mirroring the
  * attention cards on the main list.
  *
- * **Order follows what the user came for.** The reminder's own body sits at the top
- * and the firings to answer come straight after it, with the schedule last — a
- * notification tap arrives here to read the thing and confirm it, and the schedule
- * is what you check afterwards, if at all. It used to sit between the two, so on a
- * phone the checklist and Done began below the fold on any reminder with a body
- * worth reading.
+ * The schedule is a quiet line beneath the title. Active firings follow the body,
+ * so a notification tap brings the item and its actions into view together.
  */
 import { useState } from 'react'
 import { Link as RouterLink, useParams } from 'react-router-dom'
@@ -34,13 +27,16 @@ import SnoozeIcon from '@mui/icons-material/Snooze'
 import EditIcon from '@mui/icons-material/Edit'
 import ShareIcon from '@mui/icons-material/Share'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
-import { MAX_TODO_ITEMS, reminderBodyText, todoItems } from '@persistent/shared'
+import { formatMedications, reminderBodyText, todoItems } from '@persistent/shared'
 import {
   useAddTodoItem,
+  useCheckReminderItem,
   useReminders,
   useRenameTodoItem,
+  useRemoveTodoItem,
   useReorderTodoItems,
-  useSetHideCheckedItems
+  useSetHideCheckedItems,
+  useUpdateReminderContent
 } from '../data/reminders.js'
 import {
   useActiveOccurrences,
@@ -49,7 +45,7 @@ import {
   useSilenceOccurrence,
   useCheckOccurrenceItem
 } from '../data/occurrences.js'
-import { scheduleSummary } from '../lib/scheduleSummary.js'
+import { reminderScheduleLine } from '../lib/scheduleSummary.js'
 import { formatWhen } from '../lib/datetime.js'
 import { reminderNextFire } from '../lib/schedule-preview.js'
 
@@ -60,15 +56,20 @@ import { firingTone } from '../lib/firingTone.js'
 import { compareFirings } from '../lib/firingOrder.js'
 import { OccurrenceActions } from '../components/OccurrenceActions.js'
 import { TodoChecklist } from '../components/TodoChecklist.js'
-import { TodoAddItem } from '../components/TodoAddItem.js'
 import { SnoozeDialog } from '../components/SnoozeDialog.js'
 import { ReminderSharing } from '../components/ReminderSharing.js'
 import { PullToRefresh } from '../components/PullToRefresh.js'
+import { InlineReminderText } from '../components/InlineReminderText.js'
 import { useReceivedShares } from '../data/shares.js'
 import { SharedReminderPage } from './SharedReminderPage.js'
 
-export function ReminderDetailPage() {
-  const { id } = useParams()
+export function ReminderDetailPage({ reminderId, onClose, onEdit }: {
+  reminderId?: string
+  onClose?: () => void
+  onEdit?: () => void
+} = {}) {
+  const { id: routeId } = useParams()
+  const id = reminderId ?? routeId
   const reminders = useReminders()
   const received = useReceivedShares()
   const active = useActiveOccurrences()
@@ -76,10 +77,13 @@ export function ReminderDetailPage() {
   const snooze = useSnoozeOccurrence()
   const silence = useSilenceOccurrence()
   const checkItem = useCheckOccurrenceItem()
+  const checkNoteItem = useCheckReminderItem()
   const addItem = useAddTodoItem()
   const reorderItems = useReorderTodoItems()
   const renameItem = useRenameTodoItem()
+  const removeItem = useRemoveTodoItem()
   const hideChecked = useSetHideCheckedItems()
+  const updateContent = useUpdateReminderContent()
   const { timeFormat } = useSettings()
   const [snoozeFor, setSnoozeFor] = useState<string | null>(null)
   const [shareOpen, setShareOpen] = useState(false)
@@ -87,7 +91,7 @@ export function ReminderDetailPage() {
   const reminder = reminders.data?.find((r) => r.id === id)
   const shared = received.data?.some((item) => item.id === id)
 
-  if (!reminder && shared) return <SharedReminderPage />
+  if (!reminder && shared) return <SharedReminderPage reminderId={id} onClose={onClose} onEdit={onEdit} />
 
   // The reminder may still be loading (deep link from a notification) or gone.
   if (!reminder) {
@@ -111,24 +115,21 @@ export function ReminderDetailPage() {
   // body drops the bulleted copy reminderBodyText builds for notifications. The
   // editor saves no details on a checklist, so this is normally empty.
   const items = reminder.type === 'TODO' ? todoItems(reminder.typeData) : []
-  const body = items.length > 0 ? (reminder.details ?? '') : reminderBodyText(reminder)
+  const canEditNoteBody = Boolean(onClose && reminder.schedule.kind === 'never' && reminder.type !== 'TODO')
+  let body = items.length > 0 ? (reminder.details ?? '') : reminderBodyText(reminder)
+  if (canEditNoteBody) {
+    body = reminder.type === 'MEDICATION' ? formatMedications(reminder.typeData) : ''
+  }
   const next = reminderNextFire(reminder)
   // Each pending occurrence gets its own action block, ordered as on the main
   // list — escalations first, then most recently fired (`lib/firingOrder.ts`).
   const occurrences = (active.data ?? []).filter((o) => o.reminderId === reminder.id).sort(compareFirings)
 
-  return (
-    <PullToRefresh onRefresh={() => Promise.all([reminders.refetch(), active.refetch()])}>
+  const content = (
+    <>
       <Stack spacing={2}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Button
-            component={RouterLink}
-            to="/"
-            variant="plain"
-            color="neutral"
-            size="sm"
-            startDecorator={<ArrowBackIcon />}
-          >
+        {!onClose && <Stack direction="row" justifyContent="space-between" alignItems="center">
+          <Button component={RouterLink} to="/" variant="plain" color="neutral" size="sm" startDecorator={<ArrowBackIcon />}>
             Back
           </Button>
           <Stack direction="row" spacing={0.5}>
@@ -136,8 +137,9 @@ export function ReminderDetailPage() {
               Share
             </Button>
             <Button
-              component={RouterLink}
-              to={`/reminders/${reminder.id}/edit`}
+              component={onEdit ? 'button' : RouterLink}
+              to={onEdit ? undefined : `/reminders/${reminder.id}/edit`}
+              onClick={onEdit}
               variant="outlined"
               size="sm"
               startDecorator={<EditIcon />}
@@ -145,20 +147,34 @@ export function ReminderDetailPage() {
               Edit
             </Button>
           </Stack>
-        </Stack>
+        </Stack>}
 
         <Box>
           <Stack direction="row" spacing={1} alignItems="center">
             <TypeIcon type={reminder.type} />
-            <Typography level="title-lg" sx={{ minWidth: 0 }}>
-              {reminder.title}
-            </Typography>
+            {onClose ? (
+              <InlineReminderText
+                kind="title"
+                text={reminder.title}
+                onSave={(title) => updateContent.mutate({ id: reminder.id, arg: { title } })}
+              />
+            ) : (
+              <Typography level="title-lg" sx={{ minWidth: 0 }}>
+                {reminder.title}
+              </Typography>
+            )}
             {!reminder.active && (
               <Chip size="sm" color="neutral" variant="outlined">
                 paused
               </Chip>
             )}
           </Stack>
+          {reminder.schedule.kind !== 'never' && (
+            <Typography level="body-xs" sx={{ mt: 0.5, color: 'text.tertiary' }}>
+              {reminderScheduleLine(reminder, timeFormat)}
+              {next && reminder.schedule.kind !== 'once' ? ` · Next: ${formatWhen(next, timeFormat)}` : ''}
+            </Typography>
+          )}
           {body && (
             // pre-wrap: details are authored in a multi-line textarea, so the line
             // breaks the user typed are part of the content and must survive here.
@@ -166,20 +182,31 @@ export function ReminderDetailPage() {
               {body}
             </Typography>
           )}
+          {canEditNoteBody && (
+            <Box sx={{ mt: 0.5 }}>
+              <InlineReminderText
+                kind="body"
+                text={reminder.details ?? ''}
+                onSave={(details) => updateContent.mutate({ id: reminder.id, arg: { details: details || null } })}
+              />
+            </Box>
+          )}
         </Box>
 
         {occurrences.length > 0 && (
           <Stack spacing={1.5}>
-            <Typography level="title-sm">Needs attention</Typography>
             {occurrences.map((occurrence) => {
               // Same treatment as the list card, from the same helper: only an
               // escalation shouts, and "Due" is used only where it's honest.
               const { orphaned, color, variant, doneLabel } = firingTone(reminder, occurrence)
               return (
-                <Card key={occurrence.id} color={color} variant={variant}>
-                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
-                    <Box sx={{ minWidth: 0 }}>
-                      <Typography level="body-sm">{formatWhen(occurrence.scheduledFor, timeFormat)}</Typography>
+                <Card key={occurrence.id} color={color} variant={variant} size="sm">
+                  <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" useFlexGap>
+                    <Box sx={{ flex: '1 1 10rem', minWidth: 0 }}>
+                      <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} flexWrap="wrap" useFlexGap>
+                        <Typography level="body-sm">{formatWhen(occurrence.scheduledFor, timeFormat)}</Typography>
+                        <FiringStatusChip reminder={reminder} occurrence={occurrence} />
+                      </Stack>
                       {occurrence.status === 'SNOOZED' && occurrence.snoozedUntil && (
                         <Typography
                           level="body-xs"
@@ -189,18 +216,25 @@ export function ReminderDetailPage() {
                           Snoozed until {formatWhen(occurrence.snoozedUntil, timeFormat)}
                         </Typography>
                       )}
-                      {orphaned && (
-                        <Typography level="body-xs" sx={{ mt: 0.5, color: 'text.tertiary' }}>
-                          Notified you before this reminder was rescheduled. Clearing it won't affect the new schedule.
-                        </Typography>
-                      )}
                     </Box>
-                    <Box sx={{ flexShrink: 0 }}>
-                      <FiringStatusChip reminder={reminder} occurrence={occurrence} />
-                    </Box>
+                    <OccurrenceActions
+                      occurrence={occurrence}
+                      size="sm"
+                      doneLabel={doneLabel}
+                      onDone={() => ack.mutate({ id: occurrence.id, arg: undefined })}
+                      doneLoading={ack.isPending}
+                      onSnooze={() => setSnoozeFor(occurrence.id)}
+                      onSilence={() => silence.mutate({ id: occurrence.id, arg: undefined })}
+                      silenceLoading={silence.isPending}
+                    />
                   </Stack>
-                  {items.length > 0 && (
-                    <Box sx={{ mt: 1 }}>
+                  {orphaned && (
+                    <Typography level="body-xs" sx={{ color: 'text.tertiary' }}>
+                      Notified you before this reminder was rescheduled. Clearing it won't affect the new schedule.
+                    </Typography>
+                  )}
+                  {reminder.type === 'TODO' && (
+                    <Box>
                       <TodoChecklist
                         items={items}
                         checkedItemIds={occurrence.checkedItemIds}
@@ -212,6 +246,7 @@ export function ReminderDetailPage() {
                         onAddItem={(item) => addItem.mutate({ id: reminder.id, arg: item })}
                         onReorder={(itemIds) => reorderItems.mutate({ id: reminder.id, arg: { itemIds } })}
                         onRenameItem={(itemId, text) => renameItem.mutate({ id: reminder.id, itemId, arg: { text } })}
+                        onRemoveItem={(itemId) => removeItem.mutate({ id: reminder.id, itemId })}
                         // Ticks are per firing, the collapse is per reminder — so
                         // every card here hides and shows together, and agrees with
                         // the same list on Current.
@@ -220,74 +255,55 @@ export function ReminderDetailPage() {
                       />
                     </Box>
                   )}
-                  <Box sx={{ mt: 1 }}>
-                    {/* No editHref: this screen already carries Edit in its header,
-                        and two of them within a screen-height is one too many. */}
-                    <OccurrenceActions
-                      occurrence={occurrence}
-                      doneLabel={doneLabel}
-                      onDone={() => ack.mutate({ id: occurrence.id, arg: undefined })}
-                      doneLoading={ack.isPending}
-                      onSnooze={() => setSnoozeFor(occurrence.id)}
-                      onSilence={() => silence.mutate({ id: occurrence.id, arg: undefined })}
-                      silenceLoading={silence.isPending}
-                    />
-                  </Box>
                 </Card>
               )
             })}
           </Stack>
         )}
 
-        {/* With nothing due there is no firing to tick against — a checked set
-            belongs to an occurrence — so the list shows as the definition it is.
-            Still extendable: an item belongs to the reminder either way. */}
-        {items.length > 0 && occurrences.length === 0 && (
-          <Card variant="soft">
+        {/* A kept note owns its own ticks. A scheduled reminder with no live
+            firing only shows the checklist definition. */}
+        {reminder.type === 'TODO' && occurrences.length === 0 && (
+          <Card
+            variant={reminder.schedule.kind === 'never' ? 'plain' : 'soft'}
+            sx={reminder.schedule.kind === 'never' ? { p: 0, bgcolor: 'transparent', boxShadow: 'none' } : undefined}
+          >
             <Typography level="title-sm">Checklist</Typography>
-            <Stack spacing={0.25}>
-              {items.map((item) => (
-                <Typography key={item.id} level="body-sm">
-                  • {item.text}
-                </Typography>
-              ))}
-            </Stack>
-            {items.length < MAX_TODO_ITEMS && (
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <TodoAddItem onAdd={(item) => addItem.mutate({ id: reminder.id, arg: item })} />
-              </Box>
+            {reminder.schedule.kind === 'never' ? (
+              <TodoChecklist
+                items={items}
+                checkedItemIds={reminder.checkedItemIds}
+                confirmable={false}
+                onToggle={(itemId, checked) => checkNoteItem.mutate({
+                  id: reminder.id,
+                  arg: { itemId, checked }
+                })}
+                onAddItem={(item) => addItem.mutate({ id: reminder.id, arg: item })}
+                onRenameItem={(itemId, text) => renameItem.mutate({ id: reminder.id, itemId, arg: { text } })}
+                onRemoveItem={(itemId) => removeItem.mutate({ id: reminder.id, itemId })}
+                onReorder={(itemIds) => reorderItems.mutate({ id: reminder.id, arg: { itemIds } })}
+                hideChecked={reminder.hideCheckedItems}
+                onHideCheckedChange={(hidden) => hideChecked.mutate({ id: reminder.id, arg: { hidden } })}
+              />
+            ) : (
+              <TodoChecklist
+                items={items}
+                checkedItemIds={[]}
+                confirmable={false}
+                onAddItem={(item) => addItem.mutate({ id: reminder.id, arg: item })}
+                onRenameItem={(itemId, text) => renameItem.mutate({ id: reminder.id, itemId, arg: { text } })}
+                onRemoveItem={(itemId) => removeItem.mutate({ id: reminder.id, itemId })}
+                onReorder={(itemIds) => reorderItems.mutate({ id: reminder.id, arg: { itemIds } })}
+              />
             )}
-            <Typography level="body-xs" sx={{ color: 'text.tertiary' }}>
-              {/* A checklist that never fires is a kept list, not a routine waiting
-                  to come round — there is no firing for its ticks to belong to. */}
-              {reminder.schedule.kind === 'never'
-                ? 'A kept list — it never notifies you, so there is nothing to tick off.'
-                : 'Ticked off each time this reminder notifies you.'}
-            </Typography>
+            {reminder.schedule.kind !== 'never' && (
+              <Typography level="body-xs" sx={{ color: 'text.tertiary' }}>
+                Ticked off each time this reminder notifies you.
+              </Typography>
+            )}
           </Card>
         )}
 
-        {/* Last, because it is reference rather than the reason the user is here: a
-            notification tap lands on this screen to be answered, and the schedule is
-            what you check afterwards. */}
-        <Card variant="soft">
-          <Typography level="title-sm">Schedule</Typography>
-          <Typography level="body-sm">{scheduleSummary(reminder.schedule, timeFormat)}</Typography>
-          <Typography level="body-xs" sx={{ color: 'text.tertiary' }}>
-            {/* "No upcoming fire" is the normal resting state of a one-shot that has
-                already fired (every "remind me now" reminder lands here immediately),
-                so it must not be reported as paused — only an inactive reminder is.
-                A note is neither: it has no fire to be missing and pausing it would
-                change nothing, so it says what that means instead. */}
-            {reminder.schedule.kind === 'never'
-              ? 'Nothing to confirm — kept on the Notes tab.'
-              : !reminder.active
-                ? 'Paused — no upcoming notification'
-                : next
-                  ? `Next: ${formatWhen(next, timeFormat)}`
-                  : 'No upcoming notification'}
-          </Typography>
-        </Card>
       </Stack>
 
       <SnoozeDialog
@@ -300,6 +316,12 @@ export function ReminderDetailPage() {
         }}
       />
       <ReminderSharing open={shareOpen} onClose={() => setShareOpen(false)} reminderId={reminder.id} />
+    </>
+  )
+
+  return onClose ? content : (
+    <PullToRefresh onRefresh={() => Promise.all([reminders.refetch(), active.refetch()])}>
+      {content}
     </PullToRefresh>
   )
 }

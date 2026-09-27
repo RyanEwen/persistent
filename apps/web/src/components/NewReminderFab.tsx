@@ -34,14 +34,8 @@
  * `pointerEvents: 'none'` with the button re-enabling itself — otherwise an
  * invisible strip would swallow taps on whatever card sits behind it.
  *
- * It sits bottom-right, the conventional corner. Known cost, accepted rather than
- * overlooked: Done and Snooze are right-aligned in every attention card, so at
- * narrow widths — the Windows flyout goes down to 320 — a card's buttons wrap onto
- * their own row and the button can cover them until you scroll. It was tried on
- * the left, which removes that entirely, and bottom-left looked wrong enough not
- * to be worth it. If the collision ever needs solving without moving it back, the
- * options are shrinking to an icon under a width breakpoint or hiding it while
- * scrolling down.
+ * It sits bottom-right, the conventional corner. Reminder card actions now live
+ * in a dialog, so the floating button cannot cover their Done control.
  *
  * **The button is portalled to `document.body` and that is load-bearing.** Both
  * screens are wrapped in `PullToRefresh`, which sets `transform: translateY(...)`
@@ -52,12 +46,13 @@
  * actually needs to occupy layout.
  */
 import { createPortal } from 'react-dom'
-import { Link as RouterLink } from 'react-router-dom'
+import { useReminderDialogs } from './reminderDialogContext.js'
 import Box from '@mui/joy/Box'
 import Button from '@mui/joy/Button'
 import AddIcon from '@mui/icons-material/Add'
 
 export function NewReminderFab() {
+  const dialogs = useReminderDialogs()
   return (
     <>
       {/* In-flow spacer: the button is fixed, so nothing else can push the last
@@ -81,8 +76,7 @@ export function NewReminderFab() {
           }}
         >
           <Button
-            component={RouterLink}
-            to="/reminders/new"
+            onClick={dialogs.create}
             variant="soft"
             color="primary"
             startDecorator={<AddIcon />}

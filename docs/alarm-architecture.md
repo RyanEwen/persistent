@@ -382,8 +382,8 @@ model:
 1. An open dialog swallows Back and closes (asked via
    `components/backAwareDialogStack.ts`, since `BackAwareModal` tracks dialogs as
    history entries rather than routes).
-2. On a detail/editor screen, go **up one level** — editor to the reminder it
-   edits, reminder to the list, Help/Privacy/Delete-account back to Settings.
+2. On a detail screen opened from a notification, go **up one level** to the list.
+   Saved editor links open a dialog. Help/Privacy/Delete-account go back to Settings.
 3. On a bottom-nav tab other than the first, go to the first tab.
 4. On the first tab, leave the app.
 
