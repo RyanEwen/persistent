@@ -4,7 +4,7 @@
 #
 #   .\build-msix.ps1                 signed sideload build (dev cert, updates in place)
 #   .\build-msix.ps1 -Store          unsigned, real Store identity, for Partner Center
-#   .\build-msix.ps1 -Upload         both architectures, plus the .msixupload container
+#   .\build-msix.ps1 -Upload         both architectures in a verified bundle and upload container
 #   .\build-msix.ps1 -Platform ARM64 override the auto-detected architecture
 #
 # The two modes differ in IDENTITY, not just signing. A Store package must carry
@@ -91,16 +91,11 @@ function Resolve-SdkTool([string]$name) {
 $makeappx = Resolve-SdkTool 'makeappx.exe'
 $signtool = if ($Store) { $null } else { Resolve-SdkTool 'signtool.exe' }
 
-# --- Upload: build each architecture, then wrap them for msstore ----------
-# Both forms are produced on purpose, because the two submission routes want
-# different files:
-#
-#   the loose per-arch .msix   -> what you drag into the Partner Center UI
-#   the .msixupload container  -> what `msstore publish` consumes
-#
-# Do not "simplify" this to the container alone. It is a plain zip of the two
-# packages, and Partner Center's web upload does not take it reliably - the
-# sibling apps learned that one the hard way and now document it as a warning.
+# --- Upload: build both architectures into one real MSIX bundle -----------
+# The Store CLI accepted a .msixupload containing two loose .msix files, but
+# Partner Center treated the 0.5.5 upload as x64 only. A real .msixbundle gives
+# the Store one package with both architectures. Keep the loose .msix files for
+# manual Partner Center uploads; the CLI consumes the bundled .msixupload.
 if ($Upload) {
     foreach ($p in @('x64', 'ARM64')) {
         Write-Host ""
@@ -118,17 +113,44 @@ if ($Upload) {
         $path
     }
 
+    $bundlePath = Join-Path $msixDir "Persistent.Desktop_$version.msixbundle"
     $uploadPath = Join-Path $msixDir "Persistent.Desktop_$version.msixupload"
-    $zipPath    = [System.IO.Path]::ChangeExtension($uploadPath, '.zip')
-    foreach ($stale in @($uploadPath, $zipPath)) {
+    $zipPath = [System.IO.Path]::ChangeExtension($uploadPath, '.zip')
+    foreach ($stale in @($bundlePath, $uploadPath, $zipPath)) {
         if (Test-Path $stale) { Remove-Item $stale -Force }
     }
-    # Compress-Archive insists on a .zip destination, so build it as one and rename.
-    Compress-Archive -Path $packages -DestinationPath $zipPath -Force
+
+    $bundleInput = Join-Path $env:TEMP "PersistentBundle-$version-$([guid]::NewGuid().ToString('N'))"
+    $bundleCheck = Join-Path $env:TEMP "PersistentBundleCheck-$version-$([guid]::NewGuid().ToString('N'))"
+    try {
+        New-Item -ItemType Directory -Path $bundleInput | Out-Null
+        foreach ($package in $packages) { Copy-Item $package -Destination $bundleInput }
+
+        & $makeappx bundle /d $bundleInput /p $bundlePath /bv $manifestVersion
+        if ($LASTEXITCODE -ne 0) { throw "MakeAppx failed to bundle both architectures" }
+
+        # Unbundle once before upload so a malformed or single-architecture
+        # container never reaches Partner Center unnoticed.
+        & $makeappx unbundle /p $bundlePath /d $bundleCheck
+        if ($LASTEXITCODE -ne 0) { throw "MakeAppx could not verify the Store bundle" }
+        foreach ($package in $packages) {
+            $unbundled = Join-Path $bundleCheck (Split-Path -Leaf $package)
+            if (-not (Test-Path $unbundled)) { throw "Bundle is missing $unbundled" }
+        }
+    } finally {
+        foreach ($temporary in @($bundleInput, $bundleCheck)) {
+            if (Test-Path $temporary) { Remove-Item $temporary -Recurse -Force }
+        }
+    }
+
+    # A .msixupload is a zip containing the bundle. Compress-Archive requires a
+    # .zip destination, so rename it only after the archive is complete.
+    Compress-Archive -Path $bundlePath -DestinationPath $zipPath -Force
     Move-Item $zipPath $uploadPath -Force
 
     Write-Host ""
     foreach ($p in $packages) { Write-Host "Built $p" }
+    Write-Host "Built $bundlePath"
     Write-Host "Built $uploadPath"
     Write-Host "Partner Center UI: upload the two .msix files. msstore publish: the .msixupload."
     return

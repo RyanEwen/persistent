@@ -702,10 +702,11 @@ display name changes.
   every `Capability`.
 - `-Store`: leaves the Partner Center identity alone and does not sign at all. The
   Store re-signs at ingestion, so any signature applied here is discarded.
-- `-Upload`: implies `-Store`, builds x64 and ARM64, and emits **both** the loose
-  per-architecture `.msix` files *and* a `.msixupload` container. That is not
-  redundancy: the Partner Center web UI wants the loose files (the container does
-  not upload reliably through it), and `msstore publish` wants the container.
+- `-Upload`: implies `-Store`, builds x64 and ARM64, then verifies a single
+  `.msixbundle` contains both before wrapping it in `.msixupload` for `msstore
+  publish`. The loose per-architecture `.msix` files remain for manual Partner
+  Center uploads. The earlier upload container held both loose packages, but
+  Partner Center treated the 0.5.5 submission as x64 only and left ARM64 on 0.5.1.
 
 **Two things the packaged build needs that `dotnet publish` will not do for you.**
 Both were found by installing a package for the first time on 2026-08-19; until
