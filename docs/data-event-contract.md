@@ -18,6 +18,14 @@ recipient access is rechecked by the server on reconnect or mutation.
 Assignment queries are also excluded from the offline cache. An assigned
 reminder is owned by its assignee and follows the normal owned-reminder cache.
 
+`GET /api/shares/received` is the live recipient projection. Each grant includes
+the editable reminder definition, its latest firing state, and the next firing
+instant calculated in the owner's time zone. The web places those definitions
+beside owned reminders in Current, Upcoming, and Notes; History uses the shared
+occurrence feed. A full Shared with me list is reachable from Settings. Received
+definitions and firings
+stay out of the persisted offline cache so revoked access does not survive there.
+
 **History pages; the other feeds don't.** `GET /api/occurrences?scope=history`
 returns `{ occurrences, nextCursor }` (`occurrenceListSchema`) and takes a
 `?cursor=<occurrenceId>`; the client walks it with `useInfiniteQuery` behind a

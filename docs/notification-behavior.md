@@ -67,6 +67,9 @@ it only ever appears on an escalated alarm, and that's what it does; the interna
 action/API name remains `silence`.)
 
 Reminder cards on Current, Upcoming, Notes, and History open a reading dialog.
+Reminders shared with you appear in those same views according to their firing
+state and schedule. Settings also links to a full Shared with me list; Current
+does not carry a separate received-reminder section.
 Clicking its title, or a non-checklist note's body, opens a focused text field.
 Enter or blur saves a title; blur or Ctrl+Enter saves a body. Escape cancels.
 The write applies only that text. The full editor opens

@@ -75,6 +75,8 @@ you *actually mark it done*. It's built for the things you can't afford to miss.
 - **Share a reminder.** Invite someone by email, including someone who has not signed up yet.
   Everyone with access can edit it and mark a firing done for the group. Snoozes and alarm
   escalation are personal, so one person's snooze does not silence another person's alert.
+  Reminders shared with you appear in Current, Upcoming, Notes, and History as appropriate;
+  Settings has a full Shared with me list.
 - **Assign a reminder.** Create one for a single other person. They own its alerts and actions;
   you can see when each firing was handled in Assigned by me. They can decline it.
 - **Medication reminders.** Keep a medicine name and dose with a reminder. Persistent helps

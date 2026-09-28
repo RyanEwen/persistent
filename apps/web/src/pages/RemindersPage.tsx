@@ -25,20 +25,16 @@ import { NewReminderFab } from '../components/NewReminderFab.js'
 import { useReminders } from '../data/reminders.js'
 import { useActiveOccurrences } from '../data/occurrences.js'
 import { compareFirings } from '../lib/firingOrder.js'
-import { formatWhen } from '../lib/datetime.js'
 import { useSettings } from '../settings/useSettings.js'
 import { AttentionReminderCard } from '../components/AttentionReminderCard.js'
 import { PullToRefresh } from '../components/PullToRefresh.js'
-import { ReminderListItem } from '../components/ReminderListItem.js'
 import { useReceivedShares } from '../data/shares.js'
 import { useAuth } from '../auth/useAuth.js'
 import { useSentAssignments } from '../data/assignments.js'
 import Button from '@mui/joy/Button'
 import { Link as RouterLink } from 'react-router-dom'
-import { useReminderDialogs } from '../components/reminderDialogContext.js'
 
 export function RemindersPage() {
-  const dialogs = useReminderDialogs()
   const reminders = useReminders()
   const active = useActiveOccurrences()
   const received = useReceivedShares()
@@ -89,22 +85,6 @@ export function RemindersPage() {
             ))}
           </Stack>
         </Stack>
-
-        {received.data && received.data.length > 0 && (
-          <Stack spacing={1.5}>
-            <SectionHeading title="Shared with me" subtitle="Reminders other people have shared with you." />
-            {received.data.map((reminder) => (
-              <ReminderListItem
-                key={reminder.id}
-                onOpen={() => dialogs.view(reminder.id)}
-                type={reminder.type}
-                title={reminder.title}
-                sharing="shared"
-                subtitle={`From ${reminder.ownerName}${reminder.nextScheduledFor ? ` · Next: ${formatWhen(reminder.nextScheduledFor, timeFormat, user?.timeZone)}` : ''}`}
-              />
-            ))}
-          </Stack>
-        )}
 
         {sentAssignments.data && sentAssignments.data.length > 0 && (
           <Stack spacing={1.5}>

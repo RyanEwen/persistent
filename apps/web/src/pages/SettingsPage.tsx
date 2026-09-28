@@ -67,7 +67,7 @@ export function SettingsPage() {
     <Stack spacing={1.5}>
       <SectionHeading
         title="Settings"
-        subtitle="Appearance, sounds and notifications on this device"
+        subtitle="Appearance, sounds, notifications, and account"
       />
 
       <Card variant="outlined">
@@ -155,6 +155,9 @@ export function SettingsPage() {
         <Typography level="title-sm">Account</Typography>
         <Typography level="body-sm">{user?.email}</Typography>
         <Typography level="body-xs">Time zone: {user?.timeZone}</Typography>
+        <Link component={RouterLink} to="/settings/shared">
+          Shared with me
+        </Link>
         <Button variant="soft" color="danger" onClick={() => void logout()} sx={{ mt: 1, alignSelf: 'flex-start' }}>
           Sign out
         </Button>

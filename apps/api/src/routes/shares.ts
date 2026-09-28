@@ -19,9 +19,19 @@ import type { Prisma } from '@prisma/client'
 export const sharesRouter = Router()
 sharesRouter.use(requireUser)
 
-const receivedShareInclude = {
-  reminder: { include: { user: { select: { email: true, displayName: true, timeZone: true } } } }
-} satisfies Prisma.ReminderShareInclude
+/** Include the latest due firing so recipients classify one-time reminders like owners do. */
+const receivedShareInclude = (now: Date) => ({
+  reminder: {
+    include: {
+      user: { select: { email: true, displayName: true, timeZone: true } },
+      occurrences: {
+        where: { scheduledFor: { lte: now } },
+        orderBy: { scheduledFor: 'desc' },
+        take: 1
+      }
+    }
+  }
+}) satisfies Prisma.ReminderShareInclude
 
 /** Remember an address after a grant or invitation is stored, even if later removed. */
 async function rememberRecipient(ownerId: string, email: string): Promise<void> {
@@ -34,7 +44,7 @@ async function rememberRecipient(ownerId: string, email: string): Promise<void> 
 
 /** Send only fields that the recipient needs to read the reminder. */
 function toSharedReminder(
-  share: Prisma.ReminderShareGetPayload<{ include: typeof receivedShareInclude }>,
+  share: Prisma.ReminderShareGetPayload<{ include: ReturnType<typeof receivedShareInclude> }>,
   firings: SharedReminder['activeFirings'],
   now: Date
 ): SharedReminder {
@@ -65,7 +75,7 @@ function toSharedReminder(
     nextScheduledFor,
     permission: 'EDIT',
     activeFirings: firings,
-    editableReminder: toReminder(reminder),
+    editableReminder: toReminder(reminder, reminder.occurrences[0] ?? null),
     updatedAt: reminder.updatedAt.toISOString()
   }
 }
@@ -75,7 +85,7 @@ sharesRouter.get('/received', async (request, response) => {
   const now = new Date()
   const shares = await prisma.reminderShare.findMany({
     where: { recipientId },
-    include: receivedShareInclude,
+    include: receivedShareInclude(now),
     orderBy: { createdAt: 'desc' }
   })
   const firings = await prisma.reminderOccurrence.findMany({

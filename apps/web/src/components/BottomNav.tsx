@@ -30,6 +30,7 @@ import HistoryIcon from '@mui/icons-material/History'
 import SettingsIcon from '@mui/icons-material/Settings'
 import { useReminders } from '../data/reminders.js'
 import { isNote } from '../lib/notes.js'
+import { useReceivedShares } from '../data/shares.js'
 
 interface NavItem {
   to: string
@@ -110,6 +111,7 @@ function useKeyboardOpen(): boolean {
 export function BottomNav() {
   const { pathname } = useLocation()
   const reminders = useReminders()
+  const received = useReceivedShares()
   const isActive = (to: string) => (to === '/' ? pathname === '/' : pathname.startsWith(to))
   // Hide the bar while typing so the keyboard doesn't push it up over the content.
   const keyboardOpen = useKeyboardOpen()
@@ -118,7 +120,7 @@ export function BottomNav() {
   // The Notes tab earns its place only when there is a note to show — but never
   // disappears from under the user while they are standing on it, which is what
   // deleting their last note would otherwise do.
-  const hasNotes = (reminders.data ?? []).some(isNote)
+  const hasNotes = (reminders.data ?? []).some(isNote) || (received.data ?? []).some((share) => share.isNote)
   const items = ITEMS.filter((item) => item.to !== '/notes' || hasNotes || isActive('/notes'))
 
   return (

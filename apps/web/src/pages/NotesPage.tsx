@@ -27,20 +27,24 @@ import { NotesSection } from '../components/NotesSection.js'
 import { PullToRefresh } from '../components/PullToRefresh.js'
 import { useReminders } from '../data/reminders.js'
 import { isNote } from '../lib/notes.js'
+import { useReceivedShares } from '../data/shares.js'
+import { receivedReminderIds, receivedReminders } from '../lib/receivedReminders.js'
 
 export function NotesPage() {
   const reminders = useReminders()
-  const notes = (reminders.data ?? []).filter(isNote)
+  const received = useReceivedShares()
+  const allReminders = [...(reminders.data ?? []), ...receivedReminders(received.data ?? [])]
+  const notes = allReminders.filter(isNote)
 
   return (
-    <PullToRefresh onRefresh={() => reminders.refetch().then(() => undefined)}>
+    <PullToRefresh onRefresh={() => Promise.all([reminders.refetch(), received.refetch()])}>
       <Stack spacing={3}>
         <Stack spacing={1.5}>
-          {reminders.isLoading && <Typography level="body-sm">Loading…</Typography>}
+          {(reminders.isLoading || received.isLoading) && <Typography level="body-sm">Loading…</Typography>}
           {/* Reachable with nothing on it — by link, or by deleting the last note while
               standing here — so it explains itself rather than showing a bare heading.
               The tab that leads here is hidden in exactly this state. */}
-          {reminders.data && notes.length === 0 && (
+          {reminders.data && received.data && notes.length === 0 && (
             <>
               <SectionHeading title="Notes" subtitle="Reminders set not to notify you." />
               <Typography level="body-sm">
@@ -51,7 +55,7 @@ export function NotesPage() {
           )}
 
           {/* Carries its own heading, so this page adds none above it. */}
-          <NotesSection reminders={reminders.data ?? []} />
+          <NotesSection reminders={allReminders} receivedIds={receivedReminderIds(received.data ?? [])} />
         </Stack>
 
         <NewReminderFab />

@@ -60,3 +60,21 @@ test('upcoming sorts by next fire and leaves paused reminders last', () => {
     ['sooner', 'later', 'paused']
   )
 })
+
+test('received reminders use the server next firing and completed one-shots stay in History', () => {
+  const received = reminder('received', { schedule: { kind: 'daily', timesOfDay: ['09:00'] } })
+  const finished = reminder('finished', {
+    lastOccurrence: { status: 'ACKNOWLEDGED', scheduledFor: '2026-09-11T12:00:00.000Z' }
+  })
+  const serverNext = new Date('2026-09-13T09:00:00.000Z')
+
+  assert.deepEqual(
+    selectUpcomingReminders(
+      [received, finished],
+      [],
+      NOW,
+      new Map([[received.id, serverNext]])
+    ).map(({ reminder: selected, next }) => [selected.id, next?.toISOString()]),
+    [['received', serverNext.toISOString()]]
+  )
+})

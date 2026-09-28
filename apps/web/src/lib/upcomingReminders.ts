@@ -22,16 +22,23 @@ function isFinished(reminder: Reminder): boolean {
  * Select reminders shown by Upcoming, ordered by their next fire with paused or
  * exhausted schedules last. An active occurrence owns its reminder while it is
  * on Current, so the reminder cannot appear on both surfaces at once.
+ * `nextById` supplies server-calculated instants for received owner-zone schedules.
  */
 export function selectUpcomingReminders(
   reminders: readonly Reminder[],
   activeOccurrences: readonly Pick<Occurrence, 'reminderId'>[],
-  now: Date = new Date()
+  now: Date = new Date(),
+  nextById?: ReadonlyMap<string, Date | null>
 ): UpcomingReminder[] {
   const pendingReminderIds = new Set(activeOccurrences.map((occurrence) => occurrence.reminderId))
 
   return reminders
     .filter((reminder) => !isNote(reminder) && !isFinished(reminder) && !pendingReminderIds.has(reminder.id))
-    .map((reminder) => ({ reminder, next: reminderNextFire(reminder, now) }))
+    .map((reminder) => ({
+      reminder,
+      // Received schedules belong to their owner's time zone. Their exact next
+      // instant comes from the server instead of this device's schedule preview.
+      next: nextById?.has(reminder.id) ? nextById.get(reminder.id) ?? null : reminderNextFire(reminder, now)
+    }))
     .sort((left, right) => (left.next?.getTime() ?? Infinity) - (right.next?.getTime() ?? Infinity))
 }

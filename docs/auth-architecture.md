@@ -185,6 +185,9 @@ The owner grants, revokes, and deletes. A recipient may also leave a shared
 reminder, which deletes only their own grant. The firing stays owned by the creator,
 but each participant receives their own native alarms. The full editor includes
 the reminder's escalation settings, so sharing also discloses those settings.
+The recipient's Current, Upcoming, Notes, and History views read active grants;
+Settings links to a full Shared with me list. Received data is excluded from the
+persisted offline cache so revoked access does not linger on that device.
 
 An assignment has one recipient and is separate from sharing. For an existing
 account, the reminder and firings are owned by the assignee immediately. For an

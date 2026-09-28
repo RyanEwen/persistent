@@ -450,7 +450,8 @@ and visible in the package manifest but silently excludes it from the picker.
 The widget is a **read-only Upcoming summary**, not a second reminder client.
 Windows widgets use Adaptive Cards and run outside the WebView2 profile, so they
 cannot reuse the PWA session or UI. The authenticated page applies the same
-`selectUpcomingReminders` helper as `UpcomingPage`, formats at most four rows,
+`selectUpcomingReminders` helper as `UpcomingPage` for owned reminders, formats
+at most four rows,
 and posts those display strings to the host. The provider has no REST client,
 cookie, reminder DTO, schedule calculation, checklist state or reminder action.
 Selecting a row opens the real app.

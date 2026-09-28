@@ -28,6 +28,9 @@ import { selectUpcomingReminders } from '../lib/upcomingReminders.js'
 import { useSettings } from '../settings/useSettings.js'
 import { ReminderPreviewCard } from '../components/ReminderPreviewCard.js'
 import { sharingState } from '../components/sharingState.js'
+import { useReceivedShares } from '../data/shares.js'
+import { receivedReminderIds, receivedReminders } from '../lib/receivedReminders.js'
+import { useAuth } from '../auth/useAuth.js'
 import { PullToRefresh } from '../components/PullToRefresh.js'
 import { useReminderDialogs } from '../components/reminderDialogContext.js'
 
@@ -35,18 +38,31 @@ export function UpcomingPage() {
   const dialogs = useReminderDialogs()
   const reminders = useReminders()
   const active = useActiveOccurrences()
+  const received = useReceivedShares()
+  const { user } = useAuth()
   const { timeFormat } = useSettings()
 
-  const idle = selectUpcomingReminders(reminders.data ?? [], active.data ?? [])
+  const shares = received.data ?? []
+  const receivedIds = receivedReminderIds(shares)
+  const nextById = new Map(shares.map((share) => [
+    share.id,
+    share.nextScheduledFor ? new Date(share.nextScheduledFor) : null
+  ] as const))
+  const idle = selectUpcomingReminders(
+    [...(reminders.data ?? []), ...receivedReminders(shares)],
+    active.data ?? [],
+    new Date(),
+    nextById
+  )
 
   return (
-    <PullToRefresh onRefresh={() => Promise.all([reminders.refetch(), active.refetch()])}>
+    <PullToRefresh onRefresh={() => Promise.all([reminders.refetch(), active.refetch(), received.refetch()])}>
       <Stack spacing={3}>
         <Stack spacing={1.5}>
           <SectionHeading title="Upcoming" subtitle="Everything coming up, soonest first." />
 
-          {reminders.isLoading && <Typography level="body-sm">Loading…</Typography>}
-          {reminders.data && idle.length === 0 && (
+          {(reminders.isLoading || received.isLoading) && <Typography level="body-sm">Loading…</Typography>}
+          {reminders.data && received.data && idle.length === 0 && (
             <Typography level="body-sm">Nothing scheduled. Anything due right now is on Current.</Typography>
           )}
 
@@ -57,18 +73,19 @@ export function UpcomingPage() {
                 time. The row is about what is coming; the last firing is what
                 History is for. */}
             {idle.map(({ reminder, next }) => {
+              const isReceived = receivedIds.has(reminder.id)
               const isRepeating = reminder.schedule.kind !== 'once'
               const when = next
-                ? formatWhen(next, timeFormat)
+                ? formatWhen(next, timeFormat, isReceived ? user?.timeZone : undefined)
                 : reminder.active ? 'No upcoming notification' : undefined
               return (
                 <ReminderPreviewCard
                   key={reminder.id}
                   reminder={reminder}
-                  sharing={sharingState(reminder)}
+                  sharing={isReceived ? 'shared' : sharingState(reminder)}
                   onOpen={() => dialogs.view(reminder.id)}
                   when={when}
-                  secondary={isRepeating ? scheduleSummary(reminder.schedule, timeFormat) : undefined}
+                  secondary={isRepeating && !isReceived ? scheduleSummary(reminder.schedule, timeFormat) : undefined}
                   status={
                     !reminder.active ? (
                       <Chip size="sm" color="neutral" variant="outlined">

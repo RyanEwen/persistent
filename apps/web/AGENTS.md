@@ -16,6 +16,11 @@
   The editor opens as a separate dialog, while saved editor URLs continue to
   resolve for older links. A title or note body becomes an inline text field only
   when selected in the reading dialog; its focused PATCH updates only that text.
+  Received shares follow the same placement: active firings on Current, future or
+  paused definitions on Upcoming, never-scheduled notes on Notes, and completed
+  firings on History. Settings links to the full Shared with me list. Use the
+  server's next firing instant for received schedules because the owner may have
+  a different time zone. The Notes tab also appears for received notes.
 - **The loudest control on a screen is the one that finishes work.** Done
   (`components/OccurrenceActions.tsx`, solid `success`) is the app's entire
   guarantee, so nothing that merely *creates* or navigates may outrank it:
