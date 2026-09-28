@@ -10,8 +10,8 @@
  * and the theme of the host's own window are all things you need precisely when
  * this page is the thing that is broken, so they stay native.
  *
- * Renders nothing until the host has answered, which is also how it stays quiet on
- * an older desktop build (`useHostSettings.ts`).
+ * Renders nothing until the host has answered. Controls added after an older
+ * host build are hidden when that host omits their field.
  */
 import { useHostSettings } from '../useHostSettings.js'
 import { DesktopNotificationsCard } from './DesktopNotificationsCard.js'

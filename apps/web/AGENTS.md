@@ -142,7 +142,8 @@
   above: the host owns them, per machine, and this page holds no copy. It renders
   what the host sends and posts back changes (`native/useHostSettings.ts`). Don't
   put them in `useSettings`, and don't cache them. The cards render nothing until
-  the host answers, which is also how it stays quiet on an older desktop build.
+  the host answers. A newly added field must be optional at the bridge boundary
+  so older hosts retain their existing controls and hide only the new one.
 - **Anything `position: fixed` on a list screen must be portalled to `document.body`**
   (`components/NewReminderFab.tsx`). `PullToRefresh` wraps those pages and sets
   `transform: translateY(...)`, and *any* transform other than `none` makes that

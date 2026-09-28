@@ -115,7 +115,8 @@ export interface HostSettings {
   startAtSignIn: boolean
   flyoutSize: string
   flyoutSizes: FlyoutSizeOption[]
-  flyoutPlacement: 'tray' | 'last' | 'center'
+  /** Absent on desktop builds released before placement controls. */
+  flyoutPlacement?: 'tray' | 'last' | 'center'
 }
 
 /** The writable subset: everything except the lists of what is on offer. */
@@ -151,14 +152,11 @@ function distinctBy<T>(options: T[], key: (option: T) => string | number): T[] {
 
 /**
  * Validate a `hostSettings` payload, returning null for anything that isn't a
- * complete one.
+ * complete one. The placement field is optional for older desktop builds.
  *
- * All-or-nothing rather than field-by-field defaulting, because null is what makes
- * the Settings section hide itself: a control bound to a missing field would
- * silently show a value this machine isn't using, and writing it back would then
- * change a setting the user never touched. A host that hasn't sent this at all
- * lands in the same place, which is how an older desktop build stays quiet instead
- * of showing dead controls.
+ * Existing fields are required so controls never show values the host does not
+ * use. Newly added placement is optional: older hosts retain their other
+ * controls, and the placement picker stays hidden until a supporting host replies.
  */
 export function parseHostSettings(value: unknown): HostSettings | null {
   if (typeof value !== 'object' || value === null) return null
@@ -175,7 +173,7 @@ export function parseHostSettings(value: unknown): HostSettings | null {
     typeof raw.pinFlyout !== 'boolean' ||
     typeof raw.startAtSignIn !== 'boolean' ||
     typeof raw.flyoutSize !== 'string' ||
-    !['tray', 'last', 'center'].includes(raw.flyoutPlacement as string) ||
+    (raw.flyoutPlacement !== undefined && !['tray', 'last', 'center'].includes(raw.flyoutPlacement as string)) ||
     sizes.length === 0 ||
     snoozes.length === 0
   ) {
@@ -194,7 +192,9 @@ export function parseHostSettings(value: unknown): HostSettings | null {
     startAtSignIn: raw.startAtSignIn,
     flyoutSize: sizes.some((size) => size.id === raw.flyoutSize) ? raw.flyoutSize : sizes[0]!.id,
     flyoutSizes: sizes,
-    flyoutPlacement: raw.flyoutPlacement as HostSettings['flyoutPlacement']
+    ...(raw.flyoutPlacement === undefined
+      ? {}
+      : { flyoutPlacement: raw.flyoutPlacement as HostSettings['flyoutPlacement'] })
   }
 }
 

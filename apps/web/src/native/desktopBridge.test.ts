@@ -1,10 +1,9 @@
 /**
  * `parseHostSettings` is what stands between a native process and the Settings
  * screen, and that process may be an older build than this bundle. Two rules to
- * hold onto: a payload is accepted whole or not at all (null is what hides the
- * section on an older host), but a value that is merely off one of the offered
- * lists is snapped rather than rejected, because a blank picker is worse than an
- * approximate one.
+ * hold onto: existing settings require a complete payload, while a setting
+ * introduced later may be absent on an older host. Values merely off one of the
+ * offered lists are snapped so the picker never renders blank.
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -37,11 +36,16 @@ test('parseHostSettings: ignores fields a newer host adds', () => {
 })
 
 test('parseHostSettings: rejects a payload missing any field', () => {
-  for (const field of Object.keys(complete)) {
+  for (const field of Object.keys(complete).filter((field) => field !== 'flyoutPlacement')) {
     const partial: Record<string, unknown> = { ...complete }
     delete partial[field]
     assert.equal(parseHostSettings(partial), null, `expected null without ${field}`)
   }
+})
+
+test('parseHostSettings: keeps older hosts without placement controls usable', () => {
+  const { flyoutPlacement: _placement, ...olderHost } = complete
+  assert.deepEqual(parseHostSettings(olderHost), olderHost)
 })
 
 test('parseHostSettings: rejects a field of the wrong type', () => {
