@@ -94,6 +94,9 @@ normal controls and changes nothing. (**Android Auto is the exception**: see §5
 a dashboard is not a pocket, so a car Done acknowledges directly.)
 
 Done is the terminal action — it is the persistence guarantee being satisfied.
+For a one-time or unscheduled reminder, confirming its only firing removes the
+reminder from Upcoming; the confirmed firing remains in History. A repeating
+reminder stays in Upcoming for its next firing.
 
 ### 1a. A checklist is ticked off, but only Done confirms it
 

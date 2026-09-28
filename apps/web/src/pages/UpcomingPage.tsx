@@ -1,6 +1,7 @@
 /**
  * Upcoming: every reminder that isn't nagging right now, in soonest-fire order,
- * with paused and finished ones sinking to the bottom.
+ * with paused and exhausted schedules sinking to the bottom. Confirmed
+ * single-firing reminders leave this view; their firings remain in History.
  *
  * Rows open the reading dialog, with Edit one step away. New reminder remains
  * available from the floating action button.

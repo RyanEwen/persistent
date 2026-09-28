@@ -381,7 +381,13 @@ export function registerMutationDefaults(): void {
 
   queryClient.setMutationDefaults(mutationKeys.ackOccurrence, {
     mutationFn: ({ id }: { id: string; arg: void }) => apiFetch(`/api/occurrences/${id}/ack`, { method: 'POST' }),
-    onSettled: invalidateOccurrences
+    onSettled: () => {
+      invalidateOccurrences()
+      // Refresh History after completion and reconcile a single-firing
+      // reminder's place in Upcoming, including after a failed request.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.occurrencesHistory })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.reminders })
+    }
   })
 
   queryClient.setMutationDefaults(mutationKeys.snoozeOccurrence, {

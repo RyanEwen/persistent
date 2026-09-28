@@ -12,9 +12,10 @@ export interface UpcomingReminder {
   next: Date | null
 }
 
-/** A completed one-time reminder has no future obligation and belongs in History. */
+/** A confirmed single firing has no future obligation and belongs in History. */
 function isFinished(reminder: Reminder): boolean {
-  return reminder.schedule.kind === 'once' && reminder.lastOccurrence?.status === 'ACKNOWLEDGED'
+  return (reminder.schedule.kind === 'once' || reminder.schedule.kind === 'none') &&
+    reminder.lastOccurrence?.status === 'ACKNOWLEDGED'
 }
 
 /**

@@ -79,14 +79,19 @@ Event types (`packages/shared/src/ws-events.ts`):
 
 | Event | Meaning | Client reaction |
 |---|---|---|
-| `occurrence.fired` | an occurrence became due | invalidate active/upcoming/history occurrences + reminders (a one-time reminder drops off the list once its latest occurrence is acknowledged) |
-| `occurrence.changed` | status changed (ack/snooze/escalate) | invalidate active/upcoming/history occurrences + reminders |
+| `occurrence.fired` | an occurrence became due | invalidate active/upcoming/history occurrences + reminders |
+| `occurrence.changed` | status changed (ack/snooze/escalate) | invalidate active/upcoming/history occurrences + reminders (a confirmed one-time or unscheduled reminder drops out of Upcoming) |
 | `reminder.changed` | a reminder was created/updated/deleted | invalidate reminders + occurrences (active/upcoming/history) |
 | `share.changed` | a grant or invitation changed | invalidate received reminders, owner reminder sharing counts, and owner share lists; reset received caches after access removal |
 | `assignment.changed` | an invitation or assignee firing changed | invalidate the creator's status view and assignee assignment labels |
 | `dismiss` | clear a shown notification everywhere | native clients close it |
 | `silence` | stop an escalation alarm but keep nagging | native clients downgrade the alarm |
 | `ping` | heartbeat | ignored |
+
+After a local Done action settles, the web client also invalidates the active,
+upcoming, and history occurrence feeds and the reminder list. This refreshes
+History and removes a confirmed single-firing reminder from Upcoming even if its
+own WebSocket event is delayed.
 
 The web client is not the only consumer. The Windows tray app opens its **own**
 `/ws` connection when its optional notifications are turned on, because the page

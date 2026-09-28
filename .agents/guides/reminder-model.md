@@ -43,7 +43,8 @@ The editor's When choice maps to three real schedule states:
 
 - `none`: Remind me now. Create exactly one immediate firing when the user asks
   for this state. `materializeReminder` must never expand it, or the scheduler
-  would recreate a completed reminder every five minutes.
+  would recreate a completed reminder every five minutes. Once that firing is
+  acknowledged, the reminder leaves Upcoming and its firing stays in History.
 - A dated schedule: materialize occurrences through the scheduler.
 - `never`: a note. It has no occurrences, cannot nag or escalate, and belongs on
   the Notes surface rather than Current or Upcoming.
