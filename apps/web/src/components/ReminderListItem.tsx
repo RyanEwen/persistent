@@ -12,6 +12,9 @@ import Box from '@mui/joy/Box'
 import Typography from '@mui/joy/Typography'
 import type { OccurrenceStatus, ReminderType } from '@persistent/shared'
 import { TypeIcon, StatusChip } from './ReminderIcons.js'
+import { reminderCardHover } from './reminderCardHover.js'
+import { SharingChip } from './SharingChip.js'
+import type { SharingState } from './sharingState.js'
 
 export function ReminderListItem({
   to,
@@ -19,6 +22,7 @@ export function ReminderListItem({
   type,
   title,
   status,
+  sharing,
   description,
   subtitle,
   secondary,
@@ -29,6 +33,7 @@ export function ReminderListItem({
   type: ReminderType
   title: string
   status?: OccurrenceStatus | null
+  sharing?: SharingState
   description?: string
   subtitle?: string
   secondary?: string
@@ -41,7 +46,7 @@ export function ReminderListItem({
       onClick={onOpen}
       variant="outlined"
       size="sm"
-      sx={{ textDecoration: 'none', textAlign: 'left', width: '100%', cursor: 'pointer' }}
+      sx={{ textDecoration: 'none', textAlign: 'left', width: '100%', cursor: 'pointer', ...reminderCardHover }}
     >
       <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
         <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
@@ -65,6 +70,7 @@ export function ReminderListItem({
         </Stack>
         <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexShrink: 0 }}>
           {status && <StatusChip status={status} />}
+          <SharingChip state={sharing} />
           {trailing}
         </Stack>
       </Stack>

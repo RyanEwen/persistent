@@ -12,8 +12,8 @@ the only complete check: treat a red run there the way you would a failed
 `npm run validate`.
 
 **Before you commit anything that touches XAML, code-behind or packaging, install
-it: `npm run install:desktop`.** It syncs the *working tree* to the Windows
-machine, builds a dev-signed MSIX there and installs it into the logged-on
+it: `npm run install:desktop`.** It syncs the *working tree* to Windows through
+the mounted drive in WSL or over SSH in Devkit, builds a dev-signed MSIX there and installs it into the logged-on
 session. That is the only check that covers the three things nothing else can see,
 and each has shipped broken at least once: XAML that compiles, a package that
 starts, and an app that still works. Add `-- --skip-build` to reinstall without
@@ -111,7 +111,7 @@ writer of `settings.json`; the page holds no copy and persists nothing.
   `SettingsManager` serializes to `%AppData%\Persistent\settings.json`. Keep this
   file free of credentials: the session lives in the WebView2 profile.
 - **A setting the user came to Settings for is shown by the PWA, not by a native
-  page.** Notifications, start-at-sign-in, the flyout size and the pin go through
+  page.** Notifications, start-at-sign-in, the flyout size and placement, and the pin go through
   `HostSettings` and render in `apps/web/src/native/desktop-settings/`; the
   native window keeps only what has to survive the page not loading (the server
   address, About) and what the page cannot see (this window's theme). Adding a

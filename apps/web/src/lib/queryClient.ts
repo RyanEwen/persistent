@@ -119,6 +119,8 @@ function optimisticReminder(input: ReminderInput, id = tempId()): Reminder {
     // optimistic row carries the stored value over (see the update default).
     hideCheckedItems: false,
     lastOccurrence: null,
+    shareCount: 0,
+    invitationCount: 0,
     createdAt: now,
     updatedAt: now
   }
@@ -191,7 +193,9 @@ export function registerMutationDefaults(): void {
                 // Carried over unconditionally: the server's update never touches
                 // this column, so rebuilding the row from the form must not blink
                 // a collapsed checklist open until the real row lands.
-                hideCheckedItems: r.hideCheckedItems
+                hideCheckedItems: r.hideCheckedItems,
+                shareCount: r.shareCount,
+                invitationCount: r.invitationCount
               }
             : r
         )

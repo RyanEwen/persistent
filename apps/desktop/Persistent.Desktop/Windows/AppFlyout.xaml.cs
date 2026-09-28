@@ -1,6 +1,7 @@
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.Web.WebView2.Core;
 using Persistent.Desktop.Classes.Settings;
 using Persistent.WindowsWidget;
@@ -76,6 +77,11 @@ public sealed partial class AppFlyout : Window
     private bool _resizing;
     private POINT _resizeStartCursor;
     private global::Windows.Graphics.RectInt32 _resizeStartRect;
+    private bool _moving;
+    private POINT _moveStartCursor;
+    private POINT _moveStartPosition;
+    private bool _moved;
+    private EventHandler<object>? _openingFrame;
 
     /// <summary>
     /// Smallest the user can drag the flyout. Matches the repair floor in
@@ -357,10 +363,7 @@ public sealed partial class AppFlyout : Window
         // a light-mode desktop. Removing the acrylic backdrop did not touch it,
         // because the strip was never the backdrop.
         //
-        // The cost is that the header is no longer a drag handle. That is no loss
-        // for this window: it is a tray flyout, anchored to the work area corner and
-        // repositioned on every open, so a dragged position would not survive
-        // anyway.
+        // The client-area header handles moving without asking Windows for a frame.
         //
         // Belt and braces for any caption the framework still decides to draw: force
         // its colours to the window's own dark rather than leaving them system.
@@ -662,15 +665,80 @@ public sealed partial class AppFlyout : Window
         // direct tray click on the correct monitor if Explorer cannot return the
         // rectangle, such as while it is rebuilding the notification area.
         if (!MainWindow.TryGetTrayIconCenter(out var anchor)) GetCursorPos(out anchor);
-        _appWindow.MoveAndResize(TrayRect(anchor));
+        var destination = OpeningRect(anchor);
+        StopOpeningAnimation();
+        bool animate = new global::Windows.UI.ViewManagement.UISettings().AnimationsEnabled;
+        int offset = _anchorBottom ? 20 : -20;
+        _appWindow.MoveAndResize(new global::Windows.Graphics.RectInt32(
+            destination.X, destination.Y + (animate ? offset : 0),
+            destination.Width, destination.Height));
         _visible = true;
         _shownAtTicks = Environment.TickCount64;
         SetWebViewIdle(false);
         Activate();
         TakeForeground();
         WebView.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        if (animate) BeginOpeningAnimation(destination, offset);
         Logger.Info("Flyout shown");
         LogChromeMetrics();
+    }
+
+    /// <summary>Choose a location on the tray icon's monitor and keep a saved
+    /// position visible when the monitor layout or display scaling has changed.</summary>
+    private global::Windows.Graphics.RectInt32 OpeningRect(POINT anchor)
+    {
+        var trayRect = TrayRect(anchor);
+        var settings = SettingsManager.Current;
+        if (settings.FlyoutPlacement == "tray" ||
+            (settings.FlyoutPlacement == "last" && !settings.HasFlyoutPosition)) return trayRect;
+
+        var desired = settings.FlyoutPlacement == "last"
+            ? new POINT { X = settings.FlyoutX, Y = settings.FlyoutY }
+            : anchor;
+        var mi = new MONITORINFOEX { cbSize = System.Runtime.InteropServices.Marshal.SizeOf<MONITORINFOEX>() };
+        if (!GetMonitorInfo(MonitorFromPoint(desired, MONITOR_DEFAULTTONEAREST), ref mi)) return trayRect;
+
+        int width = Math.Min(trayRect.Width, mi.rcWork.Right - mi.rcWork.Left);
+        int height = Math.Min(trayRect.Height, mi.rcWork.Bottom - mi.rcWork.Top);
+        int x = settings.FlyoutPlacement == "center"
+            ? mi.rcWork.Left + (mi.rcWork.Right - mi.rcWork.Left - width) / 2
+            : settings.FlyoutX;
+        int y = settings.FlyoutPlacement == "center"
+            ? mi.rcWork.Top + (mi.rcWork.Bottom - mi.rcWork.Top - height) / 2
+            : settings.FlyoutY;
+        return new global::Windows.Graphics.RectInt32(
+            Math.Clamp(x, mi.rcWork.Left, mi.rcWork.Right - width),
+            Math.Clamp(y, mi.rcWork.Top, mi.rcWork.Bottom - height), width, height);
+    }
+
+    /// <summary>Slide the complete window, including WebView2, into place. Moving
+    /// only the XAML root makes the browser surface paint a frame behind the chrome.</summary>
+    private void BeginOpeningAnimation(global::Windows.Graphics.RectInt32 destination, int offset)
+    {
+        var elapsed = Stopwatch.StartNew();
+        EventHandler<object>? frame = null;
+        frame = (_, _) =>
+        {
+            if (!_visible || _openingFrame != frame) return;
+
+            double progress = Math.Clamp(elapsed.Elapsed.TotalMilliseconds / 180, 0, 1);
+            double eased = 1 - Math.Pow(1 - progress, 3);
+            int y = destination.Y + (int)Math.Round(offset * (1 - eased));
+            _appWindow.Move(new global::Windows.Graphics.PointInt32(destination.X, y));
+
+            if (progress < 1) return;
+            StopOpeningAnimation();
+        };
+        _openingFrame = frame;
+        CompositionTarget.Rendering += frame;
+    }
+
+    /// <summary>Cancel pending motion before closing, reopening, or dragging.</summary>
+    private void StopOpeningAnimation()
+    {
+        if (_openingFrame == null) return;
+        CompositionTarget.Rendering -= _openingFrame;
+        _openingFrame = null;
     }
 
     /// <summary>
@@ -762,7 +830,17 @@ public sealed partial class AppFlyout : Window
             X = _appWindow.Position.X + _appWindow.Size.Width / 2,
             Y = _appWindow.Position.Y + _appWindow.Size.Height / 2
         };
-        _appWindow.MoveAndResize(TrayRect(here, _anchorRight, _anchorBottom));
+        if (SettingsManager.Current.FlyoutPlacement == "tray")
+        {
+            _appWindow.MoveAndResize(TrayRect(here, _anchorRight, _anchorBottom));
+        }
+        else
+        {
+            // Preserve the window's current location outside tray mode.
+            var size = TrayRect(here, _anchorRight, _anchorBottom);
+            _appWindow.Resize(new global::Windows.Graphics.SizeInt32(size.Width, size.Height));
+            if (SettingsManager.Current.FlyoutPlacement == "last") SaveFlyoutPosition();
+        }
     }
 
     // ── Host settings, shown on the page's own Settings screen ──────
@@ -799,6 +877,11 @@ public sealed partial class AppFlyout : Window
             var applied = await HostSettings.ApplyAsync(patch);
             if (applied.PinChanged) SyncPinState();
             if (applied.FlyoutSizeChanged) ApplyFlyoutSize();
+            if (applied.FlyoutPlacementChanged && _visible)
+            {
+                if (!MainWindow.TryGetTrayIconCenter(out var anchor)) GetCursorPos(out anchor);
+                _appWindow.MoveAndResize(OpeningRect(anchor));
+            }
         }
         catch (Exception ex)
         {
@@ -855,6 +938,7 @@ public sealed partial class AppFlyout : Window
     /// </summary>
     private void HideFlyout(string reason)
     {
+        StopOpeningAnimation();
         _visible = false;
         _hiddenAtTicks = Environment.TickCount64;
         _appWindow.Hide();
@@ -1217,6 +1301,64 @@ public sealed partial class AppFlyout : Window
         }
     }
 
+    // ── Drag the frameless header ──────────────────────────────────
+    /// <summary>Move from physical cursor coordinates so the shifting window
+    /// never changes the drag's frame of reference.</summary>
+    private void TitleBar_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        StopOpeningAnimation();
+        GetCursorPos(out _moveStartCursor);
+        _moveStartPosition = new POINT { X = _appWindow.Position.X, Y = _appWindow.Position.Y };
+        _moved = false;
+        _moving = TitleBar.CapturePointer(e.Pointer);
+        e.Handled = true;
+    }
+
+    private void TitleBar_PointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (!_moving) return;
+        GetCursorPos(out var cursor);
+        int x = _moveStartPosition.X + cursor.X - _moveStartCursor.X;
+        int y = _moveStartPosition.Y + cursor.Y - _moveStartCursor.Y;
+        if (x == _appWindow.Position.X && y == _appWindow.Position.Y) return;
+
+        // Do not clamp to the pointer's current monitor during the drag. That
+        // would teleport the flyout across the boundary between two screens.
+        // OpeningRect repairs saved coordinates if the display layout later changes.
+        _appWindow.MoveAndResize(new global::Windows.Graphics.RectInt32(
+            x, y, _appWindow.Size.Width, _appWindow.Size.Height));
+        _moved = true;
+        e.Handled = true;
+    }
+
+    /// <summary>Remember the location even in tray or center mode, so choosing
+    /// "Where I left it" later uses the place the user actually dragged to.</summary>
+    private void TitleBar_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        if (!_moving) return;
+        _moving = false;
+        TitleBar.ReleasePointerCapture(e.Pointer);
+        if (_moved)
+        {
+            SaveFlyoutPosition();
+        }
+        e.Handled = true;
+    }
+
+    /// <summary>Persist the current physical position after a move or a size
+    /// change that should become the next saved-position opening.</summary>
+    private void SaveFlyoutPosition()
+    {
+        var settings = SettingsManager.Current;
+        settings.FlyoutX = _appWindow.Position.X;
+        settings.FlyoutY = _appWindow.Position.Y;
+        settings.HasFlyoutPosition = true;
+        SettingsManager.SaveSettings();
+    }
+
+    private void TitleBar_PointerCaptureLost(object sender, PointerRoutedEventArgs e) =>
+        TitleBar_PointerReleased(sender, e);
+
     // ── Drag to resize ──────────────────────────────────────────────
     /// <summary>
     /// Resizing is implemented against <see cref="AppWindow.MoveAndResize"/> rather
@@ -1306,7 +1448,8 @@ public sealed partial class AppFlyout : Window
         var settings = SettingsManager.Current;
         settings.FlyoutWidth = (int)Math.Round(_appWindow.Size.Width / scale);
         settings.FlyoutHeight = (int)Math.Round(_appWindow.Size.Height / scale);
-        SettingsManager.SaveSettings();
+        if (settings.FlyoutPlacement == "last") SaveFlyoutPosition();
+        else SettingsManager.SaveSettings();
         Logger.Info("Flyout resized to {0}x{1}", settings.FlyoutWidth, settings.FlyoutHeight);
         _ = PostHostSettingsAsync();
         e.Handled = true;

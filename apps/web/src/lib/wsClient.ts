@@ -46,6 +46,7 @@ function handleEvent(event: WsEvent): void {
       // Remove old content immediately: this event may mean access was revoked.
       queryClient.setQueryData(queryKeys.receivedShares, [])
       void queryClient.invalidateQueries({ queryKey: queryKeys.receivedShares })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.reminders })
       void queryClient.invalidateQueries({ queryKey: ['shares'] })
       void queryClient.resetQueries({ queryKey: ['occurrences'] })
       break

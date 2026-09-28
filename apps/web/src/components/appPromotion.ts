@@ -40,7 +40,7 @@ export function getNativeAppsPromotion(host: NativeAppsPromoHost): NativeAppsPro
   return {
     title: 'Persistent on Android and Windows',
     description:
-      'Use Android for hard alarm guarantees. The Windows companion adds tray access, an upcoming widget, and persistent alerts while your PC is awake.',
+      'Android can sound alarms even while offline. The Windows app adds tray access, an upcoming widget, and persistent alerts while your PC is awake.',
     showAndroid: true,
     showWindows: true
   }

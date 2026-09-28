@@ -13,6 +13,7 @@ import { useReminders } from '../data/reminders.js'
 import { useReceivedShares } from '../data/shares.js'
 import { ReminderDetailPage } from '../pages/ReminderDetailPage.js'
 import { ReminderEditorPage } from '../pages/reminder-editor/ReminderEditorPage.js'
+import { ShareCountChip } from './ShareCountChip.js'
 import { ReminderDialogContext, type ReminderDialogActions } from './reminderDialogContext.js'
 
 type DialogState = { kind: 'view' | 'edit'; id: string } | { kind: 'new' } | null
@@ -62,6 +63,7 @@ export function ReminderDialogProvider({ children }: { children: ReactNode }) {
   const ownerReminder = reminders.data?.find((reminder) => reminder.id === viewedId)
   const receivedReminder = received.data?.find((reminder) => reminder.id === viewedId)
   const canEdit = Boolean(ownerReminder || receivedReminder?.permission === 'EDIT')
+  const sharingCount = (ownerReminder?.shareCount ?? 0) + (ownerReminder?.invitationCount ?? 0)
 
   return (
     <ReminderDialogContext.Provider value={actions}>
@@ -127,7 +129,15 @@ export function ReminderDialogProvider({ children }: { children: ReactNode }) {
                   <Button variant="outlined" size="sm" startDecorator={<EditIcon />} onClick={() => setDialog({ kind: 'edit', id: dialog.id })}>Edit</Button>
                 )}
                 {ownerReminder && (
-                  <Button variant="plain" size="sm" startDecorator={<ShareIcon />} onClick={() => setShareOpen(true)}>Share</Button>
+                  <Button
+                    variant="plain"
+                    size="sm"
+                    startDecorator={<ShareIcon />}
+                    endDecorator={sharingCount > 0 ? <ShareCountChip count={sharingCount} /> : undefined}
+                    onClick={() => setShareOpen(true)}
+                  >
+                    Share
+                  </Button>
                 )}
               </Stack>
               <Button variant="outlined" color="neutral" onClick={close}>Close</Button>

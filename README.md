@@ -94,7 +94,7 @@ are not supported; install a native app to be alerted.
 
 **Android (recommended):** install Persistent from
 [Google Play](https://play.google.com/store/apps/details?id=ca.dynamicsolutions.persistent).
-The app is where the unmissable alarm guarantees live, and Google Play keeps it
+The app can sound alarms even while offline, and Google Play keeps it
 up to date.
 
 **Windows:** a tray app that keeps Persistent one click from the notification
@@ -118,10 +118,9 @@ after reconnecting, but cannot reach you while it is closed or the PC is asleep.
 
 ## Why the app over the web?
 
-Truly undismissable notifications and a looping alarm while your phone is locked
-are things only a native app can guarantee. The web and Windows versions are great
-for managing your reminders and confirming them as you go, but for the hard "you
-will not miss this" behavior, use the Android app.
+The Android app can keep an alarm sounding until you act, even while offline.
+The web app manages reminders but does not send alerts. The Windows app can alert
+you while it is running and your PC is awake.
 
 ## Developers
 

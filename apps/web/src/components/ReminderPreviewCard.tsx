@@ -6,12 +6,16 @@ import Typography from '@mui/joy/Typography'
 import { TypeIcon } from './ReminderIcons.js'
 import { ChecklistPreview } from './ChecklistPreview.js'
 import { reminderPreviewBody, type ReminderPreviewSource } from '../lib/reminderPreview.js'
+import { reminderCardHover } from './reminderCardHover.js'
+import { SharingChip } from './SharingChip.js'
+import type { SharingState } from './sharingState.js'
 
 /** The card is one button; its status and checklist rows are visual content. */
 export function ReminderPreviewCard({
   reminder,
   onOpen,
   status,
+  sharing,
   when,
   afterWhen,
   secondary,
@@ -22,6 +26,7 @@ export function ReminderPreviewCard({
   reminder: ReminderPreviewSource
   onOpen: () => void
   status?: ReactNode
+  sharing?: SharingState
   when?: string
   afterWhen?: ReactNode
   secondary?: string
@@ -39,14 +44,19 @@ export function ReminderPreviewCard({
       color={color}
       variant={variant}
       size="sm"
-      sx={{ width: '100%', textAlign: 'left', cursor: 'pointer' }}
+      sx={{ width: '100%', textAlign: 'left', cursor: 'pointer', ...reminderCardHover }}
     >
       <Stack direction="row" spacing={1} alignItems="flex-start">
         <TypeIcon type={reminder.type} size={20} />
         <Typography level="title-sm" sx={{ flex: 1, minWidth: 0 }}>
           {reminder.title}
         </Typography>
-        {status}
+        {(status || sharing) && (
+          <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" useFlexGap>
+            {status}
+            <SharingChip state={sharing} />
+          </Stack>
+        )}
       </Stack>
       {body && (
         <Typography level="body-sm" sx={{ whiteSpace: 'pre-wrap', color: 'text.secondary' }}>

@@ -52,7 +52,7 @@ internal static class HostSettings
     /// back rather than acted on here so this class stays free of XAML types (and
     /// so stays inside the Linux compile-check).
     /// </summary>
-    internal readonly record struct Applied(bool FlyoutSizeChanged, bool PinChanged);
+    internal readonly record struct Applied(bool FlyoutSizeChanged, bool PinChanged, bool FlyoutPlacementChanged);
 
     /// <summary>
     /// The `hostSettings` message: every setting the page may show, plus the size
@@ -98,7 +98,8 @@ internal static class HostSettings
                 pinFlyout = settings.PinFlyout,
                 startAtSignIn,
                 flyoutSize = currentSize,
-                flyoutSizes = sizes
+                flyoutSizes = sizes,
+                flyoutPlacement = settings.FlyoutPlacement
             }
         });
     }
@@ -116,7 +117,7 @@ internal static class HostSettings
         if (patch.ValueKind != JsonValueKind.Object) return default;
 
         var settings = SettingsManager.Current;
-        bool sizeChanged = false, pinChanged = false;
+        bool sizeChanged = false, pinChanged = false, placementChanged = false;
 
         if (TryGetBool(patch, "notifications", out bool notifications))
         {
@@ -155,6 +156,16 @@ internal static class HostSettings
             }
         }
 
+        if (patch.TryGetProperty("flyoutPlacement", out var placement) && placement.ValueKind == JsonValueKind.String)
+        {
+            string? choice = placement.GetString();
+            if (choice is "tray" or "last" or "center")
+            {
+                placementChanged = choice != settings.FlyoutPlacement;
+                settings.FlyoutPlacement = choice;
+            }
+        }
+
         if (TryGetBool(patch, "startAtSignIn", out bool startAtSignIn))
         {
             // Awaited rather than fired and forgotten, because Windows can refuse an
@@ -166,7 +177,7 @@ internal static class HostSettings
         }
 
         SettingsManager.SaveSettings();
-        return new Applied(sizeChanged, pinChanged);
+        return new Applied(sizeChanged, pinChanged, placementChanged);
     }
 
     private static bool TryGetBool(JsonElement patch, string name, out bool value)

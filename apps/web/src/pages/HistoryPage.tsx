@@ -25,6 +25,9 @@ import { NewReminderFab } from '../components/NewReminderFab.js'
 import { SectionHeading } from '../components/SectionHeading.js'
 import { useAuth } from '../auth/useAuth.js'
 import { useReminderDialogs } from '../components/reminderDialogContext.js'
+import { useReminders } from '../data/reminders.js'
+import { useReceivedShares } from '../data/shares.js'
+import { sharingState } from '../components/sharingState.js'
 
 /**
  * "2 of 3 checked" for a past checklist firing — how much of it was actually
@@ -40,6 +43,8 @@ function checklistProgress(occurrence: Occurrence): string | undefined {
 export function HistoryPage() {
   const dialogs = useReminderDialogs()
   const past = usePastOccurrences()
+  const reminders = useReminders()
+  const received = useReceivedShares()
   const { user } = useAuth()
   const { timeFormat } = useSettings()
 
@@ -50,6 +55,8 @@ export function HistoryPage() {
   // one row (see the note in lib/persistQuery.ts). The version bump is the real
   // fix; this is what stops it being fatal if one ever slips through again.
   const occurrences = (past.data?.pages ?? []).flatMap((page) => page.occurrences ?? [])
+  const ownedById = new Map((reminders.data ?? []).map((reminder) => [reminder.id, reminder]))
+  const receivedIds = new Set((received.data ?? []).map((reminder) => reminder.id))
 
   return (
     <PullToRefresh onRefresh={() => past.refetch()}>
@@ -67,6 +74,9 @@ export function HistoryPage() {
             <ReminderPreviewCard
               key={occurrence.id}
               reminder={occurrence.reminder}
+              sharing={receivedIds.has(occurrence.reminderId)
+                ? 'shared'
+                : sharingState(ownedById.get(occurrence.reminderId) ?? { shareCount: 0, invitationCount: 0 })}
               onOpen={() => dialogs.view(occurrence.reminderId)}
               status={<StatusChip status={occurrence.status} />}
               checkedItemIds={occurrence.checkedItemIds}

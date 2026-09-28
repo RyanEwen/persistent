@@ -32,6 +32,19 @@ export function DesktopAppCard({ settings, update }: HostSettingsProps) {
         <Switch checked={settings.startAtSignIn} onChange={(e) => update({ startAtSignIn: e.target.checked })} />
       </FormControl>
 
+      <FormControl>
+        <FormLabel>Open window</FormLabel>
+        <Select
+          value={settings.flyoutPlacement}
+          onChange={(_e, value) => value !== null && update({ flyoutPlacement: value })}
+        >
+          <Option value="tray">Near the tray icon</Option>
+          <Option value="last">Where I left it</Option>
+          <Option value="center">Center of tray screen</Option>
+        </Select>
+        <FormHelperText>Drag the window by its top bar to set a saved position.</FormHelperText>
+      </FormControl>
+
       <FormControl orientation="horizontal" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
         <Box>
           <FormLabel>Keep the window open</FormLabel>
@@ -62,7 +75,7 @@ export function DesktopAppCard({ settings, update }: HostSettingsProps) {
             )
           })}
         </Select>
-        <FormHelperText>How large this window opens from the notification area.</FormHelperText>
+        <FormHelperText>How large this window opens.</FormHelperText>
       </FormControl>
 
       <Box>

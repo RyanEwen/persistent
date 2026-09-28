@@ -44,6 +44,7 @@ remindersRouter.get('/', async (request, response) => {
     // Latest occurrence at/before now, so the list can show its state (done,
     // snoozed, escalated, missed, due). Future PENDING ones are ignored here.
     include: {
+      _count: { select: { shares: true, invitations: true } },
       occurrences: {
         where: { scheduledFor: { lte: new Date() } },
         orderBy: { scheduledFor: 'desc' },
@@ -51,7 +52,10 @@ remindersRouter.get('/', async (request, response) => {
       }
     }
   })
-  response.json({ reminders: reminders.map((r) => toReminder(r, r.occurrences[0] ?? null)) })
+  response.json({ reminders: reminders.map((r) => toReminder(r, r.occurrences[0] ?? null, {
+    shareCount: r._count.shares,
+    invitationCount: r._count.invitations
+  })) })
 })
 
 remindersRouter.post('/', async (request, response) => {

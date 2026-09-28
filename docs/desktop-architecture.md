@@ -7,8 +7,8 @@ split the way they are.
 
 ## What it is, and what it deliberately is not
 
-**It is a viewing, acting and session-bound notification surface. It is not the
-hard persistence guarantee.**
+**It lets you view and act on reminders, and can alert you while the PC is awake
+and the app is running.**
 
 The flyout hosts the real web app, so everything the web client can do works here
 — sign in (including passkeys, see below), Done / Snooze / De-escalate, the
@@ -19,7 +19,8 @@ the server after startup, reconnect and resume.
 
 What it does **not** do is guarantee delivery while the process is exited or the
 machine remains asleep or shut down. It owns no exact scheduled alarms that can
-wake Windows. That hard guarantee still lives only in the Android client.
+wake Windows. The Android app schedules alarms on the phone so they can sound
+even without an internet connection.
 
 This is the honest description and the docs, the Connection page and the About
 page all say it. A Windows app that *looked* like it would nag you, and then
@@ -169,7 +170,7 @@ not the app origin. Web content is not a privileged caller.
 ## Settings
 
 **There is one Settings screen, and it is the page's.** Windows notifications and
-their default snooze, start-at-sign-in, the flyout size and the pin are all shown
+their default snooze, start-at-sign-in, flyout size and placement, and the pin are all shown
 by `apps/web/src/native/desktop-settings/`, alongside the theme, sounds and time
 format the user already goes there for. They remain **host** settings in every
 other respect: the host owns `settings.json`, applies them, and is the only writer.
@@ -180,7 +181,7 @@ The split is by which surface a setting describes, not by who stores it:
 | Setting | Where | Why |
 |---|---|---|
 | Windows notifications, snooze default | Page | It is a notification setting, and the user is already on the notification screen |
-| Start at sign-in, flyout size, pin | Page | They describe what the app does for the user |
+| Start at sign-in, flyout size and placement, pin | Page | They describe what the app does for the user |
 | Server address, "Clear saved sign-in" | Native (`ConnectionPage`) | A control for the setting that decides whether the page loads is no use inside the page |
 | Version, update check, log folder | Native (`AboutPage`) | Both are needed precisely when the page is not working |
 | App theme | Native (`AppSettingsPage`) | It themes the native window, which the page cannot see |
@@ -405,15 +406,14 @@ worth keeping straight because fixing one did not fix the other:
   Those are for a window that *has* a caption and wants to draw into it. Setting
   them while the presenter is `SetBorderAndTitleBar(false, false)` left WinUI
   reserving a caption strip and painting it the system caption colour. Don't set
-  them here. The consequence is that the header is not a drag handle, which costs
-  nothing for a flyout that is repositioned to the tray corner on every open.
+  them here. The client-area header handles dragging without adding a system frame.
 
 The DWM border colour is also pinned (`DWMWA_BORDER_COLOR`), since the default
 outlines a dark window in the system's light border.
 
 ## Tray placement
 
-The flyout follows the notification-area icon, not a presumed taskbar edge.
+By default the flyout follows the notification-area icon, not a presumed taskbar edge.
 `Shell_NotifyIconGetRect` supplies the icon's physical screen rectangle; the
 flyout chooses the nearest corner of that monitor's work area and keeps a 12-DIP
 inset. This covers top, bottom, left, and right taskbars, including a secondary
@@ -425,6 +425,14 @@ The nearest-corner rule also applies when a size setting changes while the flyou
 is open. It anchors from the window's own centre in that case, so changing a
 setting cannot make the window jump to whichever monitor currently holds the
 mouse.
+
+The Settings page also offers the last dragged position and the center of the
+tray icon's monitor. Dragging the client-area header stores its final physical
+screen position; the next open uses that position only when "Where I left it" is
+selected. Saved coordinates are clamped to the current monitor work area, so a
+disconnected or rescaled display cannot strand the window off-screen. When
+Windows animations are enabled, the complete window slides a short distance into
+place. Moving the whole window keeps the WebView and native chrome in step.
 
 ## Windows Widgets Board
 
@@ -837,9 +845,10 @@ for `resources.pri` beside the exe before looking at the markup.
 - **WebView2 runtime.** Evergreen ships with Windows 11, so this is a non-issue on
   the target. `AppFlyout` still shows an explanatory panel rather than an empty
   box if initialization fails.
-- **Untested at runtime.** Everything here was authored in a Linux development container
-  and compiled only by CI. The focus/light-dismiss interaction and the Google
-  sign-in popup path in particular want a real machine before they are trusted.
+- **Runtime coverage is scoped.** `npm run install:desktop` builds, installs and
+  launches the working tree on Windows. That catches packaging and startup
+  failures, but interactive flows such as light dismiss and the Google sign-in
+  popup still need a person or UI automation to exercise them.
 - **A failed toast registration now turns the setting off.** `NotificationService.Sync`
   corrects `DesktopNotifications` when `Enable()` cannot register, so the toggle
   never reads "on" while nothing can be delivered. That write re-enters `Sync`

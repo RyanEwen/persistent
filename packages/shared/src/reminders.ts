@@ -443,6 +443,10 @@ export const reminderSchema = z.object({
     .object({ status: occurrenceStatusSchema, scheduledFor: z.string().datetime() })
     .nullable()
     .default(null),
+  // The owner list supplies these counts for sharing markers. Older cached rows
+  // and single-reminder mutation responses have no summary until the list refetches.
+  shareCount: z.number().int().nonnegative().default(0),
+  invitationCount: z.number().int().nonnegative().default(0),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime()
 })

@@ -30,7 +30,8 @@ export function toSessionUser(user: User): SessionUser {
 
 export function toReminder(
   row: ReminderRow,
-  lastOccurrence?: Pick<ReminderOccurrence, 'status' | 'scheduledFor'> | null
+  lastOccurrence?: Pick<ReminderOccurrence, 'status' | 'scheduledFor'> | null,
+  sharing = { shareCount: 0, invitationCount: 0 }
 ): Reminder {
   return {
     id: row.id,
@@ -60,6 +61,8 @@ export function toReminder(
     lastOccurrence: lastOccurrence
       ? { status: lastOccurrence.status, scheduledFor: lastOccurrence.scheduledFor.toISOString() }
       : null,
+    shareCount: sharing.shareCount,
+    invitationCount: sharing.invitationCount,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString()
   }

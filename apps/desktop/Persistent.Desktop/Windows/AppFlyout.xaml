@@ -21,7 +21,10 @@
         <!-- Slim native chrome. The PWA draws its own header inside the WebView, so
              this stays minimal: a drag handle plus the two controls that only the
              host can offer (pin the flyout open, pop out to a real browser). -->
-        <Grid x:Name="TitleBar" Grid.Row="0" Height="36" Padding="10,0,6,0" ColumnSpacing="8">
+        <Grid x:Name="TitleBar" Grid.Row="0" Height="36" Padding="10,0,6,0" ColumnSpacing="8"
+              Background="Transparent" PointerPressed="TitleBar_PointerPressed"
+              PointerMoved="TitleBar_PointerMoved" PointerReleased="TitleBar_PointerReleased"
+              PointerCaptureLost="TitleBar_PointerCaptureLost">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />

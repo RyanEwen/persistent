@@ -7,12 +7,14 @@ import { FiringStatusChip } from './FiringStatusChip.js'
 import { firingTone } from '../lib/firingTone.js'
 import { useReminderDialogs } from './reminderDialogContext.js'
 import { ReminderPreviewCard } from './ReminderPreviewCard.js'
+import { sharingState } from './sharingState.js'
 
-export function AttentionReminderCard({ reminder, occurrence, timeFormat, timeZone }: {
+export function AttentionReminderCard({ reminder, occurrence, timeFormat, timeZone, received }: {
   reminder: Reminder
   occurrence: Occurrence
   timeFormat: TimeFormat
   timeZone?: string
+  received?: boolean
 }) {
   const dialogs = useReminderDialogs()
   const { color, variant } = firingTone(reminder, occurrence)
@@ -23,6 +25,7 @@ export function AttentionReminderCard({ reminder, occurrence, timeFormat, timeZo
       color={color}
       variant={variant}
       status={<FiringStatusChip reminder={reminder} occurrence={occurrence} />}
+      sharing={received ? 'shared' : sharingState(reminder)}
       checkedItemIds={occurrence.checkedItemIds}
       when={formatWhen(occurrence.scheduledFor, timeFormat, timeZone)}
       afterWhen={occurrence.status === 'SNOOZED' && occurrence.snoozedUntil ? (

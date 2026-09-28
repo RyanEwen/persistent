@@ -57,6 +57,12 @@ broadcasts `reminder.changed`, and nudges native devices when notification text
 could have changed. The web updates its reminder cache optimistically and
 invalidates owner and received-share projections on settle.
 
+The owner reminder list includes `shareCount` and `invitationCount` for card
+markers and Share button counts. Both counts come from the owner's scoped list
+query. Received reminders are marked Shared from their explicit share grant.
+Mutation responses and older offline cache rows default the counts to zero
+until the owner list refreshes.
+
 ## Live updates (WebSocket `/ws`)
 
 One reconnecting socket per signed-in client (`apps/web/src/lib/wsClient.ts`),
@@ -76,7 +82,7 @@ Event types (`packages/shared/src/ws-events.ts`):
 | `occurrence.fired` | an occurrence became due | invalidate active/upcoming/history occurrences + reminders (a one-time reminder drops off the list once its latest occurrence is acknowledged) |
 | `occurrence.changed` | status changed (ack/snooze/escalate) | invalidate active/upcoming/history occurrences + reminders |
 | `reminder.changed` | a reminder was created/updated/deleted | invalidate reminders + occurrences (active/upcoming/history) |
-| `share.changed` | a grant or invitation changed | invalidate received reminders and owner share lists; reset received caches after access removal |
+| `share.changed` | a grant or invitation changed | invalidate received reminders, owner reminder sharing counts, and owner share lists; reset received caches after access removal |
 | `assignment.changed` | an invitation or assignee firing changed | invalidate the creator's status view and assignee assignment labels |
 | `dismiss` | clear a shown notification everywhere | native clients close it |
 | `silence` | stop an escalation alarm but keep nagging | native clients downgrade the alarm |

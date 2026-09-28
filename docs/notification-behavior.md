@@ -317,7 +317,7 @@ The guarantee is unchanged by any of it: each firing is still `FIRED` until its 
 explicit Done, and being on a page the user has not swiped to yet excuses nothing.
 The Windows tray app has one looping toast per alarm but no full-screen queue,
 and the web does not notify. This multi-alarm control surface belongs to the
-Android client, where the hard guarantee lives.
+Android client, which schedules the alarms on the phone.
 
 ## 5. Android Auto: the same actions, on buttons, in the car
 
@@ -418,7 +418,7 @@ configured nags re-alert, and alarm audio loops while the PC is awake and the tr
 process is running. Startup, reconnect and periodic recovery bring back anything
 still active once the server is reachable. It does not schedule exact wake alarms,
 so it cannot guarantee a new alert while the app is exited or the PC remains
-asleep or shut down. Android remains the hard guarantee.
+asleep or shut down. Android schedules alarms on the phone, including offline.
 
 Within that limit it holds the contract:
 

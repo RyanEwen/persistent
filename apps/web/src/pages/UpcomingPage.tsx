@@ -26,6 +26,7 @@ import { formatWhen } from '../lib/datetime.js'
 import { selectUpcomingReminders } from '../lib/upcomingReminders.js'
 import { useSettings } from '../settings/useSettings.js'
 import { ReminderPreviewCard } from '../components/ReminderPreviewCard.js'
+import { sharingState } from '../components/sharingState.js'
 import { PullToRefresh } from '../components/PullToRefresh.js'
 import { useReminderDialogs } from '../components/reminderDialogContext.js'
 
@@ -63,6 +64,7 @@ export function UpcomingPage() {
                 <ReminderPreviewCard
                   key={reminder.id}
                   reminder={reminder}
+                  sharing={sharingState(reminder)}
                   onOpen={() => dialogs.view(reminder.id)}
                   when={when}
                   secondary={isRepeating ? scheduleSummary(reminder.schedule, timeFormat) : undefined}

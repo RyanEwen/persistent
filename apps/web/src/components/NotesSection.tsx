@@ -6,6 +6,7 @@ import { isNote } from '../lib/notes.js'
 import { SectionHeading } from './SectionHeading.js'
 import { useReminderDialogs } from './reminderDialogContext.js'
 import { ReminderPreviewCard } from './ReminderPreviewCard.js'
+import { sharingState } from './sharingState.js'
 
 export function NotesSection({ reminders }: { reminders: readonly Reminder[] }) {
   const dialogs = useReminderDialogs()
@@ -22,6 +23,7 @@ export function NotesSection({ reminders }: { reminders: readonly Reminder[] }) 
             reminder={reminder}
             onOpen={() => dialogs.view(reminder.id)}
             checkedItemIds={reminder.checkedItemIds}
+            sharing={sharingState(reminder)}
             status={!reminder.active ? <Chip size="sm" color="neutral" variant="outlined">paused</Chip> : undefined}
           />
         ))}

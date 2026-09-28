@@ -82,6 +82,7 @@ export function RemindersPage() {
                 key={occurrence.id}
                 reminder={reminder}
                 occurrence={occurrence}
+                received={received.data?.some((share) => share.id === reminder.id)}
                 timeFormat={timeFormat}
                 timeZone={received.data?.some((share) => share.id === reminder.id) ? user?.timeZone : undefined}
               />
@@ -98,6 +99,7 @@ export function RemindersPage() {
                 onOpen={() => dialogs.view(reminder.id)}
                 type={reminder.type}
                 title={reminder.title}
+                sharing="shared"
                 subtitle={`From ${reminder.ownerName}${reminder.nextScheduledFor ? ` · Next: ${formatWhen(reminder.nextScheduledFor, timeFormat, user?.timeZone)}` : ''}`}
               />
             ))}

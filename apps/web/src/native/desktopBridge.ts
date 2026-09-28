@@ -115,6 +115,7 @@ export interface HostSettings {
   startAtSignIn: boolean
   flyoutSize: string
   flyoutSizes: FlyoutSizeOption[]
+  flyoutPlacement: 'tray' | 'last' | 'center'
 }
 
 /** The writable subset: everything except the lists of what is on offer. */
@@ -174,6 +175,7 @@ export function parseHostSettings(value: unknown): HostSettings | null {
     typeof raw.pinFlyout !== 'boolean' ||
     typeof raw.startAtSignIn !== 'boolean' ||
     typeof raw.flyoutSize !== 'string' ||
+    !['tray', 'last', 'center'].includes(raw.flyoutPlacement as string) ||
     sizes.length === 0 ||
     snoozes.length === 0
   ) {
@@ -191,7 +193,8 @@ export function parseHostSettings(value: unknown): HostSettings | null {
     pinFlyout: raw.pinFlyout,
     startAtSignIn: raw.startAtSignIn,
     flyoutSize: sizes.some((size) => size.id === raw.flyoutSize) ? raw.flyoutSize : sizes[0]!.id,
-    flyoutSizes: sizes
+    flyoutSizes: sizes,
+    flyoutPlacement: raw.flyoutPlacement as HostSettings['flyoutPlacement']
   }
 }
 

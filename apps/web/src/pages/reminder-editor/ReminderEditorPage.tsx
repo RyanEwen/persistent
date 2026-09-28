@@ -45,6 +45,7 @@ import { NotificationsTab } from './NotificationsTab.js'
 import { EscalationTab } from './EscalationTab.js'
 import { DiscardChangesDialog } from './DiscardChangesDialog.js'
 import { ReminderSharing } from '../../components/ReminderSharing.js'
+import { ShareCountChip } from '../../components/ShareCountChip.js'
 import {
   defaultKindForType,
   emptyForm,
@@ -348,6 +349,9 @@ export function ReminderEditorPage({ reminderId, onClose, onFinished, registerCl
   // Caught here rather than left to the server: saving offline queues the mutation
   // and navigates away, so a rejection would surface much later as a stray toast.
   const missingTodoItems = todoNeedsItems(form)
+  const shareButtonCount = id
+    ? (existing?.shareCount ?? 0) + (existing?.invitationCount ?? 0)
+    : draftShares.length
 
   if (id && !existing) {
     return <Typography level="body-sm">
@@ -524,6 +528,7 @@ export function ReminderEditorPage({ reminderId, onClose, onFinished, registerCl
                 variant="outlined"
                 size="sm"
                 startDecorator={<ShareIcon />}
+                endDecorator={shareButtonCount > 0 ? <ShareCountChip count={shareButtonCount} /> : undefined}
                 onClick={() => setShareOpen(true)}
               >
                 Share

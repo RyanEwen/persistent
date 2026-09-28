@@ -72,6 +72,8 @@ function reminder(schedule: Schedule, overrides: Partial<Reminder> = {}): Remind
     checkedItemIds: [],
     hideCheckedItems: false,
     lastOccurrence: null,
+    shareCount: 0,
+    invitationCount: 0,
     createdAt: '2026-08-02T09:00:00.000Z',
     updatedAt: '2026-08-02T09:00:00.000Z',
     ...overrides

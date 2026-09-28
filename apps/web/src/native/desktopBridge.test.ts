@@ -21,6 +21,7 @@ const complete = {
   pinFlyout: false,
   startAtSignIn: true,
   flyoutSize: 'standard',
+  flyoutPlacement: 'tray',
   flyoutSizes: [
     { id: 'compact', label: 'Compact', width: 380, height: 560 },
     { id: 'standard', label: 'Standard', width: 420, height: 680 }
@@ -49,6 +50,7 @@ test('parseHostSettings: rejects a field of the wrong type', () => {
   assert.equal(parseHostSettings({ ...complete, pinFlyout: 'true' }), null)
   assert.equal(parseHostSettings({ ...complete, startAtSignIn: null }), null)
   assert.equal(parseHostSettings({ ...complete, flyoutSize: 42 }), null)
+  assert.equal(parseHostSettings({ ...complete, flyoutPlacement: 'elsewhere' }), null)
 })
 
 test('parseHostSettings: rejects a payload with no usable options, since a picker would be empty', () => {

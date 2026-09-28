@@ -30,6 +30,16 @@ public partial class UserSettings : ObservableObject
     [ObservableProperty] public partial int FlyoutWidth { get; set; } = 420;
     [ObservableProperty] public partial int FlyoutHeight { get; set; } = 680;
 
+    /// <summary>Where a newly opened flyout appears: tray, last dragged position,
+    /// or the center of the tray icon's monitor.</summary>
+    [ObservableProperty] public partial string FlyoutPlacement { get; set; } = "tray";
+
+    /// <summary>Last user-dragged position in physical screen pixels. The flag
+    /// distinguishes an unset position from a valid coordinate at the origin.</summary>
+    [ObservableProperty] public partial bool HasFlyoutPosition { get; set; }
+    [ObservableProperty] public partial int FlyoutX { get; set; }
+    [ObservableProperty] public partial int FlyoutY { get; set; }
+
     /// <summary>Keep the flyout open when it loses focus (a pin, toggled from the
     /// flyout's own header). Off by default — a tray flyout should light-dismiss —
     /// but editing a reminder inside it shouldn't be interruptible by a stray click.</summary>
@@ -103,6 +113,7 @@ public partial class UserSettings : ObservableObject
         LastKnownVersion ??= "";
         if (FlyoutWidth < 320) FlyoutWidth = 420;
         if (FlyoutHeight < 400) FlyoutHeight = 680;
+        if (FlyoutPlacement is not ("tray" or "last" or "center")) FlyoutPlacement = "tray";
         // A settings file written before this setting existed deserializes it as 0,
         // which would start the toast's picker on nothing. 1440 (a day) is the
         // longest duration offered, matching ToastNotifier.SnoozeChoices.

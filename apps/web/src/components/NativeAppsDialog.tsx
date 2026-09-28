@@ -21,7 +21,7 @@ export function NativeAppsDialog({ open, onClose }: NativeAppsDialogProps) {
         <DialogTitle>Get Persistent</DialogTitle>
         <DialogContent>
           <Typography level="body-sm">
-            Android provides hard alarm guarantees. The Windows companion adds tray access, an upcoming widget, and
+            Android can sound alarms even while offline. The Windows app adds tray access, an upcoming widget, and
             persistent notifications with alarm audio while your PC is awake.
           </Typography>
           <NativeAppStoreButtons />

@@ -33,6 +33,7 @@ export function useSaveReminderShare(reminderId: string) {
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ['shares', reminderId] })
       void queryClient.invalidateQueries({ queryKey: ['shares', 'recipients'] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.reminders })
     }
   })
 }
@@ -45,7 +46,10 @@ export function useRemoveReminderShare(reminderId: string) {
         : `/api/shares/${reminderId}/${share.recipientId}`,
       { method: 'DELETE' }
     ),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['shares', reminderId] })
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['shares', reminderId] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.reminders })
+    }
   })
 }
 

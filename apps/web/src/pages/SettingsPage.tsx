@@ -175,7 +175,7 @@ export function SettingsPage() {
       <Card variant="outlined">
         <Typography level="title-sm">Apps</Typography>
         <Typography level="body-sm">
-          Get hard alarm guarantees on Android, or persistent alerts while your PC is awake with the Windows companion.
+          Get alarms that work offline on Android, or persistent alerts while your PC is awake with the Windows app.
         </Typography>
         <NativeAppStoreButtons />
       </Card>

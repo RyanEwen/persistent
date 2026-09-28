@@ -26,8 +26,8 @@ export function DesktopNotificationsCard({ settings, update }: HostSettingsProps
       <Typography level="body-xs">
         Keeps each reminder visible and brings it back if dismissed. Alarm reminders loop the Windows alarm sound;
         escalations can be de-escalated without marking them done. This works while the PC is awake and Persistent is
-        running, and catches up after reconnecting. It cannot wake a sleeping or shut-down PC, so Android remains the
-        hard alarm guarantee.
+        running, and catches up after reconnecting. It cannot wake a sleeping or shut-down PC. Android can sound alarms
+        even without an internet connection.
       </Typography>
       {/* The duration only means anything while the notifications are on, so it
           follows the toggle rather than sitting there looking editable. */}

@@ -46,9 +46,9 @@
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                     CornerRadius="8" Padding="16,12">
                 <StackPanel Spacing="8">
-                    <TextBlock Text="Android is the hard guarantee" FontWeight="SemiBold" />
+                    <TextBlock Text="Alarms on Android work offline" FontWeight="SemiBold" />
                     <TextBlock Opacity="0.7" TextWrapping="Wrap"
-                               Text="Windows can keep reminders present and loop alarm audio while this PC is awake and Persistent is running. It catches up after reconnecting, but it cannot wake a sleeping or shut-down PC. Use Android when delivery must be guaranteed." />
+                               Text="Windows can keep reminders present and loop alarm audio while this PC is awake and Persistent is running. It catches up after reconnecting, but it cannot wake a sleeping or shut-down PC. Android can sound alarms without an internet connection." />
                 </StackPanel>
             </Border>
         </StackPanel>

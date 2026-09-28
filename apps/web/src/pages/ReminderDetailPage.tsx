@@ -58,6 +58,7 @@ import { OccurrenceActions } from '../components/OccurrenceActions.js'
 import { TodoChecklist } from '../components/TodoChecklist.js'
 import { SnoozeDialog } from '../components/SnoozeDialog.js'
 import { ReminderSharing } from '../components/ReminderSharing.js'
+import { ShareCountChip } from '../components/ShareCountChip.js'
 import { PullToRefresh } from '../components/PullToRefresh.js'
 import { InlineReminderText } from '../components/InlineReminderText.js'
 import { useReceivedShares } from '../data/shares.js'
@@ -133,7 +134,15 @@ export function ReminderDetailPage({ reminderId, onClose, onEdit }: {
             Back
           </Button>
           <Stack direction="row" spacing={0.5}>
-            <Button variant="plain" size="sm" startDecorator={<ShareIcon />} onClick={() => setShareOpen(true)}>
+            <Button
+              variant="plain"
+              size="sm"
+              startDecorator={<ShareIcon />}
+              endDecorator={reminder.shareCount + reminder.invitationCount > 0
+                ? <ShareCountChip count={reminder.shareCount + reminder.invitationCount} />
+                : undefined}
+              onClick={() => setShareOpen(true)}
+            >
               Share
             </Button>
             <Button

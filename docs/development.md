@@ -93,8 +93,9 @@ directory; treat a red run there as a failed validate.
 Compiling is not the same as working, though, and for this app the gap is where
 the bugs live: a missing `resources.pri`, a 3px window frame and a package whose
 compiled XAML was never copied all passed CI and were only ever found by running
-it. So **`npm run install:desktop` is the real check** — it syncs the working tree
-to the Windows machine over SSH, builds a dev-signed MSIX there and installs it
+it. So **`npm run install:desktop` is the real check**: from WSL it syncs through
+the mounted Windows drive and runs PowerShell directly; from the Devkit container
+it syncs over SSH. Both build a dev-signed MSIX and install it
 into the logged-on session. The working tree rather than a commit, deliberately, so
 a desktop change is tried before it is committed. See `apps/desktop/AGENTS.md`.
 
