@@ -79,6 +79,12 @@ Data safety declarations must accurately cover medicine names and doses.
 
 ## Reaching a wider Play track
 
+**Do not cut an Android version for web, server, desktop, Store listing, docs,
+or tooling changes alone.** Compare against the last Android tag first. Only a
+native runtime, resource, plugin, manifest, or build-configuration change needs
+a new APK/AAB. A refreshed bundled web fallback is not enough by itself. See
+`.agents/skills/release/SKILL.md` for the release gate.
+
 **The app is on production** as of 2026-09-05, versionCode 47 (v0.23.0). That
 changes nothing about how builds get there: **a tag publishes to internal + alpha,
 and nothing reaches production on its own.**

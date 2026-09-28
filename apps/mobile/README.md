@@ -180,6 +180,12 @@ looks exactly as before.
 
 ## Releases & in-app updates
 
+Before tagging, compare the last Android tag with `HEAD`. Release a new Android
+binary only for changes to native runtime code, resources, plugins, manifest, or
+build configuration. Web and server changes arrive through the production deploy;
+desktop changes, Store listing assets, docs, and tooling do not need a new APK or
+AAB. Bundling a newer web fallback alone is not a reason to bump the version.
+
 Tagging `v*` (e.g. `git tag v0.2.0 && git push origin v0.2.0`) triggers
 `.github/workflows/release.yml`, which builds **both** flavors: the `direct` APK is
 attached to a GitHub Release, and the `play` AAB is released to Google Play on the
@@ -206,7 +212,7 @@ See [`store/play-readiness.md`](store/play-readiness.md) §6b.
 The app checks GitHub for a newer release on launch (and from Settings → About):
 `UpdatePlugin` downloads the APK and launches the installer. Because the UI loads
 from `server.url`, web-only changes reach devices via a prod deploy with no new
-APK — rebuild the APK only for native changes (alarm/update plugins, manifest,
+APK. Rebuild the APK only for native changes (alarm/update plugins, manifest,
 launcher icon).
 
 That check reads `/api/latest-release`, which proxies GitHub's `releases/latest`

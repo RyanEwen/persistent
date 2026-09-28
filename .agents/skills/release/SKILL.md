@@ -55,6 +55,15 @@ Requirements:
 - Determine the **last release version** from `gh release list` (newest `vX.Y.Z`),
   falling back to the latest `git tag -l 'v*'`. If there are no releases yet,
   start from the current `apps/web/package.json` version.
+- **Gate the Android release before bumping anything.** Compare the last Android
+  tag with `HEAD` for native Android runtime code, resources, plugins, manifest,
+  or build configuration. Web and server changes delivered by `$deploy`, desktop
+  changes, Store listing assets, documentation, and tooling do not justify an
+  Android version. An APK would bundle a newer web fallback, but that alone is
+  not a reason to release it. If there is no qualifying native change, stop
+  without a version commit or tag and report that no Android release is needed.
+  Only bypass this gate when the user explicitly requests a new Android binary
+  for a concrete reason.
 - Derive the **next version** from the commits since that tag
   (`git log <lastTag>..HEAD --pretty=%s%n%b`), unless the invocation forces a
   level (`major` / `minor` / `patch`):
@@ -81,8 +90,10 @@ Requirements:
 Recommended steps:
 1. `gh release list --limit 5` (and `git tag -l 'v*' --sort=-v:refname | head`)
    to find the last release version.
-2. `git log <lastTag>..HEAD --pretty=format:'%s'` to list the changes; classify
-   the bump (or honor a forced level from the invocation).
+2. Check `git diff --name-only <lastTag>..HEAD` against the Android release gate.
+   If it finds no qualifying native change, stop here. Otherwise use
+   `git log <lastTag>..HEAD --pretty=format:'%s'` to classify the bump (or honor
+   a forced level from the invocation).
 3. Compute the next `vX.Y.Z`. Summarize: last version, new version, the bump
    level, and the notable commits driving it.
 4. If `confirm first` / `dry run`: print the summary and stop.
@@ -101,10 +112,9 @@ Recommended steps:
 8. Report the new version, the bump reasoning, and the release URL.
 
 Notes:
-- Web/server changes reach devices via the production deploy (`$deploy`); a release
-  (new APK) is only required for native changes (alarm/update plugins, manifest,
-  icon), but cutting one also refreshes the bundled web fallback. Mention if the
-  release wasn't strictly necessary.
+- Web and server changes reach devices through the production deploy (`$deploy`).
+  Their presence in the bundled web fallback does not override the Android
+  release gate.
 - The signing key + `ANDROID_*` secrets already exist in the repo's Actions
   secrets; the same keystore must be used every release or updates won't install
   over each other.
