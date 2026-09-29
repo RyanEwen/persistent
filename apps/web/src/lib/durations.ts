@@ -1,9 +1,9 @@
 /**
  * Duration presets + unit conversion shared by the reminder editor (re-sound,
- * escalation "how late") and the snooze dialogs. Everything is stored in minutes;
- * the custom editor lets the user pick a unit.
+ * escalation "how late") and the snooze dialogs. Duration choices use minutes;
+ * an exact snooze time uses an instant.
  */
-import { MAX_SNOOZE_MINUTES } from '@persistent/shared'
+import { MAX_SNOOZE_MINUTES, type SnoozeInput } from '@persistent/shared'
 
 export interface DurationPreset {
   label: string
@@ -62,15 +62,14 @@ export function customToMinutes(value: number, unit: string): number {
 }
 
 /**
- * Minutes from now until a specific local date + time (a `datetime-local` value,
- * `YYYY-MM-DDTHH:MM`). Clamped to the snooze ceiling with a 1-minute floor (so a
- * past or malformed value still yields a valid snooze).
+ * Preserve a chosen local minute as an exact instant. Converting it to a whole
+ * minute duration can move the saved time into the preceding displayed minute.
  */
-export function minutesUntilDateTime(local: string, from: Date = new Date()): number {
+export function snoozeUntilInput(local: string, from: Date = new Date()): SnoozeInput | null {
   const target = new Date(local)
-  if (Number.isNaN(target.getTime())) return 1
-  const minutes = Math.round((target.getTime() - from.getTime()) / 60_000)
-  return Math.min(MAX_SNOOZE_MINUTES, Math.max(1, minutes))
+  const delay = target.getTime() - from.getTime()
+  if (!Number.isFinite(delay) || delay <= 0 || delay > MAX_SNOOZE_MINUTES * 60_000) return null
+  return { until: target.toISOString() }
 }
 
 /** Format a Date as a `datetime-local` input value (`YYYY-MM-DDTHH:MM`, local). */

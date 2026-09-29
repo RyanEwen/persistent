@@ -8,6 +8,7 @@ import {
   reminderInputSchema,
   reminderSchema,
   selectableReminderTypes,
+  snoozeInputSchema,
   initialSharesSchema,
   toReminderSounds,
   todoItems,
@@ -23,6 +24,13 @@ const base = {
   schedule: { kind: 'once' as const, timesOfDay: ['08:00'] },
   startDate: '2026-06-24'
 }
+
+test('snooze input accepts duration or exact time, but not a mixed request', () => {
+  const until = '2026-06-25T09:30:00.000Z'
+  assert.deepEqual(snoozeInputSchema.parse({ minutes: 30 }), { minutes: 30 })
+  assert.deepEqual(snoozeInputSchema.parse({ until }), { until })
+  assert.equal(snoozeInputSchema.safeParse({ minutes: 30, until }).success, false)
+})
 
 test('shadeProminence defaults to INHERIT when omitted', () => {
   const parsed = reminderInputSchema.parse(base)

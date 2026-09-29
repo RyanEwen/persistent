@@ -4,7 +4,7 @@
  * mutation defaults (queued + replayed on reconnect); WS events refresh here.
  */
 import { useInfiniteQuery, useMutation, useQuery } from '@tanstack/react-query'
-import type { CheckItemInput, Occurrence, OccurrenceList } from '@persistent/shared'
+import type { CheckItemInput, Occurrence, OccurrenceList, SnoozeInput } from '@persistent/shared'
 import { apiFetch } from '../lib/apiClient.js'
 import { mutationKeys, queryKeys } from '../lib/queryClient.js'
 
@@ -50,7 +50,7 @@ export function useAckOccurrence() {
 }
 
 export function useSnoozeOccurrence() {
-  return useMutation<unknown, Error, { id: string; arg: number }>({ mutationKey: mutationKeys.snoozeOccurrence })
+  return useMutation<unknown, Error, { id: string; arg: SnoozeInput }>({ mutationKey: mutationKeys.snoozeOccurrence })
 }
 
 /** Silence an escalation alarm: stop the alarm but keep the reminder nagging. */

@@ -25,7 +25,8 @@ import {
   type ReminderCreateInput,
   type ReminderInput,
   type RenameTodoItemInput,
-  type ReorderTodoItemsInput
+  type ReorderTodoItemsInput,
+  type SnoozeInput
 } from '@persistent/shared'
 import { apiFetch } from './apiClient.js'
 import { notify } from './toast.js'
@@ -391,8 +392,12 @@ export function registerMutationDefaults(): void {
   })
 
   queryClient.setMutationDefaults(mutationKeys.snoozeOccurrence, {
-    mutationFn: ({ id, arg }: { id: string; arg: number }) =>
-      apiFetch(`/api/occurrences/${id}/snooze`, { method: 'POST', body: JSON.stringify({ minutes: arg }) }),
+    mutationFn: ({ id, arg }: { id: string; arg: SnoozeInput | number }) =>
+      // Mutations saved offline by the previous build held a bare minute count.
+      apiFetch(`/api/occurrences/${id}/snooze`, {
+        method: 'POST',
+        body: JSON.stringify(typeof arg === 'number' ? { minutes: arg } : arg)
+      }),
     onSettled: invalidateOccurrences
   })
 

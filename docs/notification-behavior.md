@@ -219,6 +219,11 @@ re-fires it after the chosen delay. When the firing is currently an **alarm**,
 snooze snoozes *that*: the alarm goes away now and **rings again** when the snooze
 elapses (it does not silently degrade into a soft notification).
 
+The in-app "Until" choice keeps the exact clock time selected, down to the
+start of that minute. Preset and custom durations start when the server handles
+the action. An "Until" action queued offline is rejected if its chosen time
+has passed before the server receives it; the firing remains active.
+
 - Server: the occurrence becomes `SNOOZED` with `snoozedUntil`; a `dismiss`
   clears it from all devices now. When `snoozedUntil` passes, the sweep revives
   it to `FIRED` and it nags again; if its escalation threshold has already

@@ -130,6 +130,13 @@ devices. Each occurrence is independent, so
 a `dismiss` only ever clears the one occurrence that was acked/snoozed — a
 reminder's other still-unconfirmed firings keep nagging on their own.
 
+`POST /api/occurrences/:id/snooze` accepts either `{ minutes }` for a duration
+or `{ until }` with an ISO instant for the in-app "Until" choice. The server
+starts a duration when it handles the request, but keeps an exact `until` time
+unchanged. An `until` time must still be in the future and no more than one year
+away when the request arrives. If an offline action arrives after its chosen
+time, the server rejects it and leaves the firing active.
+
 Three server-side paths emit `dismiss` without the user acting on the occurrence
 itself: deleting a reminder (its active occurrences are cleared from every device
 after the cascade), giving a real schedule to a previously **unscheduled**

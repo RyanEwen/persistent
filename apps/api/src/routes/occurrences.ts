@@ -12,6 +12,7 @@ import { Router } from 'express'
 import type { ReminderOccurrence } from '@prisma/client'
 import {
   checkItemInputSchema,
+  MAX_SNOOZE_MINUTES,
   snoozeInputSchema,
   todoItems,
   type OccurrenceStatus,
@@ -165,7 +166,7 @@ occurrencesRouter.post('/:id/ack', async (request, response) => {
 occurrencesRouter.post('/:id/snooze', async (request, response) => {
   const userId = requireUserId(request)
   const parsed = snoozeInputSchema.safeParse(request.body)
-  if (!parsed.success) throw badRequest('Invalid snooze duration.')
+  if (!parsed.success) throw badRequest('Invalid snooze choice.')
 
   const existing = await actionableOccurrence(request.params.id, userId)
   if (!existing) throw notFound('Occurrence not found.')
@@ -178,7 +179,16 @@ occurrencesRouter.post('/:id/snooze', async (request, response) => {
     return
   }
 
-  const snoozedUntil = new Date(Date.now() + parsed.data.minutes * 60_000)
+  const now = Date.now()
+  const snoozedUntil = 'until' in parsed.data
+    ? new Date(parsed.data.until)
+    : new Date(now + parsed.data.minutes * 60_000)
+  // The picker sends an exact instant. Check its range when the request reaches
+  // the server, including when an offline mutation is replayed later.
+  if (snoozedUntil.getTime() <= now || snoozedUntil.getTime() - now > MAX_SNOOZE_MINUTES * 60_000) {
+    logger.warn('snooze time rejected', { occurrenceId: existing.id, userId })
+    throw badRequest('Snooze time must be in the future and within one year.')
+  }
   if (userId === existing.userId) {
     const changed = await prisma.reminderOccurrence.updateMany({
       where: { id: existing.id, status: { in: ['FIRED', 'ESCALATED', 'SNOOZED'] } },

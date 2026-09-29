@@ -650,9 +650,11 @@ export type OccurrenceList = z.infer<typeof occurrenceListSchema>
  */
 export const MAX_SNOOZE_MINUTES = 525_600
 
-export const snoozeInputSchema = z.object({
-  minutes: z.number().int().min(1).max(MAX_SNOOZE_MINUTES)
-})
+/** Duration snoozes start when handled; an Until snooze keeps its chosen instant. */
+export const snoozeInputSchema = z.union([
+  z.object({ minutes: z.number().int().min(1).max(MAX_SNOOZE_MINUTES) }).strict(),
+  z.object({ until: z.string().datetime() }).strict()
+])
 export type SnoozeInput = z.infer<typeof snoozeInputSchema>
 
 /**

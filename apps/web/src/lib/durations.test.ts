@@ -1,30 +1,33 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { MAX_SNOOZE_MINUTES } from '@persistent/shared'
-import { minutesUntilDateTime, toDateTimeLocalValue, customToMinutes } from './durations.js'
+import { snoozeUntilInput, toDateTimeLocalValue, customToMinutes } from './durations.js'
 
-test('minutesUntilDateTime: forward delta for a future local datetime', () => {
-  const from = new Date('2026-06-25T08:00:00')
-  assert.equal(minutesUntilDateTime('2026-06-25T09:30', from), 90)
+test('snoozeUntilInput: preserves the selected minute despite nonzero seconds now', () => {
+  const from = new Date('2026-06-25T08:00:45')
+  assert.deepEqual(snoozeUntilInput('2026-06-25T09:30', from), {
+    until: new Date('2026-06-25T09:30:00').toISOString()
+  })
 })
 
-test('minutesUntilDateTime: supports dates more than a day out', () => {
+test('snoozeUntilInput: supports dates more than a day out', () => {
   const from = new Date('2026-06-25T08:00:00')
-  assert.equal(minutesUntilDateTime('2026-06-28T08:00', from), 3 * 24 * 60)
+  assert.deepEqual(snoozeUntilInput('2026-06-28T08:00', from), {
+    until: new Date('2026-06-28T08:00:00').toISOString()
+  })
 })
 
-test('minutesUntilDateTime: a past datetime floors at 1', () => {
+test('snoozeUntilInput: rejects a past datetime', () => {
   const from = new Date('2026-06-25T08:00:00')
-  assert.equal(minutesUntilDateTime('2026-06-24T08:00', from), 1)
+  assert.equal(snoozeUntilInput('2026-06-24T08:00', from), null)
 })
 
-test('minutesUntilDateTime: clamps to the snooze ceiling', () => {
+test('snoozeUntilInput: rejects dates past the snooze ceiling', () => {
   const from = new Date('2026-06-25T08:00:00')
-  assert.equal(minutesUntilDateTime('2030-06-25T08:00', from), MAX_SNOOZE_MINUTES)
+  assert.equal(snoozeUntilInput('2030-06-25T08:00', from), null)
 })
 
-test('minutesUntilDateTime: malformed input falls back to 1', () => {
-  assert.equal(minutesUntilDateTime('not-a-datetime'), 1)
+test('snoozeUntilInput: malformed input is not submitted', () => {
+  assert.equal(snoozeUntilInput('not-a-datetime'), null)
 })
 
 test('toDateTimeLocalValue: zero-pads to the input format', () => {
