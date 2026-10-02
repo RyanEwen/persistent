@@ -77,6 +77,13 @@ const kotlinFiles = readdirSync(pluginDir)
 for (const file of kotlinFiles) {
   copyFileSync(join(pluginDir, file), join(alarmPkgDir, file))
 }
+// Native JVM tests live beside the plugin overlay, outside the generated project.
+const nativeTestsDir = join(mobileRoot, 'android-tests')
+const generatedTestsDir = join(mobileRoot, 'android/app/src/test/java/ca/persistent/app/alarm')
+mkdirSync(generatedTestsDir, { recursive: true })
+for (const file of readdirSync(nativeTestsDir).filter((name) => name.endsWith('.kt'))) {
+  copyFileSync(join(nativeTestsDir, file), join(generatedTestsDir, file))
+}
 // A pre-flavor checkout put UpdatePlugin.kt in main; leaving it there would
 // compile it into the play flavor too, so drop any stale copy.
 for (const file of DIRECT_ONLY_KT) {

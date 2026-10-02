@@ -106,6 +106,21 @@ drives them lives in `apps/web/src/native`.
     linger on screen as a stale second alert. That broadcast drops the occurrence from
     the surface's queue rather than closing the surface outright; see "The full-screen
     surface is a queue, not a screen" below.
+  - **Calls defer intrusive alerts.** While Android reports ringing, phone-call,
+    voice/video-call, screening or redirected communication audio, reminders use a
+    silent, low-importance notification with their usual actions. No alarm sound,
+    vibration, heads-up banner or automatic full-screen activity interrupts the
+    call. An already-ringing alarm pauses and closes its surface when a call starts.
+    When communication ends, every still-pending alarm resumes its normal sound and
+    surface; Done, Snooze, De-escalate or remote dismissal prevents that alarm from
+    resuming. Full deferred specs are persisted separately so an offline escalation
+    survives process death without falling back to its pre-escalation base entry.
+    Recovery runs on service restart and the background worker's existing cadence.
+    Android 12+ supplies audio-mode callbacks; older versions check once per second
+    while the foreground alarm service is alive. No phone permission is needed.
+    Calls in apps that do not report communication audio mode cannot be detected.
+    If notification permission is denied, the alarm still waits quietly until the
+    call ends, but Android cannot show its waiting notification.
   - Swiping a notification away **re-posts all active ones** (delete-intent) so
     they can't be casually dismissed (even when several are swiped together); only
     Done/Snooze clear them.

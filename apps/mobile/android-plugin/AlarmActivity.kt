@@ -84,6 +84,11 @@ class AlarmActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // A posted full-screen intent can race the call-start callback.
+        if (CallAudioMonitor.isBusy(this)) {
+            finish()
+            return
+        }
         showOverLockScreen()
         back.enable()
 
@@ -147,6 +152,10 @@ class AlarmActivity : Activity() {
      */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        if (CallAudioMonitor.isBusy(this)) {
+            finish()
+            return
+        }
         setIntent(intent)
         // Page to whatever the intent names — a notification tap is a request for that
         // reminder, and a newly-fired alarm is the event that just happened. The queue's

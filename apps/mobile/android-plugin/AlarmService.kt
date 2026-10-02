@@ -33,6 +33,10 @@ import ca.persistent.app.R
  */
 class AlarmService : Service() {
 
+    private var callAudioBusy = false
+    private var callAudioMonitor: CallAudioMonitor? = null
+    private val deferredAlarms = CallDeferredAlarmQueue()
+
     private val active = LinkedHashMap<String, AlarmSpec>()
     // Occurrences whose notification is showing the "tap again to confirm" prompt.
     private val confirming = HashSet<String>()
@@ -105,6 +109,7 @@ class AlarmService : Service() {
         // Watch for Android Auto projection so nags can mirror into the car (this is
         // the universal notification poster, so arming it here covers every process).
         CarProjection.init(this)
+        callAudioMonitor = CallAudioMonitor(this) { reconcileCallAudio() }.also { it.start() }
         androidx.core.content.ContextCompat.registerReceiver(
             this,
             screenReceiver,
@@ -116,6 +121,51 @@ class AlarmService : Service() {
         )
     }
 
+    /** Persist only waiting alarm specs, preserving an offline escalation's full fidelity. */
+    private fun persistDeferredAlarms() {
+        DeferredAlarmStore.replace(this, deferredAlarms.all())
+    }
+
+    /** Rebuild pending alarms after service/process death, without losing notification actions. */
+    private fun restoreDeferredAlarms() {
+        for (spec in DeferredAlarmStore.all(this)) {
+            if (spec.occurrenceId !in active) {
+                deferredAlarms.defer(spec)
+                startAlarm(spec, silent = true)
+            }
+        }
+    }
+
+    /** Suspend presentation during communication, then resume every unhandled alarm once. */
+    private fun reconcileCallAudio() {
+        if (active.isEmpty()) return
+        val busy = CallAudioMonitor.isBusy(this)
+        val wasBusy = callAudioBusy
+        callAudioBusy = busy
+        if (busy) {
+            stopSound()
+            for (spec in active.values.filter { it.alarm }) {
+                deferredAlarms.defer(spec)
+                ringingSpecs.remove(spec.occurrenceId)
+            }
+            persistDeferredAlarms()
+            dismissAlarmSurface(null)
+            if (wasBusy) repostActive() else restyleActive()
+            return
+        }
+
+        val waiting = deferredAlarms.resume(callBusy = false)
+        for (spec in waiting) ringingSpecs[spec.occurrenceId] = spec
+        // Android keeps a notification's original channel on an in-place update.
+        // Cancel and re-post before resuming so the quiet call channel cannot stick.
+        if (wasBusy || waiting.isNotEmpty()) restyleActive()
+        // Call-end is a deliberate resume, so a recent pre-call ring must not debounce it.
+        for (spec in waiting) {
+            AlarmStore.clearSounded(this, spec.occurrenceId)
+            startAlarm(spec)
+        }
+    }
+
     private fun notifId(occurrenceId: String): Int = occurrenceId.hashCode()
 
     /** Whether posted notifications are actually visible to the user. When false
@@ -124,6 +174,8 @@ class AlarmService : Service() {
     private fun notificationsVisible(): Boolean = NotificationManagerCompat.from(this).areNotificationsEnabled()
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Restore before handling actions so a cold-start Done/Snooze can clear a deferred alarm.
+        restoreDeferredAlarms()
         when (intent?.action) {
             ACTION_START -> {
                 val occurrenceId = intent.getStringExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID) ?: return START_STICKY
@@ -229,6 +281,7 @@ class AlarmService : Service() {
             }
             ACTION_ENSURE -> ensureNags()
         }
+        reconcileCallAudio()
         return START_STICKY
     }
 
@@ -394,7 +447,11 @@ class AlarmService : Service() {
         // Keep the surface's view of what is ringing in step. Re-put rather than
         // put-if-absent so a re-fire refreshes the text, and remove on the non-alarm
         // branch so a downgraded firing leaves the queue.
-        if (spec.alarm) ringingSpecs[spec.occurrenceId] = spec else ringingSpecs.remove(spec.occurrenceId)
+        val deferred = spec.alarm && (CallAudioMonitor.isBusy(this) || (silent && spec.occurrenceId in deferredAlarms))
+        if (deferred) deferredAlarms.defer(spec) else deferredAlarms.remove(spec.occurrenceId)
+        persistDeferredAlarms()
+        if (spec.alarm && !deferred) ringingSpecs[spec.occurrenceId] = spec
+        else ringingSpecs.remove(spec.occurrenceId)
         // An escalation upgrades the base occurrence in place and arrives carrying
         // canSilence, so the live spec — not the pre-escalation one still in AlarmStore —
         // is the only place that knows this ring can be quieted back to a nag.
@@ -423,7 +480,7 @@ class AlarmService : Service() {
             "PersistAlarm",
             "startAlarm occ=${spec.occurrenceId} silent=$silent debounced=$debounced alarm=${spec.alarm} soundEmpty=${spec.soundUri.isEmpty()}"
         )
-        if (silent || debounced) {
+        if (silent || debounced || deferred) {
             updateGroupSummary()
             CarListRefresh.notifyChanged(this)
             return
@@ -478,6 +535,7 @@ class AlarmService : Service() {
      * notification must not *also* pop a heads-up banner over it.
      */
     private fun willPresentAlarmSurface(spec: AlarmSpec): Boolean {
+        if (CallAudioMonitor.isBusy(this)) return false
         if (!spec.alarm) return false
         val power = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
         val keyguard = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
@@ -492,6 +550,7 @@ class AlarmService : Service() {
         Build.VERSION.SDK_INT < 35 || Settings.canDrawOverlays(this)
 
     private fun presentAlarmSurface(spec: AlarmSpec, force: Boolean = false, keepPage: Boolean = false) {
+        if (CallAudioMonitor.isBusy(this)) return
         if (!force) {
             val power = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
             val keyguard = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
@@ -596,6 +655,8 @@ class AlarmService : Service() {
             nagSoundUri = soft?.nagSoundUri ?: spec.nagSoundUri,
             nagSoundTitle = soft?.nagSoundTitle ?: spec.nagSoundTitle
         )
+        deferredAlarms.remove(occurrenceId)
+        DeferredAlarmStore.remove(this, occurrenceId)
         active[occurrenceId] = downgraded
         alarmIds.remove(occurrenceId)
         silenceableIds.remove(occurrenceId)
@@ -702,6 +763,7 @@ class AlarmService : Service() {
             val channelChanged = channelFor(updated) != channelFor(current)
             if (updated.title == current.title && updated.body == current.body && !channelChanged) continue
             active[id] = updated
+            if (id in deferredAlarms) deferredAlarms.defer(updated)
             val notif = buildNotification(updated)
             if (channelChanged) {
                 // The channel moved — cancel then re-post (detach the foreground-bound
@@ -723,6 +785,7 @@ class AlarmService : Service() {
         updateGroupSummary()
         // A resync can have renamed a live reminder or re-cut its checklist body; the
         // car list renders the same text, so it has to redraw too.
+        persistDeferredAlarms()
         CarListRefresh.notifyChanged(this)
     }
 
@@ -862,7 +925,8 @@ class AlarmService : Service() {
         // surface it's advertising. Both channels are silent (we ring via
         // MediaPlayer), so this changes prominence only — the alarm still sounds and
         // the notification still carries Done/Snooze for after the surface is left.
-        val channel = channelOverride
+        val callBusy = CallAudioMonitor.isBusy(this) || spec.occurrenceId in deferredAlarms
+        val channel = if (callBusy) CHANNEL_CALL_DEFERRED else channelOverride
             ?: if (willPresentAlarmSurface(spec)) CHANNEL_ALARM_NO_PEEK else channelFor(spec)
         // Tapping the body opens the app on this reminder. This MUST be a direct
         // getActivity: routing it through AlarmReceiver so the receiver could call
@@ -959,7 +1023,11 @@ class AlarmService : Service() {
             .setContentText(if (awaitingConfirm) "Tap \"Confirm done\" to mark complete" else spec.body)
             .setSmallIcon(R.drawable.ic_stat_bell)
             .setCategory(if (spec.alarm) NotificationCompat.CATEGORY_ALARM else NotificationCompat.CATEGORY_REMINDER)
-            .setPriority(if (spec.alarm) NotificationCompat.PRIORITY_MAX else NotificationCompat.PRIORITY_HIGH)
+            .setPriority(
+                if (callBusy) NotificationCompat.PRIORITY_LOW
+                else if (spec.alarm) NotificationCompat.PRIORITY_MAX
+                else NotificationCompat.PRIORITY_HIGH
+            )
             .setOngoing(spec.ongoing)
             .setAutoCancel(!spec.ongoing)
             .setWhen(posted)
@@ -976,7 +1044,7 @@ class AlarmService : Service() {
             // notification instead of only re-sounding under a shade the user never
             // opens. The first fire alerts either way (it's a new post), and alarms
             // never suppress — they're meant to be relentless.
-            .setOnlyAlertOnce(!spec.alarm && !renotify)
+            .setOnlyAlertOnce(callBusy || (!spec.alarm && !renotify))
             // Show full content on the lock screen so the user can see *which*
             // reminder is firing without unlocking — the alarm must be findable.
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
@@ -985,7 +1053,7 @@ class AlarmService : Service() {
             // control surface (Done/Snooze) rather than opening the app, so once the
             // heads-up banner collapses the controls are still one tap away. Soft
             // reminders keep opening the app to view the reminder.
-            .setContentIntent(if (spec.alarm) fullScreen else contentPending)
+            .setContentIntent(if (spec.alarm && !callBusy) fullScreen else contentPending)
         if (awaitingConfirm) {
             builder.addAction(0, "Confirm done", confirmPending)
             builder.addAction(0, "Not yet", cancelDonePending)
@@ -999,7 +1067,7 @@ class AlarmService : Service() {
         // The full-screen intent is what covers the locked / screen-off case. When we
         // are launching the activity directly it adds nothing and is a second
         // heads-up trigger, so leave it off for that post.
-        if (spec.alarm && channel != CHANNEL_ALARM_NO_PEEK) {
+        if (spec.alarm && !callBusy && channel != CHANNEL_ALARM_NO_PEEK) {
             builder.setFullScreenIntent(fullScreen, true)
         }
         if (spec.ongoing) {
@@ -1045,6 +1113,10 @@ class AlarmService : Service() {
      * audible gap in a ring that is supposed to be relentless.
      */
     private fun ringTone(spec: AlarmSpec) {
+        if (CallAudioMonitor.isBusy(this)) {
+            reconcileCallAudio()
+            return
+        }
         val tone = spec.soundUri to spec.soundTitle
         if (continuousAlarm && soundingTone == tone) return
         startContinuousAlarm(spec.soundUri, spec.soundTitle)
@@ -1107,6 +1179,7 @@ class AlarmService : Service() {
 
     /** Notification: play the chosen notification tone once (unless an alarm is ringing). */
     private fun playNotificationSound(soundUri: String, soundTitle: String = "", kind: String = "notification") {
+        if (CallAudioMonitor.isBusy(this)) return
         if (continuousAlarm) return // don't interrupt a ringing alarm
         val chosen = resolveUri(soundUri, soundTitle, kind, RingtoneManager.TYPE_NOTIFICATION)
         if (!playOnce(chosen)) {
@@ -1180,6 +1253,7 @@ class AlarmService : Service() {
     }
 
     private fun vibrate() {
+        if (CallAudioMonitor.isBusy(this)) return
         val v = vibrator ?: (getSystemService(Context.VIBRATOR_SERVICE) as Vibrator).also { vibrator = it }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             v.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 600, 400, 600), -1))
@@ -1191,6 +1265,7 @@ class AlarmService : Service() {
     /** Stop the shared player + the vibration loop (not the per-occurrence re-notify loops). */
     private fun stopSound() {
         loops.remove(VIBRATE_KEY)?.let { handler.removeCallbacks(it) }
+        vibrator?.cancel()
         player?.release()
         player = null
         continuousAlarm = false
@@ -1198,6 +1273,8 @@ class AlarmService : Service() {
     }
 
     private fun clear(occurrenceId: String) {
+        deferredAlarms.remove(occurrenceId)
+        DeferredAlarmStore.remove(this, occurrenceId)
         active.remove(occurrenceId)
         confirming.remove(occurrenceId)
         postedAt.remove(occurrenceId)
@@ -1248,6 +1325,8 @@ class AlarmService : Service() {
     }
 
     private fun clearAll() {
+        deferredAlarms.clear()
+        DeferredAlarmStore.replace(this, emptyList())
         stopSound()
         for (r in loops.values) handler.removeCallbacks(r)
         loops.clear()
@@ -1270,6 +1349,15 @@ class AlarmService : Service() {
     private fun ensureChannels() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = nm
+        if (manager.getNotificationChannel(CHANNEL_CALL_DEFERRED) == null) {
+            manager.createNotificationChannel(
+                NotificationChannel(CHANNEL_CALL_DEFERRED, "Reminders during calls", NotificationManager.IMPORTANCE_LOW).apply {
+                    description = "Quiet reminders while a phone or voice/video call is active"
+                    setSound(null, null)
+                    enableVibration(false)
+                }
+            )
+        }
         // All channels are silent (we play the chosen tone ourselves via MediaPlayer);
         // they differ only in importance, which controls shade prominence:
         //  - ALARM/NORMAL = HIGH (main shade area, may pop up a heads-up banner)
@@ -1333,6 +1421,7 @@ class AlarmService : Service() {
     }
 
     override fun onDestroy() {
+        callAudioMonitor?.stop()
         stopSound()
         for (r in loops.values) handler.removeCallbacks(r)
         loops.clear()
@@ -1362,6 +1451,7 @@ class AlarmService : Service() {
         private const val SOUND_DEBOUNCE_MS = 4 * 60_000L
         // Alarms/escalations keep the legacy channel id so existing installs retain
         // its DND-bypass grant; the two non-alarm channels split by prominence.
+        private const val CHANNEL_CALL_DEFERRED = "reminders_call_deferred"
         private const val CHANNEL_ALARM = "reminders_silent"
         /**
          * Same as [CHANNEL_ALARM] but IMPORTANCE_DEFAULT, so it never pops a heads-up
@@ -1438,7 +1528,8 @@ class AlarmService : Service() {
          * escalation upgrades the base occurrence in place), so they compare directly.
          */
         fun cancelMissing(context: Context, keepBaseIds: Set<String>) {
-            for (id in activeIds.toList()) {
+            val deferred = DeferredAlarmStore.all(context).map { it.occurrenceId }
+            for (id in (activeIds.toList() + deferred).distinct()) {
                 if (id !in keepBaseIds) stopFor(context, id)
             }
         }
@@ -1603,7 +1694,7 @@ class AlarmService : Service() {
             val hasDue = AlarmStore.all(context).any {
                 !it.alarm && it.fireAtMs <= now && !it.occurrenceId.endsWith(AlarmReceiver.ESC_SUFFIX)
             }
-            if (!hasDue) return
+            if (!hasDue && DeferredAlarmStore.all(context).isEmpty()) return
             val intent = Intent(context, AlarmService::class.java).setAction(ACTION_ENSURE)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
             else context.startService(intent)

@@ -34,7 +34,8 @@ Browser interaction notes:
 ## Android
 
 Run `npm run verify:android` from `apps/mobile`. It regenerates the Android
-project and compiles Kotlin and Java for both `play` and `direct` debug flavors.
+project, compiles Kotlin and Java, and runs native JVM tests for both `play` and
+`direct` debug flavors.
 The development container has no emulator or system image, so this is a compile check,
 not runtime evidence. State that limitation unless a real device was connected
 and exercised. Wireless ADB support is documented by

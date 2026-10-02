@@ -584,3 +584,32 @@ Notes are reachable in both directions. Giving a note a real schedule (or "Remin
 me now") makes it an ordinary reminder from that moment, and the settings it kept
 while it was a note — the repeat, the escalation — come back with it. Turning a
 firing reminder into a note retires whatever it left nagging (§6).
+
+## Calls on Android
+
+During phone calls and voice/video calls reported by Android's communication audio
+mode, reminders appear quietly in the notification shade. Alarms do not sound,
+vibrate, show a heads-up banner or automatically open their full-screen surface.
+An alarm already ringing pauses when a call starts. Any alarm not handled through
+Done, Snooze, De-escalate or another device resumes when the call ends. Deferred
+alarms remain independent, including multiple alarms and offline escalations.
+Call apps that do not report communication mode cannot be detected. Denying
+notification permission hides the waiting notification, but does not permit the
+alarm to interrupt the call.
+
+Call deferral device checks (both locked and unlocked):
+
+- Start a phone call, then fire a full alarm and an escalation. Both must remain
+  quiet shade notifications with no automatic alarm surface. End the call and
+  check that both resume and appear in the alarm queue.
+- Repeat in a voice/video call app that reports communication mode.
+- During a call, confirm Done on one waiting alarm and Snooze another. Neither
+  may resume at call-end; the snoozed alarm must fire at its new due time.
+- De-escalate a waiting escalation, and dismiss another from a second device.
+  Neither may return as an alarm when the call ends.
+- Start a call while an alarm is ringing. Sound and vibration must stop, the
+  alarm surface must close, and the alarm must resume after the call.
+- Restart the process during a call with several waiting alarms, including an
+  offline escalation. Check recovery preserves the full specs and actions.
+- Deny notification permission and repeat. No alarm surface or sound may
+  interrupt the call; the alarm must present normally after communication ends.

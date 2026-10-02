@@ -24,7 +24,9 @@ Kotlin but `MainActivity.java` is Java, and the Kotlin task alone compiles right
 past a broken `MainActivity`. Run `npm run prepare:android` once first if the
 generated `android/` project doesn't exist yet. The scripted Gradle commands
 disable the persistent daemon and default to two workers so a compile cannot
-starve WSL; only raise `ANDROID_GRADLE_WORKERS` deliberately.
+starve WSL; only raise `ANDROID_GRADLE_WORKERS` deliberately. The same command
+also runs JVM unit tests for both flavors. Keep their authoritative Kotlin sources
+in `android-tests/`; setup copies them into the generated project's test source set.
 
 ## Two Android flavors
 
