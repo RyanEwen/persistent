@@ -25,11 +25,6 @@ on:
         description: 'versionCode of that release on Play (play-check prints these)'
         required: true
         type: string
-      tracks:
-        description: 'Comma-separated tracks to rewrite'
-        required: true
-        default: internal,alpha
-        type: string
 
 permissions:
   contents: read
@@ -57,12 +52,12 @@ jobs:
 
       # No `npm ci`: play-publish.mjs is dependency-free by design (Node 20 has
       # fetch and RS256 signing built in), so this needs nothing from the workspace.
-      - name: Write them to ${{ inputs.tracks }}
+      - name: Write them to production
         working-directory: apps/mobile
         env:
           PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
         run: |
           node scripts/play-publish.mjs --set-notes \
             --version-code '${{ inputs.version_code }}' \
-            --tracks '${{ inputs.tracks }}' \
+            --tracks production \
             --notes ../../RELEASE_NOTES.md

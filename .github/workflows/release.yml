@@ -6,13 +6,10 @@ name: release
 #   direct -> signed APK attached to a GitHub Release. The in-app update check
 #             (apps/web/src/native/UpdateCheck.tsx) reads that release and offers
 #             the new APK.
-#   play   -> AAB released to Google Play on the `internal` **and** `alpha` tracks
-#             (one build, one versionCode, both tracks), and kept as a workflow
-#             artifact either way.
+#   play   -> AAB released to Google Play production, and kept as a workflow
+#             artifact. Phone testing releases are retired in the same Play edit.
 #
-# Both tracks come from a single Play edit — see apps/mobile/scripts/play-publish.mjs
-# for why that matters. `workflow_dispatch` can retarget the tracks/status for a
-# one-off; promotion beyond alpha stays a deliberate Console action.
+# Production is the only destination for tags and manual runs.
 #
 # The Play upload is skipped unless PLAY_SERVICE_ACCOUNT_JSON is set, so this runs
 # unchanged on forks. See apps/mobile/store/play-readiness.md for the Play Console
@@ -27,16 +24,8 @@ on:
       version:
         description: 'Existing tag to build (e.g. v0.2.0) — the build uses that tag, not the branch'
         required: true
-      play_tracks:
-        description: 'Play track(s) to release to'
-        required: false
-        default: 'internal,alpha'
-        type: choice
-        # Quoted: inside a YAML flow sequence an unquoted comma would split this
-        # into two separate options.
-        options: ['internal,alpha', 'internal', 'alpha', 'beta', 'production']
       play_status:
-        description: "Play release status ('draft' holds the release in the Console instead of giving it to testers)"
+        description: "Play release status ('draft' holds the release in the Console instead of publishing it)"
         required: false
         default: completed
         type: choice
@@ -61,22 +50,24 @@ jobs:
         id: ver
         run: |
           TAG="${{ github.event.inputs.version || github.ref_name }}"
-          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "name=${TAG#v}" >> "$GITHUB_OUTPUT"
           # versionCode must strictly increase and never repeat across everything
           # ever published, on Play or as a sideload APK. The run number does that
           # on its own; PLAY_VERSION_CODE_OFFSET is the escape hatch for when a
           # manual upload already burned a higher code (the pre-flight below prints
           # the exact offset to set). Raise it only — lowering it re-burns codes.
           OFFSET="${{ vars.PLAY_VERSION_CODE_OFFSET || 0 }}"
-          echo "code=$(( ${{ github.run_number }} + OFFSET ))" >> "$GITHUB_OUTPUT"
-          echo "tracks=${{ github.event.inputs.play_tracks || 'internal,alpha' }}" >> "$GITHUB_OUTPUT"
-          echo "status=${{ github.event.inputs.play_status || 'completed' }}" >> "$GITHUB_OUTPUT"
+          {
+            echo "tag=${TAG}"
+            echo "name=${TAG#v}"
+            echo "code=$(( ${{ github.run_number }} + OFFSET ))"
+            echo "tracks=production"
+            echo "status=${{ github.event.inputs.play_status || 'completed' }}"
+          } >> "$GITHUB_OUTPUT"
 
       # The filter itself lives in apps/mobile/scripts/release-notes.mjs, with
       # tests, because play-notes.yml has to produce the identical answer when a
       # published release's notes turn out to be wrong. Two copies would drift, and
-      # the drift would only be visible after it shipped to testers.
+      # the drift would only be visible after it shipped to users.
       - name: Generate release notes
         run: |
           node apps/mobile/scripts/release-notes.mjs \
@@ -250,8 +241,7 @@ jobs:
           # and the README's Android download badge points straight at it.
           make_latest: true
 
-      # Uploads once and attaches that versionCode to every requested track in a
-      # single Play edit. The "what's new" text is derived from RELEASE_NOTES.md
+      # Uploads once to production and retires phone testing releases in one edit. The "what's new" text is derived from RELEASE_NOTES.md
       # inside the script (heading and compare link stripped, truncated to Play's
       # 500-character cap on a line boundary).
       - name: Release to Google Play
@@ -262,7 +252,7 @@ jobs:
         run: |
           node scripts/play-publish.mjs \
             --aab "$GITHUB_WORKSPACE/persistent-${{ steps.ver.outputs.name }}-play.aab" \
-            --tracks "${{ steps.ver.outputs.tracks }}" \
+            --tracks production --production-only \
             --version-name "${{ steps.ver.outputs.name }}" \
             --status "${{ steps.ver.outputs.status }}" \
             --notes "$GITHUB_WORKSPACE/RELEASE_NOTES.md"

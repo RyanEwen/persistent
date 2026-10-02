@@ -193,17 +193,16 @@ AAB. Bundling a newer web fallback alone is not a reason to bump the version.
 Tagging `v*` (e.g. `git tag v0.2.0 && git push origin v0.2.0`) triggers
 `.github/workflows/release.yml`, which builds **both** flavors: the `direct` APK is
 attached to a GitHub Release, and the `play` AAB is released to Google Play on the
-**`internal` and `alpha` tracks** (and kept as a workflow artifact regardless). The
+**production track** (and kept as a workflow artifact regardless). The
 keystore is decoded from the `ANDROID_KEYSTORE_BASE64` secret and signed with
 `ANDROID_KEYSTORE_PASSWORD` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD`; the
 same key must be used every time or updates won't install over each other.
 
-Both tracks are served by one upload: `scripts/play-publish.mjs` creates a single
-Play edit, uploads the AAB once and attaches that versionCode to every requested
-track. Uploading per-track instead would fail — Play rejects a versionCode it has
-already seen. `workflow_dispatch` can retarget the tracks (`play_tracks`) and hold
-a release as a `draft` for a one-off; anything past `alpha` is a deliberate
-Console promotion.
+The Play upload targets production only and clears active phone testing releases
+in the same edit. Play rejects a second upload of a versionCode it has seen, so
+`play-promote` can move an existing upload to production without rebuilding.
+Manual release runs can hold a release as a `draft`, but cannot select tester
+tracks. They build the named tag and receive a fresh versionCode.
 
 Play upload is skipped unless the `PLAY_SERVICE_ACCOUNT_JSON` secret is set. Before
 the Android build, the workflow pre-flights the release — it authenticates, prints
@@ -239,11 +238,10 @@ the manual `play-listing` GitHub workflow. Regenerate the scripted screenshots w
 `npm run db:seed:demo` + `npm run shots` from the repo root; only the full-screen
 alarm and the notification shade still need a device.
 
-Tagging a version publishes it to the `internal` and `alpha` tracks. Getting that
-same build to `beta` or `production` is the separate manual `play-promote` GitHub
-workflow: give it the versionCode and a destination, optionally a `rollout`
-fraction for a staged release. It neither rebuilds nor re-uploads, so what reaches
-production is byte-for-byte the build that was tested.
+Tagging a version publishes directly to production. The manual `play-promote`
+workflow remains for already-uploaded builds and production rollout adjustments.
+It copies the existing release notes, can stage the rollout to a fraction of users,
+and clears active phone testing releases in the same edit.
 
 To build a signed release locally, set the `ANDROID_*` vars (see `.env.example`)
 in the workspace `.env`, then:

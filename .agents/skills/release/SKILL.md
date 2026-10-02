@@ -15,29 +15,20 @@ end-user-facing changes only: internal/docs/tooling commits are excluded; see th
 
 - `direct` -> **signed APK** on a GitHub Release, with the notes shown in the
   in-app update prompt.
-- `play` -> **AAB** released to Google Play on the **`internal` and `alpha`** tracks
-  (one upload, one versionCode, both tracks: see
-  `apps/mobile/scripts/play-publish.mjs`), reusing the same notes truncated to
-  Play's 500-character "what's new" limit. Skipped entirely unless the
-  `PLAY_SERVICE_ACCOUNT_JSON` secret exists, so tagging still works on forks.
-  Promotion beyond alpha is deliberately not part of a tag: it is the separate
-  manual `play-promote` workflow, which moves an existing versionCode to another
-  track without rebuilding or re-uploading.
+- `play` -> **AAB** released directly to Google Play **production**, reusing
+  the same notes truncated to Play's 500-character limit. Uploads are skipped
+  unless `PLAY_SERVICE_ACCOUNT_JSON` exists. Tags and manual releases have no
+  tester-track destination. Active phone testing releases are retired in the
+  same edit using `--production-only`.
 
-**Production is open.** It was gated until 2026-09-05, refusing the track write
-twice with a bare "precondition failed" (versionCode 45 on 2026-08-18, 47 on
-2026-08-21). Play lifted it, and versionCode 47 (v0.23.0) was promoted from alpha
-as the first production release, at full rollout.
-
-That does **not** make production part of a tag. Promotion stays the separate
-manual `play-promote` workflow, which moves an existing versionCode to another
-track without rebuilding or re-uploading: a tag publishes something so it can be
-tested, and judging it good enough for everyone is a later decision made by a
-person. Don't add `production` to a tag's tracks to skip the step.
-
-If a promotion is ever refused again, nothing is written (the edit is dropped
-uncommitted and the tester tracks are untouched) and `--promote` prints the
-Console-side checklist itself. See #6b of `apps/mobile/store/play-readiness.md`.
+Production is open. The first production release was versionCode 47 (v0.23.0)
+on 2026-09-05. Ryan changed the release policy to production-only on 2026-10-02.
+An explicit request to cut a release authorizes its production publication.
+The manual `play-promote` workflow is only for an existing uploaded versionCode
+or a production rollout adjustment. It targets production, carries forward the
+source notes and clears active phone testing releases without rebuilding.
+If promotion is refused, the edit stays uncommitted and the publisher prints
+the Console-side checklist. See `apps/mobile/store/play-readiness.md` #6b.
 
 Never publish the `direct` APK to Play: it carries two things the `play` flavor
 deliberately omits: the in-app updater with `REQUEST_INSTALL_PACKAGES`, which Play
@@ -105,7 +96,8 @@ Recommended steps:
 7. Watch the workflow: `gh run watch <id> --exit-status` (find it via
    `gh run list --workflow=release.yml --limit 1`). Confirm the release published
    with the APK asset (`gh release view vX.Y.Z`), then check the "Release to Google
-   Play" step logged the versionCode against both `internal` and `alpha`. A failure
+   Play" step logged the versionCode against `production`, then run `play-check`
+   to verify production holds it and phone testing tracks have no active releases. A failure
    in the earlier "Pre-flight Play release" step means the versionCode collides
    with one Play already has: the step's output names the
    `PLAY_VERSION_CODE_OFFSET` value to set, after which re-run the workflow.

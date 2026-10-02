@@ -1,8 +1,7 @@
 /**
- * Unit tests for the pure parts of the Play publisher. The API calls are not
- * covered here (they need a live Play edit); what is covered is everything that
- * silently corrupts a release if it's wrong — note truncation against Play's
- * 500-character cap, and the versionCode comparison the CI pre-flight gates on.
+ * Pure policy and mock-API request tests for the Play publisher. Cover release
+ * notes, version-code checks and atomic production publication plus testing-track
+ * retirement. Live Play availability still needs separate verification.
  */
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
@@ -378,6 +377,7 @@ describe('publish request sequence', () => {
       existingTracks?: unknown[]
       existingListing?: unknown
       trackWriteFails?: string
+      trackWriteFailsOn?: string
     } = {}
   ): Promise<{ calls: Call[]; stdout: string; stderr: string; code: number | null }> {
     const http = await import('node:http')
@@ -406,7 +406,8 @@ describe('publish request sequence', () => {
         if (path.endsWith('/token')) return json({ access_token: 'test-token' })
         if (path.endsWith('/bundles?uploadType=media')) return json({ versionCode: 40 })
         if (path.endsWith('/tracks') && req.method === 'GET') return json({ tracks: opts.existingTracks ?? [] })
-        if (opts.trackWriteFails && path.includes('/tracks/') && req.method === 'PUT') {
+        if (opts.trackWriteFails && path.includes('/tracks/') && req.method === 'PUT' &&
+            (!opts.trackWriteFailsOn || path.endsWith(`/tracks/${opts.trackWriteFailsOn}`))) {
           return json({ error: { code: 400, message: 'Precondition check failed.', status: opts.trackWriteFails } }, 400)
         }
         if (path.includes(`/${'phoneScreenshots'}`)) {
@@ -606,6 +607,67 @@ describe('publish request sequence', () => {
     assert.equal(body.releases[0].status, 'completed')
     assert.equal(body.releases[0].releaseNotes[0].text, 'Alarms survive a reboot')
     assert.ok(calls.some((c) => c.path.includes(':commit')))
+  })
+
+  it('production-only promotion retires phone testing releases in the same edit without re-uploading', async () => {
+    const { calls, code, stdout } = await runPublish(
+      ['--promote', '--version-code', '49', '--tracks', 'production', '--production-only'],
+      { existingTracks: [
+        { track: 'production', releases: [{ versionCodes: ['47'] }] },
+        { track: 'internal', releases: [{ name: '0.25.0', versionCodes: ['49'], releaseNotes: [{ language: 'en-US', text: 'Quiet calls' }] }] },
+        { track: 'alpha', releases: [{ versionCodes: ['49'] }] },
+        { track: 'beta', releases: [] },
+        { track: 'wear:production', releases: [{ versionCodes: ['48'] }] }
+      ] }
+    )
+    assert.equal(code, 0, stdout)
+    assert.equal(calls.filter((call) => call.path.includes('/bundles')).length, 0)
+    const writes = calls.filter((call) => call.method === 'PUT')
+    assert.deepEqual(writes.map((call) => call.path.split('/tracks/')[1]), ['production', 'internal', 'alpha'])
+    const production = JSON.parse(writes[0].body)
+    assert.deepEqual(production.releases[0].versionCodes, ['49'])
+    assert.equal(production.releases[0].releaseNotes[0].text, 'Quiet calls')
+    for (const write of writes.slice(1)) assert.deepEqual(JSON.parse(write.body).releases, [])
+    const commits = calls.filter((call) => call.path.includes(':commit'))
+    assert.equal(commits.length, 1)
+    assert.ok(calls.indexOf(writes.at(-1)!) < calls.indexOf(commits[0]))
+  })
+
+  it('production-only upload retires active testing tracks while keeping production as the sole destination', async () => {
+    const { calls, code, stdout } = await runPublish(
+      ['--aab', '{aab}', '--version-name', '0.25.0', '--tracks', 'production', '--production-only'],
+      { existingTracks: [
+        { track: 'production', releases: [{ versionCodes: ['40'] }] },
+        { track: 'old-closed-test', releases: [{ versionCodes: ['39'] }] }
+      ] }
+    )
+    assert.equal(code, 0, stdout)
+    assert.equal(calls.filter((call) => call.path.includes('/bundles')).length, 1)
+    const writes = calls.filter((call) => call.method === 'PUT')
+    assert.deepEqual(writes.map((call) => call.path.split('/tracks/')[1]), ['production', 'old-closed-test'])
+    assert.deepEqual(JSON.parse(writes[1].body).releases, [])
+    assert.equal(calls.filter((call) => call.path.includes(':commit')).length, 1)
+  })
+
+  it('a testing-track retirement failure never commits a partial production transition', async () => {
+    const { calls, code, stderr } = await runPublish(
+      ['--promote', '--version-code', '49', '--tracks', 'production', '--production-only'],
+      { existingTracks: [{ track: 'alpha', releases: [{ versionCodes: ['49'] }] }],
+        trackWriteFails: 'FAILED_PRECONDITION', trackWriteFailsOn: 'alpha' }
+    )
+    assert.equal(code, 1)
+    assert.match(stderr, /tracks\/alpha failed/)
+    assert.ok(calls.some((call) => call.method === 'PUT' && call.path.endsWith('/tracks/production')))
+    assert.equal(calls.filter((call) => call.path.includes(':commit')).length, 0)
+  })
+
+  it('production-only rejects a testing destination before authenticating or writing', async () => {
+    const { calls, code, stderr } = await runPublish(
+      ['--promote', '--version-code', '49', '--tracks', 'alpha', '--production-only']
+    )
+    assert.equal(code, 1)
+    assert.match(stderr, /requires --tracks production/)
+    assert.equal(calls.length, 0)
   })
 
   it('--promote with --rollout starts a staged release instead of a full one', async () => {

@@ -3,11 +3,9 @@
  * Publish one AAB to one or more Google Play tracks, and pre-flight the things
  * that otherwise only fail after a full CI build.
  *
- * Why this exists rather than an off-the-shelf publish action: a release must
- * land on `internal` **and** `alpha` with the *same* build, and Play rejects a
- * second upload of a versionCode it already has. So both tracks have to be
- * assigned inside a single edit — upload once, attach that versionCode to every
- * track, commit once. Two sequential single-track uploads cannot do that.
+ * Releases target production only. Uploads and promotion of an existing build
+ * use one Play edit so production publication and retirement of phone testing
+ * releases commit together. Play rejects a second upload of a known versionCode.
  *
  * Auth is a Play Developer service account: PLAY_SERVICE_ACCOUNT_JSON holds the
  * key file's contents verbatim (not base64), matching the GitHub secret. No
@@ -44,20 +42,24 @@
  *                   release. Needs --version-code, --tracks and --notes <file>.
  *                   For when the generated notes turn out to be wrong after they
  *                   are already public.
+ *   --production-only Require production as the sole destination and clear active
+ *                   phone testing releases in the same edit. Use with upload or
+ *                   --promote; other form-factor tracks are left unchanged.
  *   (default)       Upload --aab and release it to --tracks.
  *
  * Usage:
  *   node scripts/play-publish.mjs --check --version-code 40
  *   node scripts/play-publish.mjs --listing store/listing.md [--check] [--no-screenshots]
- *   node scripts/play-publish.mjs --aab app.aab --tracks internal,alpha \
+ *   node scripts/play-publish.mjs --aab app.aab --tracks production --production-only \
  *     --version-name 0.17.0 --notes RELEASE_NOTES.md [--status completed|draft]
  *   node scripts/play-publish.mjs --promote --version-code 45 --tracks production \
- *     [--from alpha] [--rollout 0.2]
+ *     [--production-only] [--rollout 0.2]
  *   node scripts/play-publish.mjs --set-notes --version-code 46 \
- *     --tracks internal,alpha --notes RELEASE_NOTES.md
+ *     --tracks production --notes RELEASE_NOTES.md
  */
 import { readFileSync, readdirSync } from 'node:fs'
 import { createSign } from 'node:crypto'
+import { retirePhoneTestingTracks } from './play-tracks.mjs'
 
 // PLAY_API_BASE is a test seam: play-publish.test.ts points it at a local mock
 // to assert the request sequence (one edit, one upload, every track). Never set
@@ -512,6 +514,17 @@ async function playFetch(token, path, { method = 'GET', body, raw, rawType, tole
 
 const editsPath = (pkg, editId = '') => `/androidpublisher/v3/applications/${pkg}/edits${editId ? `/${editId}` : ''}`
 
+/** Clear active phone testing releases, logging each update before the caller commits. */
+async function retireTestingTracks(token, packageName, editId, current) {
+  await retirePhoneTestingTracks(current, async (body) => {
+    await playFetch(token, `${editsPath(packageName, editId)}/tracks/${encodeURIComponent(body.track)}`, {
+      method: 'PUT',
+      body
+    })
+    console.log(`[play-publish] track ${body.track} <- no active releases`)
+  })
+}
+
 /**
  * Commit an edit, retrying without review submission if Play insists.
  *
@@ -544,6 +557,13 @@ async function main() {
   const versionName = args['version-name']
   const status = args.status || 'completed'
   const rollout = args.rollout === undefined ? null : Number(args.rollout)
+  const productionOnly = Boolean(args['production-only'])
+  if (productionOnly && (!publishing && !promoteMode)) {
+    fail('--production-only needs an upload or --promote.')
+  }
+  if (productionOnly && (tracks.length !== 1 || tracks[0] !== 'production')) {
+    fail('--production-only requires --tracks production as the sole destination.')
+  }
   if (testersMode && !tracks.length) {
     fail('--testers needs --tracks <alpha[,beta,...]>: testers are per closed/open track.')
   }
@@ -787,7 +807,7 @@ async function main() {
       await playFetch(token, editsPath(packageName, edit.id), { method: 'DELETE' })
       fail(
         `versionCode ${versionCode} is not on any track, so there is nothing to promote.\n` +
-          'Release it to a testing track first (the release workflow does internal + alpha).'
+          'Upload the build through the release workflow first.'
       )
     }
     const blocker = promotionBlocker(current, versionCode, target)
@@ -819,6 +839,7 @@ async function main() {
       await playFetch(token, editsPath(packageName, edit.id), { method: 'DELETE', bestEffort: true })
       fail(trackPreconditionHelp(target, 'FAILED_PRECONDITION'))
     }
+    if (productionOnly) await retireTestingTracks(token, packageName, edit.id, current)
     await commitEdit(token, packageName, edit.id)
 
     const reach = rollout === null ? 'all users' : `${(rollout * 100).toFixed(0)}% of users`
@@ -872,8 +893,7 @@ async function main() {
   const versionCode = uploaded.versionCode
   console.log(`[play-publish] uploaded ${aab} (${(bundle.length / 1e6).toFixed(1)} MB) as versionCode ${versionCode}`)
 
-  // Same versionCode onto every track, inside this one edit — the whole reason
-  // this script exists instead of one upload action per track.
+  // All release changes stay inside this edit until every track update succeeds.
   for (const track of tracks) {
     await playFetch(token, `${editsPath(packageName, edit.id)}/tracks/${track}`, {
       method: 'PUT',
@@ -892,6 +912,10 @@ async function main() {
     console.log(`[play-publish] track ${track} <- versionCode ${versionCode} (${status})`)
   }
 
+  if (productionOnly) {
+    const { tracks: current } = await playFetch(token, `${editsPath(packageName, edit.id)}/tracks`)
+    await retireTestingTracks(token, packageName, edit.id, current)
+  }
   await commitEdit(token, packageName, edit.id)
 
   console.log(`[play-publish] committed. ${versionName} (versionCode ${versionCode}) -> ${tracks.join(', ')}`)

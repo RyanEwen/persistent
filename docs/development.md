@@ -191,18 +191,14 @@ the commits since the previous tag, and ships each to its channel:
 
 - **`direct` APK → GitHub Release.** The app checks GitHub on launch (and from
   Settings → About) and offers an in-app download/install of a newer APK.
-- **`play` AAB → Google Play**, released to the **`internal` and `alpha`** tracks
-  from one upload, reusing the same notes truncated to Play's 500-character limit.
-  Skipped unless the `PLAY_SERVICE_ACCOUNT_JSON` secret is set, so tagging behaves
-  identically on forks. A pre-flight runs before the Android build and fails fast
-  on a `versionCode` that Play already has. Publishing internals are in
-  `apps/mobile/scripts/play-publish.mjs`; Console setup is in
-  `apps/mobile/store/play-readiness.md` §6b.
-- **Reaching `beta` or `production`** is never part of a tag. It is the manual
-  `play-promote` workflow, which moves a versionCode already on Play onto another
-  track with no rebuild and no re-upload, so what ships is byte-for-byte what was
-  tested. It can stage the rollout to a fraction of users, and it refuses both a
-  code that is on no track and one older than the destination already serves.
+- **`play` AAB to Google Play production.** Tags and manual releases publish only
+  to production, reusing the same notes truncated to Play's 500-character limit.
+  Active phone testing releases are cleared in the same Play edit. Uploads are
+  skipped unless `PLAY_SERVICE_ACCOUNT_JSON` is set. Pre-flight checks reject a
+  reused versionCode before building; see `apps/mobile/store/play-readiness.md`.
+- **Existing uploads:** the manual `play-promote` workflow moves an uploaded
+  versionCode to production without rebuilding and retires phone testing releases.
+  It can also adjust a production rollout and refuses a downgrade.
 
 Because the app loads the UI from production, web-only changes ship via a deploy
 with no new build — cut a release only for native changes (alarm/update/passkey/
@@ -214,7 +210,7 @@ Google plugins, manifest, icon).
 - `$deploy`: `$commit`, then push and deploy through SSH and Docker.
 - `$release`: derive the next version from changes since the last release, tag,
   and let CI build both flavors: the signed APK onto a GitHub Release and the
-  AAB onto Google Play's `internal` + `alpha` tracks.
+  AAB onto Google Play production.
 - `$audit-docs`: resync all docs and project guidance with the code.
 - `$verify`: observe web behavior or run the appropriate Android/desktop check.
 - `$desktop`: build, verify or install the working tree through the shared Windows bridge.

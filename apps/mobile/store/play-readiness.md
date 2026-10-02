@@ -332,17 +332,18 @@ Note `SCHEDULE_EXACT_ALARM` and `USE_EXACT_ALARM` are declared together — chec
 whether both are actually needed at your min/target SDK, since each extra
 restricted permission is another thing review can object to.
 
-## 6b. Automated publishing ✅ LIVE (internal + alpha)
+## 6b. Automated publishing ✅ LIVE (production only)
 
 `.github/workflows/release.yml` releases the AAB to Google Play on every `v*` tag,
 using the same release notes as the GitHub Release truncated to Play's
 500-character limit. The one-time setup below is done and
 `PLAY_SERVICE_ACCOUNT_JSON` is set, so tags publish without a Console visit.
 
-**A tag goes to `internal` *and* `alpha`** — one build, one versionCode, both
-tracks. Promotion to beta/production stays a deliberate, separate decision: a tag
-publishes something so it can be tested, and judging it good enough for everyone
-happens later and by a person.
+**A tag goes directly to production.** Production is the only release destination
+for tags and manual runs. Active phone testing releases are retired in the same
+Play edit. Existing uploads use the manual `play-promote` recovery workflow, with
+no rebuild or duplicate upload. Built-in testing tracks can remain listed by Play
+but have no active releases.
 
 **Production is open, and versionCode 47 (v0.23.0) is the first release on it** (from
 alpha, full rollout, 2026-09-05).
@@ -367,25 +368,16 @@ release would go to. None of it is waivable or diagnosable from the API, which i
 through. Leave it printing: if the write is ever refused again it is the only clue
 the caller gets.
 
-That promotion runs through `.github/workflows/play-promote.yml`
-(`workflow_dispatch`, never on a tag), which calls `play-publish.mjs --promote`.
-It uploads nothing, because the build is already on Play and a second upload of a
-known versionCode is rejected outright; it copies the release onto the destination
-track, carrying the source track's name and "what's new" so production shows the
-notes the testers saw rather than a placeholder. `--rollout 0.2` starts a staged
-rollout instead of releasing to everyone at once. It refuses two things Play
-itself accepts silently: a versionCode that is on no track at all, and one lower
-than the destination already serves, which would un-ship the newer build with no
-error to notice.
+The manual `.github/workflows/play-promote.yml` recovery workflow calls
+`play-publish.mjs --promote --tracks production --production-only`. It copies the
+existing build and notes to production and clears active phone testing releases
+in the same edit. `--rollout 0.2` starts a staged production rollout. It refuses a
+versionCode not present on Play and a downgrade below the destination's current
+version. Normal tags already publish directly to production.
 
-That "both tracks" requirement is why publishing is a script
-(`apps/mobile/scripts/play-publish.mjs`) rather than an off-the-shelf upload
-action: **Play rejects a second upload of a versionCode it already has**, so two
-sequential single-track uploads cannot put one build on two tracks. The script
-creates a single Play edit, uploads once, attaches that versionCode to every
-requested track, and commits once. It is dependency-free (Node 20 fetch + RS256
-signing), and its request sequence is covered by `play-publish.test.ts` against a
-mock Play API.
+The dependency-free publisher uses Node 20 fetch and RS256 signing. One edit
+contains all release changes and commits only after every write succeeds. Mock
+API tests cover the upload, promotion and testing-track retirement sequences.
 
 **Pre-flight.** Before the Android build, CI runs
 `node scripts/play-publish.mjs --check --version-code <n>`, which authenticates,
@@ -406,11 +398,9 @@ gh variable set PLAY_VERSION_CODE_OFFSET --body "100"
 
 Raise it only — lowering it re-burns codes Play has already seen.
 
-**Ad-hoc runs.** `workflow_dispatch` takes an existing tag plus `play_tracks`
-(`internal,alpha` default, or a single track) and `play_status` (`completed` /
-`draft`). It builds *the named tag*, not the branch it was dispatched from. Note it
-is a fresh build, so it gets a new versionCode — it is not a promotion of the
-build already on internal.
+**Ad-hoc runs.** `workflow_dispatch` takes an existing tag and `play_status`
+(`completed` or `draft`). Production is fixed. It builds the named tag, receives a
+new versionCode and retires phone testing releases in the same edit.
 
 **Setup that was done (for reference, or a second app):**
 
@@ -519,15 +509,15 @@ GitHub, and never reuse one.
 5. ~~Capture screenshots~~ ✅ (`graphics/screenshots/`)
 6. ~~Raise targetSdk to 35 + handle edge-to-edge~~ ✅
 7. ~~Reviewer sign-in credentials~~ ✅
-8. ~~Automated Play publishing in CI~~ ✅ live, internal + alpha (#6b)
+8. ~~Automated Play publishing in CI~~ ✅ live, production only (#6b)
 9. ~~Verify the alarm UI on an Android 15+ device~~ ✅ (Pixel 9 Pro, Android 15 — see #2)
 10. ~~Create the app, upload one AAB manually, add `PLAY_SERVICE_ACCOUNT_JSON`~~ ✅ (#6b)
 11. ~~Decide Play App Signing~~ ✅ enrolled (#6), with the passkey consequence handled
 12. ~~Play Console paperwork: restricted-permission declarations (#5), Data Safety, App access and the deletion URL (`listing.md`), then submit~~ ✅
 13. ~~First production release~~ ✅ versionCode 47 (v0.23.0), promoted from alpha at full rollout on 2026-09-05 (#6b)
 
-**The app is public.** A tag still reaches internal and alpha only; production is
-the manual `play-promote` step, deliberately.
+**The app is public.** Tags publish straight to production and retire phone
+testing releases. `play-promote` is an existing-upload recovery and rollout tool.
 
 Two things carried into the production release rather than blocking it, both fixed
 server-side on 2026-09-05 and neither needing a rebuild: `assetlinks.json` gained the
