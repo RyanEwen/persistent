@@ -1,0 +1,15 @@
+{
+  "project": "apps/desktop/Persistent.Desktop/Persistent.Desktop.csproj",
+  "package_script": "apps/desktop/Persistent.DesktopMSIX/build-msix.ps1",
+  "package_output": "apps/desktop/Persistent.DesktopMSIX",
+  "certificate": ".windows-build/signing.pfx",
+  "source_directory": "apps/desktop",
+  "version_file": "apps/desktop/Directory.Build.props",
+  "dev_identity": "Persistent.Desktop",
+  "supports_configuration": false,
+  "unsigned_switch": "-Store",
+  "prepare_script": "apps/desktop/Persistent.DesktopMSIX/generate-msix-images.ps1",
+  "signing": "shared-dev",
+  "certificate_switch": "-CertPath",
+  "password_switch": "-CertPassword"
+}

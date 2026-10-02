@@ -591,11 +591,11 @@ sitting in the Action Center back to this app.
 The development container is Linux and **cannot build or run any of this**; there is no
 .NET or Windows SDK, and `npm run validate` does not cover C#. The CI workflow
 `.github/workflows/build-desktop-msix.yml` compiles both platforms on
-`windows-2025` for every push/PR touching `apps/desktop`, which is the only
-automatic check that exists — treat a red run there the way you would a failed
+`windows-2025` for every push/PR touching `apps/desktop`, which checks both architectures automatically — treat a red run there the way you would a failed
 `npm run validate`.
 
-- Dev: `dotnet build Persistent.Desktop/Persistent.Desktop.csproj -c Debug`
+- Local WSL workflow: `npm run verify:desktop`, `npm run build:desktop` and
+  `npm run install:desktop`. See [the common desktop guide](../.codex/docs/windows-development.md).
 - Icons: `.\Persistent.DesktopMSIX\generate-msix-images.ps1` (renders the same
   bell mark as `apps/web/public/favicon.svg`; keep the two in step)
 **Start at sign-in works in the portable build**, via the unpackaged fallback in
@@ -619,7 +619,8 @@ copy you last opened is the one that starts at sign-in.
   Store.** The two packages are not interchangeable: the Store wants an *unsigned*
   one carrying the real Partner Center identity (`build-msix.ps1 -Upload`, driven
   by `store-publish.yml`), while `build-msix.ps1` without `-Store` rewrites the
-  identity and signs with a self-signed `CN=Persistent Dev` certificate. A release
+  identity and signs with a local development certificate. The shared WSL workflow
+  supplies the same preserved signer used by the other Windows apps. A release
   used to attach that second one, which asked anyone downloading it to trust a
   certificate off the internet and was not the Store package either, so it served
   neither audience. Nothing builds a sideload MSIX in CI now; `npm run
@@ -659,8 +660,8 @@ copy you last opened is the one that starts at sign-in.
   so it returned "no update" to every Android client until the next app release.
   `UpdateService` is unaffected either way, but don't drop the pin to "simplify".
 
-MSIX refuses to reinstall the same version with different content, so bump
-`<Version>` for every packaged build.
+MSIX requires a new version for changed content. The shared WSL helper allocates
+a staging-only dev revision; bump the tracked version for releases only.
 
 ## The Microsoft Store
 

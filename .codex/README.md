@@ -11,3 +11,7 @@ Codex requires review whenever a non-managed hook definition changes. Open
 its current hash before relying on it. The project `.codex/` layer must also be
 trusted. This guardrail complements the normal tests and generated-project
 workflow; it does not replace them.
+
+Windows desktop task guides live in `commands/`. Read
+[the desktop workflow](docs/windows-development.md) for the shared build bridge
+and root npm commands; these Markdown guides are not registered slash commands.

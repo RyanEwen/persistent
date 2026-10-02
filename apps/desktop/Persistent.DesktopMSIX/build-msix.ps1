@@ -48,7 +48,7 @@ $rid = if ($Platform -eq 'ARM64') { 'win-arm64' } else { 'win-x64' }
 $version = ($props.Project.PropertyGroup | Where-Object { $_.Version } | Select-Object -First 1).Version
 if (-not $version) { throw 'Could not read <Version> from Directory.Build.props' }
 # MSIX needs 4 parts and the Store requires the revision to be 0.
-$manifestVersion = "$version.0"
+$manifestVersion = if ($version -match '^\d+\.\d+\.\d+$') { "$version.0" } else { $version }
 Write-Host "Version $version (manifest $manifestVersion), platform $Platform"
 
 if (-not (Test-Path $imagesDir)) {

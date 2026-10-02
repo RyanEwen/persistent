@@ -135,3 +135,13 @@ See `docs/auth-architecture.md` and `apps/api/AGENTS.md`.
   `data-event-contract.md`, `alarm-architecture.md`,
   `notification-behavior.md`, and `desktop-architecture.md`. Read the relevant
   contract before related work.
+
+## Windows desktop workflow
+
+Source is authoritative in WSL. Read `.codex/docs/windows-development.md` and use
+`npm run build:desktop`, `npm run verify:desktop`, `npm run install:desktop`, and
+`npm run package:desktop` from the repository root. The common bridge builds in
+a disposable C: Windows TEMP directory and cleans it after use. Never use a D:
+checkout or build directly against WSL source with Windows tools. Dev install
+versions change only in the temporary copy; never uninstall to bypass an update
+error. Store releases keep their existing project-specific release workflow.

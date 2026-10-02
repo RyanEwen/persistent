@@ -13,6 +13,10 @@ services:
     environment:
       HOME: /tmp/devkit-home
       NODE_ENV: development
+      WINDOWS_BUILD_TOOLS: /opt/windows-build-tools
+      WINDOWS_BUILD_HOST: ${PERSISTENT_WINDOWS_HOST:-laptop}
+      WINDOWS_BUILD_REPO: ${PWD:?host WSL checkout path is required}
+      WINDOWS_BUILD_HOST_TOOLS: ${HOME}/development/windows-build-tools
       DATABASE_URL: ${DATABASE_URL:?database URL is required}
       API_PORT: ${API_PORT:?api port is required}
       CLIENT_ORIGIN: ${CLIENT_ORIGIN:?client origin is required}
@@ -25,6 +29,7 @@ services:
       - "[::1]:${DEVKIT_WEB_PORT:?web port is required}:${VITE_DEV_PORT:?vite port is required}"
     volumes:
       - .:/workspace
+      - ${HOME}/development/windows-build-tools:/opt/windows-build-tools:ro
       - android-home:/tmp/devkit-home/.android
     depends_on:
       database:

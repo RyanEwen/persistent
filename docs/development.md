@@ -84,26 +84,19 @@ workflow. The repository-local Codex hook rejects patches to generated files
 and to `apps/mobile/android/`; change the tracked native overlay or setup script
 and regenerate instead.
 
-It doesn't cover `apps/desktop` (C#) either, and the app can't be *built* here:
-the Windows App SDK's XAML compiler and `MakePri.exe` are Windows-only binaries,
-so the build dies before it reaches any C#. `.github/workflows/build-desktop-msix.yml`
-compiles both platforms on `windows-2025` for every push/PR touching that
-directory; treat a red run there as a failed validate.
+`validate` does not cover the Windows desktop app either. From WSL,
+`npm run verify:desktop` uses the shared build bridge for a full Windows Debug
+compile, including XAML. `npm run build:desktop` builds a signed dev MSIX and
+`npm run install:desktop` updates it in place and launches it in the signed-in
+Windows session. Builds use a disposable C: TEMP copy of the working tree;
+tracked release versions stay unchanged. Read
+[the desktop workflow](../.codex/docs/windows-development.md) for prerequisites,
+container delegation and package reuse. CI still compiles both architectures.
 
-Compiling is not the same as working, though, and for this app the gap is where
-the bugs live: a missing `resources.pri`, a 3px window frame and a package whose
-compiled XAML was never copied all passed CI and were only ever found by running
-it. So **`npm run install:desktop` is the real check**: from WSL it syncs through
-the mounted Windows drive and runs PowerShell directly; from the Devkit container
-it syncs over SSH. Both build a dev-signed MSIX and install it
-into the logged-on session. The working tree rather than a commit, deliberately, so
-a desktop change is tried before it is committed. See `apps/desktop/AGENTS.md`.
-
-The image does ship the .NET SDK, so `npm run verify:desktop` compiles the
-**non-XAML** C# against the real Windows App SDK reference assemblies. Run it
-before pushing desktop changes: it catches a misremembered WinRT API in seconds
-instead of a CI round-trip. It checks no XAML, no `.xaml.cs` and no packaging, so
-green there is necessary and never sufficient. See `docs/desktop-architecture.md`.
+Compilation does not establish startup, packaging or UI behavior. Before committing
+packaging or desktop runtime changes, install the working tree and check the changed
+behavior. `npm run verify:desktop:csharp` retains the additional Linux non-XAML
+compile check; it excludes generated XAML code and packaging.
 
 Local auth works without mail infra: `DEMO_MODE=true` returns the sign-in code in
 the API response instead of emailing it. Config lives in `.env` (see
@@ -224,6 +217,7 @@ Google plugins, manifest, icon).
   AAB onto Google Play's `internal` + `alpha` tracks.
 - `$audit-docs`: resync all docs and project guidance with the code.
 - `$verify`: observe web behavior or run the appropriate Android/desktop check.
+- `$desktop`: build, verify or install the working tree through the shared Windows bridge.
 
 ## Docs
 

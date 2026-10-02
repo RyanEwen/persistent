@@ -33,8 +33,8 @@
     "test": "node scripts/dev/run-tests.mjs",
     "typecheck": "npm run typecheck --workspace @persistent/shared && npm run build --workspace @persistent/shared && npm run typecheck --workspace @persistent/api && npm run typecheck --workspace @persistent/web",
     "validate": "npm run lint && npm run test && npm run typecheck && npm run prisma:validate --workspace @persistent/api",
-    "verify:desktop": "apps/desktop/verify-csharp.sh",
-    "install:desktop": "apps/desktop/install-dev-msix.sh",
+    "verify:desktop": "scripts/windows-build --build-only --configuration Debug",
+    "install:desktop": "scripts/windows-build --install",
     "android:build": "scripts/dev/android-debug-build.sh",
     "android:connect": "scripts/dev/adb-connect.sh",
     "android:discover": "python3 scripts/dev/adb-discover.py",
@@ -45,7 +45,10 @@
     "android:pair": "adb pair",
     "android:prepare": "npm --prefix apps/mobile run prepare:android",
     "android:test-device": "scripts/dev/android-device-test.sh",
-    "android:verify": "npm --prefix apps/mobile run verify:android"
+    "android:verify": "npm --prefix apps/mobile run verify:android",
+    "verify:desktop:csharp": "apps/desktop/verify-csharp.sh",
+    "build:desktop": "scripts/windows-build --dev",
+    "package:desktop": "scripts/windows-build --no-sign"
   },
   "devDependencies": {
     "@eslint/js": "^9.24.0",

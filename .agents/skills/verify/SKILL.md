@@ -42,7 +42,9 @@ and exercised. Wireless ADB support is documented by
 
 ## Windows desktop
 
-Run `npm run verify:desktop` for the non-XAML C# compile check. It does not test
-XAML, code-behind, packaging, or startup. The meaningful end-to-end check is
+Run `npm run verify:desktop` from WSL for the full Windows Debug compile, including
+XAML and code-behind. `npm run verify:desktop:csharp` retains the additional Linux
+non-XAML compile check. Neither establishes startup or runtime behavior. Read
+`.codex/docs/windows-development.md`. The meaningful end-to-end check is
 `npm run install:desktop`, which builds and installs the working tree on the
 configured Windows machine. Report which level was actually observed.
