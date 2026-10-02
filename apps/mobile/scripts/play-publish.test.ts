@@ -627,7 +627,7 @@ describe('publish request sequence', () => {
     const production = JSON.parse(writes[0].body)
     assert.deepEqual(production.releases[0].versionCodes, ['49'])
     assert.equal(production.releases[0].releaseNotes[0].text, 'Quiet calls')
-    for (const write of writes.slice(1)) assert.deepEqual(JSON.parse(write.body).releases, [])
+    for (const write of writes.slice(1)) assert.deepEqual(JSON.parse(write.body).releases, [{ status: 'completed', versionCodes: [] }])
     const commits = calls.filter((call) => call.path.includes(':commit'))
     assert.equal(commits.length, 1)
     assert.ok(calls.indexOf(writes.at(-1)!) < calls.indexOf(commits[0]))
@@ -645,7 +645,7 @@ describe('publish request sequence', () => {
     assert.equal(calls.filter((call) => call.path.includes('/bundles')).length, 1)
     const writes = calls.filter((call) => call.method === 'PUT')
     assert.deepEqual(writes.map((call) => call.path.split('/tracks/')[1]), ['production', 'old-closed-test'])
-    assert.deepEqual(JSON.parse(writes[1].body).releases, [])
+    assert.deepEqual(JSON.parse(writes[1].body).releases, [{ status: 'completed', versionCodes: [] }])
     assert.equal(calls.filter((call) => call.path.includes(':commit')).length, 1)
   })
 
