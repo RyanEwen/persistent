@@ -144,8 +144,11 @@
   drives the on-device alarm plugin: schedules alarms from `/api/sync/occurrences`,
   re-syncs live on WS events, and exposes `pickSound`. Guard every call behind
   `isNative()`; it's a no-op on the web. Started from `useAuth` after sign-in. The
-  same folder holds the GitHub update check (`useUpdate`/`UpdateCheck`/
-  `UpdateSettings`), which installs newer APKs via the native `Update` plugin.
+  same folder holds `DirectBuildMigrationNotice` and `UpdateSettings`, which
+  detect legacy direct builds with `hasNativeUpdater()` and explain why the
+  new APK installs separately. Offer GitHub APK downloads and Google Play as
+  equal choices; the Store is optional. GitHub now distributes the verified Google-signed Play APK;
+  never offer it through the legacy direct build's incompatible updater.
 - **Host messages (desktop) get an explicit switch**, never a fall-through
   (`native/useNativeBack.ts`). The handler once ended in "anything else means
   Back", and Back from the root screen closes the flyout. The first new message

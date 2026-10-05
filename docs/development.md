@@ -190,16 +190,22 @@ value in the server's `.env` → redeploy.
 ## Releases & updates
 
 Pushing a `vX.Y.Z` tag runs `.github/workflows/release.yml`, which builds the web
-bundle, assembles **both signed Android flavors**, generates changelog notes from
-the commits since the previous tag, and ships each to its channel:
+bundle, builds the signed Play AAB, generates changelog notes from the commits
+since the previous tag, and ships one Android identity through both channels:
 
-- **`direct` APK → GitHub Release.** The app checks GitHub on launch (and from
-  Settings → About) and offers an in-app download/install of a newer APK.
-- **`play` AAB to Google Play production.** Tags and manual releases publish only
-  to production, reusing the same notes truncated to Play's 500-character limit.
-  Active phone testing releases are cleared in the same Play edit. Uploads are
-  skipped unless `PLAY_SERVICE_ACCOUNT_JSON` is set. Pre-flight checks reject a
-  reused versionCode before building; see `apps/mobile/store/play-readiness.md`.
+- **Play AAB to Google Play production.** Requires `PLAY_SERVICE_ACCOUNT_JSON`.
+  Active phone testing releases are cleared in the same edit. Pre-flight rejects
+  reused versionCodes before building; see `apps/mobile/store/play-readiness.md`.
+- **Google-signed Play APK to GitHub Release.** After Play generates a universal
+  APK, CI downloads it and verifies its package, version and registered Play
+  signing certificate before publishing `persistent-X.Y.Z-play.apk`. There is
+  no direct-APK fallback. Users can update through Google Play or manually install
+  newer GitHub APKs; using the Store is optional.
+- **Legacy direct installs:** a one-time opening notice and Settings guidance
+  explain why the new APK installs separately and the loss of Android Auto.
+  Both GitHub downloads and Google Play are offered as equal options. The old updater
+  endpoint returns `null` to prevent incompatible install offers. Existing saved
+  reminders are available after signing into the same account.
 - **Existing uploads:** the manual `play-promote` workflow moves an uploaded
   versionCode to production without rebuilding and retires phone testing releases.
   It can also adjust a production rollout and refuses a downgrade.
@@ -213,8 +219,8 @@ Google plugins, manifest, icon).
 - `$commit`: review (docs, data isolation, and logging), validate, and commit.
 - `$deploy`: `$commit`, then push and deploy through SSH and Docker.
 - `$release`: derive the next version from changes since the last release, tag,
-  and let CI build both flavors: the signed APK onto a GitHub Release and the
-  AAB onto Google Play production.
+  and let CI publish the AAB to Google Play production and the verified
+  Google-signed universal APK to GitHub.
 - `$audit-docs`: resync all docs and project guidance with the code.
 - `$verify`: observe web behavior or run the appropriate Android/desktop check.
 - `$desktop`: build, verify or install the working tree through the shared Windows bridge.

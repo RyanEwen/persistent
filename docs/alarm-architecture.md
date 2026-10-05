@@ -588,6 +588,11 @@ for what is happening**, the **car screen is for everything else**.
 
 ### The car screen (`direct` flavor only)
 
+Current Play and GitHub APKs use the Play flavor and have no Android Auto surface.
+The direct flavor remains for legacy installs and local development. The hosted
+migration notice explains this loss alongside both supported download choices.
+
+
 `ReminderCarAppService` is a templated AA app showing the whole on-device set, so the
 backlog that connecting no longer announces is still *findable* — read at the driver's
 own pace instead of pushed at them all at once.

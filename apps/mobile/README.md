@@ -201,12 +201,14 @@ desktop changes, Store listing assets, docs, and tooling do not need a new APK o
 AAB. Bundling a newer web fallback alone is not a reason to bump the version.
 
 Tagging `v*` (e.g. `git tag v0.2.0 && git push origin v0.2.0`) triggers
-`.github/workflows/release.yml`, which builds **both** flavors: the `direct` APK is
-attached to a GitHub Release, and the `play` AAB is released to Google Play on the
-**production track** (and kept as a workflow artifact regardless). The
-keystore is decoded from the `ANDROID_KEYSTORE_BASE64` secret and signed with
-`ANDROID_KEYSTORE_PASSWORD` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD`; the
-same key must be used every time or updates won't install over each other.
+`.github/workflows/release.yml`, which builds the `play` AAB and releases it to
+Google Play **production**. Once Play generates its universal APK, CI downloads
+and verifies its package, version and Google signing certificate against
+`apps/web/public/.well-known/assetlinks.json`, then attaches
+`persistent-X.Y.Z-play.apk` to the GitHub Release. Both channels now share
+`ca.dynamicsolutions.persistent` and the Play App Signing identity. CI never
+publishes a locally signed direct APK as a substitute. The upload keystore still
+signs the AAB before Google re-signs it for distribution.
 
 The Play upload targets production only and clears active phone testing releases
 in the same edit. Play rejects a second upload of a versionCode it has seen, so
@@ -214,7 +216,7 @@ in the same edit. Play rejects a second upload of a versionCode it has seen, so
 Manual release runs can hold a release as a `draft`, but cannot select tester
 tracks. They build the named tag and receive a fresh versionCode.
 
-Play upload is skipped unless the `PLAY_SERVICE_ACCOUNT_JSON` secret is set. Before
+The `PLAY_SERVICE_ACCOUNT_JSON` secret is required; a missing key fails the release. Before
 the Android build, the workflow pre-flights the release — it authenticates, prints
 every track's current versionCodes, and fails within seconds if this run's
 versionCode isn't strictly higher than everything on Play (the code is baked in at
@@ -222,25 +224,25 @@ assemble time, so finding that afterwards would waste the whole build). The fix 
 prints is the `PLAY_VERSION_CODE_OFFSET` repo variable, added to the run number.
 See [`store/play-readiness.md`](store/play-readiness.md) §6b.
 
-The app checks GitHub for a newer release on launch (and from Settings → About):
-`UpdatePlugin` downloads the APK and launches the installer. Because the UI loads
-from `server.url`, web-only changes reach devices via a prod deploy with no new
-APK. Rebuild the APK only for native changes (alarm/update plugins, manifest,
-launcher icon).
+Users can update through Google Play or manually install newer GitHub APKs.
+The app does not download APK updates itself. Because the UI loads from `server.url`, web-only
+changes reach devices via a production deploy with no new APK. Rebuild the shell
+only for native changes (alarm/plugins, manifest, launcher icon).
 
-That check reads `/api/latest-release`, which proxies GitHub's `releases/latest`
-and pulls the `.apk` asset off it. The Windows tray app tags `desktop-vX.Y.Z` into
-this same repo, so the release workflow pins `make_latest: true` (and the desktop
-one `false`) to keep that endpoint pointing at an Android release — a desktop
-release has no APK, so whenever one was newest the updater saw "no update".
+Legacy `ca.persistent.app` direct installs cannot update to the new APK: both
+package and signer differ. Their hosted UI displays a one-time migration notice
+and permanent Settings guidance. `/api/app/latest-release` remains available but
+returns `null`, so older bundled clients never offer the incompatible APK. Users
+install the new app from GitHub or Google Play, sign into the same account, verify saved reminders,
+then remove the old app to avoid duplicate alerts. The Play flavor has neither
+an in-app APK installer nor Android Auto. Retain the direct certificate in
+asset links and allowed passkey origins for existing installations.
 
-> **This self-update path cannot ship on Google Play.** Play forbids an app
-> distributed through it from updating itself by any other mechanism, and
-> `REQUEST_INSTALL_PACKAGES` is the flag review looks for. Store listing copy,
-> graphics, and the full list of blockers (this one, `targetSdk`, restricted
-> permission declarations, AAB packaging) are in [`store/`](store/) — see
-> [`store/play-readiness.md`](store/play-readiness.md) before attempting a Play
-> submission.
+The manual `replace-github-apk` workflow (`play-apk.yml`) can replace an existing
+release's direct APK with a verified Google-signed APK using its tag and existing
+Play versionCode. It uploads the replacement before deleting the direct asset,
+preserves approved release notes, and does not rebuild or re-upload the AAB.
+If no universal APK exists or certificate verification fails, publication stops.
 
 The listing is not hand-maintained in the Console: `store/listing.md` (copy) and
 `store/graphics/screenshots/` (images) are the source of truth, pushed together by
@@ -265,15 +267,15 @@ npm run bundle:play        # -> android/app/build/outputs/bundle/playRelease/app
 
 ## Product flavors (`play` | `direct`)
 
-One artifact cannot serve both channels, so the app builds in two flavors. They are
-the same app apart from two things Google Play would object to, which the sideloaded
-build keeps and the Play build does without:
+Both distribution channels now use the Play flavor. The direct flavor remains
+for legacy compatibility and local testing, including the native updater and
+Android Auto capabilities that Google Play does not allow in this app:
 
-| | `direct` (GitHub releases) | `play` (Play Store) |
+| | `direct` (legacy/local builds) | `play` (Play and GitHub) |
 | --- | --- | --- |
 | `UpdatePlugin` | compiled in, registered | absent |
 | `REQUEST_INSTALL_PACKAGES` | declared | **not** declared |
-| Updates via | in-app APK install | Google Play |
+| Updates via | retired; install the new app | Google Play or manual GitHub APKs |
 | Android Auto **car screen** (`ReminderCarAppService`) | compiled in, declared | absent |
 | Android Auto **notification** mirror | yes | **no** |
 
@@ -298,7 +300,7 @@ grep -cE 'REQUEST_INSTALL_PACKAGES|androidx.car.app|com.google.android.gms.car.a
   android/app/build/intermediates/packaged_manifests/playRelease/AndroidManifest.xml   # expect 0
 ```
 
-Because both flavors load the same hosted web UI, updater surfaces are gated at
+Because both flavors load the same hosted web UI, direct-build migration guidance is gated at
 runtime on `hasNativeUpdater()` (`Capacitor.isPluginAvailable('Update')`), not at
 build time.
 

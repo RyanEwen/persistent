@@ -1,19 +1,8 @@
 name: release
 
-# On a `v*` tag (e.g. `git tag v0.2.0 && git push origin v0.2.0`), build both
-# Android flavors and ship them to their respective channels:
-#
-#   direct -> signed APK attached to a GitHub Release. The in-app update check
-#             (apps/web/src/native/UpdateCheck.tsx) reads that release and offers
-#             the new APK.
-#   play   -> AAB released to Google Play production, and kept as a workflow
-#             artifact. Phone testing releases are retired in the same Play edit.
-#
-# Production is the only destination for tags and manual runs.
-#
-# The Play upload is skipped unless PLAY_SERVICE_ACCOUNT_JSON is set, so this runs
-# unchanged on forks. See apps/mobile/store/play-readiness.md for the Play Console
-# setup this assumes.
+# Tags build the Play AAB and publish to production. GitHub receives only the
+# universal APK generated and signed by Google Play, after identity verification.
+# PLAY_SERVICE_ACCOUNT_JSON is required; never fall back to the retired direct APK.
 
 on:
   push:
@@ -22,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Existing tag to build (e.g. v0.2.0) — the build uses that tag, not the branch'
+        description: 'Existing tag to build (e.g. v0.2.0), the build uses that tag, not the branch'
         required: true
       play_status:
         description: "Play release status ('draft' holds the release in the Console instead of publishing it)"
@@ -41,20 +30,22 @@ jobs:
       - uses: actions/checkout@v7
         with:
           # A dispatch names a tag, so build *that* tag rather than whichever
-          # branch the run was dispatched from — otherwise the artifact carries
+          # branch the run was dispatched from, otherwise the artifact carries
           # the tag's version name but the branch's code.
           ref: ${{ github.event.inputs.version || github.ref }}
           fetch-depth: 0 # full history + tags so we can build a changelog
 
       - name: Resolve version
         id: ver
+        env:
+          TAG: ${{ github.event.inputs.version || github.ref_name }}
         run: |
-          TAG="${{ github.event.inputs.version || github.ref_name }}"
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
           # versionCode must strictly increase and never repeat across everything
           # ever published, on Play or as a sideload APK. The run number does that
           # on its own; PLAY_VERSION_CODE_OFFSET is the escape hatch for when a
           # manual upload already burned a higher code (the pre-flight below prints
-          # the exact offset to set). Raise it only — lowering it re-burns codes.
+          # the exact offset to set). Raise it only, lowering it re-burns codes.
           OFFSET="${{ vars.PLAY_VERSION_CODE_OFFSET || 0 }}"
           {
             echo "tag=${TAG}"
@@ -80,21 +71,17 @@ jobs:
           node-version: 20
           cache: npm
 
-      # --- Google Play pre-flight -------------------------------------------
-      # Inert without PLAY_SERVICE_ACCOUNT_JSON, so forks and key-less runs still
-      # produce the APK. `secrets` can't be read in a step-level `if`, hence the
-      # probe step.
-      - name: Check Play publishing config
-        id: play
+      - name: Require Play publishing config
         env:
-          PLAY_SA: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
         run: |
-          if [ -n "$PLAY_SA" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-            echo "Play service account present — will publish to: ${{ steps.ver.outputs.tracks }}"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "PLAY_SERVICE_ACCOUNT_JSON not set — skipping Play upload (AAB is still a workflow artifact)."
+          if [ ! -f apps/mobile/scripts/play-apk.mjs ]; then
+            echo "::error::This tag predates Play APK export. Use replace-github-apk for an existing Play release."
+            exit 1
+          fi
+          if [ -z "$PLAY_SERVICE_ACCOUNT_JSON" ]; then
+            echo "::error::PLAY_SERVICE_ACCOUNT_JSON is required for Play-signed GitHub APKs."
+            exit 1
           fi
 
       # Runs before the Android build on purpose: versionCode is baked in at
@@ -102,7 +89,6 @@ jobs:
       # upload after a full build. Also proves the service account can reach the
       # app before anything is built.
       - name: Pre-flight Play release
-        if: steps.play.outputs.enabled == 'true'
         working-directory: apps/mobile
         env:
           PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
@@ -130,7 +116,7 @@ jobs:
       - name: Decode release keystore
         run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.keystore"
 
-      - name: Build signed APK
+      - name: Build signed Play bundle
         working-directory: apps/mobile
         env:
           ANDROID_KEYSTORE_FILE: ${{ runner.temp }}/release.keystore
@@ -150,13 +136,9 @@ jobs:
             echo "$GOOGLE_SERVICES_JSON" | base64 -d > android/app/google-services.json
             echo "wrote android/app/google-services.json"
           else
-            echo "GOOGLE_SERVICES_JSON not set — building without FCM"
+            echo "GOOGLE_SERVICES_JSON not set, building without FCM"
           fi
           npx cap sync android
-          # `direct` is the sideloaded flavor — it keeps the in-app updater that
-          # GitHub-release installs rely on. The `play` flavor omits it (Play
-          # forbids self-updating), so it must never be the artifact published here.
-          npm run assemble:release
           npm run bundle:play
 
       # Two things belong to the `direct` flavor alone and would each cost a Play
@@ -174,21 +156,21 @@ jobs:
           #
           # The markers are every direct-only manifest entry, and each one is here
           # because it has cost something:
-          #   REQUEST_INSTALL_PACKAGES        — Play prohibits self-updating apps.
+          #   REQUEST_INSTALL_PACKAGES: Play prohibits self-updating apps.
           #   androidx.car.app                catches the car screen and every component
           #                                   merged from the AndroidX Car App dependency;
           #                                   none belongs in the Play artifact.
-          #   com.google.android.gms.car.application — the Auto *notification* mirror.
+          #   com.google.android.gms.car.application, the Auto *notification* mirror.
           #     Added after it slipped into the Play build and drew an Auto App Quality
           #     enforcement (2026-08-17): <uses name="notification"/> declares the app a
           #     messaging app, and review then tests it for sending and receiving
           #     messages, which a reminder app cannot pass. It is the reason to add a
-          #     marker the moment a component becomes flavor-specific — this guard ran
+          #     marker the moment a component becomes flavor-specific, this guard ran
           #     green for months while the entry shipped, because nothing listed it.
           #
           # Comments are stripped before matching, because they are not declarations:
           # src/main's manifest carries a note explaining where the Auto entry lives
-          # now, and a plain grep counted that note as the entry itself — a guard that
+          # now, and a plain grep counted that note as the entry itself, a guard that
           # fails every release on prose is worse than no guard, since the fix is to
           # weaken it.
           FOUND=0
@@ -198,20 +180,15 @@ jobs:
             for marker in REQUEST_INSTALL_PACKAGES androidx.car.app com.google.android.gms.car.application; do
               COUNT=$(printf '%s' "$DECLARATIONS" | grep -c "$marker" || true)
               if [ "$COUNT" != "0" ]; then
-                echo "::error::$manifest declares $marker ($COUNT) — that component is direct-flavor only. See apps/mobile/store/play-readiness.md."
+                echo "::error::$manifest declares $marker ($COUNT), that component is direct-flavor only. See apps/mobile/store/play-readiness.md."
                 exit 1
               fi
             done
             echo "clean (no direct-only components): $manifest"
           done < <(find android/app/build/intermediates/packaged_manifests -ipath '*playRelease*' -name AndroidManifest.xml 2>/dev/null)
           if [ "$FOUND" = "0" ]; then
-            echo "::warning::No playRelease packaged manifest found — direct-only component check skipped. See apps/mobile/store/play-readiness.md #1."
+            echo "::warning::No playRelease packaged manifest found, direct-only component check skipped. See apps/mobile/store/play-readiness.md #1."
           fi
-
-      - name: Stage APK
-        run: |
-          cp apps/mobile/android/app/build/outputs/apk/direct/release/app-direct-release.apk \
-             "persistent-${{ steps.ver.outputs.name }}.apk"
 
       - name: Stage Play bundle
         run: |
@@ -219,7 +196,7 @@ jobs:
              "persistent-${{ steps.ver.outputs.name }}-play.aab"
 
       # The AAB is a workflow artifact, not a release asset: it is for uploading to
-      # the Play Console, and publishing it next to the sideload APK would invite
+      # the Play Console, and publishing it next to the installable APK would invite
       # installing the wrong one.
       - name: Upload Play bundle
         uses: actions/upload-artifact@v4
@@ -228,24 +205,10 @@ jobs:
           path: persistent-*-play.aab
           if-no-files-found: error
 
-      - name: Publish release
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ steps.ver.outputs.tag }}
-          name: ${{ steps.ver.outputs.tag }}
-          body_path: RELEASE_NOTES.md
-          files: persistent-*.apk
-          # The app release is the one "Latest" should mean. Desktop releases pin
-          # make_latest: false for the same reason - they interleave with these by
-          # date, so whoever shipped most recently would otherwise own /releases/latest,
-          # and the README's Android download badge points straight at it.
-          make_latest: true
-
       # Uploads once to production and retires phone testing releases in one edit. The "what's new" text is derived from RELEASE_NOTES.md
       # inside the script (heading and compare link stripped, truncated to Play's
       # 500-character cap on a line boundary).
       - name: Release to Google Play
-        if: steps.play.outputs.enabled == 'true'
         working-directory: apps/mobile
         env:
           PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
@@ -256,3 +219,35 @@ jobs:
             --version-name "${{ steps.ver.outputs.name }}" \
             --status "${{ steps.ver.outputs.status }}" \
             --notes "$GITHUB_WORKSPACE/RELEASE_NOTES.md"
+
+      - name: Locate APK inspection tools
+        run: |
+          BUILD_TOOLS=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          echo "AAPT=$BUILD_TOOLS/aapt" >> "$GITHUB_ENV"
+          echo "APKSIGNER=$BUILD_TOOLS/apksigner" >> "$GITHUB_ENV"
+
+      - name: Download and verify Google-signed APK
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          node apps/mobile/scripts/play-apk.mjs \
+            --version-code "${{ steps.ver.outputs.code }}" \
+            --version "${{ steps.ver.outputs.name }}" \
+            --output "persistent-${{ steps.ver.outputs.name }}-play.apk"
+
+      - name: Add GitHub disclosure
+        run: |
+          printf '\n*AI disclosure: this comment and the related code were written with the assistance of AI.*\n' >> RELEASE_NOTES.md
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: ${{ steps.ver.outputs.tag }}
+          body_path: RELEASE_NOTES.md
+          files: persistent-*-play.apk
+          # The app release is the one "Latest" should mean. Desktop releases pin
+          # make_latest: false for the same reason - they interleave with these by
+          # date, so whoever shipped most recently would otherwise own /releases/latest,
+          # and the README's Android download badge points straight at it.
+          make_latest: true

@@ -8,18 +8,26 @@ Cut a new app release.
 Invocation input (optional): the user-provided bump level, pause request, or dry-run request.
 
 The release pipeline is `.github/workflows/release.yml`: pushing a `vX.Y.Z` tag
-builds the web bundle, assembles **both signed Android flavors**, generates
+builds the web bundle, builds the signed Play AAB, generates
 changelog notes from the commits since the previous tag (filtered to
 end-user-facing changes only: internal/docs/tooling commits are excluded; see the
-`EXCLUDE` list in the workflow), and ships each flavor to its channel:
+`EXCLUDE` list in the workflow), and publishes one Play identity through both channels:
 
-- `direct` -> **signed APK** on a GitHub Release, with the notes shown in the
-  in-app update prompt.
-- `play` -> **AAB** released directly to Google Play **production**, reusing
-  the same notes truncated to Play's 500-character limit. Uploads are skipped
-  unless `PLAY_SERVICE_ACCOUNT_JSON` exists. Tags and manual releases have no
-  tester-track destination. Active phone testing releases are retired in the
-  same edit using `--production-only`.
+- `play` -> **AAB** released to Google Play **production**, reusing the notes
+  truncated to Play's 500-character limit. `PLAY_SERVICE_ACCOUNT_JSON` is required.
+  Tags and manual releases have no tester-track destination. Active phone testing
+  releases are retired in the same edit using `--production-only`.
+- Google Play's **signed universal APK** -> GitHub Release, named
+  `persistent-X.Y.Z-play.apk`, after verifying package, version and the registered
+  Google certificate. No direct APK fallback is allowed. Append the required
+  italicized AI disclosure to GitHub notes after deriving Play's notes.
+
+Legacy direct installs have a different package and certificate and cannot update
+in place. The hosted UI explains the separate installation and offers both manual
+GitHub downloads and Google Play; using the Store is optional. The compatibility updater
+endpoint returns `null`. Keep legacy passkey origins and asset links authorized.
+The manual `replace-github-apk` workflow exports an existing Play versionCode,
+preserves approved notes, and replaces the direct asset without uploading an AAB.
 
 Production is open. The first production release was versionCode 47 (v0.23.0)
 on 2026-09-05. Ryan changed the release policy to production-only on 2026-10-02.
@@ -95,7 +103,7 @@ Recommended steps:
 6. `git push`, then `git tag vX.Y.Z && git push origin vX.Y.Z`.
 7. Watch the workflow: `gh run watch <id> --exit-status` (find it via
    `gh run list --workflow=release.yml --limit 1`). Confirm the release published
-   with the APK asset (`gh release view vX.Y.Z`), then check the "Release to Google
+   with only the verified `-play.apk` asset (`gh release view vX.Y.Z`), then check the "Release to Google
    Play" step logged the versionCode against `production`, then run `play-check`
    to verify production holds it and phone testing tracks have no active releases. A failure
    in the earlier "Pre-flight Play release" step means the versionCode collides
@@ -107,7 +115,6 @@ Notes:
 - Web and server changes reach devices through the production deploy (`$deploy`).
   Their presence in the bundled web fallback does not override the Android
   release gate.
-- The signing key + `ANDROID_*` secrets already exist in the repo's Actions
-  secrets; the same keystore must be used every release or updates won't install
-  over each other.
+- `ANDROID_*` secrets sign the AAB with the upload key. Google signs the
+  distributed APK; verify that signer against the existing asset-links trust list.
 - Never tag a version older than or equal to the last release.

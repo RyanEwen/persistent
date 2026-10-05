@@ -1,0 +1,65 @@
+name: replace-github-apk
+
+# Re-export an already uploaded Play version. Never rebuild or upload a bundle,
+# and preserve the release notes approved for the existing GitHub release.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing Android release tag (vX.Y.Z)'
+        required: true
+        type: string
+      version_code:
+        description: 'Existing Google Play versionCode for that release'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  replace:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+      - name: Install matching APK inspection tools
+        run: sdkmanager "build-tools;36.0.0"
+      - name: Resolve existing release and inspection tools
+        env:
+          TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null
+          echo "VERSION=${TAG#v}" >> "$GITHUB_ENV"
+          BUILD_TOOLS=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          echo "AAPT=$BUILD_TOOLS/aapt" >> "$GITHUB_ENV"
+          echo "APKSIGNER=$BUILD_TOOLS/apksigner" >> "$GITHUB_ENV"
+      - name: Download and verify Google-signed APK
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          VERSION_CODE: ${{ inputs.version_code }}
+        run: |
+          node apps/mobile/scripts/play-apk.mjs \
+            --version-code "$VERSION_CODE" --version "$VERSION" \
+            --output "persistent-$VERSION-play.apk"
+      - name: Replace direct APK
+        env:
+          TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Upload the verified replacement before deleting the legacy asset.
+          gh release upload "$TAG" "persistent-$VERSION-play.apk" --clobber --repo "$GITHUB_REPOSITORY"
+          DIRECT_ID=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" \
+            --jq ".assets[] | select(.name == \"persistent-$VERSION.apk\") | .id")
+          if [ -n "$DIRECT_ID" ]; then
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$DIRECT_ID"
+          fi

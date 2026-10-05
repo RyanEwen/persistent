@@ -97,7 +97,7 @@ console.log(`[setup-android] copied ${kotlinFiles.length} Kotlin sources -> ${al
 
 // --- 1b. Flavor source sets (play | direct) ---------------------------------
 // `play`   — the Play Store build: no updater, no REQUEST_INSTALL_PACKAGES.
-// `direct` — the sideloaded GitHub-release build: keeps the in-app updater.
+// `direct`: legacy/local build, retains the native updater for development.
 // Both provide ca.persistent.app.FlavorPlugins so the shared MainActivity can
 // call it without naming a class that only exists in one flavor.
 const flavorSrcDir = join(pluginDir, 'flavor')

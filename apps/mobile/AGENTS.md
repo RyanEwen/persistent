@@ -30,8 +30,9 @@ in `android-tests/`; setup copies them into the generated project's test source 
 
 ## Two Android flavors
 
-`android-plugin/flavor/`: `play` for the Play Store, `direct` for sideloaded
-GitHub releases. Two things live in `direct` only, each because Play would object:
+`android-plugin/flavor/`: `play` for Play and GitHub distribution, `direct` for legacy installs and
+local development. GitHub APKs are downloaded from Play and verified against
+the registered Play certificate; never substitute a locally signed APK. Two things live in `direct` only, each because Play would object:
 
 - **the in-app updater**: `direct` registers `UpdatePlugin` and declares
   `REQUEST_INSTALL_PACKAGES`; Play forbids an app it distributes from updating itself.

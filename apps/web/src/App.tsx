@@ -26,7 +26,7 @@ import { ReceivedSharesPage } from './pages/ReceivedSharesPage.js'
 import { HelpPage } from './pages/HelpPage.js'
 import { PrivacyPage } from './pages/PrivacyPage.js'
 import { DeleteAccountPage } from './pages/DeleteAccountPage.js'
-import { UpdateCheck } from './native/UpdateCheck.js'
+import { DirectBuildMigrationNotice } from './native/DirectBuildMigrationNotice.js'
 import { DesktopWidgetSync } from './native/DesktopWidgetSync.js'
 import { clearWidgetSnapshot } from './native/desktopBridge.js'
 import { registerNavHandler } from './native/navTo.js'
@@ -75,7 +75,7 @@ export function App() {
     <StartupDataGate key={user.id}>
       <AppLayout>
         <ReminderDialogProvider>
-        <UpdateCheck />
+        <DirectBuildMigrationNotice />
         <DesktopWidgetSync />
         <Routes>
           <Route path="/" element={<RemindersPage />} />

@@ -406,3 +406,15 @@ wait for its next open: the native `SyncWorker` re-pulls and reconciles autonomo
 `docs/alarm-architecture.md`). So the `sync` push and the fire/dismiss pushes are
 just insurance that shortens the catch-up window; the background worker is the
 closed-app backstop.
+
+## Legacy Android update compatibility
+
+`GET /api/app/latest-release` is public and now returns `null`. Old direct-flavor
+bundles still call it, but the Google-signed APK now distributed through GitHub
+cannot replace their different package/signing identity. Never offer that APK to
+the old in-app installer. The hosted UI detects the direct build by its Update
+plugin and displays a dismissible, once-per-installation migration notice, with
+permanent Settings guidance. Both GitHub APK downloads and Google Play are offered;
+the Store is optional. Signing into the same account in the new app restores
+server-saved reminders. Local preferences and unfinished offline edits are not
+transferred between these separate apps.

@@ -58,8 +58,13 @@ no server setting can rescue it:
 
 | Flavor | Package | Signed by |
 | --- | --- | --- |
-| `direct` (sideloaded) | `ca.persistent.app` | the release keystore |
-| `play` (Store) | `ca.dynamicsolutions.persistent` | Google, via Play App Signing |
+| `direct` (legacy/local) | `ca.persistent.app` | the release keystore |
+| `play` (Play and GitHub) | `ca.dynamicsolutions.persistent` | Google, via Play App Signing |
+
+GitHub distributes the universal APK generated and signed by Google Play, so
+both current download sources use the Play package and certificate. Legacy direct
+installs keep their own identity. Retain their asset-links entry and allowed
+passkey origin while those installations remain supported.
 
 The app is enrolled in Play App Signing, so Play re-signs the bundle and the Play
 build's certificate is Google's, not the upload key's. Both entries must be present

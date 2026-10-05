@@ -58,14 +58,13 @@
  *     --tracks production --notes RELEASE_NOTES.md
  */
 import { readFileSync, readdirSync } from 'node:fs'
-import { createSign } from 'node:crypto'
+import { getPlayAccessToken as getAccessToken, playRequest as request, readPlayServiceAccount } from './play-api.mjs'
 import { retirePhoneTestingTracks } from './play-tracks.mjs'
 
 // PLAY_API_BASE is a test seam: play-publish.test.ts points it at a local mock
 // to assert the request sequence (one edit, one upload, every track). Never set
 // it in CI.
 const API = process.env.PLAY_API_BASE || 'https://androidpublisher.googleapis.com'
-const SCOPE = 'https://www.googleapis.com/auth/androidpublisher'
 const DEFAULT_PACKAGE = 'ca.dynamicsolutions.persistent'
 
 /** Play hard-caps a release note at 500 characters and rejects an empty one. */
@@ -430,58 +429,6 @@ export function describeTracks(tracks) {
 
 // --- Play API ---------------------------------------------------------------
 
-function base64url(value) {
-  return Buffer.from(value).toString('base64url')
-}
-
-/**
- * fetch that reports a transport failure as a sentence instead of an undici
- * stack — this runs unattended in CI, where the log is the only diagnosis.
- */
-async function request(url, init, what) {
-  try {
-    return await fetch(url, init)
-  } catch (error) {
-    fail(`Could not reach ${what} (${url}): ${error?.cause?.message || error?.message || error}`)
-  }
-}
-
-/** Service-account JWT -> OAuth access token. */
-async function getAccessToken(serviceAccount) {
-  const tokenUri = serviceAccount.token_uri || 'https://oauth2.googleapis.com/token'
-  const now = Math.floor(Date.now() / 1000)
-  const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
-  const claims = base64url(
-    JSON.stringify({
-      iss: serviceAccount.client_email,
-      scope: SCOPE,
-      aud: tokenUri,
-      iat: now,
-      exp: now + 3600
-    })
-  )
-  const signature = createSign('RSA-SHA256').update(`${header}.${claims}`).sign(serviceAccount.private_key)
-  const assertion = `${header}.${claims}.${base64url(signature)}`
-
-  const response = await request(
-    tokenUri,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-        assertion
-      })
-    },
-    'the Google OAuth token endpoint'
-  )
-  const body = await response.text()
-  if (!response.ok) fail(`Could not get an access token (HTTP ${response.status}): ${body}`)
-  const token = JSON.parse(body).access_token
-  if (!token) fail(`Token response had no access_token: ${body}`)
-  return token
-}
-
 /**
  * Play API request. `raw` sends a Buffer as octet-stream (bundle upload);
  * otherwise the body is JSON. Returns the parsed response, or the error text
@@ -636,17 +583,7 @@ async function main() {
     if (problems.length) fail(`${shotsDir} is not publishable:\n  - ${problems.join('\n  - ')}`)
   }
 
-  const rawKey = process.env.PLAY_SERVICE_ACCOUNT_JSON
-  if (!rawKey) fail('PLAY_SERVICE_ACCOUNT_JSON is not set.')
-  let serviceAccount
-  try {
-    serviceAccount = JSON.parse(rawKey)
-  } catch {
-    fail('PLAY_SERVICE_ACCOUNT_JSON is not valid JSON. Paste the key file whole, not base64-encoded.')
-  }
-  if (!serviceAccount.client_email || !serviceAccount.private_key) {
-    fail('PLAY_SERVICE_ACCOUNT_JSON is missing client_email/private_key — is it a service-account key?')
-  }
+  const serviceAccount = readPlayServiceAccount(process.env.PLAY_SERVICE_ACCOUNT_JSON)
 
   const token = await getAccessToken(serviceAccount)
   console.log(`[play-publish] authenticated as ${serviceAccount.client_email}`)

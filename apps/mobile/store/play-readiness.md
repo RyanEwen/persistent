@@ -1,8 +1,8 @@
 # Play Store readiness — blockers before the Play build can ship
 
 **Package names differ by flavor.** Play requires `ca.dynamicsolutions.persistent`,
-so that is the `play` flavor's `applicationId`; the sideloaded GitHub build keeps
-`ca.persistent.app`. Both are independent of the Kotlin/Java namespace, which stays
+so that is the `play` flavor's `applicationId` used by both Play and current
+GitHub APKs. Legacy/local direct builds keep `ca.persistent.app`. Both are independent of the Kotlin/Java namespace, which stays
 `ca.persistent.app` throughout. Consequences that bit us once already: Firebase
 needs an Android app per package (else `processPlayReleaseGoogleServices` fails),
 and `assetlinks.json` + `ANDROID_APP_ORIGIN` need an entry per package *and* per
@@ -18,10 +18,10 @@ declare today. Roughly in order of how hard they are to fix.
 
 Google Play's **Device and Network Abuse** policy prohibits an app distributed on
 Play from updating itself by any other route, and `REQUEST_INSTALL_PACKAGES` is
-the signal review looks for. Sideloading is still wanted, so the app now builds in
-two flavors instead of dropping the updater outright:
+the signal review looks for. Both distribution channels now use the Google-signed
+Play build; the direct flavor remains for legacy installs and local development:
 
-| | `direct` (GitHub) | `play` (Store) |
+| | `direct` (legacy/local) | `play` (Play and GitHub) |
 | --- | --- | --- |
 | `UpdatePlugin` | yes | **no** |
 | `REQUEST_INSTALL_PACKAGES` | yes | **no** |

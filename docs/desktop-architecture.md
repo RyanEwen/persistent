@@ -662,9 +662,10 @@ copy you last opened is the one that starts at sign-in.
 - **Desktop releases pin `make_latest: false`** (and the Android workflow pins
   `true`). The two series interleave by date, so GitHub's default gave "Latest" to
   whichever shipped most recently — which is how `desktop-v0.2.3` came to answer
-  `/releases/latest`. That endpoint is the Android updater's source
-  (`apps/api/src/routes/app-release.ts`) and a desktop release carries no `.apk`,
-  so it returned "no update" to every Android client until the next app release.
+  `/releases/latest`. It remains the Android download page. The legacy Android
+  updater endpoint now returns `null` because GitHub distributes the Google-signed
+  Play APK, which cannot replace the old direct package. Keep the pin so the
+  Android download link does not land on a desktop release.
   `UpdateService` is unaffected either way, but don't drop the pin to "simplify".
 
 MSIX requires a new version for changed content. The shared WSL helper allocates

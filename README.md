@@ -95,10 +95,17 @@ with the same account and live data as every other surface. Browser notification
 are not supported; install a native app to be alerted.
 
 **Android (recommended):** install Persistent from
-[Google Play](https://play.google.com/store/apps/details?id=ca.dynamicsolutions.persistent).
-The app can sound previously scheduled alarms even while offline, and Google Play
-keeps it up to date. During detected phone or voice/video calls, alarms wait quietly as
-notifications and resume after the call if you have not handled them.
+[Google Play](https://play.google.com/store/apps/details?id=ca.dynamicsolutions.persistent)
+or download the [APK from GitHub](https://github.com/RyanEwen/persistent/releases/latest).
+Both offer the same app. Google Play is optional; you can keep installing newer APKs
+manually from GitHub. The app can sound previously scheduled alarms even while offline.
+During detected phone or voice/video calls, alarms wait quietly as notifications
+and resume after the call if you have not handled them.
+
+Older GitHub installs were a separate Android app. The new APK installs beside that
+old app instead of replacing it. Install from either source, sign in to the same
+account, check your saved reminders, then remove the old app to avoid duplicate
+alerts. The new app has no Android Auto support or in-app APK updater.
 
 **Windows:** a tray app that keeps Persistent one click from the notification
 area. Install it from the
