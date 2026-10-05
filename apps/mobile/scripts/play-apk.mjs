@@ -89,6 +89,8 @@ async function main() {
     writeFileSync(temporary, downloaded.bytes, { flag: 'wx' })
     const badging = execFileSync(process.env.AAPT || 'aapt', ['dump', 'badging', temporary], { encoding: 'utf8' })
     const signing = execFileSync(process.env.APKSIGNER || 'apksigner', ['verify', '--print-certs', temporary], { encoding: 'utf8' })
+    // SDK certificate output is public APK metadata and makes failed identity checks diagnosable.
+    console.log(signing)
     verifyApkIdentity(badging, signing, { code: values['version-code'], version: values.version, certificate: downloaded.certificate })
     renameSync(temporary, values.output)
     console.log(`Verified ${PLAY_PACKAGE} ${values.version} (versionCode ${values['version-code']}), Google Play signer ${normalizeCertificate(downloaded.certificate)}.`)
