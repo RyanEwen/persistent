@@ -207,8 +207,10 @@ and verifies its package, version and Google signing certificate against
 `apps/web/public/.well-known/assetlinks.json`, then attaches
 `persistent-X.Y.Z-play.apk` to the GitHub Release. Both channels now share
 `ca.dynamicsolutions.persistent` and the Play App Signing identity. CI never
-publishes a locally signed direct APK as a substitute. The upload keystore still
-signs the AAB before Google re-signs it for distribution.
+publishes a locally signed direct APK as a substitute. Certificate inspection
+supports both numbered and SDK scheme-qualified signer labels. Google source-stamp
+certificates identify distribution only and must never satisfy the app-signer check.
+The upload keystore still signs the AAB before Google re-signs it for distribution.
 
 The Play upload targets production only and clears active phone testing releases
 in the same edit. Play rejects a second upload of a versionCode it has seen, so

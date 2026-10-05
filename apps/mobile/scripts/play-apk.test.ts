@@ -65,3 +65,17 @@ test('APK export does not retry permission failures or fall back when universal 
     fetchRequest: async () => Response.json({ generatedApks: [] }), sleep: async () => {}
   }), /no direct APK will be published/)
 })
+
+test('APK proof supports SDK 37 scheme labels without trusting the distribution stamp', () => {
+  const badging = "package: name='ca.dynamicsolutions.persistent' versionCode='50' versionName='0.26.0'"
+  const stampCertificate = 'cd'.repeat(32)
+  const expected = { code: 50, version: '0.26.0', certificate }
+  const signing = [
+    `V3.0 Signer: certificate SHA-256 digest: ${certificate}`,
+    `Source Stamp Signer: certificate SHA-256 digest: ${stampCertificate}`
+  ].join('\n')
+  verifyApkIdentity(badging, signing, expected)
+  verifyApkIdentity(badging, `Signer (minSdkVersion=33, maxSdkVersion=2147483647) certificate SHA-256 digest: ${certificate}`, expected)
+  assert.throws(() => verifyApkIdentity(badging, signing.replace(certificate, stampCertificate), expected), /signer/)
+  assert.throws(() => verifyApkIdentity(badging, `Source Stamp Signer: certificate SHA-256 digest: ${certificate}`, expected), /signer/)
+})

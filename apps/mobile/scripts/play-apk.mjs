@@ -43,7 +43,11 @@ export function verifyApkIdentity(badging, signing, expected) {
   if (!identity || identity[1] !== PLAY_PACKAGE || identity[2] !== String(expected.code) || identity[3] !== expected.version) {
     throw new Error('Downloaded APK package or version does not match the requested Play release.')
   }
-  const fingerprints = [...signing.matchAll(/Signer #\d+ certificate SHA-256 digest:\s*([a-fA-F0-9:]+)/g)]
+  // SDK 37 names the signature scheme; older SDKs number signers or print SDK ranges.
+  // Match complete app-signer lines, never Google's independent Source Stamp Signer.
+  const fingerprints = [...signing.matchAll(
+    /^(?:Signer #\d+|Signer \(minSdkVersion=[^\r\n]+\)|V[1-4](?:\.\d+)? Signer:) certificate SHA-256 digest:[ \t]*([a-fA-F0-9:]+)[ \t]*$/gm
+  )]
   if (fingerprints.length !== 1 || normalizeCertificate(fingerprints[0][1]) !== normalizeCertificate(expected.certificate)) {
     throw new Error('Downloaded APK signer does not match the trusted Play signing certificate.')
   }
@@ -90,7 +94,7 @@ async function main() {
     const badging = execFileSync(process.env.AAPT || 'aapt', ['dump', 'badging', temporary], { encoding: 'utf8' })
     const signing = execFileSync(process.env.APKSIGNER || 'apksigner', ['verify', '--print-certs', temporary], { encoding: 'utf8' })
     // SDK certificate output is public APK metadata and makes failed identity checks diagnosable.
-    console.log(signing)
+    console.log(signing.split('\n').filter((line) => line.includes('certificate SHA-256 digest:')).join('\n'))
     verifyApkIdentity(badging, signing, { code: values['version-code'], version: values.version, certificate: downloaded.certificate })
     renameSync(temporary, values.output)
     console.log(`Verified ${PLAY_PACKAGE} ${values.version} (versionCode ${values['version-code']}), Google Play signer ${normalizeCertificate(downloaded.certificate)}.`)
