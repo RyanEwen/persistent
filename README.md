@@ -96,8 +96,8 @@ are not supported; install a native app to be alerted.
 
 **Android (recommended):** install Persistent from
 [Google Play](https://play.google.com/store/apps/details?id=ca.dynamicsolutions.persistent).
-The app can sound alarms even while offline, and Google Play keeps it
-up to date. During detected phone or voice/video calls, alarms wait quietly as
+The app can sound previously scheduled alarms even while offline, and Google Play
+keeps it up to date. During detected phone or voice/video calls, alarms wait quietly as
 notifications and resume after the call if you have not handled them.
 
 **Windows:** a tray app that keeps Persistent one click from the notification

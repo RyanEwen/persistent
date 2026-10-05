@@ -83,6 +83,16 @@
   signed out, so a route that must work **without** a session (currently only
   `/privacy`, which Google Play fetches logged-out) has to be declared in the
   signed-out `<Routes>` above that gate as well as in the app shell below it.
+- **Startup freshness and offline access:** reuse `AppLoading` and
+  `StartupDataGate`. Mounted pages stay hidden until active queries refresh on
+  opening or foregrounding, preserving drafts. `useStartupDataReady` also gates
+  portalled dialog surfaces and Windows widget publication. A saved public account profile
+  allows personal offline access for seven days. Persisted queries and queued
+  mutations are bound to that account id. Keep domain requests paused until a
+  server session check succeeds; browser online events alone must not replay
+  writes. HTTP failures cannot authorize offline fallback. Sign-out, deletion,
+  account changes and server revocation clear departed account data and writes.
+  Shared and assignment projections remain excluded offline.
 - **Mutations** are registered as defaults in `lib/queryClient.ts`
   (`registerMutationDefaults`) keyed by `mutationKeys`; hooks in `src/data/` just
   reference the key. Defaults own the optimistic cache update + `onSettled`

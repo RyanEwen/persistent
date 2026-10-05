@@ -290,7 +290,7 @@ drives them lives in `apps/web/src/native`.
   *notification* tone plays when an occurrence first fires, the *nag* tone on each
   re-sound of the `soundIntervalSeconds` loop while it stays unconfirmed, and the
   *alarm* tone for a ringing alarm. Both are carried per-alarm as `soundUri` and
-  `nagSoundUri`; `startReNotifyLoop` is the only consumer of the latter and falls
+  `nagSoundUri`; `reNotify` is the only consumer of the latter and falls
   back to `soundUri` when it is empty, so an unset nag tone behaves exactly as
   before. An `ALARM` carries no nag tone at all — it loops one continuous tone, so
   there is no separate follow-up to re-tone. Every path that builds a spec fills
@@ -471,12 +471,17 @@ hold and no sound replays):
   active notification immediately.
 - **Per-reminder** value changed (or the reminder was renamed, its body edited, or
   a checklist item ticked — the body is only the *unticked* items) ->
-  the next resync's `scheduleAll` calls `AlarmService.refreshActiveStyles`
+  the next resync's `scheduleAll` calls `AlarmService.refreshActiveReminders`
   (`ACTION_REFRESH` -> `refreshActive`), which reloads each active spec from
   `AlarmStore` and re-posts those whose title/body changed (in place) or whose
   channel changed (cancel + re-post). (Without this, an in-place re-post — including
   the swipe-away reshow — would leave a live notification stranded on its old
-  channel or showing the pre-edit text.)
+  channel or showing the pre-edit text.) Nag intervals and notification tones also
+  update in the live spec. A changed interval cancels the old follow-up and starts
+  a full wait at the new interval when the edit reaches the device, without sounding
+  on save. Unchanged intervals keep their deadline across routine syncs; disabling
+  the interval cancels follow-ups while leaving the notification present. Local
+  escalation and silence state survive this refresh.
 
 ## Android Auto
 
@@ -525,7 +530,7 @@ for what is happening**, the **car screen is for everything else**.
   reached the car as a brand-new arrival, so starting the car replayed the entire
   backlog as a burst of heads-up cards. A nag is mirrored only if it **genuinely alerted since
   projection began**: its first fire, or a follow-up nag (`alertedAt`, stamped in
-  `startAlarm` when not silent and in `startReNotifyLoop` — never by the incidental
+  `startAlarm` when not silent and in `reNotify` — never by the incidental
   re-posts: keep-alive, swipe-reshow, text/style refresh, peek). Two riders:
   - a **ringing alarm always mirrors** — it is sounding on the phone right now, and it
     is the one thing a driver must not miss;

@@ -10,8 +10,8 @@ function ownedReminderIds(client: PersistedClient): Set<string> {
   return new Set((data as Reminder[]).map((reminder) => reminder.id))
 }
 
-/** Strip received firings before writing an occurrence feed to localStorage. */
-function ownedOccurrenceData(data: unknown, ids: Set<string>): unknown {
+/** Filter an occurrence feed to owned reminders for offline memory and storage. */
+export function ownedOccurrenceData(data: unknown, ids: Set<string>): unknown {
   if (Array.isArray(data)) {
     return (data as Occurrence[]).filter((occurrence) => ids.has(occurrence.reminderId))
   }

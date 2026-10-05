@@ -37,6 +37,18 @@ data class AlarmSpec(
     // "MINIMIZED". Ignored for alarms/escalations, which always stay prominent.
     val shadeProminence: String = "INHERIT"
 ) {
+    /** Refreshes editable notification fields while preserving local escalation and silence state. */
+    fun refreshNotificationFrom(stored: AlarmSpec): AlarmSpec = copy(
+        title = stored.title,
+        body = stored.body,
+        soundIntervalSeconds = stored.soundIntervalSeconds,
+        soundUri = if (alarm) soundUri else stored.soundUri,
+        soundTitle = if (alarm) soundTitle else stored.soundTitle,
+        nagSoundUri = stored.nagSoundUri,
+        nagSoundTitle = stored.nagSoundTitle,
+        shadeProminence = if (alarm) shadeProminence else stored.shadeProminence
+    )
+
     fun toJson(): JSONObject = JSONObject()
         .put("occurrenceId", occurrenceId)
         .put("fireAtMs", fireAtMs)

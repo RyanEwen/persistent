@@ -4,8 +4,11 @@
  */
 import { useEffect } from 'react'
 import { Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom'
-import CircularProgress from '@mui/joy/CircularProgress'
-import Box from '@mui/joy/Box'
+import Stack from '@mui/joy/Stack'
+import Typography from '@mui/joy/Typography'
+import Button from '@mui/joy/Button'
+import { AppLoading } from './components/AppLoading.js'
+import { StartupDataGate } from './components/StartupDataGate.js'
 import { useAuth } from './auth/useAuth.js'
 import { AppLayout } from './components/AppLayout.js'
 import { ReminderDialogProvider } from './components/ReminderDialogs.js'
@@ -31,7 +34,7 @@ import { useNativeBack } from './native/useNativeBack.js'
 import { useScrollReset } from './lib/useScrollReset.js'
 
 export function App() {
-  const { user, loading } = useAuth()
+  const { user, loading, error, refreshSession } = useAuth()
   const navigate = useNavigate()
 
   // Let native code (notification taps) drive navigation.
@@ -45,11 +48,13 @@ export function App() {
     if (!loading && !user) clearWidgetSnapshot()
   }, [loading, user])
 
-  if (loading) {
+  if (loading) return <AppLoading />
+  if (error) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100dvh' }}>
-        <CircularProgress />
-      </Box>
+      <Stack spacing={2} sx={{ p: 3 }}>
+        <Typography>Could not check your session.</Typography>
+        <Button variant="soft" onClick={() => { void refreshSession().catch(() => {}) }}>Retry</Button>
+      </Stack>
     )
   }
 
@@ -67,31 +72,33 @@ export function App() {
   }
 
   return (
-    <AppLayout>
-      <ReminderDialogProvider>
-      <UpdateCheck />
-      <DesktopWidgetSync />
-      <Routes>
-        <Route path="/" element={<RemindersPage />} />
-        <Route path="/upcoming" element={<UpcomingPage />} />
-        {/* Routed unconditionally even though its tab is hidden without notes: a saved
-            note lands here, and a link to it must not fall through to Current. */}
-        <Route path="/notes" element={<NotesPage />} />
-        <Route path="/reminders/new" element={<LegacyEditorLink />} />
-        <Route path="/reminders/:id" element={<ReminderDetailPage />} />
-        <Route path="/shared/:id" element={<SharedReminderPage />} />
-        <Route path="/assigned" element={<AssignmentsPage />} />
-        <Route path="/reminders/:id/edit" element={<LegacyEditorLink />} />
-        <Route path="/history" element={<HistoryPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/settings/shared" element={<ReceivedSharesPage />} />
-        <Route path="/help" element={<HelpPage />} />
-        <Route path="/privacy" element={<PrivacyPage />} />
-        <Route path="/delete-account" element={<DeleteAccountPage />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-      </ReminderDialogProvider>
-    </AppLayout>
+    <StartupDataGate key={user.id}>
+      <AppLayout>
+        <ReminderDialogProvider>
+        <UpdateCheck />
+        <DesktopWidgetSync />
+        <Routes>
+          <Route path="/" element={<RemindersPage />} />
+          <Route path="/upcoming" element={<UpcomingPage />} />
+          {/* Routed unconditionally even though its tab is hidden without notes: a saved
+              note lands here, and a link to it must not fall through to Current. */}
+          <Route path="/notes" element={<NotesPage />} />
+          <Route path="/reminders/new" element={<LegacyEditorLink />} />
+          <Route path="/reminders/:id" element={<ReminderDetailPage />} />
+          <Route path="/shared/:id" element={<SharedReminderPage />} />
+          <Route path="/assigned" element={<AssignmentsPage />} />
+          <Route path="/reminders/:id/edit" element={<LegacyEditorLink />} />
+          <Route path="/history" element={<HistoryPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/settings/shared" element={<ReceivedSharesPage />} />
+          <Route path="/help" element={<HelpPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/delete-account" element={<DeleteAccountPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+        </ReminderDialogProvider>
+      </AppLayout>
+    </StartupDataGate>
   )
 }
 

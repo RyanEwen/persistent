@@ -5,6 +5,7 @@
  * must not poll. For offline use the query cache is persisted to localStorage
  * (see persistQuery.ts) and mutations are registered with *defaults* here so a
  * mutation queued while offline can be replayed after a reload + reconnect
+ * and a successful account check (auth/sessionNetwork.ts)
  * (`resumePausedMutations`). Reminder writes also apply optimistically so the UI
  * reflects them immediately, even with no network.
  */

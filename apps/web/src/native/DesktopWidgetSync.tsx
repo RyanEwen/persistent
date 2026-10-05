@@ -10,6 +10,7 @@ import { useActiveOccurrences } from '../data/occurrences.js'
 import { formatWhen } from '../lib/datetime.js'
 import { selectUpcomingReminders } from '../lib/upcomingReminders.js'
 import { useSettings } from '../settings/useSettings.js'
+import { useStartupDataReady } from '../components/startupDataContext.js'
 import {
   isDesktopHost,
   onHostMessage,
@@ -51,6 +52,7 @@ function makeSnapshot(
 
 /** Keep the Windows widget cache current while the authenticated app is mounted. */
 export function DesktopWidgetSync() {
+  const dataReady = useStartupDataReady()
   const reminders = useReminders()
   const active = useActiveOccurrences()
   const { timeFormat } = useSettings()
@@ -60,9 +62,9 @@ export function DesktopWidgetSync() {
   const refetchActive = active.refetch
 
   useEffect(() => {
-    if (!isDesktopHost() || !reminderData || !activeData) return
+    if (!dataReady || !isDesktopHost() || !reminderData || !activeData) return
     publishWidgetSnapshot(makeSnapshot(reminderData, activeData, timeFormat))
-  }, [activeData, reminderData, timeFormat])
+  }, [activeData, reminderData, timeFormat, dataReady])
 
   useEffect(
     () =>

@@ -18,6 +18,7 @@ import { SettingsProvider } from './settings/useSettings.js'
 import { ToastProvider } from './components/ToastProvider.js'
 import { ErrorBoundary } from './components/ErrorBoundary.js'
 import { App } from './App.js'
+import { initializeSessionNetwork } from './auth/sessionNetwork.js'
 
 // Auto-apply SW updates, and keep *looking* for them: a page that is opened once
 // and left running for days never navigates, so it would otherwise never notice a
@@ -25,6 +26,7 @@ import { App } from './App.js'
 startServiceWorker()
 
 // Mutation defaults must exist before any persisted offline mutation resumes.
+initializeSessionNetwork()
 registerMutationDefaults()
 
 const container = document.getElementById('root')
@@ -40,10 +42,6 @@ createRoot(container).render(
       <PersistQueryClientProvider
         client={queryClient}
         persistOptions={persistOptions}
-        onSuccess={() => {
-          // Once the cache is restored, replay anything queued while offline.
-          void queryClient.resumePausedMutations()
-        }}
       >
         <BrowserRouter>
           <AuthProvider>

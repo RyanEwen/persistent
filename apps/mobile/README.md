@@ -182,6 +182,16 @@ would render its header under the status bar. The reverse order is safe: with an
 old APK still insetting the WebView the insets read as 0, so the new web bundle
 looks exactly as before.
 
+## Opening online and offline
+
+The shared web UI waits behind a spinner for the session and visible data to
+refresh, including on resume. A previously confirmed account can reopen saved
+personal reminders offline for up to seven days, with an offline status and
+Reconnect action. Queued writes wait for account confirmation on reconnect.
+Shared data needs a connection. Previously scheduled alarms still fire offline;
+new reminders created offline are scheduled on the device after server sync.
+See `../../docs/data-event-contract.md` for the access and cache policy.
+
 ## Releases & in-app updates
 
 Before tagging, compare the last Android tag with `HEAD`. Release a new Android

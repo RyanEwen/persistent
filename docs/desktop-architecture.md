@@ -97,6 +97,13 @@ fresh page is not reloaded again when its worker catches up. The identity includ
 HTML and public assets as well as bundled code. Online navigations use network HTML;
 offline navigations fall back to the worker's precached shell.
 
+The shared web startup gate also handles the host's `checkForUpdate` message.
+On reopening, it hides cached page content behind a spinner until the session and
+active queries refresh, while preserving mounted dialogs and drafts. Offline, a
+previously confirmed account can show saved personal data with an offline status;
+queued writes stay paused until account confirmation on reconnect. See
+`docs/data-event-contract.md` for the seven-day local access policy.
+
 Tray -> **Reload** remains the manual lever, since it is a real navigation.
 
 The Windows widget is the one bounded exception. When its card becomes visible,

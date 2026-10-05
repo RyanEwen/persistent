@@ -169,6 +169,27 @@ an empty state.
 request; `requireUser` rejects anonymous callers; `requireUserId(request)`
 returns the id inside handlers.
 
+## Offline reopening
+
+A previously signed-in account may reopen its saved personal data offline for up
+to seven days after its last successful session check. The separately saved profile
+contains only public `SessionUser` fields and the confirmation time, never a session
+secret. It permits local display, not server authorization. The persisted query
+and mutation cache carries the account id and rejects missing or mismatched owners.
+
+Startup checks the server first when connectivity is available. Only a transport
+failure, a session probe timeout, or a known offline connection uses the saved
+profile. HTTP failures and malformed session responses show a retry surface.
+A successful signed-out response clears the saved profile, personal data, queued
+writes and native alerts. Switching accounts clears the previous account's cache
+and queued writes before enabling requests. Explicit sign-out and account deletion
+perform the same local cleanup. Browser connection events cannot replay queued
+writes until the server confirms the account again.
+
+Offline access cannot discover a session revocation on another device until
+reconnection. Shared and creator assignment projections remain unavailable
+offline; received firings are filtered out of personal occurrence feeds.
+
 ## Data isolation
 
 Every account-owned model is user-scoped. A reminder owner may grant another

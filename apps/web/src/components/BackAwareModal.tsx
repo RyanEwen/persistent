@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, type ComponentProps } from 'react'
-import Modal from '@mui/joy/Modal'
+import { Modal } from '@mui/joy'
 import { setBackAwareDialogProbe } from './backAwareDialogStack.js'
+import { useStartupDataReady } from './startupDataContext.js'
 
 /**
  * Joy Modal wrapper that treats browser/Android Back as dialog dismissal.
@@ -120,7 +121,8 @@ function installDialogHistoryListener() {
   dialogHistoryListenerInstalled = true
 }
 
-export function BackAwareModal({ open, onClose, ...props }: BackAwareModalProps) {
+export function BackAwareModal({ open, onClose, keepMounted, ...props }: BackAwareModalProps) {
+  const dataReady = useStartupDataReady()
   const previousOpenRef = useRef(open)
   const onCloseRef = useRef(onClose)
   const dialogTokenRef = useRef<string | null>(null)
@@ -185,5 +187,7 @@ export function BackAwareModal({ open, onClose, ...props }: BackAwareModalProps)
     onCloseRef.current?.(event, reason)
   }, [])
 
-  return <Modal open={open} onClose={handleClose} {...props} />
+  // Portalled dialogs escape the page's hidden container. Temporarily close the
+  // modal surface while retaining its editor state and history entry.
+  return <Modal {...props} open={open && dataReady} onClose={handleClose} keepMounted={keepMounted || Boolean(open)} />
 }

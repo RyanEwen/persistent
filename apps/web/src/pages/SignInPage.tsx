@@ -23,7 +23,7 @@ import { BrandMark } from '../components/BrandMark.js'
 import { GoogleSignInButton } from '../components/GoogleSignInButton.js'
 
 export function SignInPage() {
-  const { requestCode, verifyCode, loginWithPasskey } = useAuth()
+  const { requestCode, verifyCode, loginWithPasskey, offline } = useAuth()
   const [step, setStep] = useState<'email' | 'code'>('email')
   const [emailOpen, setEmailOpen] = useState(false)
   const [email, setEmail] = useState('')
@@ -34,7 +34,11 @@ export function SignInPage() {
   const [passkeyBusy, setPasskeyBusy] = useState(false)
   const { data: config } = useQuery({
     queryKey: ['auth-config'],
-    queryFn: () => apiFetch<AuthConfig>('/api/auth/config')
+    enabled: !offline,
+    queryFn: () => apiFetch<AuthConfig>('/api/auth/config'),
+    // Public sign-in options must load while authenticated writes are suspended.
+    networkMode: 'always',
+    retry: false
   })
 
   async function onPasskey() {
@@ -89,6 +93,7 @@ export function SignInPage() {
           Reminders that won't let you forget.
         </Typography>
 
+        {offline && <Alert color="warning" sx={{ mb: 2 }}>Connect to the internet to sign in.</Alert>}
         {error && (
           <Alert color="danger" sx={{ mb: 2 }}>
             {error}

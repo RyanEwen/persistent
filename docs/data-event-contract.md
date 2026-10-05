@@ -11,9 +11,33 @@ schemas in `@persistent/shared`.
 
 The query cache is persisted to localStorage (`apps/web/src/lib/persistQuery.ts`)
 so reminders/occurrences render offline; reminder writes apply optimistically and
-queue while offline, replaying on reconnect via mutation defaults registered in
-`lib/queryClient.ts` (`resumePausedMutations`). Auth queries are excluded from
-persistence. Received shared firings are removed from the persisted offline cache;
+queue while offline, replaying after the server confirms the account on reconnect
+via mutation defaults registered in `lib/queryClient.ts` (`resumePausedMutations`).
+Auth queries and credentials are excluded from persistence. A separate public
+account profile permits reopening offline for up to seven days after the last
+successful session check. Persisted data and queued writes carry that account's
+id; an absent, expired, or different profile rejects the cache before hydration.
+Sign-out, account deletion, or a server response without a session removes the
+profile, personal cache and queued writes. A different server account also clears
+the previous account's local state before enabling requests.
+
+On initial opening and foregrounding, `StartupDataGate` keeps mounted pages hidden
+behind the shared spinner until their active queries refresh, including restored
+cache hits. Android resume, document visibility and the Windows `checkForUpdate`
+host message all use this path. Keeping the pages mounted preserves dialogs and
+editor drafts. Portalled dialogs temporarily close their modal surface while
+keeping content mounted, so cached dialog content cannot escape the spinner.
+Automatic Windows widget publication also waits for refreshed data. Offline startup
+releases the owned cached data with a visible
+status and Reconnect action, rather than waiting indefinitely. A network failure
+or eight-second session timeout permits offline fallback; HTTP failures and invalid
+session responses show Retry and never grant fallback access. Domain requests stay
+paused until a successful server session check, so connection detection alone
+cannot replay saved writes. Public sign-in configuration bypasses this gate.
+
+New reminders created offline queue for the server; their on-device alarms are
+scheduled after reconnect and native sync. Previously scheduled Android alarms
+continue to work offline. Received shared firings are removed from the persisted offline cache;
 recipient access is rechecked by the server on reconnect or mutation.
 Assignment queries are also excluded from the offline cache. An assigned
 reminder is owned by its assignee and follows the normal owned-reminder cache.

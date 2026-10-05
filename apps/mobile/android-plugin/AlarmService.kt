@@ -67,6 +67,11 @@ class AlarmService : Service() {
     private var soundingTone: Pair<String, String>? = null
     private var vibrator: Vibrator? = null
     private val handler = Handler(Looper.getMainLooper())
+    private val nagLoops = NotificationNagLoop(
+        schedule = { callback, delayMs -> handler.postDelayed(callback, delayMs) },
+        cancel = { callback -> handler.removeCallbacks(callback) },
+        notify = { occurrenceId -> reNotify(occurrenceId) }
+    )
     // The occurrence whose notification the foreground service is bound to.
     private var foregroundId: String? = null
 
@@ -433,10 +438,11 @@ class AlarmService : Service() {
     private fun startAlarm(spec: AlarmSpec, silent: Boolean = false) {
         ensureChannels()
         active[spec.occurrenceId] = spec
+        nagLoops.update(spec.occurrenceId, if (spec.alarm) 0 else spec.soundIntervalSeconds)
         // Stamp the post time on first fire and keep it across incidental re-posts
         // (swipe-reshow / re-bind / restyle), so the shade — which orders by `when` —
         // isn't reshuffled by bookkeeping. A real nag deliberately re-stamps it
-        // (startReNotifyLoop): whatever fired or nagged most recently belongs on top.
+        // (reNotify): whatever fired or nagged most recently belongs on top.
         postedAt.getOrPut(spec.occurrenceId) { System.currentTimeMillis() }
         // A genuine fire, as opposed to the silent keep-alive re-assert that only
         // maintains an already-showing nag. Stamped BEFORE the notification is built,
@@ -496,8 +502,6 @@ class AlarmService : Service() {
             presentAlarmSurface(spec, force = !notificationsVisible())
         } else {
             playNotificationSound(spec.soundUri, spec.soundTitle)
-            loops.remove(spec.occurrenceId)?.let { handler.removeCallbacks(it) }
-            if (spec.soundIntervalSeconds > 0) startReNotifyLoop(spec)
         }
         updateGroupSummary()
         CarListRefresh.notifyChanged(this)
@@ -664,8 +668,7 @@ class AlarmService : Service() {
         val notif = buildNotification(downgraded)
         if (foregroundId == occurrenceId) startForeground(notifId(occurrenceId), notif)
         else nm.notify(notifId(occurrenceId), notif)
-        loops.remove(occurrenceId)?.let { handler.removeCallbacks(it) }
-        if (downgraded.soundIntervalSeconds > 0) startReNotifyLoop(downgraded)
+        nagLoops.update(occurrenceId, downgraded.soundIntervalSeconds)
         // Hand the ring to the newest alarm still going, exactly as `clear` does. This
         // was missed when that one was fixed, and the hole is the same shape: silencing
         // the alarm whose tone is playing left every survivor ringing the *silenced*
@@ -751,18 +754,20 @@ class AlarmService : Service() {
      * won't move a notification's channel). Prominence applies to soft notifications
      * only — alarms/escalations stay pinned to the alarm channel — but text updates
      * for everything. `postedAt` is retained so positions hold and no sound replays
-     * (audio is separate). The live alarm/silence state is left untouched.
+     * (audio is separate). Notification tones and nag intervals update too; local
+     * alarm/silence state is retained.
      */
     private fun refreshActive() {
         ensureChannels()
         for (id in active.keys.toList()) {
             val current = active[id] ?: continue
             val stored = AlarmStore.find(this, id) ?: continue
-            val prominence = if (current.alarm) current.shadeProminence else stored.shadeProminence
-            val updated = current.copy(title = stored.title, body = stored.body, shadeProminence = prominence)
+            val updated = current.refreshNotificationFrom(stored)
             val channelChanged = channelFor(updated) != channelFor(current)
-            if (updated.title == current.title && updated.body == current.body && !channelChanged) continue
             active[id] = updated
+            // Interval-only edits still replace the timer, without sounding on save.
+            nagLoops.update(id, if (updated.alarm) 0 else updated.soundIntervalSeconds)
+            if (updated.title == current.title && updated.body == current.body && !channelChanged) continue
             if (id in deferredAlarms) deferredAlarms.defer(updated)
             val notif = buildNotification(updated)
             if (channelChanged) {
@@ -1015,7 +1020,7 @@ class AlarmService : Service() {
         val awaitingConfirm = confirming.contains(spec.occurrenceId)
         // Post time is pinned across incidental re-posts (keep-alive, re-bind, style
         // refresh) so those don't shuffle the shade, and re-stamped by a real nag in
-        // startReNotifyLoop so the nag rises back to the top. sortKey is inverted, so
+        // reNotify so the nag rises back to the top. sortKey is inverted, so
         // the largest `when` sorts first.
         val posted = postedAt[spec.occurrenceId] ?: System.currentTimeMillis()
         val builder = NotificationCompat.Builder(this, channel)
@@ -1229,27 +1234,18 @@ class AlarmService : Service() {
      * unset nag tone falls back to the fire tone, so behavior is unchanged until the
      * user actually picks one.
      */
-    private fun startReNotifyLoop(spec: AlarmSpec) {
-        val intervalMs = spec.soundIntervalSeconds * 1000L
-        val runnable = object : Runnable {
-            override fun run() {
-                val current = active[spec.occurrenceId] ?: return
-                val now = System.currentTimeMillis()
-                postedAt[current.occurrenceId] = now
-                // A follow-up nag is a genuine alert, so it's also what earns a nag its
-                // place in the car when Android Auto is already running (see mirrorsToCar).
-                alertedAt[current.occurrenceId] = now
-                nm.notify(notifId(current.occurrenceId), buildNotification(current, renotify = true))
-                if (current.nagSoundUri.isNotEmpty()) {
-                    playNotificationSound(current.nagSoundUri, current.nagSoundTitle, "nag")
-                } else {
-                    playNotificationSound(current.soundUri, current.soundTitle)
-                }
-                handler.postDelayed(this, intervalMs)
-            }
+    private fun reNotify(occurrenceId: String) {
+        val current = active[occurrenceId] ?: return
+        val now = System.currentTimeMillis()
+        postedAt[occurrenceId] = now
+        // A follow-up is a real alert, so Android Auto may mirror it during projection.
+        alertedAt[occurrenceId] = now
+        nm.notify(notifId(occurrenceId), buildNotification(current, renotify = true))
+        if (current.nagSoundUri.isNotEmpty()) {
+            playNotificationSound(current.nagSoundUri, current.nagSoundTitle, "nag")
+        } else {
+            playNotificationSound(current.soundUri, current.soundTitle)
         }
-        loops[spec.occurrenceId] = runnable
-        handler.postDelayed(runnable, intervalMs)
     }
 
     private fun vibrate() {
@@ -1283,7 +1279,7 @@ class AlarmService : Service() {
         alarmIds.remove(occurrenceId)
         silenceableIds.remove(occurrenceId)
         ringingSpecs.remove(occurrenceId)
-        loops.remove(occurrenceId)?.let { handler.removeCallbacks(it) }
+        nagLoops.remove(occurrenceId)
         nm.cancel(notifId(occurrenceId))
         // Done/Snooze/dismiss for this occurrence — close its full-screen surface too.
         dismissAlarmSurface(occurrenceId)
@@ -1330,6 +1326,7 @@ class AlarmService : Service() {
         stopSound()
         for (r in loops.values) handler.removeCallbacks(r)
         loops.clear()
+        nagLoops.clear()
         active.clear()
         confirming.clear()
         postedAt.clear()
@@ -1425,6 +1422,7 @@ class AlarmService : Service() {
         stopSound()
         for (r in loops.values) handler.removeCallbacks(r)
         loops.clear()
+        nagLoops.clear()
         runCatching { unregisterReceiver(screenReceiver) }
         super.onDestroy()
     }
@@ -1670,11 +1668,10 @@ class AlarmService : Service() {
         }
 
         /**
-         * Nudge the running service to re-post any live notification whose
-         * per-reminder shade prominence changed in the latest resync. No-op when
-         * nothing is showing, so it won't spin up the service needlessly.
+         * Apply synced text, tones, nag intervals and prominence to live notifications.
+         * No-op when nothing is showing, so it won't spin up the service needlessly.
          */
-        fun refreshActiveStyles(context: Context) {
+        fun refreshActiveReminders(context: Context) {
             if (activeIds.isNotEmpty()) {
                 context.startService(Intent(context, AlarmService::class.java).setAction(ACTION_REFRESH))
             }

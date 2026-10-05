@@ -1,8 +1,9 @@
 /**
  * Persist the TanStack Query cache to localStorage so owned reminders and
  * firings render offline (e.g. the Capacitor WebView with no network), and
- * queued mutations survive a reload. Auth, share, and assignment queries are excluded;
- * occurrence feeds are saved with recipient firings removed.
+ * queued mutations survive a reload, bound to the saved account profile. Auth,
+ * share, and assignment queries are excluded; occurrence feeds are saved with
+ * recipient firings removed.
  *
  * The cache holds DTOs shaped by the version that wrote them, so it is busted on
  * every app version: restoring rows from an older release into newer components
@@ -17,11 +18,14 @@
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
 import type { PersistQueryClientOptions } from '@tanstack/react-query-persist-client'
 import { serializeOwnedCache } from './serializeOwnedCache.js'
+import { readOfflineUser, QUERY_CACHE_KEY, OFFLINE_MAX_AGE } from '../auth/offlineSession.js'
+import { deserializeAccountCache, serializeAccountCache } from './accountCache.js'
 
 const persister = createSyncStoragePersister({
   storage: window.localStorage,
-  key: 'persistent-query-cache',
-  serialize: serializeOwnedCache
+  key: QUERY_CACHE_KEY,
+  serialize: (client) => serializeAccountCache(serializeOwnedCache(client), readOfflineUser(window.localStorage)?.id ?? null),
+  deserialize: (raw) => deserializeAccountCache(raw, readOfflineUser(window.localStorage)?.id ?? null)
 })
 
 // A revoked share must not remain readable from an offline cache.
@@ -33,7 +37,7 @@ export const persistOptions: Omit<PersistQueryClientOptions, 'queryClient'> = {
   buster: __APP_VERSION__,
   // Keep cached data usable across long offline stretches; must be <= the
   // query gcTime so entries aren't garbage-collected before this expires.
-  maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+  maxAge: OFFLINE_MAX_AGE,
   dehydrateOptions: {
     shouldDehydrateQuery: (query) =>
       query.state.status === 'success' && !EXCLUDED_PREFIXES.includes(String(query.queryKey[0]))

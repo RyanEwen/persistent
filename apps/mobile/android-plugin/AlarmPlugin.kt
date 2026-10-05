@@ -376,10 +376,8 @@ class AlarmPlugin : Plugin() {
             // Restore/maintain any overdue soft nag whose notification the OS dropped
             // (process/foreground-service killed) — silently, so it's present until Done.
             AlarmService.ensureNags(context)
-            // A live reminder may have been edited in this sync (renamed, body or
-            // per-reminder prominence changed); re-post any active notification so its
-            // text and channel match the server.
-            AlarmService.refreshActiveStyles(context)
+            // Apply edited text, tones, prominence and nag intervals to live reminders.
+            AlarmService.refreshActiveReminders(context)
             // The armed set IS what the Android Auto screen lists (due now + the next 48
             // hours), so a resync is the one change to it that no notification reflects —
             // an added, retimed or deleted future reminder never touches the shade.

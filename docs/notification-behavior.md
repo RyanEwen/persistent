@@ -479,6 +479,12 @@ unticked checklist items. The host deliberately holds no formatting copy. See
 
 ## 6. Editing a reminder never silently clears an unconfirmed firing
 
+Changing the nag interval also applies to an already-active Android notification
+once the edit syncs to the phone. The old timer is cancelled and the next nag
+waits the full new interval, without sounding when the edit arrives. Turning off
+the interval stops timed follow-ups but leaves the unconfirmed notification
+present. Routine syncs do not postpone a nag when the interval is unchanged.
+
 Rescheduling is not a way to make a nag go away. Editing a reminder drops its
 not-yet-fired (`PENDING`) occurrences and re-materializes from the new schedule,
 but an occurrence that has already **fired and not been confirmed survives the

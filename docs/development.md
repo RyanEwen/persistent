@@ -42,10 +42,14 @@ account by email. See `docs/auth-architecture.md`.
 
 The server owns the truth; clients hold a mirror. Reads go over HTTP (TanStack
 Query, cache persisted for offline reads); writes apply optimistically and
-**queue while offline**, replaying on reconnect, with **last-edit-wins**
+**queue while offline**, replaying after account confirmation on reconnect, with **last-edit-wins**
 conflict resolution. Live updates arrive over a per-user WebSocket. The native
 client also pulls occurrences to schedule on-device alarms and drains
-acks/snoozes back to the server. See `docs/data-event-contract.md`.
+acks/snoozes back to the server. First opening and foregrounding wait behind a
+spinner for fresh data. A previously signed-in account can reopen saved personal
+data offline for up to seven days, with a visible offline status. New offline
+reminders reach the native alarm scheduler after server sync. See
+`docs/data-event-contract.md`.
 
 ## Development
 
