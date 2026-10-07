@@ -121,14 +121,16 @@ export function TodoChecklist({
   // another device. Cleared on commit, when the optimistic cache update makes `items`
   // say the same thing.
   //
-  // Mirrored in a ref because the commit has to *read* it without being inside a state
-  // updater. Putting the send in the updater looks tidy and is wrong: React calls
+  // Mirrored in a ref so the next pointer move and commit can read the pending
+  // order before React renders it, without reading inside a state updater.
+  // Putting the send in the updater looks tidy and is wrong: React calls
   // updaters twice under StrictMode, so a single drag posted the order twice — and each
   // post is a write, a broadcast and a push to every device.
   const [dragOrder, setDragOrder] = useState<string[] | null>(null)
   const dragOrderRef = useRef<string[] | null>(null)
   const listRef = useRef<HTMLDivElement | null>(null)
 
+  /** Update gesture calculations immediately and queue the matching visual order. */
   function setOrder(ids: string[] | null) {
     dragOrderRef.current = ids
     setDragOrder(ids)
@@ -150,10 +152,18 @@ export function TodoChecklist({
   // the list — so the move is applied to the whole list relative to the row landed on
   // (see `moveTodoItem`), leaving the hidden ones where they were.
   function moveVisible(from: number, to: number) {
-    const moved = visible[from]
-    const target = visible[to]
+    // Pointer moves can arrive before React renders the previous move. The drag
+    // hook has already advanced its index, so resolve both indices against the
+    // synchronous working order instead of that render's older visible rows.
+    const currentIds = dragOrderRef.current
+    const currentOrder = currentIds
+      ? currentIds.flatMap((id) => items.filter((item) => item.id === id))
+      : items
+    const currentVisible = hideChecked ? currentOrder.filter((item) => !checked.has(item.id)) : currentOrder
+    const moved = currentVisible[from]
+    const target = currentVisible[to]
     if (!moved || !target) return
-    setOrder(moveTodoItem(ordered, moved.id, target.id, to > from).map((item) => item.id))
+    setOrder(moveTodoItem(currentOrder, moved.id, target.id, to > from).map((item) => item.id))
   }
 
   const { draggingIndex, dragOffset, listProps, handleProps } = useDragReorder(listRef, visible.length, moveVisible, () => {
