@@ -3,8 +3,8 @@
  *
  * Deliberately dependency-free: a drag library would be the obvious reach, but
  * this list is a handful of single-line rows in a fixed vertical stack, which is
- * the one case a few lines of pointer maths handles completely — and the web
- * bundle here is what the Android app ships, so a dependency is not free.
+ * the one case a few lines of pointer maths handles completely. The web bundle
+ * here is what the Android app ships, so a dependency is not free.
  *
  * The row order updates *live* as you drag (rather than dropping at the end), so
  * the list always shows what you'd get by letting go. The maths: measure the row
@@ -16,17 +16,18 @@
  * `dragOffset` is the leftover travel since the last whole step (always within half a
  * row), which the caller applies as a `translateY`. Without it the row you are holding
  * sits still until it jumps a whole position, which reads as a stutter rather than as
- * dragging — the other rows move and the one under your finger does not.
+ * dragging: the other rows move and the one under your finger does not.
  *
- * Pointer capture means move/up keep arriving at the handle even when the pointer
- * outruns it, and `touchAction: 'none'` stops a touch-drag from scrolling the page
- * instead. The handle is focusable and takes Up/Down as well — a drag handle that
- * only responds to a pointer is unusable by keyboard.
+ * Pointer capture on the stable list keeps move/up arriving even when the pointer
+ * outruns the handle. Capturing the handle itself loses capture when React moves its
+ * row in the DOM during a reorder. `touchAction: 'none'` stops a touch-drag from
+ * scrolling the page instead. The handle is focusable and takes Up/Down as well:
+ * a drag handle that only responds to a pointer is unusable by keyboard.
  *
  * Two callers with different costs per move, which is what `onCommit` is for. The
  * editor reorders form state, so every step is free and it needs nothing. A card
  * reorders the *stored* list, so a step that wrote would put a request (and a push to
- * every device) on each row the finger crosses — there, `onMove` updates a local
+ * every device) on each row the finger crosses: there, `onMove` updates a local
  * working order and `onCommit` writes it once, when the drag ends or a key move lands.
  *
  * It lives in `lib/` rather than beside the editor because the cards reorder the same
@@ -39,16 +40,18 @@ import { useRef, useState, type KeyboardEvent, type PointerEvent, type RefObject
 export const REORDER_ROW_ATTR = 'data-reorder-row'
 
 interface Drag {
+  pointerId: number
   index: number
   originY: number
   pitch: number
 }
 
+/** Capture gestures on the stationary list; callers spread listProps on that element. */
 export function useDragReorder(
   listRef: RefObject<HTMLElement | null>,
   count: number,
   onMove: (from: number, to: number) => void,
-  /** Called once the order has settled — see the note above about write cost. */
+  /** Called once the order has settled: see the note above about write cost. */
   onCommit?: () => void
 ) {
   const drag = useRef<Drag | null>(null)
@@ -56,11 +59,16 @@ export function useDragReorder(
   // moving doesn't write a "reorder" that reorders nothing.
   const moved = useRef(false)
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null)
-  // Pixels the held row is offset from its slot — see the note above.
+  // Pixels the held row is offset from its slot: see the note above.
   const [dragOffset, setDragOffset] = useState(0)
 
-  function endDrag() {
+  /** Settle once, including cancellation or unexpected capture loss. */
+  function endDrag(event: PointerEvent<HTMLElement>) {
+    if (!drag.current || event.pointerId !== drag.current.pointerId) return
     drag.current = null
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
     setDraggingIndex(null)
     setDragOffset(0)
     if (moved.current) {
@@ -94,32 +102,36 @@ export function useDragReorder(
   return {
     draggingIndex,
     dragOffset,
-    handleProps: (index: number) => ({
-      style: { touchAction: 'none' as const, cursor: 'grab' },
-      onPointerDown: (event: PointerEvent<HTMLElement>) => {
-        // Stops the browser starting a text selection / native image drag.
-        event.preventDefault()
-        try {
-          event.currentTarget.setPointerCapture(event.pointerId)
-        } catch {
-          // Capture is an optimization, not a requirement — carry on without it.
-        }
-        drag.current = { index, originY: event.clientY, pitch: rowPitch() }
-        moved.current = false
-        setDraggingIndex(index)
-        setDragOffset(0)
-      },
+    listProps: {
       onPointerMove: (event: PointerEvent<HTMLElement>) => {
         const current = drag.current
-        if (!current) return
+        if (!current || event.pointerId !== current.pointerId) return
         const steps = Math.round((event.clientY - current.originY) / current.pitch)
         if (steps !== 0) step(current.index + steps)
         // After any step, `originY` has been rebased onto the new slot, so what's left
-        // is how far past that slot the finger is — the row's own offset.
+        // is how far past that slot the finger is: the row's own offset.
         setDragOffset(event.clientY - current.originY)
       },
       onPointerUp: endDrag,
       onPointerCancel: endDrag,
+      onLostPointerCapture: endDrag
+    },
+    handleProps: (index: number) => ({
+      style: { touchAction: 'none' as const, cursor: 'grab' },
+      onPointerDown: (event: PointerEvent<HTMLElement>) => {
+        // Stops the browser starting a text selection / native image drag.
+        if (drag.current || !event.isPrimary || event.button !== 0) return
+        event.preventDefault()
+        try {
+          listRef.current?.setPointerCapture(event.pointerId)
+        } catch {
+          // Capture is an optimization, not a requirement: carry on without it.
+        }
+        drag.current = { pointerId: event.pointerId, index, originY: event.clientY, pitch: rowPitch() }
+        moved.current = false
+        setDraggingIndex(index)
+        setDragOffset(0)
+      },
       onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
         const delta = event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : 0
         if (delta === 0) return

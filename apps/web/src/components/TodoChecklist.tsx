@@ -156,7 +156,7 @@ export function TodoChecklist({
     setOrder(moveTodoItem(ordered, moved.id, target.id, to > from).map((item) => item.id))
   }
 
-  const { draggingIndex, dragOffset, handleProps } = useDragReorder(listRef, visible.length, moveVisible, () => {
+  const { draggingIndex, dragOffset, listProps, handleProps } = useDragReorder(listRef, visible.length, moveVisible, () => {
     // Sent once the gesture has settled, as the full set of ids: the server treats it
     // as a ranking, so an item added elsewhere meanwhile survives (see the endpoint).
     const settled = dragOrderRef.current
@@ -167,7 +167,7 @@ export function TodoChecklist({
 
   return (
     <Box>
-      <Stack spacing={0.25} ref={listRef} sx={{ mb: visible.length > 0 ? 1 : 0 }}>
+      <Stack spacing={0.25} ref={listRef} {...listProps} sx={{ mb: visible.length > 0 ? 1 : 0 }}>
         {visible.map((item, index) => {
           const isChecked = checked.has(item.id)
           return (

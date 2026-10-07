@@ -81,7 +81,7 @@ export function TodoItemsField({
   const inputs = useRef(new Map<string, HTMLInputElement | null>())
   const [focusId, setFocusId] = useState<string | null>(null)
   const listRef = useRef<HTMLDivElement | null>(null)
-  const { draggingIndex, dragOffset, handleProps } = useDragReorder(listRef, todos.length, onMove)
+  const { draggingIndex, dragOffset, listProps, handleProps } = useDragReorder(listRef, todos.length, onMove)
 
   // Ref callbacks run before effects, so by the time this fires the freshly
   // inserted input has registered itself and can be focused.
@@ -107,7 +107,7 @@ export function TodoItemsField({
       <FormLabel id={labelId} sx={{ mb: 0.75 }}>
         Checklist
       </FormLabel>
-      <Stack spacing={1} ref={listRef}>
+      <Stack spacing={1} ref={listRef} {...listProps}>
         {todos.map((item, index) => (
           <Stack
             key={item.id}
