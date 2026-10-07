@@ -61,3 +61,11 @@ test('occurrences are not saved when the owned reminder list is unavailable', ()
   assert.deepEqual(saved.clientState.queries[2]?.state.data, [])
   assert.deepEqual((saved.clientState.queries[3]?.state.data as { pages: Array<{ occurrences: unknown[] }> }).pages[0]?.occurrences, [])
 })
+
+test('administrator aggregates cannot survive offline serialization', () => {
+  const client = persistedClient([{ id: 'owned' }], [], { pages: [], pageParams: [] })
+  client.clientState.queries.push({ queryKey: ['admin', 'owner', 'stats', 30], state: { data: { secretAggregate: 42 } } } as never)
+  const saved = serializeOwnedCache(client)
+  assert.doesNotMatch(saved, /secretAggregate|"admin"/)
+  assert.equal(client.clientState.queries.length, 5, 'live data is not mutated while serializing')
+})

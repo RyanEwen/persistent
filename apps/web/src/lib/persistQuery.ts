@@ -2,7 +2,7 @@
  * Persist the TanStack Query cache to localStorage so owned reminders and
  * firings render offline (e.g. the Capacitor WebView with no network), and
  * queued mutations survive a reload, bound to the saved account profile. Auth,
- * share, and assignment queries are excluded; occurrence feeds are saved with
+ * share, assignment, and admin queries are excluded; occurrence feeds are saved with
  * recipient firings removed.
  *
  * The cache holds DTOs shaped by the version that wrote them, so it is busted on
@@ -28,8 +28,8 @@ const persister = createSyncStoragePersister({
   deserialize: (raw) => deserializeAccountCache(raw, readOfflineUser(window.localStorage)?.id ?? null)
 })
 
-// A revoked share must not remain readable from an offline cache.
-const EXCLUDED_PREFIXES = ['auth', 'shares', 'assignments']
+// Revocable cross-user access and credentials must not survive in an offline cache.
+const EXCLUDED_PREFIXES = ['auth', 'shares', 'assignments', 'admin']
 
 export const persistOptions: Omit<PersistQueryClientOptions, 'queryClient'> = {
   persister,

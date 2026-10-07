@@ -13,7 +13,7 @@ import Link from '@mui/joy/Link'
 // Also the contact address on the Play listing — Google verifies it routes.
 const CONTACT_EMAIL = 'contact@dynamic-solutions.ca'
 
-const LAST_UPDATED = '26 September 2026'
+const LAST_UPDATED = '7 October 2026'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -38,7 +38,8 @@ export function PrivacyPage() {
         <Typography level="body-sm">
           Persistent is a reminder app. It stores the reminders you create and the record of whether you
           confirmed them, so it can nag you until you do. It does not sell your data, does not show ads, and
-          contains no analytics or tracking software of any kind.
+          uses no third-party analytics or advertising trackers. Administrators can view aggregate account activity,
+          reminder feature usage, and app/platform statistics to understand how the service is used.
         </Typography>
 
         <Section title="What we collect">
@@ -70,7 +71,9 @@ export function PrivacyPage() {
           </Typography>
           <Typography level="body-sm">
             <strong>Sessions.</strong> A hashed session secret and the browser identifier for each signed-in
-            session, so you can stay signed in and we can expire sessions.
+            session, so you can stay signed in and we can expire sessions. Sessions also record when the service
+            was last contacted and the app, platform, and available app versions reported by that client.
+            These support aggregate service statistics; we do not add a persistent device identifier for analytics.
           </Typography>
           <Typography level="body-sm">
             We do not collect your location, address book, photos, phone number, or payment details.

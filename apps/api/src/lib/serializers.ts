@@ -24,6 +24,7 @@ export function toSessionUser(user: User): SessionUser {
     email: user.email,
     displayName: user.displayName,
     timeZone: user.timeZone,
+    isAdmin: user.isAdmin,
     createdAt: user.createdAt.toISOString()
   }
 }

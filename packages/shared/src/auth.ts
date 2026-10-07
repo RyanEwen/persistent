@@ -42,6 +42,8 @@ export const sessionUserSchema = z.object({
   email: z.string(),
   displayName: z.string().nullable(),
   timeZone: z.string(),
+  // Older clients and saved profiles omit this; omission grants no admin access.
+  isAdmin: z.boolean().optional(),
   createdAt: z.string().datetime()
 })
 export type SessionUser = z.infer<typeof sessionUserSchema>

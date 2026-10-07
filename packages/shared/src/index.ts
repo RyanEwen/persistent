@@ -5,6 +5,7 @@
  */
 export * from './errors.js'
 export * from './auth.js'
+export * from './admin.js'
 export * from './reminders.js'
 export * from './assignments.js'
 export * from './device-alarms.js'

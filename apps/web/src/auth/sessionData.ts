@@ -48,6 +48,11 @@ export async function clearNativeAlerts(): Promise<void> {
 /** Reconcile account ownership before allowing saved mutations to leave this device. */
 export async function acceptSession(queryClient: QueryClient, session: LocalSession): Promise<LocalSession> {
   setSessionNetwork(false)
+  // Cached aggregate data cannot outlive server confirmation or a revoked role.
+  if (session.offline || !session.user?.isAdmin) {
+    await queryClient.cancelQueries({ queryKey: ['admin'] })
+    queryClient.removeQueries({ queryKey: ['admin'] })
+  }
   const previous = readOfflineUser(window.localStorage)
   if (!session.offline && previous?.id !== session.user?.id) {
     await queryClient.cancelQueries({ predicate: (query) => query.queryKey[0] !== 'auth' })

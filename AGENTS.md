@@ -69,6 +69,8 @@ recipient reads and permitted actions must prove an explicit `ReminderShare`
 grant for that recipient and reminder. Firings remain owned by the creator.
 An assigned reminder belongs to the assignee; its creator reads only the
 `ReminderAssignment` progress record scoped by `creatorId`.
+Administrators may read aggregate cross-user counts after a fresh database admin
+grant check; this exception exposes no account identities or reminder content.
 See `docs/auth-architecture.md` and `apps/api/AGENTS.md`.
 
 ## Shared helpers (do not duplicate)

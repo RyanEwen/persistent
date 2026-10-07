@@ -72,6 +72,8 @@ model User {
   email       String   @unique
   displayName String?
   timeZone    String   @default("UTC")
+  /// Read-only aggregate administration. Never editable through profile APIs.
+  isAdmin     Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -113,6 +115,12 @@ model Session {
   userId     String
   secretHash String    @unique
   userAgent  String?
+  /// Self-reported client metadata, not an authorization or physical device identity.
+  clientApp String?
+  clientPlatform String?
+  webVersion String?
+  nativeVersion String?
+  clientReportedAt DateTime?
   expiresAt  DateTime
   lastSeenAt DateTime?
   revokedAt  DateTime?
@@ -121,6 +129,7 @@ model Session {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([lastSeenAt])
 }
 
 /// One-time email sign-in code (sign-up + sign-in + verification in one).

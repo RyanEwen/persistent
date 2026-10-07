@@ -20,6 +20,8 @@ import { occurrencesRouter } from './routes/occurrences.js'
 import { pushRouter } from './routes/push.js'
 import { syncRouter } from './routes/sync.js'
 import { appReleaseRouter } from './routes/app-release.js'
+import { adminRouter } from './routes/admin.js'
+import { clientUsageRouter } from './routes/client-usage.js'
 
 export function createApp() {
   const app = express()
@@ -67,6 +69,8 @@ export function createApp() {
   app.use('/api/push', pushRouter)
   app.use('/api/sync', syncRouter)
   app.use('/api/app', appReleaseRouter)
+  app.use('/api/admin', adminRouter)
+  app.use('/api/client-usage', clientUsageRouter)
 
   // 404 for unknown API routes.
   app.use('/api', (_request, response) => {

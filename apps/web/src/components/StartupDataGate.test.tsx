@@ -204,3 +204,32 @@ test('portalled dialogs wait with the page and retain their unsaved state', asyn
   assert.equal(draft.value, 'Unfinished dialog edit')
   assert.notEqual(window.getComputedStyle(modal).visibility, 'hidden')
 })
+
+
+test('foregrounding reports client mode even when the confirmed profile is unchanged', async (context) => {
+  let reports = 0
+  context.mock.method(globalThis, 'fetch', async (input: RequestInfo | URL) => {
+    if (String(input) === '/api/client-usage') {
+      reports++
+      return new Response(JSON.stringify({ ok: true }))
+    }
+    return new Response(JSON.stringify({ user }))
+  })
+  const previousVersion = Object.getOwnPropertyDescriptor(globalThis, '__APP_VERSION__')
+  Object.defineProperty(globalThis, '__APP_VERSION__', { configurable: true, value: '1.0.0' })
+  context.after(() => {
+    if (previousVersion) Object.defineProperty(globalThis, '__APP_VERSION__', previousVersion)
+    else Reflect.deleteProperty(globalThis, '__APP_VERSION__')
+  })
+  const app = await mount(context, true, async () => [])
+  Object.defineProperty(window, 'matchMedia', { configurable: true, value: () => ({ matches: false }) })
+  Object.defineProperty(app.document, 'visibilityState', { configurable: true, value: 'visible' })
+  await settle()
+  await act(async () => app.document.dispatchEvent(new window.Event('visibilitychange')))
+  await settle()
+  const before = reports
+  assert.ok(before > 0)
+  await act(async () => app.document.dispatchEvent(new window.Event('visibilitychange')))
+  await settle()
+  assert.ok(reports > before, 'equal auth data must still trigger a new report after foregrounding')
+})

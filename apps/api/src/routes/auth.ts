@@ -37,6 +37,7 @@ import { logger } from '../lib/logger.js'
 import { toPasskey, toSessionUser } from '../lib/serializers.js'
 import { claimShareInvitations } from '../lib/share-invitations.js'
 import { claimPendingAssignments } from '../lib/assignments.js'
+import { initialAdminGrant } from '../lib/admin-access.js'
 import { broadcast } from '../lib/realtime.js'
 
 export const authRouter = Router()
@@ -94,6 +95,7 @@ authRouter.post('/verify-code', async (request, response) => {
     },
     create: {
       email,
+      isAdmin: initialAdminGrant(email),
       timeZone: timeZone ?? 'UTC',
       displayName: displayName ?? null
     }
@@ -140,6 +142,7 @@ authRouter.post('/google', async (request, response) => {
     },
     create: {
       email: payload.email,
+      isAdmin: initialAdminGrant(payload.email),
       timeZone: parsed.data.timeZone ?? 'UTC',
       displayName: payload.name ?? null
     }

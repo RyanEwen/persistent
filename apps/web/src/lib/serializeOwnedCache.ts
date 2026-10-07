@@ -38,7 +38,7 @@ export function serializeOwnedCache(client: PersistedClient): string {
     ...client,
     clientState: {
       ...client.clientState,
-      queries: client.clientState.queries.map((query) => {
+      queries: client.clientState.queries.filter((query) => query.queryKey[0] !== 'admin').map((query) => {
         if (query.queryKey[0] !== 'occurrences') return query
         return {
           ...query,

@@ -83,7 +83,8 @@ you *actually mark it done*. It's built for the things you can't afford to miss.
   you remember; it does not provide medical advice.
 - **Simple sign-in.** A one-time email code, a passkey, or Sign in with Google —
   there is no password to forget or leak.
-- **Your data stays yours.** No ads, no analytics, no tracking. Delete your
+- **Your data stays yours.** No ads or third-party trackers. Administrators can
+  view aggregate service activity and feature usage. Delete your
   account and everything in it from Settings, at any time; see the
   [privacy policy](https://persistent.dynamic-solutions.ca/privacy).
 

@@ -26,6 +26,10 @@
   The creator can only read progress through a `creatorId`-scoped assignment query;
   they cannot edit, finish, or receive alerts for the assignee's reminder. A
   recipient's deletion records a decline before removing their reminder.
+- **Administration is aggregate-only.** `User.isAdmin` permits cross-user counts
+  only after `requireAdmin(request)` rechecks the database grant. Keep this exception
+  confined to `lib/admin-stats.ts`; never expose account or reminder content.
+  Client metadata writes must scope both user id and the current session cookie.
 - **Validate at the boundary.** Parse request bodies with the Zod schemas from
   `@persistent/shared` (e.g. `reminderInputSchema.safeParse`) and throw
   `badRequest` on failure. Don't hand-roll shape checks.

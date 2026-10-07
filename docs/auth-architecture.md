@@ -1,7 +1,7 @@
 # Auth architecture
 
 Passwordless, single-user ownership. Adapted (much thinner) from printstream's
-auth: no tenancy, no roles, no service accounts.
+auth: no tenancy or service accounts. A database admin grant allows read-only aggregate statistics.
 
 ## Sign-up = sign-in (email one-time code)
 
@@ -287,3 +287,66 @@ into a Play Console form rather than held in a secret store, so between reviews 
 a standing credential on an account nobody is watching. Removing both vars disables
 the path entirely with no other effect, so clearing it costs nothing and the next
 submission just sets it again.
+
+## Aggregate administration
+
+`User.isAdmin` is false by default. The administrative migration designates the
+existing account `ryan.ewen@gmail.com`; verified creation of that address also
+bootstraps the grant if the account does not exist yet. Subsequent sign-ins never
+change the grant, so revocation in the database persists. Deleting and recreating
+that bootstrap account grants access again. No public profile or account API can
+set this field. Operators can grant or revoke it directly in the database:
+
+```sql
+UPDATE "User" SET "isAdmin" = true WHERE email = 'another-admin@example.com';
+UPDATE "User" SET "isAdmin" = false WHERE email = 'another-admin@example.com';
+```
+
+`GET /api/admin/stats?activeDays=30` (also supports `7`) rechecks the authenticated
+account's database grant before cross-user aggregates. Anonymous callers receive
+401; non-admin accounts receive 403. This is a deliberate exception to personal
+query scoping, limited to totals and distinct-user counts. It returns no emails,
+reminder content, tokens or individual session identifiers. Responses use
+`Cache-Control: no-store`; admin queries are excluded from offline persistence
+and removed on loss of server confirmation or the role. The client role only
+controls navigation; it never authorizes a server request.
+
+Authenticated service activity, including background sync, defines active users.
+The latest session activity per account is used even after logout or expiry.
+Active and inactive partition all current accounts using the selected rolling
+window; new-account counts use account creation dates. Offline actions appear
+only after reconnection. Counts include admin and test accounts and exclude
+cascade-deleted data. This is not a permanent event log or a count of people
+actively looking at the screen.
+
+`POST /api/client-usage` validates bounded app/platform/version metadata and
+updates only the live session identified by the caller's cookie and user id.
+Clients report on confirmed opening/foregrounding without polling or persistent
+device fingerprints. Reports run after every successful session refresh, even if
+the profile is unchanged; pending native metadata lookups are cancelled on account
+transitions. Native bridges distinguish Android and Windows shells;
+browser display mode distinguishes browser/PWA and user-agent OS detection is
+approximate. Android shell versions are reported when available; Windows shell
+versions currently remain unknown because the host bridge does not expose them.
+Legacy clients are not guessed from user agents: their metadata remains unknown.
+A shared browser/PWA cookie records the most recently reported mode. Adoption
+counts use sessions active in the last 30 days, including subsequently expired or
+revoked ones; distinct users can appear in several groups. Sessions are not
+physical devices, downloads or installations.
+
+Feature counts describe current saved definitions, including paused reminders.
+Notes are excluded from nag/alarm/escalation metrics. Repeating nags require a
+persistent notification and a positive sound interval; alarm repetition is not
+counted as a separate nag. Types and schedules include notes. History metrics
+use retained occurrence timestamps, with current waiting/snoozed totals and
+30-day first-notification, completion and escalation totals. Escalation timestamps
+are not a full audit of repeated escalations or delivery confirmation. Sharing
+and assignment user counts refer to creators. Refresh reads a consistent database
+snapshot; the dashboard does not subscribe to every user's live events.
+
+The opt-in PostgreSQL/HTTP regression is
+`scripts/dev/admin-stats.integration.test.ts`. Run it with
+`ADMIN_TEST_DATABASE_URL` pointing to a migrated disposable database whose name
+ends in `_admin_test`, using `node --import tsx --test scripts/dev/admin-stats.integration.test.ts`.
+It replaces that test database's users and email codes. The normal validation
+suite skips it; unit tests still run without a database.

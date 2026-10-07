@@ -70,6 +70,10 @@ export function SettingsPage() {
         subtitle="Appearance, sounds, notifications, and account"
       />
 
+      {user?.isAdmin && (
+        <Button component={RouterLink} to="/admin" variant="outlined">Administration</Button>
+      )}
+
       <Card variant="outlined">
         <Typography level="title-sm">Appearance</Typography>
         <FormControl>

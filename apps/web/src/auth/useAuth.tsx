@@ -13,6 +13,7 @@ import { queryKeys } from '../lib/queryClient.js'
 import { notify } from '../lib/toast.js'
 import { startWs, stopWs } from '../lib/wsClient.js'
 import { initNative } from '../native/nativeSync.js'
+import { reportClientUsage } from '../native/clientUsage.js'
 import { readOfflineUser, saveOfflineUser } from './offlineSession.js'
 import { loadSession, type LocalSession } from './loadSession.js'
 import { setSessionNetwork } from './sessionNetwork.js'
@@ -46,7 +47,7 @@ function guessTimeZone(): string {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
 
-  const { data, isPending, error, refetch } = useQuery({
+  const { data, dataUpdatedAt, isPending, error, refetch } = useQuery({
     queryKey: queryKeys.auth,
     queryFn: async ({ signal }) => {
       setSessionNetwork(false)
@@ -79,6 +80,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       stopWs()
     }
   }, [user, offline, error])
+
+  useEffect(() => {
+    if (!user || offline || error) return
+    const controller = new AbortController()
+    // Equal profiles are structurally shared by Query, but each confirmed refresh
+    // must report current display mode. Cleanup fences delayed native lookups.
+    void reportClientUsage(controller.signal).catch(() => {
+      if (!controller.signal.aborted) console.warn('Could not report session app metadata.')
+    })
+    return () => { controller.abort() }
+  }, [user, offline, error, dataUpdatedAt])
 
   useEffect(() => {
     // QueryCache and the session error surface report failures from these event probes.

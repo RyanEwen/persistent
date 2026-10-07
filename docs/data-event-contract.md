@@ -39,7 +39,7 @@ New reminders created offline queue for the server; their on-device alarms are
 scheduled after reconnect and native sync. Previously scheduled Android alarms
 continue to work offline. Received shared firings are removed from the persisted offline cache;
 recipient access is rechecked by the server on reconnect or mutation.
-Assignment queries are also excluded from the offline cache. An assigned
+Assignment and administrator aggregate queries are also excluded from the offline cache. An assigned
 reminder is owned by its assignee and follows the normal owned-reminder cache.
 
 `GET /api/shares/received` is the live recipient projection. Each grant includes
