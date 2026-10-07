@@ -110,13 +110,14 @@ For the Android app (build, wireless adb, signing), see `apps/mobile/README.md`.
 
 ### Multi-checkout development
 
-`@ryanewen/devkit` lets several repositories or linked worktrees run together
+`@ryanewen/devkit` 0.13.0 lets several repositories or linked worktrees run together
 while the editor remains on the host. Each checkout gets a hostname and a private
 Compose stack containing Node and PostgreSQL. Container ports stay fixed; the
 published web port is derived from the checkout path.
 
 ```bash
 npm run dev:bootstrap          # once per machine
+npm run dev:prepare-worktree   # prepare this checkout without starting Docker
 npm run dev:host -- snapshot   # once in the primary checkout, capture its database baseline
 npm run dev
 ```
@@ -126,6 +127,22 @@ missing or shared dependency tree with a checkout-local `npm ci`, restores the p
 baseline, applies migrations added by its branch, and prints both its proxied `*.localhost` URL and
 direct Vite URL. A standalone clone still needs an initial `npm install` to install Devkit itself.
 Persistent has no filesystem baseline paths, so snapshots contain database state only.
+
+`npm run dev:prepare-worktree` copies missing allowlisted local configuration,
+ensures checkout-local dependencies, generates the Prisma client, and builds the
+shared contracts. It is safe to repeat and does not start Docker, PostgreSQL,
+the proxy, or the app. Before a fresh checkout has dependencies, it uses the
+`devkit` PATH link installed by the machine bootstrap. A standalone clone without
+that link needs an initial `npm install`.
+
+Starting development leaves the browser closed by default. Use
+`npm run dev -- --open`, `--open=native`, or `--open=vscode` to opt in. Devkit
+checks API readiness before an explicitly requested browser opening.
+
+Only one dev runner can own a checkout. To detach it from the terminal, use
+`npm run dev:background`; Devkit reports the runner PID and its log path.
+That confirms preflight, not application readiness. `npm run dev:down` stops
+the runner and tears down its checkout stack. Other checkouts run independently.
 
 The snapshot, rather than `db:seed`, supplies a new worktree's initial users and
 reminders. `npm run db:seed` remains an explicit operation against the current
@@ -141,6 +158,9 @@ register a passkey separately on each hostname where one is useful.
 
 | Command | Purpose |
 | --- | --- |
+| `npm run dev:prepare-worktree` | Prepare configuration, dependencies, Prisma and shared contracts without starting infrastructure |
+| `npm run dev:background` | Start the development runner detached from its terminal |
+| `npm run dev:down` | Stop this checkout's development runner and containers, preserving its database volume |
 | `npm run dev:doctor` | Report every development prerequisite and its fix |
 | `npm run dev:host -- snapshot` | Refresh the portable database baseline for new worktrees |
 | `npm run dev:host -- reset` | Recreate a worktree database volume; add `--empty` to skip the baseline |
@@ -152,6 +172,24 @@ database volume.
 
 Reset refuses to operate on the primary checkout because it owns the source
 database for snapshots.
+
+### Paseo workspace scripts
+
+`paseo.json` uses the same setup and teardown commands for worktree lifecycle
+hooks. Paseo prepares a new worktree with `npm run dev:prepare-worktree` and
+runs `npm run dev:down` before removing it. Setup does not start the application;
+run the `dev` script when you want to use it.
+
+The Scripts menu exposes `dev-prepare-worktree`, `dev`, `dev-background`,
+`dev-down`, `dev-doctor`, `validate`, `test`, and `build`. Prefer the supervised
+foreground `dev` script when using Paseo's Start/Stop controls. The background
+variant stays detached; stop it with `dev-down`.
+
+Devkit owns checkout ports and proxy URLs, so these scripts do not ask Paseo to
+allocate a second service port. The runner prints the proxied and direct URLs.
+`build` compiles the application; `validate` checks it. Neither deploys it.
+Resetting databases, refreshing snapshots, pruning volumes, bootstrapping the
+machine, and deploying remain explicit operations outside automatic hooks.
 
 ## Deployment
 

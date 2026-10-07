@@ -34,7 +34,7 @@ export default {
     output: 'node_modules'
   },
 
-  /** Open the proxied UI only after its API is ready to serve the application. */
+  /** Probe API readiness before opening the proxied UI when --open is requested. */
   browser: { path: '/', healthPath: '/api/health' },
 
   /**
