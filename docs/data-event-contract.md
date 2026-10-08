@@ -25,7 +25,9 @@ On initial opening and foregrounding, `StartupDataGate` keeps mounted pages hidd
 behind the shared spinner until their active queries refresh, including restored
 cache hits. Android resume, document visibility and the Windows `checkForUpdate`
 host message all use this path. Keeping the pages mounted preserves dialogs and
-editor drafts. Portalled dialogs temporarily close their modal surface while
+editor drafts. Reconnect can cancel an in-flight query while resetting access
+grants; the gate joins its replacement rather than treating cancellation as a
+request failure. Real replacement failures still show Retry. Portalled dialogs temporarily close their modal surface while
 keeping content mounted, so cached dialog content cannot escape the spinner.
 Automatic Windows widget publication also waits for refreshed data. Offline startup
 releases the owned cached data with a visible

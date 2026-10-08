@@ -22,7 +22,7 @@ function deferred<T>() {
 }
 
 /** Mount the real auth/network/loading path against a restored personal reminder cache. */
-async function mount(context: TestContext, online: boolean, fetchData: () => Promise<Array<{ id: string; title: string }>>, dialog = false) {
+async function mount(context: TestContext, online: boolean, fetchData: () => Promise<Array<{ id: string; title: string }>>, dialog = false, pageQueryKey: readonly string[] = queryKeys.reminders) {
   const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost/' })
   const previous = new Map<string, PropertyDescriptor | undefined>()
   class Socket {
@@ -39,7 +39,7 @@ async function mount(context: TestContext, online: boolean, fetchData: () => Pro
   initializeSessionNetwork()
   queryClient.clear()
   const defaults = queryClient.getDefaultOptions()
-  queryClient.setDefaultOptions({ ...defaults, queries: { ...defaults.queries, gcTime: Infinity } })
+  queryClient.setDefaultOptions({ ...defaults, queries: { ...defaults.queries, gcTime: Infinity, retry: false } })
   saveOfflineUser(dom.window.localStorage, user)
   queryClient.setQueryData(queryKeys.reminders, [{ id: 'old', title: 'Stale reminder' }])
   queryClient.setQueryData(queryKeys.receivedShares, [{ id: 'revoked', title: 'Shared secret' }])
@@ -57,7 +57,7 @@ async function mount(context: TestContext, online: boolean, fetchData: () => Pro
   })
 
   function Page() {
-    const { data } = useQuery({ queryKey: queryKeys.reminders, queryFn: fetchData })
+    const { data } = useQuery({ queryKey: pageQueryKey, queryFn: fetchData })
     return <div><input aria-label="Draft" defaultValue="Unsent draft" />{data?.map((reminder) => <span key={reminder.id}>{reminder.title}</span>)}
       {dialog && <BackAwareModal open onClose={() => {}}><div role="dialog"><input aria-label="Dialog draft" defaultValue="Unsent dialog draft" /></div></BackAwareModal>}
     </div>
@@ -232,4 +232,44 @@ test('foregrounding reports client mode even when the confirmed profile is uncha
   await act(async () => app.document.dispatchEvent(new window.Event('visibilitychange')))
   await settle()
   assert.ok(reports > before, 'equal auth data must still trigger a new report after foregrounding')
+})
+
+
+for (const pageQueryKey of [queryKeys.occurrencesActive, queryKeys.reminders]) {
+  test(`reconnect waits for replacement of ${pageQueryKey.join('/')} requests`, async (context) => {
+    context.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ user })))
+    const interrupted = deferred<Array<{ id: string; title: string }>>()
+    const replacement = deferred<Array<{ id: string; title: string }>>()
+    let requests = 0
+    const app = await mount(context, true, async () => {
+      if (++requests === 1) return interrupted.promise
+      return replacement.promise
+    }, false, pageQueryKey)
+    await settle()
+    assert.ok(app.document.querySelector('[aria-label="Loading reminders"]'))
+
+    // WebSocket reconnect resets occurrence queries to discard potentially revoked
+    // grants. The reset cancels the request that the startup gate was awaiting.
+    await act(async () => { void queryClient.resetQueries({ queryKey: pageQueryKey }) })
+    await settle()
+    assert.ok(app.document.querySelector('[aria-label="Loading reminders"]'), 'wait for the replacement request')
+    assert.doesNotMatch(app.document.body.textContent ?? '', /Could not refresh your reminders/)
+    replacement.resolve([{ id: 'fresh', title: 'Recovered reminder' }])
+    await settle()
+    assert.match(app.document.body.textContent ?? '', /Recovered reminder/)
+    assert.doesNotMatch(app.document.body.textContent ?? '', /Could not refresh your reminders/)
+    const current = [...app.document.querySelectorAll('span')].find((element) => element.textContent === 'Recovered reminder')
+    assert.equal(current?.closest('[hidden]'), null)
+  })
+}
+
+
+test('a real request failure still hides cached reminders and offers Retry', async (context) => {
+  context.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ user })))
+  const app = await mount(context, true, async () => { throw new Error('Server unavailable') })
+  await settle()
+  assert.match(app.document.body.textContent ?? '', /Could not refresh your reminders/)
+  assert.ok([...app.document.querySelectorAll('button')].some((button) => button.textContent === 'Retry'))
+  const stale = [...app.document.querySelectorAll('span')].find((element) => element.textContent === 'Stale reminder')
+  assert.ok(stale?.closest('[hidden]'))
 })

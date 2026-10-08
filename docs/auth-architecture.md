@@ -182,6 +182,12 @@ contains only public `SessionUser` fields and the confirmation time, never a ses
 secret. It permits local display, not server authorization. The persisted query
 and mutation cache carries the account id and rejects missing or mismatched owners.
 
+Opening and foregrounding keep reminder pages and dialogs hidden until active
+queries finish refreshing. If reconnect replaces an in-flight request to recheck
+sharing grants, the startup gate waits for its replacement rather than showing a
+refresh failure. Real request failures retain the Retry screen and keep cached
+content hidden. Mounted pages and dialog drafts survive the refresh.
+
 Startup checks the server first when connectivity is available. Only a transport
 failure, a session probe timeout, or a known offline connection uses the saved
 profile. HTTP failures and malformed session responses show a retry surface.
