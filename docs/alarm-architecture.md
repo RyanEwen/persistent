@@ -683,9 +683,9 @@ own pace instead of pushed at them all at once.
   count of things you cannot get to is not a list. The row says how many are behind it, so
   a driver can decide whether to look.
 
-The car dependency is minSdk 23 while the app floor is 22; `tools:overrideLibrary` in
-the direct manifest reconciles that (AA needs 23+ anyway, and `CarProjection.init` is
-SDK-guarded). `setup-android.mjs` adds `androidx.car.app:app` as a direct-only dependency
+Both distributions require Android 7.0 (API 24), matching Play automatic protection's
+minimum. The car dependency's minSdk 23 is below this floor and needs no manifest
+override. `setup-android.mjs` adds `androidx.car.app:app` as a direct-only dependency
 and copies the descriptor and action icons into the direct resource set. `npm run
 verify:android` confirms both flavors compile and wire independently.
 
@@ -873,7 +873,7 @@ Back would have killed a ringing alarm: the one thing this app must never let a 
 gesture do. Neither activity got the behaviour for free, because both are plain
 `android.app.Activity` subclasses with no `OnBackPressedDispatcher` to bridge the old
 API to the new one. They register with `OnBackInvokedDispatcher` directly, through
-`BackInterception`, which keeps `onBackPressed` for API 22 to 32.
+`BackInterception`, which keeps `onBackPressed` for supported API 24 to 32.
 
 **Registering a callback is what swallows the gesture.** `AlarmActivity` registers one
 with an empty body for the whole life of the surface, and that is the entire mechanism

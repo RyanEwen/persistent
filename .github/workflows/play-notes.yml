@@ -44,9 +44,12 @@ jobs:
           node-version: 20
 
       - name: Regenerate the notes for ${{ inputs.tag }}
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           node apps/mobile/scripts/release-notes.mjs \
             --tag "${{ inputs.tag }}" \
+            --published-only \
             --repo "${{ github.repository }}" > RELEASE_NOTES.md
           cat RELEASE_NOTES.md
 

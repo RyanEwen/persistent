@@ -107,7 +107,7 @@ in any browser and sign up free. It installs as a web app for managing reminders
 with the same account and live data as every other surface. Browser notifications
 are not supported; install a native app to be alerted.
 
-**Android (recommended):** install Persistent from
+**Android (recommended, Android 7.0 or newer):** install Persistent from
 [Google Play](https://play.google.com/store/apps/details?id=ca.dynamicsolutions.persistent)
 or download the [APK from GitHub](https://github.com/RyanEwen/persistent/releases/latest).
 Both offer the same app. Google Play is optional; you can keep installing newer APKs

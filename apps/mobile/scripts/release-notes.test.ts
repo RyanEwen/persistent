@@ -17,12 +17,32 @@ import {
   userFacing,
   notesMarkdown,
   subjectsIn,
+  previousPublishedTag,
   FALLBACK
   // @ts-expect-error - plain .mjs script, no type declarations
 } from './release-notes.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = join(here, '..', '..', '..')
+
+describe('previousPublishedTag', () => {
+  it('keeps features from an unsuccessful tag and excludes desktop, draft, and later versions', () => {
+    const releases = [
+      { tagName: 'desktop-v0.5.7' },
+      { tagName: 'v0.27.1' },
+      { tagName: 'v0.28.0' },
+      { tagName: 'v0.27.0', isDraft: true },
+      { tagName: 'v0.26.1', isPrerelease: true },
+      { tagName: 'v0.25.0' },
+      { tagName: 'v0.26.0' }
+    ]
+    assert.equal(previousPublishedTag('v0.27.1', releases), 'v0.26.0')
+  })
+
+  it('has no predecessor for the first published Android version', () => {
+    assert.equal(previousPublishedTag('v0.1.0', [{ tagName: 'desktop-v0.5.7' }]), null)
+  })
+})
 
 describe('userFacing', () => {
   it('keeps changes a user can notice', () => {

@@ -7,6 +7,10 @@ adb and signing are in `README.md`.
 
 ## Verifying native changes
 
+Both distributions require Android 7.0 (API 24) to retain Play automatic
+protection. `setup-android.mjs` owns this floor alongside the compile/target SDK
+pins; do not rely on the generated Capacitor template's default.
+
 **A target-SDK bump needs a device, not just a compile.** The move to `targetSdk 35`
 compiled clean and still broke the alarm on real hardware (`BAL_BLOCK` collapsed the
 full-screen surface whenever the phone was unlocked). Treat "both flavors compile" as

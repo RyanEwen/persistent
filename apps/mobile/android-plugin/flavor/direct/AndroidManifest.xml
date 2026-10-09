@@ -34,11 +34,6 @@
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
-    <!-- androidx.car.app is minSdk 23 while the app floor is 22. Android Auto itself
-         needs API 23+, and CarProjection.init is SDK-guarded, so this override belongs
-         only to the flavor that carries the library. -->
-    <uses-sdk tools:overrideLibrary="androidx.car.app" />
-
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application>

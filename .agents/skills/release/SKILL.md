@@ -26,6 +26,11 @@ Legacy direct installs have a different package and certificate and cannot updat
 in place. The hosted UI explains the separate installation and offers both manual
 GitHub downloads and Google Play; using the Store is optional. The compatibility updater
 endpoint returns `null`. Keep legacy passkey origins and asset links authorized.
+
+Both Android flavors require Android 7.0 (API 24) to retain Play automatic
+protection. Release notes use the preceding published Android release, excluding
+failed tags, drafts, and desktop releases so an unsuccessful upload does not
+consume the next release's feature notes.
 The manual `replace-github-apk` workflow exports an existing Play versionCode,
 preserves approved notes, and replaces the direct asset without uploading an AAB.
 

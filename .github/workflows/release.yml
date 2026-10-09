@@ -60,9 +60,12 @@ jobs:
       # published release's notes turn out to be wrong. Two copies would drift, and
       # the drift would only be visible after it shipped to users.
       - name: Generate release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           node apps/mobile/scripts/release-notes.mjs \
             --tag "${{ steps.ver.outputs.tag }}" \
+            --published-only \
             --repo "${{ github.repository }}" > RELEASE_NOTES.md
           cat RELEASE_NOTES.md
 

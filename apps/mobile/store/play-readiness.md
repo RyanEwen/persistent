@@ -8,6 +8,12 @@ needs an Android app per package (else `processPlayReleaseGoogleServices` fails)
 and `assetlinks.json` + `ANDROID_APP_ORIGIN` need an entry per package *and* per
 signing certificate or passkeys break on that build.
 
+**Android 7.0 (API 24) is the minimum for both flavors.** Play automatic
+protection remains enabled and rejects bundles below API 24. The failed 0.27.0
+upload exposed Capacitor's inherited API 22 default; `setup-android.mjs` now pins
+the floor explicitly. Android 5.1/6 devices keep their current installation but
+cannot receive new native releases.
+
 Found while assembling the listing. The copy and graphics are the easy part; these
 are the things that will get the submission rejected or that you cannot truthfully
 declare today. Roughly in order of how hard they are to fix.

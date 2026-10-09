@@ -55,8 +55,10 @@ npm run prepare:android   # build web -> cap add android -> wire plugin -> cap s
      manifest (in place of Capacitor's `MessagingService`, via `tools:node="remove"`),
      so server FCM pushes are handled natively even when the bridge is dead — see
      `docs/alarm-architecture.md`,
-   - adds the `androidx.car.app` dependency (with a `tools:overrideLibrary` for its
-     minSdk 23) in the **`direct` flavor only**, along with the entire
+   - pins the minimum Android version to 7.0 (API 24), required by Play automatic
+     protection. Older devices keep their installed version but cannot receive
+     new native releases,
+   - adds the `androidx.car.app` dependency in the **`direct` flavor only**, along with the entire
      **Android Auto** integration: the `com.google.android.gms.car.application`
      meta-data plus `automotive_app_desc.xml` that project reminder notifications into
      the car (`CarProjection.kt`), and the templated car screen listing the whole

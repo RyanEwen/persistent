@@ -86,6 +86,26 @@ function git(args, cwd) {
   return execFileSync('git', args, { encoding: 'utf8', cwd })
 }
 
+/** Choose the preceding published Android version, excluding drafts and desktop tags. */
+export function previousPublishedTag(tag, releases) {
+  const version = (value) => /^v(\d+)\.(\d+)\.(\d+)$/.exec(value)?.slice(1).map(Number)
+  const current = version(tag)
+  if (!current) throw new Error(`Invalid Android release tag: ${tag}`)
+
+  const compare = (left, right) => {
+    for (let index = 0; index < 3; index += 1) {
+      if (left[index] !== right[index]) return left[index] - right[index]
+    }
+    return 0
+  }
+  const candidates = releases
+    .filter((release) => !release.isDraft && !release.isPrerelease)
+    .map((release) => ({ tag: release.tagName, version: version(release.tagName) }))
+    .filter((release) => release.version && compare(release.version, current) < 0)
+    .sort((left, right) => compare(right.version, left.version))
+  return candidates[0]?.tag ?? null
+}
+
 /**
  * The repo root, because [PATHS] are resolved against the working directory.
  *
@@ -127,12 +147,23 @@ function main() {
       console.error('[release-notes] need --range <a..b> or --tag <vX.Y.Z>')
       process.exit(1)
     }
-    try {
-      previous = git(['describe', '--tags', '--abbrev=0', `${tag}^`]).trim()
-    } catch {
-      // No earlier tag: the range is everything up to this one, and there is
-      // nothing to compare against, so the changelog link is omitted.
-      previous = null
+    if (args['published-only']) {
+      if (typeof args.repo !== 'string') throw new Error('--published-only requires --repo')
+      // Failed tags must not consume feature notes in the next successful release.
+      // GitHub is authoritative here; a lookup failure must stop publication.
+      const releases = JSON.parse(execFileSync('gh', [
+        'release', 'list', '--repo', args.repo, '--limit', '100',
+        '--json', 'tagName,isDraft,isPrerelease'
+      ], { encoding: 'utf8' }))
+      previous = previousPublishedTag(tag, releases)
+    } else {
+      try {
+        previous = git(['describe', '--tags', '--abbrev=0', `${tag}^`]).trim()
+      } catch {
+        // No earlier tag: the range is everything up to this one, and there is
+        // nothing to compare against, so the changelog link is omitted.
+        previous = null
+      }
     }
     range = previous ? `${previous}..${tag}` : tag
   } else if (range.includes('..')) {

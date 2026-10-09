@@ -314,20 +314,30 @@ const PLAY_APPLICATION_ID = 'ca.dynamicsolutions.persistent'
 // at all — AGP caps the compileSdk it will build (8.6 stops at 35, 8.13 reaches 36.1),
 // and each AGP needs its own minimum Gradle (8.13 needs Gradle 8.13). Each patch is
 // idempotent (it matches the old value only).
+// Play automatic protection requires Android 7.0+. Keep both distributions on
+// the same supported floor rather than inheriting Capacitor's API 22 default.
+const MIN_SDK = 24
 const TARGET_SDK = 36
 const AGP_VERSION = '8.13.2'
 const GRADLE_VERSION = '8.13'
 
 {
   const variablesPath = join(mobileRoot, 'android', 'variables.gradle')
+  if (!existsSync(variablesPath)) {
+    fail('Cannot locate android/variables.gradle to set the supported SDK floor.')
+  }
   if (existsSync(variablesPath)) {
     let v = readFileSync(variablesPath, 'utf8')
     const before = v
+    if (!/minSdkVersion\s*=\s*\d+/.test(v)) {
+      fail('Cannot locate minSdkVersion in android/variables.gradle.')
+    }
+    v = v.replace(/minSdkVersion\s*=\s*\d+/, `minSdkVersion = ${MIN_SDK}`)
     v = v.replace(/compileSdkVersion\s*=\s*\d+/, `compileSdkVersion = ${TARGET_SDK}`)
     v = v.replace(/targetSdkVersion\s*=\s*\d+/, `targetSdkVersion = ${TARGET_SDK}`)
     if (v !== before) {
       writeFileSync(variablesPath, v)
-      console.log(`[setup-android] set compileSdk/targetSdk to ${TARGET_SDK}`)
+      console.log(`[setup-android] set minSdk to ${MIN_SDK}, compileSdk/targetSdk to ${TARGET_SDK}`)
     }
   }
 
@@ -357,8 +367,8 @@ const GRADLE_VERSION = '8.13'
 // --- 4a2. Product flavors (play | direct) -----------------------------------
 // One artifact cannot serve both channels: Play forbids self-updating, and the
 // sideloaded build needs exactly that. `play` omits UpdatePlugin and
-// REQUEST_INSTALL_PACKAGES; `direct` keeps both. No applicationIdSuffix — they are
-// the same app, so the direct build can still be replaced by a Play install.
+// REQUEST_INSTALL_PACKAGES; `direct` keeps both. Legacy/local direct installs use
+// a different applicationId and cannot be replaced in place by the Play app.
 {
   let g = readFileSync(appGradlePath, 'utf8')
   // A project generated before the applicationId override already has the flavor
@@ -471,8 +481,8 @@ if (existsSync(iconOverlay)) {
 // CarProjection observes androidx.car.app's CarConnection to tell when the phone is
 // projecting to Android Auto, and CarNotificationProjection adds CarAppExtender metadata.
 // Both implementations and this dependency are direct-only. 1.4.0 is compatible with
-// the compileSdk/AGP this script pins above; its minSdk 23 is reconciled in the direct
-// manifest. (It named compileSdk 34 / AGP 8.2.1 until those pins moved on without it.)
+// the compileSdk/AGP this script pins above and its minSdk 23 is below our API 24
+// floor. (It named compileSdk 34 / AGP 8.2.1 until those pins moved on without it.)
 {
   let g = readFileSync(appGradlePath, 'utf8')
   const sharedCarDependency = /^\s*implementation\s+["']androidx\.car\.app:app:[^"']+["']\s*$/m
