@@ -273,3 +273,46 @@ test('a real request failure still hides cached reminders and offers Retry', asy
   const stale = [...app.document.querySelectorAll('span')].find((element) => element.textContent === 'Stale reminder')
   assert.ok(stale?.closest('[hidden]'))
 })
+
+
+test('foreground session retry preserves the draft and pauses writes until the server confirms the account', async (context) => {
+  const recovery = deferred<Response>()
+  let sessionChecks = 0
+  context.mock.method(globalThis, 'fetch', async (input: RequestInfo | URL) => {
+    if (String(input) !== '/api/auth/me') return new Response('{"ok":true}')
+    sessionChecks++
+    if (sessionChecks === 2) throw new TypeError('WebView connection interrupted on resume')
+    if (sessionChecks === 3) return recovery.promise
+    return new Response(JSON.stringify({ user }))
+  })
+  const app = await mount(context, true, async () => [{ id: 'fresh', title: 'Current reminder' }])
+  await settle()
+  const draft = app.document.querySelector('input')!
+  draft.value = 'Still editing'
+  Object.defineProperty(app.document, 'visibilityState', { configurable: true, value: 'visible' })
+  await act(async () => app.document.dispatchEvent(new window.Event('visibilitychange')))
+  await settle()
+  assert.equal(sessionChecks, 3, 'a fresh probe follows the transient resume failure automatically')
+  assert.ok(app.document.querySelector('[aria-label="Loading reminders"]'))
+  assert.doesNotMatch(app.document.body.textContent ?? '', /Offline\. Showing saved reminders/)
+  assert.ok(draft.closest('[hidden]'))
+
+  let writes = 0
+  const queued = queryClient.getMutationCache().build(queryClient, {
+    gcTime: Infinity,
+    mutationFn: async () => { writes++ }
+  })
+  const completed = queued.execute(undefined)
+  await settle()
+  assert.equal(queued.state.isPaused, true)
+  assert.equal(writes, 0)
+
+  recovery.resolve(new Response(JSON.stringify({ user })))
+  await completed
+  await settle()
+  assert.equal(writes, 1)
+  assert.equal(app.document.querySelector('input'), draft)
+  assert.equal(draft.value, 'Still editing')
+  assert.equal(draft.closest('[hidden]'), null)
+  assert.doesNotMatch(app.document.body.textContent ?? '', /Offline\. Showing saved reminders/)
+})

@@ -32,7 +32,8 @@ keeping content mounted, so cached dialog content cannot escape the spinner.
 Automatic Windows widget publication also waits for refreshed data. Offline startup
 releases the owned cached data with a visible
 status and Reconnect action, rather than waiting indefinitely. A network failure
-or eight-second session timeout permits offline fallback; HTTP failures and invalid
+or eight-second session timeout gets one fresh probe with a three-second deadline
+before offline fallback; HTTP failures and invalid
 session responses show Retry and never grant fallback access. Domain requests stay
 paused until a successful server session check, so connection detection alone
 cannot replay saved writes. Public sign-in configuration bypasses this gate.

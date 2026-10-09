@@ -189,8 +189,12 @@ refresh failure. Real request failures retain the Retry screen and keep cached
 content hidden. Mounted pages and dialog drafts survive the refresh.
 
 Startup checks the server first when connectivity is available. Only a transport
-failure, a session probe timeout, or a known offline connection uses the saved
-profile. HTTP failures and malformed session responses show a retry surface.
+failure or session probe timeout gets one fresh retry before using the saved
+profile. The first probe has an eight-second deadline and the retry has a
+three-second deadline, bounding the request wait to eleven seconds. Known offline
+connections use the saved profile immediately. Connection fallback diagnostics
+record only the failure category, without account details or credentials. HTTP
+failures and malformed session responses show a retry surface.
 A successful signed-out response clears the saved profile, personal data, queued
 writes and native alerts. Switching accounts clears the previous account's cache
 and queued writes before enabling requests. Explicit sign-out and account deletion
