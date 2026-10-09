@@ -17,6 +17,7 @@ import { useEffect, useRef, useState } from 'react'
 import Box from '@mui/joy/Box'
 import Input from '@mui/joy/Input'
 import Typography from '@mui/joy/Typography'
+import { checklistItemTextSx } from './checklistItemTextSx.js'
 import { MAX_TODO_ITEM_TEXT } from '@persistent/shared'
 
 export function TodoItemText({
@@ -60,7 +61,7 @@ export function TodoItemText({
     return (
       <Typography
         level="body-sm"
-        sx={{ flex: 1, minWidth: 0, textDecoration: struck ? 'line-through' : undefined, color: struck ? 'text.tertiary' : undefined }}
+        sx={{ flex: 1, minWidth: 0, ...checklistItemTextSx(struck) }}
       >
         {text}
       </Typography>
@@ -96,7 +97,7 @@ export function TodoItemText({
       >
         <Typography
           level="body-sm"
-          sx={{ textDecoration: struck ? 'line-through' : undefined, color: struck ? 'text.tertiary' : undefined }}
+          sx={checklistItemTextSx(struck)}
         >
           {text}
         </Typography>

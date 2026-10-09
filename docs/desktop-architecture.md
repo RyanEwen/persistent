@@ -191,7 +191,7 @@ The split is by which surface a setting describes, not by who stores it:
 | Start at sign-in, flyout size and placement, pin | Page | They describe what the app does for the user |
 | Server address, "Clear saved sign-in" | Native (`ConnectionPage`) | A control for the setting that decides whether the page loads is no use inside the page |
 | Version, update check, log folder | Native (`AboutPage`) | Both are needed precisely when the page is not working |
-| App theme | Native (`AppSettingsPage`) | It themes the native window, which the page cannot see |
+| Settings window theme | Native (`AppSettingsPage`) | It themes that separate window; the flyout follows the page |
 
 Consequences worth knowing before changing this:
 
@@ -360,7 +360,7 @@ window was already deactivated no second one was ever coming, so nothing re-aske
 The delay decides only *when* to look; `CheckLightDismiss`'s foreground test is
 what answers, and it is just as correct late as early.
 
-## The flyout is dark, opaque, and frameless
+## The flyout is themed, opaque, and frameless
 
 **Use `OverlappedPresenter.CreateForContextMenu()`, not `Create()`.** An
 overlapped window always keeps a frame — stripping the border and title bar and
@@ -388,7 +388,7 @@ moving.
 
 That is also why **no `DWMWA_BORDER_COLOR` or `DWMWA_CAPTION_COLOR`** is set here
 (only `DWMWA_WINDOW_CORNER_PREFERENCE`, plus `DWMWA_USE_IMMERSIVE_DARK_MODE` so
-DWM's own shadow/antialiasing isn't derived from a light system theme). Those
+DWM's own shadow/antialiasing follows the page's resolved light/dark mode). Those
 attributes colour a frame; on a window that shouldn't have one they are at best
 inert, and setting `DWMWA_BORDER_COLOR` to `COLOR_NONE` was actively worse — it
 removed the fill and let the desktop show through the frame instead.
@@ -402,21 +402,19 @@ into colour attributes before that measurement existed.
 Two further things had produced a *band across the top* specifically, and are
 worth keeping straight because fixing one did not fix the other:
 
-- **`DesktopAcrylicBackdrop` follows the *system* theme.** On a light-mode
-  desktop it renders light acrylic wherever content does not paint over it. The
-  window frames a web app that is dark in every theme the PWA offers, so there is
-  no backdrop at all now: the root grid paints an opaque `#0B0F19` and pins
-  `RequestedTheme="Dark"` so the header glyphs stay light. `ThemeManager`
-  deliberately skips this window — applying the user's light/system choice here
-  would put light chrome back around dark content.
+- **`DesktopAcrylicBackdrop` follows the system theme.** The flyout has no
+  backdrop; its root paints an opaque app background instead. `NativeAppearanceSync`
+  sends a validated `appearance` message with the selected palette's concrete
+  background and resolved light/dark mode. `FlyoutAppearance` applies it to the
+  root, WebView loading background, and DWM dark-mode flag. Match system updates
+  through the page's existing OS listener. Initial chrome follows the OS until
+  the page loads. `ThemeManager` remains scoped to the separate settings window.
 - **`ExtendsContentIntoTitleBar` + `SetTitleBar` on a window with no title bar.**
   Those are for a window that *has* a caption and wants to draw into it. Setting
   them while the presenter is `SetBorderAndTitleBar(false, false)` left WinUI
   reserving a caption strip and painting it the system caption colour. Don't set
   them here. The client-area header handles dragging without adding a system frame.
 
-The DWM border colour is also pinned (`DWMWA_BORDER_COLOR`), since the default
-outlines a dark window in the system's light border.
 
 ## Tray placement
 
@@ -478,6 +476,11 @@ declares Windows App Runtime 2.4 beside the main process's 1.8 dependency, so th
 Store installs each process's framework without bundling either one here.
 
 ## Notifications
+
+Windows owns notification backgrounds and text colors, so they follow Windows
+appearance rather than the app palette. Done and Confirm use Windows' green
+success button style when `AppNotificationButton.IsButtonStyleSupported()` reports
+support; other actions retain the standard system style.
 
 **Off by default, per machine, and session-bound rather than guaranteed.** The
 setting is on the page's Settings screen ([Settings](#settings)). Its copy says
@@ -701,7 +704,7 @@ The legacy `TechnicallyReal` text in the package name and package family is part
 of the app's immutable Store identity. It must not be renamed when the publisher
 display name changes.
 
-**`build-msix.ps1` has two modes, and they differ in identity, not just signing.**
+**`build-msix.ps1` selects packaging identity and signing explicitly.**
 
 - Default (**sideload**): rewrites `Name` to `Persistent.Desktop` and `Publisher`
   to the dev certificate's subject, then signs. Both attributes have to move
@@ -712,6 +715,11 @@ display name changes.
   every `Capability`.
 - `-Store`: leaves the Partner Center identity alone and does not sign at all. The
   Store re-signs at ingestion, so any signature applied here is discarded.
+- `-StoreIdentity`: retains the Store identity and signs a single-architecture
+  Release bundle with a matching publisher certificate. Use `npm run
+  install:desktop -- --store-identity` to update the Store installation in place
+  without publishing. Release sideloads may remain installed; separate dev test
+  packages should be removed after verification.
 - `-Upload`: implies `-Store`, builds x64 and ARM64, then verifies a single
   `.msixbundle` contains both before wrapping it in `.msixupload` for `msstore
   publish`. The loose per-architecture `.msix` files remain for manual Partner

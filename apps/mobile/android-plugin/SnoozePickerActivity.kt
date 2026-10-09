@@ -59,6 +59,7 @@ class SnoozePickerActivity : Activity() {
 
         val scaffold = AlarmUi.scaffold(this)
         content = scaffold.content
+        AlarmUi.observe(this, scaffold.root)
         setContentView(scaffold.root)
         // Same edge-to-edge enforcement as AlarmActivity (API 35+).
         AlarmUi.applySystemBarInsets(scaffold.root)
@@ -120,9 +121,11 @@ class SnoozePickerActivity : Activity() {
         val now = Calendar.getInstance()
         val datePicker = DatePickerDialog(
             this,
+            AlarmUi.pickerTheme(this),
             { _, year, month, day ->
                 TimePickerDialog(
                     this,
+                    AlarmUi.pickerTheme(this),
                     { _, hour, minute ->
                         val target = Calendar.getInstance().apply {
                             set(year, month, day, hour, minute, 0)

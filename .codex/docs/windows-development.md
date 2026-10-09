@@ -7,6 +7,7 @@ From the WSL repository root, use the same commands across all four apps:
 | `npm run build:desktop` | Signed ARM64 Release dev package |
 | `npm run verify:desktop` | Full Windows Debug compile |
 | `npm run install:desktop` | Build, update in place, launch |
+| `npm run install:desktop -- --store-identity` | Signed Release bundle that updates the Store installation |
 | `npm run install:desktop -- --skip-build` | Reinstall the latest successful dev package |
 | `npm run install:desktop -- --skip-build --dry-run` | Check the install without changing Windows |
 | `npm run package:desktop` | Unsigned Store package |
@@ -16,6 +17,11 @@ launching. The working tree is staged in a unique C: Windows TEMP directory,
 cleaned after use. Logs and packages return to `.artifacts/windows-build/` in WSL.
 Tracked release versions stay unchanged; dev revisions change only in staging.
 Never uninstall to bypass an update error or silently replace a publisher.
+
+The explicit `--store-identity` mode preserves the Store identity and account
+data, and requires a matching publisher certificate. It does not publish to the
+Store. Release sideloads may remain installed; remove separate dev test packages
+after verification and do not leave Debug installations behind.
 
 The policy and implementation are shared, not copied per project. Read the
 [shared build/install guide](../../../windows-build-tools/README.md), or open

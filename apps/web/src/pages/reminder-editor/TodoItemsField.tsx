@@ -38,6 +38,7 @@ import Box from '@mui/joy/Box'
 import FormLabel from '@mui/joy/FormLabel'
 import Input from '@mui/joy/Input'
 import Checkbox from '@mui/joy/Checkbox'
+import { checklistCheckboxSx } from '../../components/checklistCheckboxSx.js'
 import IconButton from '@mui/joy/IconButton'
 import CloseIcon from '@mui/icons-material/Close'
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator'
@@ -120,8 +121,8 @@ export function TodoItemsField({
             // underneath it.
             sx={{
               borderRadius: 'sm',
-              '&:hover .todo-remove, &:focus-within .todo-remove': { opacity: 1 },
-              '@media (hover: none)': { '& .todo-remove': { opacity: 1 } },
+              '&:hover .todo-remove, &:focus-within .todo-remove, &:hover .todo-move, &:focus-within .todo-move': { opacity: 1 },
+              '@media (hover: none)': { '& .todo-remove, & .todo-move': { opacity: 1 } },
               ...(draggingIndex === index
                 ? {
                     bgcolor: 'background.level1',
@@ -135,11 +136,14 @@ export function TodoItemsField({
           >
             {multiple && (
               <Box
+                className="todo-move"
                 {...handleProps(index)}
                 tabIndex={0}
                 role="button"
                 aria-label={`Reorder ${item.text || `item ${index + 1}`}. Use the up and down arrow keys to move it.`}
                 sx={{
+                  opacity: 0,
+                  transition: 'opacity 150ms ease',
                   display: 'flex',
                   alignItems: 'center',
                   color: 'text.tertiary',
@@ -162,7 +166,7 @@ export function TodoItemsField({
                 checked={checkedIds.has(item.id)}
                 onChange={(event) => onToggle(item.id, event.target.checked)}
                 aria-label={item.text || `Item ${index + 1}`}
-                sx={{ p: 0.5, flexShrink: 0, borderRadius: 'sm', '&:hover': { bgcolor: 'background.level1' } }}
+                sx={{ ...checklistCheckboxSx, p: 0.5, flexShrink: 0, borderRadius: 'sm', '&:hover': { bgcolor: 'background.level1' } }}
               />
             )}
             <Input

@@ -20,11 +20,13 @@ Run a physical-device smoke test for the current Persistent checkout.
 4. Run `npm run android:test-device -- [host-or-host:port]` when the device is already paired. It
    reapplies the tracked native overlay, discovers the rotating wireless-debug port, assembles and
    installs the direct debug flavor, and launches `ca.persistent.app`. Device helpers capture the
-   current display timeout, maximize it while active, and restore the exact captured value on exit.
+   current display timeout only to choose an input-keepalive cadence. They never change display
+   or lock settings and stop keepalives on exit.
 5. If a phase fails, retry only that phase with the narrower root commands documented in the mobile
    README. Use `npm run android:logs` when runtime evidence is needed. Any direct ADB testing outside
-   those helpers must follow the same capture, maximize, and guaranteed-restore display-timeout
-   lifecycle. Do not clear app data, uninstall the app, revoke pairing, or make other phone-setting
+   those helpers must use the same temporary input-keepalive lifecycle. Keepalives preserve an
+   already-unlocked device; they cannot unlock a secured screen. Do not clear app data, uninstall
+   the app, revoke pairing, or make other phone-setting
    changes unless the user explicitly asks.
 6. Report the connected device, APK path, install result, launch result, and which real-device alarm
    checks were exercised. A successful compile or launch is not evidence that exact alarms,

@@ -148,7 +148,8 @@ which is what keeps a firing's ticks against the same lines: renaming changes wh
 line says, never which line it is.
 
 **The order is part of the definition too, and can be changed from the reading dialog.** Drag
-handles sit on its checklist rows (`POST /api/reminders/:id/items/order`), so
+handles appear on hover or keyboard focus on desktop and stay visible on touch
+screens (`POST /api/reminders/:id/items/order`), so
 a list can be re-ordered where it is being worked through rather than only in the
 editor. It moves *items*, so the new order is the one every later firing shows and the
 order the notification body lists them in — which is why it nudges devices to re-post,

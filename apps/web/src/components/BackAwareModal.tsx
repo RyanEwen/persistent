@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, type ComponentProps } from 'react'
 import { Modal } from '@mui/joy'
-import { setBackAwareDialogProbe } from './backAwareDialogStack.js'
+import { notifyBackAwareDialogs, setBackAwareDialogProbe } from './backAwareDialogStack.js'
 import { useStartupDataReady } from './startupDataContext.js'
 
 /**
@@ -23,13 +23,24 @@ interface ActiveDialogEntry {
 
 let dialogHistoryTokenCounter = 0
 let dialogHistoryListenerInstalled = false
+let dialogHistoryDismissalPending = false
 const activeDialogEntries: ActiveDialogEntry[] = []
 const dismissedDialogTokens = new Set<string>()
 const closingDialogTokensFromHistory = new Set<string>()
 
 // The native Back handler must let an open dialog swallow Back before it
 // navigates; hand it a reader over the live stack rather than a copy of the count.
-setBackAwareDialogProbe(() => activeDialogEntries.length > 0)
+setBackAwareDialogProbe(
+  () => activeDialogEntries.length > 0,
+  () => activeDialogEntries.length > 0 || dialogHistoryDismissalPending
+)
+
+/** Prevent an automatic dialog from registering while a previous history pop is in flight. */
+function dismissDialogHistory() {
+  dialogHistoryDismissalPending = true
+  notifyBackAwareDialogs()
+  window.history.back()
+}
 
 function createDialogHistoryToken() {
   dialogHistoryTokenCounter += 1
@@ -80,6 +91,7 @@ function registerActiveDialog(token: string, requestClose: () => void) {
     return false
   }
   activeDialogEntries.push({ token, requestClose })
+  notifyBackAwareDialogs()
   return true
 }
 
@@ -87,10 +99,13 @@ function unregisterActiveDialog(token: string) {
   const entryIndex = activeDialogEntries.findIndex((entry) => entry.token === token)
   if (entryIndex === -1) return false
   activeDialogEntries.splice(entryIndex, 1)
+  notifyBackAwareDialogs()
   return true
 }
 
 function handleDialogHistoryPopState(event: PopStateEvent) {
+  dialogHistoryDismissalPending = false
+  notifyBackAwareDialogs()
   const nextStack = readDialogHistoryStack(event.state)
   const currentStack = getActiveDialogStack()
   if (areDialogStacksEqual(nextStack, currentStack)) return
@@ -111,7 +126,7 @@ function handleDialogHistoryPopState(event: PopStateEvent) {
 
   queueMicrotask(() => {
     replaceCurrentDialogHistoryWithActiveStack()
-    if (window.history.length > 1) window.history.back()
+    if (window.history.length > 1) dismissDialogHistory()
   })
 }
 
@@ -135,11 +150,13 @@ export function BackAwareModal({ open, onClose, keepMounted, ...props }: BackAwa
 
   const syncClosedDialog = useCallback((token: string, closeViaHistory: boolean) => {
     const closedFromHistory = closingDialogTokensFromHistory.delete(token)
+    const popHistory = !closedFromHistory && closeViaHistory && isTopHistoryDialog(token) && window.history.length > 1
+    if (popHistory) dialogHistoryDismissalPending = true
     dismissedDialogTokens.add(token)
     unregisterActiveDialog(token)
     dialogTokenRef.current = null
-    if (!closedFromHistory && closeViaHistory && isTopHistoryDialog(token) && window.history.length > 1) {
-      window.history.back()
+    if (popHistory) {
+      dismissDialogHistory()
     }
   }, [])
 
@@ -181,7 +198,7 @@ export function BackAwareModal({ open, onClose, keepMounted, ...props }: BackAwa
     }
     dismissedDialogTokens.add(dialogToken)
     if (isTopHistoryDialog(dialogToken) && window.history.length > 1) {
-      window.history.back()
+      dismissDialogHistory()
       return
     }
     onCloseRef.current?.(event, reason)

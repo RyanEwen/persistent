@@ -6,13 +6,9 @@
     xmlns:controls="using:Microsoft.UI.Xaml.Controls"
     xmlns:local="using:Persistent.Desktop.Controls"
     Title="Persistent">
-    <!-- Explicitly dark and opaque, not a system backdrop. The hosted PWA is dark
-         in every theme it offers, whereas DesktopAcrylicBackdrop follows the
-         *system* theme — so on a light-mode desktop the chrome rendered as light
-         acrylic wherever content did not paint over it, which is where the white
-         strip above the header came from. RequestedTheme pins the header glyphs
-         light to match. -->
-    <Grid x:Name="Root" Background="#0B0F19" RequestedTheme="Dark">
+    <!-- Opaque app-colored chrome avoids acrylic gaps. The page sends its resolved
+         appearance after loading; the initial frame follows the system theme. -->
+    <Grid x:Name="Root" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" RequestedTheme="Default">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />

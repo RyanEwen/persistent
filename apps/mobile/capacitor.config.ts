@@ -11,13 +11,23 @@ import type { CapacitorConfig } from '@capacitor/cli'
  *
  * webDir is the web build output; run the web build before `cap sync`.
  */
+// ADB reverse exposes the checkout on the phone's loopback interface. Restrict
+// this build-time override to loopback so a dev test cannot expose HTTP sessions.
+const devUrl = process.env.PERSISTENT_ANDROID_DEV_URL
+if (devUrl) {
+  const parsed = new URL(devUrl)
+  if (!['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname)) {
+    throw new Error('PERSISTENT_ANDROID_DEV_URL must use a loopback hostname (with adb reverse).')
+  }
+}
+
 const config: CapacitorConfig = {
   appId: 'ca.persistent.app',
   appName: 'Persistent',
   webDir: '../web/dist',
   server: {
-    url: 'https://persistent.dynamic-solutions.ca',
-    cleartext: false
+    url: devUrl ?? 'https://persistent.dynamic-solutions.ca',
+    cleartext: Boolean(devUrl?.startsWith('http:'))
   },
   android: {
     allowMixedContent: false

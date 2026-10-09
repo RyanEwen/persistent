@@ -5,6 +5,28 @@ per-user instead of per-tenant.
 
 ## Loading
 
+### Account announcements
+
+`GET /api/announcements` returns the curated announcements this account has not
+viewed. The dialog waits for refreshed startup data and any existing dialog;
+reminder deep links take priority. Opening, refreshing, backgrounding, or closing
+the app does not count as viewing. Closing the announcement (including Back,
+Escape, or the backdrop) queues `POST /api/announcements/:id/viewed`.
+
+`AnnouncementView` stores the first dismissal time under the authenticated user's
+id and a stable announcement id. Its composite primary key makes retries and
+simultaneous dismissals idempotent; account deletion cascades to these records.
+`announcement.viewed` invalidates unread state on the account's other open clients,
+and reconnect refreshes it again. Unread lists are excluded from offline storage;
+queued dismissals retain the normal account binding and confirmed-session replay
+gate. Announcement load failures cannot prevent access to reminders.
+
+To publish another announcement, add its title and paragraphs to the API's
+`lib/announcements.ts` catalog with a new permanent id, newest first. Editing an
+existing id does not make it reappear for accounts that already dismissed it.
+
+### Reminder data
+
 All data loads over guarded HTTP via `apiFetch` (`apps/web/src/lib/apiClient.ts`)
 wrapped in TanStack Query hooks (`apps/web/src/data/`). Responses match the Zod
 schemas in `@persistent/shared`.

@@ -102,9 +102,11 @@ packaging or desktop runtime changes, install the working tree and check the cha
 behavior. `npm run verify:desktop:csharp` retains the additional Linux non-XAML
 compile check; it excludes generated XAML code and packaging.
 
-Local auth works without mail infra: `DEMO_MODE=true` returns the sign-in code in
-the API response instead of emailing it. Config lives in `.env` (see
-`.env.example`).
+`npm run dev` and `npm run dev:background` always enable `DEMO_MODE=true`,
+including the container runtime. Local auth shows the sign-in code on screen
+instead of emailing it, even when `.env` has mail credentials or disables demo
+mode. Choose **Use email instead**, enter an address, then enter the displayed
+code. Production Compose forces demo mode off.
 
 For the Android app (build, wireless adb, signing), see `apps/mobile/README.md`.
 

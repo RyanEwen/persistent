@@ -4,16 +4,13 @@
  */
 import React from 'react'
 import { createRoot } from 'react-dom/client'
-import { CssVarsProvider } from '@mui/joy/styles'
-import CssBaseline from '@mui/joy/CssBaseline'
-import GlobalStyles from '@mui/joy/GlobalStyles'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { BrowserRouter } from 'react-router-dom'
 import { startServiceWorker } from './lib/swUpdate.js'
-import { theme } from './theme.js'
 import { queryClient, registerMutationDefaults } from './lib/queryClient.js'
 import { persistOptions } from './lib/persistQuery.js'
 import { AuthProvider } from './auth/useAuth.js'
+import { AppThemeProvider } from './settings/AppThemeProvider.js'
 import { SettingsProvider } from './settings/useSettings.js'
 import { ToastProvider } from './components/ToastProvider.js'
 import { ErrorBoundary } from './components/ErrorBoundary.js'
@@ -34,26 +31,23 @@ if (!container) throw new Error('Missing #root')
 
 createRoot(container).render(
   <React.StrictMode>
-    <CssVarsProvider theme={theme} defaultMode="dark">
-      <CssBaseline />
-      {/* Scale all rem-based typography up 10% overall. */}
-      <GlobalStyles styles={{ html: { fontSize: '110%' } }} />
-      <ErrorBoundary>
-      <PersistQueryClientProvider
-        client={queryClient}
-        persistOptions={persistOptions}
-      >
-        <BrowserRouter>
-          <AuthProvider>
-            <SettingsProvider>
-              <ToastProvider>
-                <App />
-              </ToastProvider>
-            </SettingsProvider>
-          </AuthProvider>
-        </BrowserRouter>
-      </PersistQueryClientProvider>
-      </ErrorBoundary>
-    </CssVarsProvider>
+    <SettingsProvider>
+      <AppThemeProvider>
+        <ErrorBoundary>
+          <PersistQueryClientProvider
+            client={queryClient}
+            persistOptions={persistOptions}
+          >
+            <BrowserRouter>
+              <AuthProvider>
+                <ToastProvider>
+                  <App />
+                </ToastProvider>
+              </AuthProvider>
+            </BrowserRouter>
+          </PersistQueryClientProvider>
+        </ErrorBoundary>
+      </AppThemeProvider>
+    </SettingsProvider>
   </React.StrictMode>
 )

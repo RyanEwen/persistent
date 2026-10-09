@@ -152,8 +152,18 @@ native overlay setup, direct-debug assembly, rotating-port discovery, install,
 and launch in one command. Use `npm run android:logs` to stream logcat for only
 the running direct-debug process. Pairing ports and six-digit codes are
 temporary; never store them in `.env` or shell scripts.
-Both commands temporarily maximize the phone's display timeout while active and
-restore the exact prior value when they finish or fail.
+
+To test undeployed web changes alongside the Play app, use the direct-debug
+identity with an ADB loopback tunnel. Run `adb reverse tcp:5173 tcp:22750`
+(replace `22750` with this checkout's published web port), then build with
+`PERSISTENT_ANDROID_DEV_URL=http://localhost:5173 npm run android:build`.
+This build-only override accepts loopback hosts and allows local HTTP; leave it
+unset for normal builds. Remove the reverse tunnel when testing finishes.
+Both commands send temporary input keepalives while active and stop them when
+they finish, fail, or lose the device. The phone's display and lock settings stay
+unchanged. Keepalives prevent idle locking of an already-unlocked phone; they do
+not unlock a secured lock screen. Select a device with `ANDROID_SERIAL` if more
+than one is connected.
 
 ## Rebuild + run after web changes
 

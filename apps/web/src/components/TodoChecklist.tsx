@@ -39,6 +39,7 @@ import Box from '@mui/joy/Box'
 import Button from '@mui/joy/Button'
 import IconButton from '@mui/joy/IconButton'
 import Checkbox from '@mui/joy/Checkbox'
+import { checklistCheckboxSx } from './checklistCheckboxSx.js'
 import Typography from '@mui/joy/Typography'
 import LinearProgress from '@mui/joy/LinearProgress'
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator'
@@ -189,8 +190,8 @@ export function TodoChecklist({
               sx={{
                 minHeight: ROW_MIN_HEIGHT,
                 borderRadius: 'sm',
-                '&:hover .todo-remove, &:focus-within .todo-remove': { opacity: 1 },
-                '@media (hover: none)': { '& .todo-remove': { opacity: 1 } },
+                '&:hover .todo-remove, &:focus-within .todo-remove, &:hover .todo-move, &:focus-within .todo-move': { opacity: 1 },
+                '@media (hover: none)': { '& .todo-remove, & .todo-move': { opacity: 1 } },
                 ...(draggingIndex === index
                   ? {
                       bgcolor: 'background.level1',
@@ -204,11 +205,14 @@ export function TodoChecklist({
             >
               {reorderable && (
                 <Box
+                  className="todo-move"
                   {...handleProps(index)}
                   tabIndex={0}
                   role="button"
                   aria-label={`Reorder ${item.text}. Use the up and down arrow keys to move it.`}
                   sx={{
+                    opacity: 0,
+                    transition: 'opacity 150ms ease',
                     display: 'flex',
                     alignItems: 'center',
                     flexShrink: 0,
@@ -233,6 +237,7 @@ export function TodoChecklist({
                 onChange={(event) => onToggle?.(item.id, event.target.checked)}
                 aria-label={item.text}
                 sx={{
+                  ...checklistCheckboxSx,
                   p: 0.75,
                   borderRadius: 'sm',
                   '&:hover': { bgcolor: 'background.level1' }

@@ -4,6 +4,7 @@
 #
 #   .\build-msix.ps1                 signed sideload build (dev cert, updates in place)
 #   .\build-msix.ps1 -Store          unsigned, real Store identity, for Partner Center
+#   .\build-msix.ps1 -StoreIdentity  signed Release bundle, updates the Store installation
 #   .\build-msix.ps1 -Upload         both architectures in a verified bundle and upload container
 #   .\build-msix.ps1 -Platform ARM64 override the auto-detected architecture
 #
@@ -11,13 +12,15 @@
 # the Partner Center Name/Publisher verbatim and stays unsigned (the Store
 # re-signs it); anything else it would be signed with here is thrown away. A
 # sideload package is rewritten to a local identity and dev-signed, so repeat
-# installs update in place and a sideloaded copy never collides with a Store one.
+# installs update in place. Explicit -StoreIdentity instead retains the Store
+# identity and requires its matching certificate to update that installation.
 
 [CmdletBinding()]
 param(
     [ValidateSet('x64', 'ARM64')]
     [string]$Platform,
     [switch]$Store,
+    [switch]$StoreIdentity,
     [switch]$Upload,
     [string]$CertPath = "$PSScriptRoot\Persistent.Desktop.pfx",
     [string]$CertPassword = 'persistent'
@@ -30,6 +33,10 @@ $ErrorActionPreference = 'Stop'
 # machine; there is nothing a dev-signed container would be for.
 if ($Upload) { $Store = $true }
 if ($Upload -and $Platform) { throw '-Upload builds both architectures; drop -Platform.' }
+if ($StoreIdentity -and $Store) { throw '-StoreIdentity cannot be combined with -Store or -Upload.' }
+if ($StoreIdentity -and -not (Test-Path $CertPath)) {
+    throw '-StoreIdentity requires an existing matching publisher certificate.'
+}
 
 $msixDir    = $PSScriptRoot
 $root       = Split-Path -Parent $msixDir
@@ -241,8 +248,8 @@ $manifestOut = Join-Path $layout 'AppxManifest.xml'
     -replace 'ARCH_PLACEHOLDER', $Platform.ToLower() |
     Set-Content $manifestOut -Encoding UTF8
 
-# Sideload builds get a local identity so repeat installs update in place instead
-# of colliding with a Store install of the same app.
+# Default sideload builds use a local identity. Explicit Store-identity updates
+# retain the existing family and require its matching publisher certificate.
 #
 # Both attributes have to move together. The package family name is a hash of
 # Name + Publisher, and Windows refuses to install a package whose declared
@@ -269,10 +276,17 @@ if (-not $Store) {
     # TargetDeviceFamily and on every Capability, so a string substitution broad
     # enough to catch the identity is broad enough to corrupt those.
     [xml]$doc = Get-Content $manifestOut -Raw
-    $doc.Package.Identity.SetAttribute('Name', 'Persistent.Desktop')
-    $doc.Package.Identity.SetAttribute('Publisher', $cert.Subject)
-    $doc.Save($manifestOut)
-    Write-Host "Sideload identity: Persistent.Desktop / $($cert.Subject)"
+    if ($StoreIdentity) {
+        if ($doc.Package.Identity.Publisher -ne $cert.Subject) {
+            throw 'The signing certificate does not match the Store publisher.'
+        }
+        Write-Host "Signed Store identity: $($doc.Package.Identity.Name) / $($cert.Subject)"
+    } else {
+        $doc.Package.Identity.SetAttribute('Name', 'Persistent.Desktop')
+        $doc.Package.Identity.SetAttribute('Publisher', $cert.Subject)
+        $doc.Save($manifestOut)
+        Write-Host "Sideload identity: Persistent.Desktop / $($cert.Subject)"
+    }
 } else {
     [xml]$doc = Get-Content $manifestOut -Raw
     Write-Host "Store identity: $($doc.Package.Identity.Name) / $($doc.Package.Identity.Publisher)"
@@ -292,6 +306,22 @@ if (Test-Path $outPath) { Remove-Item $outPath -Force }
 if ($LASTEXITCODE -ne 0) { throw 'makeappx failed' }
 
 if (-not $Store) {
+    # Store installations are bundles. Preserve that package shape for an
+    # in-place Release sideload, with one architecture and one signed artifact.
+    if ($StoreIdentity) {
+        $bundleInput = Join-Path $env:TEMP "PersistentSideload-$([guid]::NewGuid().ToString('N'))"
+        $bundlePath = [System.IO.Path]::ChangeExtension($outPath, '.msixbundle')
+        try {
+            New-Item -ItemType Directory -Path $bundleInput | Out-Null
+            Copy-Item $outPath -Destination $bundleInput
+            & $makeappx bundle /d $bundleInput /p $bundlePath /bv $manifestVersion /o
+            if ($LASTEXITCODE -ne 0) { throw 'MakeAppx failed to bundle the Release sideload.' }
+        } finally {
+            if (Test-Path $bundleInput) { Remove-Item $bundleInput -Recurse -Force }
+        }
+        Remove-Item $outPath -Force
+        $outPath = $bundlePath
+    }
     & $signtool sign /fd SHA256 /a /f $CertPath /p $CertPassword $outPath
     if ($LASTEXITCODE -ne 0) { throw 'signtool failed' }
     Write-Host "Signed."

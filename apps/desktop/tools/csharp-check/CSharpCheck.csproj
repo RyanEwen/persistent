@@ -80,6 +80,7 @@
          Windows.Services.Store is the least forgiving WinRT surface in the app. -->
     <Compile Include="../../Persistent.Desktop/Services/UpdateService.cs" />
 
+    <Compile Include="../../Persistent.Desktop/Classes/FlyoutAppearance.cs" />
     <Compile Include="HostStubs.cs" />
   </ItemGroup>
 

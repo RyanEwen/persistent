@@ -6,11 +6,9 @@ namespace Persistent.Desktop.Classes;
 /// <summary>
 /// Applies the selected app theme (WinUI 3 ElementTheme) to the settings window.
 ///
-/// Scope is deliberately just that one window. The **flyout is pinned dark** in
-/// its own XAML, because it is a thin frame around a web page that is dark in
-/// every theme the PWA offers — letting a light choice apply there put light
-/// chrome around dark content. And the page itself renders its own theme
-/// (`settings/themes.ts`), so this never reaches into web content either.
+/// Scope is deliberately just that one window. The flyout receives its resolved
+/// light/dark mode and background from the hosted page through FlyoutAppearance;
+/// this setting never overrides the page's selected app palette.
 /// </summary>
 internal static class ThemeManager
 {
@@ -37,8 +35,8 @@ internal static class ThemeManager
     /// Without it a dark window on a light-mode desktop gets a light frame — a pale
     /// hairline down the edges that no colour attribute overrides, because the frame
     /// follows the *system* theme until the window is explicitly marked. Applies to
-    /// the settings window; the flyout sets it directly and unconditionally, since
-    /// it is pinned dark whatever the user chose.
+    /// the settings window; the flyout applies the page
+    /// appearance through FlyoutAppearance.
     /// </summary>
     public static void ApplyWindowFrame(Window window)
     {

@@ -5,7 +5,7 @@
  * docs/alarm-architecture.md.
  */
 import { Capacitor, registerPlugin } from '@capacitor/core'
-import type { DeviceAgendaEntry, SoundChoice } from '@persistent/shared'
+import type { DeviceAgendaEntry, SoundChoice, NativeAppearance } from '@persistent/shared'
 
 export interface ScheduledAlarm {
   /** Occurrence id — the alarm's stable key and what we ack against. */
@@ -55,6 +55,8 @@ export interface ScheduledAlarm {
 }
 
 export interface AlarmPluginPlugin {
+  /** Persist the app palettes for full-screen alarms, snooze screens, and shade accents. */
+  setAppearance(options: { appearance: NativeAppearance }): Promise<void>
   schedule(options: ScheduledAlarm): Promise<void>
   scheduleAll(options: { alarms: ScheduledAlarm[] }): Promise<void>
   /**

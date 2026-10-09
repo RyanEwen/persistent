@@ -25,38 +25,58 @@ import androidx.core.view.WindowInsetsCompat
  * scaling, and pill-button styling both screens use. Tweak the look here, not in
  * each activity, so the two surfaces stay consistent.
  *
- * Palette: teal accent on deep slate, mirroring the web app's default theme. The
- * background gradient fills the whole screen; content centers on top of it (no
- * floating card).
+ * Colors come from the app palette saved by AlarmPlugin. Match system resolves
+ * at display time without needing the WebView or a network connection. Existing
+ * views update in place so an appearance change cannot reset a snooze draft.
  */
 internal object AlarmUi {
-    val BG_TOP = Color.parseColor("#0B0F19")
-    val BG_BOTTOM = Color.parseColor("#0D1326")
-    val TITLE = Color.parseColor("#F5F7FA")
-    val BODY = Color.parseColor("#9AA4B2")
-    val KICKER = Color.parseColor("#5BE3BE")
-    val ACCENT = Color.parseColor("#12B886")
-    val ACCENT_PRESSED = Color.parseColor("#0CA678")
-    val ON_ACCENT = Color.parseColor("#04231A")
-    val SURFACE = Color.parseColor("#1E2740")
-    val SURFACE_PRESSED = Color.parseColor("#273253")
-    val ON_SURFACE = Color.parseColor("#E5E9F0")
-    val BORDER = Color.parseColor("#2A3550")
+    private class StyleUpdate(val apply: (AlarmPalette) -> Unit)
+
+    /** Apply a style now and retain its updater on the view for later theme changes. */
+    private fun applyAppearance(view: View, update: (AlarmPalette) -> Unit) {
+        view.tag = StyleUpdate(update)
+        update(AlarmAppearance.palette(view.context))
+    }
+
+    /** Restyle the existing tree, preserving text, selection, listeners, and confirmation state. */
+    fun refresh(activity: android.app.Activity, root: View) {
+        val palette = AlarmAppearance.palette(activity)
+        fun refreshView(view: View) {
+            (view.tag as? StyleUpdate)?.apply?.invoke(palette)
+            if (view is ViewGroup) {
+                for (index in 0 until view.childCount) refreshView(view.getChildAt(index))
+            }
+        }
+        refreshView(root)
+        val controller = androidx.core.view.WindowCompat.getInsetsController(activity.window, root)
+        controller.isAppearanceLightStatusBars = !AlarmAppearance.isDark(activity)
+        controller.isAppearanceLightNavigationBars = !AlarmAppearance.isDark(activity)
+    }
+
+    /** Attach theme updates only while the Activity's root is on screen. */
+    fun observe(activity: android.app.Activity, root: View) {
+        root.addOnAttachStateChangeListener(AlarmAppearanceObserver(activity, root))
+    }
+
+    /** Platform date/time controls follow the app's resolved light/dark appearance. */
+    fun pickerTheme(context: Context): Int = if (AlarmAppearance.isDark(context)) {
+        android.R.style.Theme_Material_Dialog_Alert
+    } else {
+        android.R.style.Theme_Material_Light_Dialog_Alert
+    }
+
+    /** The screen uses the same base color as the app without a separate navy gradient. */
+    fun styleBackground(view: View) {
+        applyAppearance(view) { palette -> view.setBackgroundColor(palette.background) }
+    }
 
     fun dp(context: Context, value: Float): Int =
         TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP, value, context.resources.displayMetrics
         ).toInt()
 
-    /** Full-bleed vertical gradient applied to an activity's root view. */
-    fun screenBackground(): GradientDrawable =
-        GradientDrawable(
-            GradientDrawable.Orientation.TOP_BOTTOM,
-            intArrayOf(BG_TOP, BG_BOTTOM)
-        )
-
     /**
-     * Root scaffold shared by both surfaces: a full-screen gradient that fills
+     * Root scaffold shared by both surfaces: a full-screen background that fills
      * the whole display and scrolls if content is tall, with the caller's
      * content centered on top. Returns the content holder (a vertical
      * LinearLayout) to add children to, plus the [root] to pass to setContentView.
@@ -105,7 +125,7 @@ internal object AlarmUi {
         }
         val root = ScrollView(context).apply {
             isFillViewport = true
-            background = screenBackground()
+            styleBackground(this)
             addView(content)
         }
         return Scaffold(root, content)
@@ -116,7 +136,7 @@ internal object AlarmUi {
         TextView(context).apply {
             this.text = text
             textSize = 13f
-            setTextColor(KICKER)
+            applyAppearance(this) { setTextColor(it.kicker) }
             typeface = Typeface.DEFAULT_BOLD
             letterSpacing = 0.18f
             gravity = Gravity.CENTER
@@ -126,7 +146,7 @@ internal object AlarmUi {
         TextView(context).apply {
             this.text = text
             textSize = 27f
-            setTextColor(TITLE)
+            applyAppearance(this) { setTextColor(it.text) }
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
             setPadding(0, dp(context, 10f), 0, 0)
@@ -136,13 +156,13 @@ internal object AlarmUi {
         TextView(context).apply {
             this.text = text
             textSize = 16f
-            setTextColor(BODY)
+            applyAppearance(this) { setTextColor(it.secondary) }
             gravity = Gravity.CENTER
             setLineSpacing(dp(context, 3f).toFloat(), 1f)
             setPadding(0, dp(context, 12f), 0, 0)
         }
 
-    enum class ButtonStyle { PRIMARY, SECONDARY, GHOST }
+    enum class ButtonStyle { PRIMARY, DONE, SECONDARY, GHOST }
 
     /** Rounded pill background with a pressed state, shared by buttons + segments. */
     private fun pillSelector(context: Context, fill: Int, pressed: Int, stroke: Int?): StateListDrawable {
@@ -159,8 +179,8 @@ internal object AlarmUi {
     }
 
     /**
-     * A rounded full-width pill button. PRIMARY = solid teal (the affirmative
-     * action), SECONDARY = filled slate surface, GHOST = outlined/transparent.
+     * A rounded full-width pill button. DONE = semantic success, PRIMARY = app accent,
+     * SECONDARY = filled surface, GHOST = outlined/transparent.
      */
     fun pillButton(
         context: Context,
@@ -169,15 +189,6 @@ internal object AlarmUi {
         topMarginDp: Float,
         onClick: () -> Unit
     ): TextView {
-        val fill: Int
-        val pressed: Int
-        val textColor: Int
-        var stroke: Int? = null
-        when (style) {
-            ButtonStyle.PRIMARY -> { fill = ACCENT; pressed = ACCENT_PRESSED; textColor = ON_ACCENT }
-            ButtonStyle.SECONDARY -> { fill = SURFACE; pressed = SURFACE_PRESSED; textColor = ON_SURFACE }
-            ButtonStyle.GHOST -> { fill = Color.TRANSPARENT; pressed = SURFACE; textColor = BODY; stroke = BORDER }
-        }
         // A styled TextView (not Button) so no platform theme bleeds into the
         // pill — Button injects its own background/elevation/caps that fight the
         // GradientDrawable. This keeps the look identical across OEM skins.
@@ -187,9 +198,21 @@ internal object AlarmUi {
             isFocusable = true
             gravity = Gravity.CENTER
             textSize = 17f
-            setTextColor(textColor)
+            applyAppearance(this) { palette ->
+                val fill: Int
+                val pressed: Int
+                val textColor: Int
+                var stroke: Int? = null
+                when (style) {
+                    ButtonStyle.PRIMARY -> { fill = palette.accent; pressed = palette.accentPressed; textColor = palette.onAccent }
+                    ButtonStyle.DONE -> { fill = palette.done; pressed = palette.donePressed; textColor = palette.onDone }
+                    ButtonStyle.SECONDARY -> { fill = palette.surface; pressed = palette.surfacePressed; textColor = palette.text }
+                    ButtonStyle.GHOST -> { fill = Color.TRANSPARENT; pressed = palette.surface; textColor = palette.secondary; stroke = palette.border }
+                }
+                setTextColor(textColor)
+                background = pillSelector(context, fill, pressed, stroke)
+            }
             typeface = Typeface.DEFAULT_BOLD
-            background = pillSelector(context, fill, pressed, stroke)
             val vpad = dp(context, 16f)
             setPadding(dp(context, 20f), vpad, dp(context, 20f), vpad)
             layoutParams = LinearLayout.LayoutParams(
@@ -201,7 +224,7 @@ internal object AlarmUi {
     }
 
     /**
-     * A numeric input styled as a slate pill — the value side of the custom
+     * A numeric input styled as a theme-colored pill, the value side of the custom
      * duration row. Starts with [initial] selected so the first keystroke
      * replaces it.
      */
@@ -210,15 +233,17 @@ internal object AlarmUi {
             setText(initial)
             inputType = InputType.TYPE_CLASS_NUMBER
             textSize = 18f
-            setTextColor(ON_SURFACE)
-            setHintTextColor(BODY)
+            applyAppearance(this) { palette ->
+                setTextColor(palette.text)
+                setHintTextColor(palette.secondary)
+                background = GradientDrawable().apply {
+                    cornerRadius = dp(context, 16f).toFloat()
+                    setColor(palette.surface)
+                    setStroke(dp(context, 1f), palette.border)
+                }
+            }
             gravity = Gravity.CENTER
             typeface = Typeface.DEFAULT_BOLD
-            background = GradientDrawable().apply {
-                cornerRadius = dp(context, 16f).toFloat()
-                setColor(SURFACE)
-                setStroke(dp(context, 1f), BORDER)
-            }
             val vpad = dp(context, 12f)
             setPadding(dp(context, 16f), vpad, dp(context, 16f), vpad)
             setSelection(text.length)
@@ -230,7 +255,7 @@ internal object AlarmUi {
 
     /**
      * A horizontal segmented control of equal-width pills (e.g. unit chips for
-     * the custom snooze). The selected segment is teal; the rest are slate.
+     * the custom snooze). The selected segment uses the accent; the rest use the surface color.
      * [onSelect] fires with the chosen index; the highlight updates in place.
      */
     fun segmented(
@@ -249,12 +274,14 @@ internal object AlarmUi {
         }
         val segments = mutableListOf<TextView>()
         fun applyStyle(view: TextView, selected: Boolean) {
-            if (selected) {
-                view.background = pillSelector(context, ACCENT, ACCENT_PRESSED, null)
-                view.setTextColor(ON_ACCENT)
-            } else {
-                view.background = pillSelector(context, SURFACE, SURFACE_PRESSED, BORDER)
-                view.setTextColor(ON_SURFACE)
+            applyAppearance(view) { palette ->
+                if (selected) {
+                    view.background = pillSelector(context, palette.accent, palette.accentPressed, null)
+                    view.setTextColor(palette.onAccent)
+                } else {
+                    view.background = pillSelector(context, palette.surface, palette.surfacePressed, palette.border)
+                    view.setTextColor(palette.text)
+                }
             }
         }
         labels.forEachIndexed { index, label ->
@@ -299,9 +326,11 @@ internal object AlarmUi {
             val gap = dp(context, 6f)
             repeat(count) { index ->
                 addView(View(context).apply {
-                    background = GradientDrawable().apply {
-                        shape = GradientDrawable.OVAL
-                        setColor(if (index == selected) KICKER else BORDER)
+                    applyAppearance(this) { palette ->
+                        background = GradientDrawable().apply {
+                            shape = GradientDrawable.OVAL
+                            setColor(if (index == selected) palette.kicker else palette.border)
+                        }
                     }
                     layoutParams = LinearLayout.LayoutParams(size, size).apply {
                         if (index > 0) marginStart = gap

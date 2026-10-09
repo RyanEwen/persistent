@@ -54,6 +54,7 @@
 
 <activity
     android:name="ca.persistent.app.alarm.SnoozePickerActivity"
+    android:configChanges="uiMode"
     android:exported="false"
     android:showWhenLocked="true"
     android:turnScreenOn="true"

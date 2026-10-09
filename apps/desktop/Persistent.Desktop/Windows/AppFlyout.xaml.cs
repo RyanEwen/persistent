@@ -365,17 +365,15 @@ public sealed partial class AppFlyout : Window
         //
         // The client-area header handles moving without asking Windows for a frame.
         //
-        // Belt and braces for any caption the framework still decides to draw: force
-        // its colours to the window's own dark rather than leaving them system.
-        // No SystemBackdrop: the Root grid paints its own opaque dark background
-        // (see AppFlyout.xaml). An acrylic backdrop follows the system theme, so on
-        // a light-mode desktop it renders light wherever content does not cover it.
-
-        // Mark the window dark so nothing DWM still draws for it (drop shadow,
-        // corner antialiasing) is derived from a light system theme. Pinned on
-        // regardless of the user's theme choice, matching the web content inside.
-        int dark = 1;
-        DwmSetWindowAttribute(_hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, sizeof(int));
+        // Opaque chrome avoids acrylic gaps. Until the page sends its resolved
+        // preference, initialize the frame and loading background from the OS.
+        var systemForeground = new global::Windows.UI.ViewManagement.UISettings()
+            .GetColorValue(global::Windows.UI.ViewManagement.UIColorType.Foreground);
+        bool dark = systemForeground.R > 128;
+        var background = dark
+            ? global::Windows.UI.Color.FromArgb(255, 23, 23, 23)
+            : global::Windows.UI.Color.FromArgb(255, 245, 245, 245);
+        Classes.FlyoutAppearance.Apply(Root, WebView, _hwnd, dark, background);
 
         // Rounded corners ONLY. No manual DWMWA_BORDER_COLOR or DWMWA_CAPTION_COLOR
         // — the same convention the sibling tray app documents. Those attributes
@@ -392,10 +390,8 @@ public sealed partial class AppFlyout : Window
         ResizeHeightEdge.SetCursor(Microsoft.UI.Input.InputSystemCursorShape.SizeNorthSouth);
         ResizeWidthEdge.SetCursor(Microsoft.UI.Input.InputSystemCursorShape.SizeWestEast);
         ResizeCorner.SetCursor(Microsoft.UI.Input.InputSystemCursorShape.SizeNorthwestSoutheast);
-        // Deliberately NOT ThemeManager.ApplySavedTheme: the flyout is pinned dark
-        // in XAML to match the web content it frames, and applying the user's
-        // light/system choice here would overwrite that and reintroduce light
-        // chrome around a dark page. The theme setting governs the settings window.
+        // ThemeManager owns only the separate settings window. The page owns
+        // this frame's appearance and sends colors through the display-only bridge.
 
         _appWindow.Hide();
         Activated += OnActivated;
@@ -488,6 +484,14 @@ public sealed partial class AppFlyout : Window
 
             switch (type.GetString())
             {
+                case "appearance":
+                    if (!Classes.FlyoutAppearance.TryRead(root, out bool dark, out var background))
+                    {
+                        Logger.Warn("Ignoring an invalid appearance message");
+                        break;
+                    }
+                    DispatcherQueue.TryEnqueue(() => Classes.FlyoutAppearance.Apply(Root, WebView, _hwnd, dark, background));
+                    break;
                 // Back ran out of hierarchy to walk — the flyout's equivalent of
                 // Back leaving the app on Android.
                 // A close arriving in the first moments of opening is not the user

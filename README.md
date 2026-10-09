@@ -42,6 +42,18 @@ Most reminder apps fire once and are easy to swipe away. Persistent keeps
 nagging — a notification that won't dismiss, or a full alarm that loops — until
 you *actually mark it done*. It's built for the things you can't afford to miss.
 
+Choose your appearance in **Settings > Theme**: **Match system** is the default
+and automatically switches between Light and charcoal Dark with your device.
+Choose Light or Dark to keep one appearance, or try Forest or Plum. Each palette
+recolors the whole app, including cards and dialogs. Navy keeps the original
+dark blue surfaces and teal accents. Doodles are enabled by default. The
+**Doodle background** dropdown offers Match theme, No doodles, and doodle line
+colors from pale shades for Light or dark shades for the darker themes. The
+page background follows your theme. Your choices are saved on each device.
+
+Existing Navy settings and retired Navy variants switch to Match system once,
+keeping their doodle preferences. You can select Navy again afterward.
+
 ## What makes it different
 
 - **It won't be ignored.** Choose a persistent notification that re-sounds, or a

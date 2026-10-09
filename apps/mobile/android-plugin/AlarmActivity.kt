@@ -125,7 +125,7 @@ class AlarmActivity : Activity() {
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = AlarmUi.screenBackground()
+            AlarmUi.styleBackground(this)
             addView(pager)
             addView(
                 dotsHolder,
@@ -133,6 +133,7 @@ class AlarmActivity : Activity() {
             )
         }
 
+        AlarmUi.observe(this, root)
         setContentView(root)
         // API 35 enforces edge-to-edge; without this the alarm's buttons sit under
         // the system bars. See AlarmUi.applySystemBarInsets.
@@ -273,8 +274,8 @@ class AlarmActivity : Activity() {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
-            // The gradient lives on the activity root; a page painting its own would
-            // draw a hard seam down the middle of every swipe.
+            // The activity paints the initial background behind the whole pager.
+            // A later theme refresh may paint this page with the same solid color.
             scaffold.root.background = null
             return PageHolder(scaffold.root, scaffold.content)
         }
@@ -311,7 +312,7 @@ class AlarmActivity : Activity() {
                 confirming.remove(spec.occurrenceId)
                 actions.removeAllViews()
                 actions.addView(
-                    AlarmUi.pillButton(this@AlarmActivity, "Done", AlarmUi.ButtonStyle.PRIMARY, topMarginDp = 28f) {
+                    AlarmUi.pillButton(this@AlarmActivity, "Done", AlarmUi.ButtonStyle.DONE, topMarginDp = 28f) {
                         showConfirm()
                     }
                 )
@@ -347,7 +348,7 @@ class AlarmActivity : Activity() {
                     topMarginDp = 28f
                 )
                 actions.addView(
-                    AlarmUi.pillButton(this@AlarmActivity, "Confirm done", AlarmUi.ButtonStyle.PRIMARY, topMarginDp = 12f) {
+                    AlarmUi.pillButton(this@AlarmActivity, "Confirm done", AlarmUi.ButtonStyle.DONE, topMarginDp = 12f) {
                         // The deliberate confirm tap acks + stops (no app launch). The
                         // ack broadcasts a dismiss, which drops this page and pages to
                         // the next ringing alarm — or finishes if it was the last.

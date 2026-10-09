@@ -27,6 +27,9 @@ function wsUrl(): string {
 
 function handleEvent(event: WsEvent): void {
   switch (event.type) {
+    case 'announcement.viewed':
+      void queryClient.invalidateQueries({ queryKey: queryKeys.announcements })
+      break
     case 'occurrence.fired':
     case 'occurrence.changed':
       void queryClient.invalidateQueries({ queryKey: queryKeys.occurrencesActive })
@@ -90,6 +93,7 @@ function closeDeviceNotification(occurrenceId: string): void {
 function connect(): void {
   socket = new WebSocket(wsUrl())
   socket.onopen = () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.announcements })
     // Recheck grants after reconnect: access can be revoked while this device
     // was offline, and a missed invalidation cannot authorize a cached view.
     queryClient.setQueryData(queryKeys.receivedShares, [])

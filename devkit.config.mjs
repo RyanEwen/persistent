@@ -42,6 +42,8 @@ export default {
    * WebAuthn relying-party id. Devkit itself supplies the host bind and allowed-host values.
    */
   env: ({ url }) => ({
+    // Local sign-in always shows the code, even when .env has email credentials.
+    DEMO_MODE: 'true',
     API_PORT: DEV_PORTS.api,
     CLIENT_ORIGIN: url,
     VITE_DEV_PORT: DEV_PORTS.web,

@@ -131,8 +131,10 @@ writer of `settings.json`; the page holds no copy and persists nothing.
   shared helper increments a dev revision in disposable staging. Releases are
   tagged `desktop-vX.Y.Z` so they don't collide with the Android `vX.Y.Z` tags.
 - **Store identity in `Package.appxmanifest` is the Partner Center identity** and
-  must not be "tidied". `build-msix.ps1` rewrites it for sideload builds; `-Store`
-  leaves it alone and skips signing. Full detail, including why the packaged build
+  must not be "tidied". `build-msix.ps1` rewrites it for default sideload builds;
+  `-Store` leaves it alone and skips signing. Explicit `-StoreIdentity` signs a
+  Release bundle with a matching certificate for an in-place Store update.
+  Full detail, including why the packaged build
   needs a `<PackageDependency>` the portable one does not, is in
   `docs/desktop-architecture.md`.
 - **This app is packaged as well as portable, so anything install-shaped has two

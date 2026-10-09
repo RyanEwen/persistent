@@ -11,12 +11,31 @@
  * the real stack the moment either side changes.
  */
 let probe: () => boolean = () => false
+let pendingProbe: () => boolean = () => false
+const listeners = new Set<() => void>()
+
+/** Subscribe to dialog-stack changes without polling or duplicating its state. */
+export function subscribeBackAwareDialogs(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => { listeners.delete(listener) }
+}
+
+/** Notify subscribers after the authoritative dialog stack changes. */
+export function notifyBackAwareDialogs(): void {
+  for (const listener of listeners) listener()
+}
 
 /** Called once by BackAwareModal with a reader over its live dialog stack. */
-export function setBackAwareDialogProbe(fn: () => boolean): void {
+export function setBackAwareDialogProbe(fn: () => boolean, pending: () => boolean = fn): void {
   probe = fn
+  pendingProbe = pending
 }
 
 export function hasOpenBackAwareDialog(): boolean {
   return probe()
+}
+
+/** New automatic dialogs also wait for a previous dialog's history pop to finish. */
+export function hasPendingBackAwareDialog(): boolean {
+  return pendingProbe()
 }

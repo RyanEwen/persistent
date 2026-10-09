@@ -72,7 +72,7 @@ def connected_endpoints() -> set:
     out = run_adb("devices")
     found = set()
     for line in out.splitlines():
-        m = re.match(r"^(\d+\.\d+\.\d+\.\d+:\d+)\s+device\b", line.strip())
+        m = re.match(r"^(\S+:\d+)\s+device\b", line.strip())
         if m:
             found.add(m.group(1))
     return found

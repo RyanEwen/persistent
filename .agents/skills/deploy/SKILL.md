@@ -38,7 +38,8 @@ dry-run request, or deploy arguments.
 - Target configuration comes from `.env`: `DEPLOY_SSH_HOST`,
   `DEPLOY_REPO_PATH`, and `DEPLOY_BRANCH`.
 - The server holds a checkout and filled-in `.env` next to
-  `compose.server.yml`; the API binds to `127.0.0.1:4000` behind TLS.
+  `compose.server.yml`; the shared TLS reverse proxy reaches `persistent-api:4000`
+  over the external `nginx_default` network. The API publishes no host port.
 - Prisma migrations run during `npm run start:prod`; there is no separate
   production migration step.
 - Production data lives in the `persistent-data` Docker volume. Never destroy

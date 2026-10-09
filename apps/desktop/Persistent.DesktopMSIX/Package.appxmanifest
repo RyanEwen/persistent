@@ -12,8 +12,8 @@
   <!-- These are the real Partner Center values for Store ID 9PCX2XGQ7CJS, and the
        Store rejects a package whose identity differs from them by even a
        character. build-msix.ps1 rewrites Name/Publisher for the dev-signed
-       sideload build (see -Store there), so a sideloaded copy forms its own
-       package family and never collides with a Store install. -->
+       default sideload build, creating a separate package family. Explicit
+       -StoreIdentity retains these values for a signed Release update. -->
   <Identity
     Name="27766TechnicallyReal.Persistent"
     Publisher="CN=C21E6CEF-D0D1-4497-93F9-3718D054DA0E"

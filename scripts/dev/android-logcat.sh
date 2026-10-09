@@ -11,8 +11,10 @@ if [ -z "$pid" ]; then
 fi
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$script_dir/adb-display-timeout.sh"
-trap android_restore_display_timeout EXIT
-android_extend_display_timeout
+source "$script_dir/adb-keepalive.sh"
+trap android_stop_keepalive EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+android_start_keepalive
 
 adb logcat --pid="$pid"

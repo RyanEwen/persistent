@@ -245,7 +245,7 @@ enough. The web entry point is Settings → Delete account, whose confirm button
 stays disabled until the typed address matches.
 
 Everything the user owns goes with it. `Session`, `Passkey`, `Reminder`,
-`ReminderOccurrence`, `ReminderShare`, and `PushSubscription` carry `onDelete: Cascade` on
+`ReminderOccurrence`, `ReminderShare`, `PushSubscription`, and `AnnouncementView` carry `onDelete: Cascade` on
 their `User` relation, so deleting the `User` row removes them atomically.
 An assignment creator's progress rows cascade with their account. When an
 assignee deletes their account, the creator's progress row remains declined,

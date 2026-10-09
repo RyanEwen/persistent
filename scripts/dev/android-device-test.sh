@@ -16,9 +16,11 @@ else
     python3 scripts/dev/adb-discover.py
 fi
 
-source scripts/dev/adb-display-timeout.sh
-trap android_restore_display_timeout EXIT
-android_extend_display_timeout
+source scripts/dev/adb-keepalive.sh
+trap android_stop_keepalive EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+android_start_keepalive
 
 scripts/dev/android-debug-build.sh
 

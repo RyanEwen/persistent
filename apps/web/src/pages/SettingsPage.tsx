@@ -11,6 +11,7 @@
 import { Link as RouterLink } from 'react-router-dom'
 import Stack from '@mui/joy/Stack'
 import Card from '@mui/joy/Card'
+import Box from '@mui/joy/Box'
 import Typography from '@mui/joy/Typography'
 import Button from '@mui/joy/Button'
 import Link from '@mui/joy/Link'
@@ -20,7 +21,9 @@ import FormControl from '@mui/joy/FormControl'
 import FormLabel from '@mui/joy/FormLabel'
 import { useAuth } from '../auth/useAuth.js'
 import { useSettings, type SoundChoice } from '../settings/useSettings.js'
-import { APP_THEMES } from '../settings/themes.js'
+import { doodleColorOptions, type DoodleColorId } from '../settings/doodleColors.js'
+import { useAppTheme } from '../settings/useAppTheme.js'
+import { THEME_OPTIONS } from '../settings/themes.js'
 import { formatDateTime } from '../lib/datetime.js'
 import { SectionHeading } from '../components/SectionHeading.js'
 import { SoundPickerRow } from '../components/SoundPickerRow.js'
@@ -39,6 +42,10 @@ export function SettingsPage() {
     setTimeFormat,
     themeId,
     setThemeId,
+    doodles,
+    setDoodles,
+    doodleColor,
+    setDoodleColor,
     alarmSound,
     notificationSound,
     nagSound,
@@ -48,6 +55,14 @@ export function SettingsPage() {
     shadeProminence,
     setShadeProminence
   } = useSettings()
+
+  const theme = useAppTheme()
+  const doodleColors = doodleColorOptions(theme)
+  const doodleBackgroundOptions = [
+    ...doodleColors.slice(0, 1),
+    { id: 'none' as const, name: 'No doodles', color: null },
+    ...doodleColors.slice(1)
+  ]
 
   async function chooseSound(type: 'alarm' | 'notification', current: SoundChoice, apply: (s: SoundChoice) => void) {
     const picked = await pickSound(type, current.uri)
@@ -79,14 +94,43 @@ export function SettingsPage() {
         <FormControl>
           <FormLabel>Theme</FormLabel>
           <Select value={themeId} onChange={(_e, value) => value && setThemeId(value)}>
-            {APP_THEMES.map((t) => (
+            {THEME_OPTIONS.map((t) => (
               <Option key={t.id} value={t.id}>
                 {t.name}
               </Option>
             ))}
           </Select>
         </FormControl>
-        <Typography level="body-xs">Sets the background pattern across the app.</Typography>
+        <Typography level="body-xs">Match system automatically follows your device's light or dark appearance.</Typography>
+        <FormControl>
+          <FormLabel>Doodle background</FormLabel>
+          <Select<DoodleColorId | 'none'>
+            value={doodles ? doodleColor : 'none'}
+            onChange={(_event, value) => {
+              if (!value) return
+
+              if (value === 'none') {
+                setDoodles(false)
+              } else {
+                setDoodleColor(value)
+                setDoodles(true)
+              }
+            }}
+          >
+            {doodleBackgroundOptions.map((option) => (
+              <Option key={option.id} value={option.id} sx={{ gap: 1 }}>
+                {option.color && (
+                  <Box
+                    aria-hidden="true"
+                    sx={{ width: 14, height: 14, flexShrink: 0, borderRadius: '50%', bgcolor: option.color, border: '1px solid', borderColor: 'neutral.outlinedBorder' }}
+                  />
+                )}
+                {option.name}
+              </Option>
+            ))}
+          </Select>
+        </FormControl>
+        <Typography level="body-xs">Choose the doodle line color. Light themes use pale colors; darker themes use dark colors.</Typography>
       </Card>
 
       <Card variant="outlined">

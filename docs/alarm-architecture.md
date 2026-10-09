@@ -3,6 +3,33 @@
 This is the most important design doc in the project. Read it before changing
 anything about how reminders fire.
 
+## Native appearance
+
+The hosted app mirrors a display-only `NativeAppearance` palette through
+`AlarmPlugin.setAppearance`, independent of authentication or reminder sync.
+Both traditional palettes are persisted in separate device preferences. Match
+system resolves against Android's current night mode when an alarm appears,
+including while the WebView is closed or offline. Fixed Light, Dark, Navy, Forest,
+and Plum selections retain their chosen colors.
+
+`AlarmUi` uses the same concrete background, surface, text, border and accent
+colors as the web app. Done and Confirm done use the semantic success color.
+Attached views subscribe to preference and system appearance changes and restyle
+in place, preserving the ringing queue, confirmation state, custom snooze amount
+and selected unit. System bars and date/time pickers use the selected light/dark
+appearance. Platform picker controls retain their system styling.
+
+Android shade notifications request the selected palette's accent with
+`NotificationCompat.Builder.setColor`; the OS controls their backgrounds and
+final rendering. Appearance updates re-post existing notification ids in place,
+retaining timestamps and suppressing fresh alerts. They do not reschedule alarms,
+change confirmation state, restart audio, or cancel notifications. Windows toasts
+likewise retain system-rendered backgrounds.
+
+Older wrappers can still load the new web bundle without implementing the bridge;
+the app logs an appearance-sync warning and remains usable. Full native appearance
+support requires the updated Android or Windows wrapper.
+
 ## The hard reality
 
 Truly **undismissable** notifications and a **repeating alarm sound while the app

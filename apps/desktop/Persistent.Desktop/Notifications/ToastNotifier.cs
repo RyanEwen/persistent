@@ -328,9 +328,17 @@ internal sealed class ToastNotifier
         return minutes is >= 1 and <= 525_600 ? minutes : null;
     }
 
-    private static AppNotificationButton Button(string action, NotificationOccurrence occurrence, string label) =>
-        new AppNotificationButton(label)
+    /// <summary>Keep terminal actions visually distinct using Windows' supported success style.</summary>
+    private static AppNotificationButton Button(string action, NotificationOccurrence occurrence, string label)
+    {
+        var button = new AppNotificationButton(label)
             .AddArgument(ActionKey, action)
             .AddArgument(OccurrenceKey, occurrence.OccurrenceId)
             .AddArgument(ReminderKey, occurrence.ReminderId);
+        if ((action == ActionDone || action == ActionConfirmDone) && AppNotificationButton.IsButtonStyleSupported())
+        {
+            button.SetButtonStyle(AppNotificationButtonStyle.Success);
+        }
+        return button;
+    }
 }

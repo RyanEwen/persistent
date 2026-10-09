@@ -18,6 +18,7 @@ import {
   withTodoItemText,
   withTodoOrder,
   type AddTodoItemInput,
+  type Announcement,
   type CheckItemInput,
   type HideCheckedInput,
   type Occurrence,
@@ -57,6 +58,7 @@ export const queryClient = new QueryClient({
 
 export const queryKeys = {
   auth: ['auth'] as const,
+  announcements: ['announcements'] as const,
   reminders: ['reminders'] as const,
   receivedShares: ['shares', 'received'] as const,
   assignmentsSent: ['assignments', 'sent'] as const,
@@ -67,6 +69,7 @@ export const queryKeys = {
 }
 
 export const mutationKeys = {
+  viewAnnouncement: ['announcements', 'viewed'] as const,
   createReminder: ['reminders', 'create'] as const,
   updateReminder: ['reminders', 'update'] as const,
   updateReminderContent: ['reminders', 'update-content'] as const,
@@ -142,6 +145,18 @@ interface OccurrencesSnapshot {
  * cache optimistically. Call once at startup, before rendering.
  */
 export function registerMutationDefaults(): void {
+  queryClient.setMutationDefaults(mutationKeys.viewAnnouncement, {
+    mutationFn: ({ id }: { id: string }) =>
+      apiFetch(`/api/announcements/${encodeURIComponent(id)}/viewed`, { method: 'POST' }),
+    onMutate: async ({ id }: { id: string }) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.announcements })
+      queryClient.setQueryData<Announcement[]>(queryKeys.announcements, (list) =>
+        (list ?? []).filter((announcement) => announcement.id !== id)
+      )
+    },
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: queryKeys.announcements })
+  })
+
   const reminders = () => queryClient.getQueryData<Reminder[]>(queryKeys.reminders)
   const invalidateReminders = () => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.reminders })

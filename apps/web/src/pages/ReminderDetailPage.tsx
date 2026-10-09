@@ -274,8 +274,8 @@ export function ReminderDetailPage({ reminderId, onClose, onEdit }: {
             firing only shows the checklist definition. */}
         {reminder.type === 'TODO' && occurrences.length === 0 && (
           <Card
-            variant={reminder.schedule.kind === 'never' ? 'plain' : 'soft'}
-            sx={reminder.schedule.kind === 'never' ? { p: 0, bgcolor: 'transparent', boxShadow: 'none' } : undefined}
+            variant="plain"
+            sx={{ p: 0, bgcolor: 'transparent', boxShadow: 'none' }}
           >
             <Typography level="title-sm">Checklist</Typography>
             {reminder.schedule.kind === 'never' ? (

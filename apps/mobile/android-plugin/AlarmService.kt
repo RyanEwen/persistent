@@ -223,6 +223,15 @@ class AlarmService : Service() {
                 val occurrenceId = intent.getStringExtra(AlarmReceiver.EXTRA_OCCURRENCE_ID) ?: return START_STICKY
                 snoozeLocal(occurrenceId, intent.getIntExtra(EXTRA_SNOOZE_MINUTES, DEFAULT_SNOOZE_MINUTES))
             }
+            ACTION_APPEARANCE -> {
+                // In-place cosmetic refresh: never cancel, reorder, re-alert, or touch audio.
+                if (active.isEmpty()) {
+                    startForeground(SENTINEL_ID, placeholderNotification())
+                    clearAll()
+                } else {
+                    refreshAppearanceNotifications()
+                }
+            }
             ACTION_RESTYLE -> {
                 // The device-default prominence changed (already persisted by the
                 // caller). Re-post live notifications so the new channel applies now.
@@ -895,6 +904,7 @@ class AlarmService : Service() {
             .setContentTitle("Reminders")
             .setContentText("$grouped active reminders")
             .setSmallIcon(R.drawable.ic_stat_bell)
+            .setColor(AlarmAppearance.palette(this).accent)
             .setGroup(GROUP_KEY)
             .setGroupSummary(true)
             .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
@@ -904,23 +914,39 @@ class AlarmService : Service() {
         nm.notify(GROUP_SUMMARY_ID, summary)
     }
 
+    /** Cosmetic updates retain notification ids, posted times, and the existing sound loop. */
+    private fun refreshAppearanceNotifications() {
+        for ((id, spec) in active) {
+            nm.notify(notifId(id), buildNotification(spec, appearanceOnly = true))
+        }
+        updateGroupSummary()
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        refreshAppearanceNotifications()
+    }
+
     private fun placeholderNotification(): android.app.Notification {
         ensureChannels()
         return NotificationCompat.Builder(this, CHANNEL_ALARM)
             .setContentTitle("Reminder")
             .setSmallIcon(R.drawable.ic_stat_bell)
+            .setColor(AlarmAppearance.palette(this).accent)
             .build()
     }
 
     /**
      * Build one nag's notification. [renotify] marks a post that is a genuine
      * follow-up nag rather than an incidental refresh, which is what lets it alert
-     * again — see the `setOnlyAlertOnce` note below.
+     * again; see the `setOnlyAlertOnce` note below. [appearanceOnly] suppresses
+     * heads-up and full-screen presentation even for alarms during color changes.
      */
     private fun buildNotification(
         spec: AlarmSpec,
         channelOverride: String? = null,
-        renotify: Boolean = false
+        renotify: Boolean = false,
+        appearanceOnly: Boolean = false
     ): android.app.Notification {
         // The notification never carries audio — we play the chosen sound via
         // MediaPlayer — so every channel is silent; the channel only controls the
@@ -1027,6 +1053,7 @@ class AlarmService : Service() {
             .setContentTitle(spec.title)
             .setContentText(if (awaitingConfirm) "Tap \"Confirm done\" to mark complete" else spec.body)
             .setSmallIcon(R.drawable.ic_stat_bell)
+            .setColor(AlarmAppearance.palette(this).accent)
             .setCategory(if (spec.alarm) NotificationCompat.CATEGORY_ALARM else NotificationCompat.CATEGORY_REMINDER)
             .setPriority(
                 if (callBusy) NotificationCompat.PRIORITY_LOW
@@ -1049,7 +1076,7 @@ class AlarmService : Service() {
             // notification instead of only re-sounding under a shade the user never
             // opens. The first fire alerts either way (it's a new post), and alarms
             // never suppress — they're meant to be relentless.
-            .setOnlyAlertOnce(callBusy || (!spec.alarm && !renotify))
+            .setOnlyAlertOnce(appearanceOnly || callBusy || (!spec.alarm && !renotify))
             // Show full content on the lock screen so the user can see *which*
             // reminder is firing without unlocking — the alarm must be findable.
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
@@ -1072,7 +1099,7 @@ class AlarmService : Service() {
         // The full-screen intent is what covers the locked / screen-off case. When we
         // are launching the activity directly it adds nothing and is a second
         // heads-up trigger, so leave it off for that post.
-        if (spec.alarm && !callBusy && channel != CHANNEL_ALARM_NO_PEEK) {
+        if (!appearanceOnly && spec.alarm && !callBusy && channel != CHANNEL_ALARM_NO_PEEK) {
             builder.setFullScreenIntent(fullScreen, true)
         }
         if (spec.ongoing) {
@@ -1435,6 +1462,7 @@ class AlarmService : Service() {
         const val ACTION_CANCEL_CONFIRM = "ca.persistent.app.SERVICE_CANCEL_CONFIRM"
         const val ACTION_SILENCE = "ca.persistent.app.SERVICE_SILENCE"
         const val ACTION_RESTYLE = "ca.persistent.app.SERVICE_RESTYLE"
+        private const val ACTION_APPEARANCE = "ca.persistent.app.SERVICE_APPEARANCE"
         const val ACTION_REFRESH = "ca.persistent.app.SERVICE_REFRESH"
         const val ACTION_ENSURE = "ca.persistent.app.SERVICE_ENSURE"
         const val ACTION_MIRROR_CAR = "ca.persistent.app.SERVICE_MIRROR_CAR"
@@ -1554,6 +1582,13 @@ class AlarmService : Service() {
         fun restyleAll(context: Context) {
             if (activeIds.isNotEmpty()) {
                 context.startService(Intent(context, AlarmService::class.java).setAction(ACTION_RESTYLE))
+            }
+        }
+
+        /** Update only existing notifications when the device's app palette changes. */
+        fun refreshAppearance(context: Context) {
+            if (activeIds.isNotEmpty()) {
+                context.startService(Intent(context, AlarmService::class.java).setAction(ACTION_APPEARANCE))
             }
         }
 

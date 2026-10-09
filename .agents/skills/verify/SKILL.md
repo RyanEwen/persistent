@@ -10,8 +10,9 @@ Choose the smallest verification that observes the changed behavior. Run
 
 ## Web and API
 
-Start the development stack with `npm run dev`. The web app is at
-`http://localhost:5173` and the API is at `http://localhost:4000`.
+Start the development stack with `npm run dev`. Use the proxied and direct URLs
+printed by Devkit; published ports are checkout-specific. Vite proxies API
+requests to the checkout's API process.
 
 Use the integrated browser to inspect auth state before assuming the seeded
 session is still valid. In demo/no-email mode, `POST /api/auth/request-code`

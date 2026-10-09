@@ -26,6 +26,11 @@ export function StartupDataGate({ children }: { children: ReactNode }) {
       const sessionOffline = checkSession ? (await refreshSession()).offline : offline
       if (!sessionOffline) {
         await queryClient.resumePausedMutations()
+        // Product news refreshes on foreground too, but cannot block reminders.
+        void queryClient.refetchQueries({
+          type: 'active',
+          predicate: (query) => query.meta?.startupOptional === true
+        })
         // Reconnect resets queries to recheck sharing grants. A cancelled
         // request is superseded, not failed: join its replacement before opening
         // the page. Account changes and backgrounding invalidate this generation.
@@ -33,7 +38,7 @@ export function StartupDataGate({ children }: { children: ReactNode }) {
           try {
             await queryClient.refetchQueries({
               type: 'active',
-              predicate: (query) => query.queryKey[0] !== 'auth'
+              predicate: (query) => query.queryKey[0] !== 'auth' && query.meta?.startupOptional !== true
             }, { cancelRefetch: false, throwOnError: true })
             break
           } catch (failure) {

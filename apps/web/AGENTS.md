@@ -137,8 +137,11 @@
   this device cannot resolve, which is why the pair travels as `{ uri, title }` and
   native resolves it (`docs/alarm-architecture.md`). Both are rendered by the one
   `components/SoundPickerRow.tsx`. Themes are defined in
-  `settings/themes.ts` and applied as a background pattern + accent CSS variables
-  by `components/AppLayout.tsx`. Format dates/times via `lib/datetime.ts`, never
+  `settings/themes.ts`; `settings/AppThemeProvider.tsx` applies their surface and
+  accent palettes globally, including portals. `components/AppLayout.tsx` paints
+  the independent doodle wallpaper and selected line color. The Doodle background
+  dropdown combines Match theme, No doodles, and the permitted line colors.
+  Format dates/times via `lib/datetime.ts`, never
   `toLocaleString` directly.
 - **Native bridge:** `src/native/` (bundled into this app, which Capacitor loads)
   drives the on-device alarm plugin: schedules alarms from `/api/sync/occurrences`,

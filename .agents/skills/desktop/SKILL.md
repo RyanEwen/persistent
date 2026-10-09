@@ -9,6 +9,9 @@ Read [.codex/docs/windows-development.md](../../../.codex/docs/windows-developme
 and the shared helper guide it links. Select the root npm command matching the
 request: `build:desktop`, `verify:desktop`, `install:desktop`, or `package:desktop`.
 When asked to rebuild and try a change, use `npm run install:desktop`.
+Use `-- --store-identity` when a Release sideload over the Store installation is
+authorized. Keep that Release update installed, remove separate dev test packages
+after verification, and do not leave Debug installations behind.
 
 The bridge owns staging, dev version allocation, shared signing, in-place update,
 launch and cleanup. Do not recreate these steps manually or edit tracked versions

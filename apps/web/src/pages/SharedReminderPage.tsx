@@ -6,6 +6,7 @@ import Button from '@mui/joy/Button'
 import Typography from '@mui/joy/Typography'
 import Card from '@mui/joy/Card'
 import Checkbox from '@mui/joy/Checkbox'
+import { checklistCheckboxSx } from '../components/checklistCheckboxSx.js'
 import ModalDialog from '@mui/joy/ModalDialog'
 import DialogTitle from '@mui/joy/DialogTitle'
 import DialogActions from '@mui/joy/DialogActions'
@@ -84,7 +85,12 @@ export function SharedReminderPage({ reminderId, onClose, onEdit }: {
               Edit reminder
             </Button>
           )}
-          <Card variant="soft">
+          <Card
+            variant={reminder.type === 'TODO' && reminder.activeFirings.length === 0 ? 'plain' : 'soft'}
+            sx={reminder.type === 'TODO' && reminder.activeFirings.length === 0
+              ? { p: 0, bgcolor: 'transparent', boxShadow: 'none' }
+              : undefined}
+          >
             {body && <Typography level="body-sm" sx={{ whiteSpace: 'pre-wrap' }}>{body}</Typography>}
             {canEditBody && (
               <InlineReminderText
@@ -100,11 +106,12 @@ export function SharedReminderPage({ reminderId, onClose, onEdit }: {
                     <Checkbox
                       key={item.id}
                       label={item.text}
+                      sx={checklistCheckboxSx}
                       checked={reminder.checkedItemIds.includes(item.id)}
                       onChange={(event) => checkNote.mutate({ id: reminder.id, arg: { itemId: item.id, checked: event.target.checked } })}
                     />
                   ) : (
-                    <Typography key={item.id} level="body-sm">
+                    <Typography key={item.id} level="body-sm" sx={{ color: 'text.secondary' }}>
                       {reminder.checkedItemIds.includes(item.id) ? '[x]' : '[ ]'} {item.text}
                     </Typography>
                   )
@@ -124,6 +131,7 @@ export function SharedReminderPage({ reminderId, onClose, onEdit }: {
                     <Checkbox
                       key={item.id}
                       label={item.text}
+                      sx={checklistCheckboxSx}
                       checked={firing.checkedItemIds.includes(item.id)}
                       onChange={(event) => check.mutate({ id: firing.id, arg: { itemId: item.id, checked: event.target.checked } })}
                     />

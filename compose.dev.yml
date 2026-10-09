@@ -13,6 +13,8 @@ services:
     environment:
       HOME: /tmp/devkit-home
       NODE_ENV: development
+      # Dev sign-in shows codes on screen instead of requiring a mailbox.
+      DEMO_MODE: "true"
       WINDOWS_BUILD_TOOLS: /opt/windows-build-tools
       WINDOWS_BUILD_HOST: ${PERSISTENT_WINDOWS_HOST:-laptop}
       WINDOWS_BUILD_REPO: ${PWD:?host WSL checkout path is required}

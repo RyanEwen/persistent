@@ -1,7 +1,9 @@
 /** Read-only checklist rows for cards whose whole surface opens a dialog. */
 import Stack from '@mui/joy/Stack'
+import Box from '@mui/joy/Box'
 import Typography from '@mui/joy/Typography'
 import CheckIcon from '@mui/icons-material/Check'
+import { checklistItemTextSx } from './checklistItemTextSx.js'
 import { todoItems } from '@persistent/shared'
 import type { ReminderPreviewSource } from '../lib/reminderPreview.js'
 
@@ -32,27 +34,36 @@ export function ChecklistPreview({ reminder, checkedItemIds = [] }: {
               aria-hidden="true"
               alignItems="center"
               justifyContent="center"
-              sx={{
-                width: 18,
-                height: 18,
-                mt: '2px',
-                flexShrink: 0,
-                border: '1.5px solid',
-                borderColor: isChecked ? 'success.500' : 'text.tertiary',
-                borderRadius: '4px',
-                bgcolor: isChecked ? 'success.500' : 'transparent',
-                color: 'common.white'
-              }}
+              // Match the label's first line, including when its text wraps.
+              sx={(theme) => ({
+                ...theme.typography['body-sm'],
+                height: '1lh',
+                flexShrink: 0
+              })}
             >
-              {isChecked && <CheckIcon sx={{ fontSize: 15 }} />}
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 18,
+                  height: 18,
+                  border: '1.5px solid',
+                  borderColor: isChecked ? 'success.500' : 'text.tertiary',
+                  borderRadius: '4px',
+                  bgcolor: isChecked ? 'success.500' : 'transparent',
+                  color: 'common.white'
+                }}
+              >
+                {isChecked && <CheckIcon sx={{ fontSize: 15 }} />}
+              </Box>
             </Stack>
             <Typography
               level="body-sm"
               sx={{
                 minWidth: 0,
                 whiteSpace: 'pre-wrap',
-                color: isChecked ? 'text.tertiary' : 'text.secondary',
-                textDecoration: isChecked ? 'line-through' : 'none'
+                ...checklistItemTextSx(isChecked)
               }}
             >
               {item.text}

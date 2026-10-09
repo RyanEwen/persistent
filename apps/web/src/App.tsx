@@ -9,6 +9,7 @@ import Typography from '@mui/joy/Typography'
 import Button from '@mui/joy/Button'
 import { AppLoading } from './components/AppLoading.js'
 import { StartupDataGate } from './components/StartupDataGate.js'
+import { AnnouncementDialog } from './components/AnnouncementDialog.js'
 import { useAuth } from './auth/useAuth.js'
 import { AppLayout } from './components/AppLayout.js'
 import { ReminderDialogProvider } from './components/ReminderDialogs.js'
@@ -78,6 +79,7 @@ export function App() {
         <ReminderDialogProvider>
         <DirectBuildMigrationNotice />
         <DesktopWidgetSync />
+        <AnnouncementDialog />
         <Routes>
           <Route path="/" element={<RemindersPage />} />
           <Route path="/upcoming" element={<UpcomingPage />} />

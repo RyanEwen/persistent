@@ -33,6 +33,25 @@ import org.json.JSONArray
 @CapacitorPlugin(name = "AlarmPlugin")
 class AlarmPlugin : Plugin() {
 
+    /** Mirror display preferences only; never arm, acknowledge, or restart an alarm. */
+    @PluginMethod
+    fun setAppearance(call: PluginCall) {
+        val appearance = call.getObject("appearance")
+        if (appearance == null) {
+            call.reject("Missing appearance")
+            return
+        }
+        try {
+            if (AlarmAppearance.save(context, appearance)) {
+                context.sendBroadcast(Intent(AlarmAppearance.ACTION_CHANGED).setPackage(context.packageName))
+                AlarmService.refreshAppearance(context)
+            }
+            call.resolve()
+        } catch (error: Exception) {
+            call.reject("Could not update appearance", error)
+        }
+    }
+
     override fun load() {
         super.load()
         live = this

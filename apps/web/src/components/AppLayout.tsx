@@ -24,13 +24,14 @@ import { BrandMark } from './BrandMark.js'
 import { GetTheAppButton, NativeAppsPromoBanner } from './GetTheApp.js'
 import { AlarmPermissionsBanner } from './AlarmPermissionsBanner.js'
 import { useSettings } from '../settings/useSettings.js'
-import { getTheme, themeSx } from '../settings/themes.js'
+import { useAppTheme } from '../settings/useAppTheme.js'
+import { themeSx } from '../settings/themes.js'
 
 export function AppLayout({ children }: { children: ReactNode }) {
-  const { themeId } = useSettings()
-  const theme = getTheme(themeId)
+  const { doodles, doodleColor } = useSettings()
+  const theme = useAppTheme()
   return (
-    <Box sx={{ minHeight: '100dvh', bgcolor: 'background.body', ...themeSx(theme) }}>
+    <Box sx={{ minHeight: '100dvh', bgcolor: 'background.body', ...themeSx(theme, doodles, doodleColor) }}>
       <Sheet
         variant="solid"
         sx={{

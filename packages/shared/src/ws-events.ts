@@ -19,6 +19,8 @@ export const wsEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('share.changed') }),
   // A creator's assigned-reminder progress or invitation status changed.
   z.object({ type: z.literal('assignment.changed') }),
+  // An announcement was dismissed on another device belonging to this account.
+  z.object({ type: z.literal('announcement.viewed') }),
   // Clear a shown notification across all of this user's open clients.
   z.object({ type: z.literal('dismiss'), occurrenceId: z.string() }),
   // Silence an escalation alarm across all clients: stop the alarm but keep the

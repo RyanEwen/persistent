@@ -78,6 +78,7 @@ model User {
   updatedAt   DateTime @updatedAt
 
   sessions      Session[]
+  announcementViews AnnouncementView[]
   reminders     Reminder[]
   receivedShares ReminderShare[]
   recipientAlerts RecipientAlertState[]
@@ -87,6 +88,17 @@ model User {
   occurrences   ReminderOccurrence[]
   subscriptions PushSubscription[]
   passkeys      Passkey[]
+}
+
+/// One durable dismissal per account and announcement, shared across devices.
+model AnnouncementView {
+  userId         String
+  announcementId String
+  viewedAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, announcementId])
 }
 
 /// A WebAuthn credential (passkey) registered to a user.
