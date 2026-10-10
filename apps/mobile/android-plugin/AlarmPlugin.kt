@@ -2,9 +2,12 @@ package ca.persistent.app.alarm
 
 import android.app.AlarmManager
 import android.app.PendingIntent
+import android.content.res.Configuration
 import android.content.Context
 import android.content.Intent
 import android.app.Activity
+import android.graphics.drawable.ColorDrawable
+import androidx.core.view.WindowCompat
 import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
@@ -46,6 +49,7 @@ class AlarmPlugin : Plugin() {
                 context.sendBroadcast(Intent(AlarmAppearance.ACTION_CHANGED).setPackage(context.packageName))
                 AlarmService.refreshAppearance(context)
             }
+            activity.runOnUiThread { applyAppearance(activity) }
             call.resolve()
         } catch (error: Exception) {
             call.reject("Could not update appearance", error)
@@ -55,6 +59,18 @@ class AlarmPlugin : Plugin() {
     override fun load() {
         super.load()
         live = this
+    }
+
+    /** Refresh system-dependent colors when returning from settings or another app. */
+    override fun handleOnResume() {
+        super.handleOnResume()
+        applyAppearance(activity)
+    }
+
+    /** Match Android night-mode changes while the web shell remains foreground. */
+    override fun handleOnConfigurationChanged(newConfig: Configuration) {
+        super.handleOnConfigurationChanged(newConfig)
+        applyAppearance(activity)
     }
 
     override fun handleOnDestroy() {
@@ -339,6 +355,17 @@ class AlarmPlugin : Plugin() {
     }
 
     companion object {
+        /** Apply persisted display colors to the web shell, without touching reminders. */
+        @JvmStatic
+        fun applyAppearance(activity: Activity) {
+            val window = activity.window
+            val controller = WindowCompat.getInsetsController(window, window.decorView)
+            val light = !AlarmAppearance.isDark(activity)
+            controller.isAppearanceLightStatusBars = light
+            controller.isAppearanceLightNavigationBars = light
+            window.setBackgroundDrawable(ColorDrawable(AlarmAppearance.palette(activity).background))
+        }
+
         /**
          * The loaded plugin, or null before the WebView is up / after it is gone.
          * Only used to push [notifyPendingNavigation]; everything else is call-driven.

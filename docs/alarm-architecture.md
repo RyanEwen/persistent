@@ -18,7 +18,10 @@ colors as the web app. Done and Confirm done use the semantic success color.
 Attached views subscribe to preference and system appearance changes and restyle
 in place, preserving the ringing queue, confirmation state, custom snooze amount
 and selected unit. System bars and date/time pickers use the selected light/dark
-appearance. Platform picker controls retain their system styling.
+appearance. The main WebView shell also applies the persisted palette on launch,
+resume, and hosted appearance updates, keeping status icons and the gesture bar
+readable in both light and dark themes. Platform picker controls retain their
+system styling.
 
 Android shade notifications request the selected palette's accent with
 `NotificationCompat.Builder.setColor`; the OS controls their backgrounds and

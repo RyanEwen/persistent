@@ -8,13 +8,11 @@ package ca.persistent.app;
 
 import android.content.Intent;
 import android.graphics.Color;
-import android.graphics.drawable.ColorDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.Window;
 import androidx.core.view.WindowCompat;
-import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
 import ca.persistent.app.alarm.AlarmPlugin;
 import ca.persistent.app.alarm.AlarmReceiver;
@@ -43,10 +41,9 @@ public class MainActivity extends BridgeActivity {
      *
      * This used to pad the content root by the system-bar insets instead, which
      * kept the layout correct but left a band above and below the WebView showing
-     * the *window* background — a flat grey the app has no control over, framing
-     * every screen. The web UI paints its own themed background (several themes,
-     * all dark but different), so the fix is to stop insetting and let it reach the
-     * edges.
+     * the *window* background, a flat grey the app has no control over, framing
+     * every screen. The web UI paints its own themed background, so the fix is to
+     * stop insetting and let it reach the edges.
      *
      * The web side now carries `env(safe-area-inset-*)` padding on the top bar and
      * bottom nav (`components/AppLayout.tsx`, `components/BottomNav.tsx`) to keep
@@ -72,18 +69,9 @@ public class MainActivity extends BridgeActivity {
             window.setStatusBarContrastEnforced(false);
             window.setNavigationBarContrastEnforced(false);
         }
-        // Every app theme is dark, so the bar icons stay light.
-        WindowInsetsControllerCompat controller =
-            WindowCompat.getInsetsController(window, window.getDecorView());
-        controller.setAppearanceLightStatusBars(false);
-        controller.setAppearanceLightNavigationBars(false);
-        // Behind the WebView before first paint, so launch shows the app's own dark
-        // background rather than a white or grey flash.
-        window.setBackgroundDrawable(new ColorDrawable(APP_BACKGROUND));
+        // Reuse the native palette so light themes also have readable system icons.
+        AlarmPlugin.applyAppearance(this);
     }
-
-    /** Matches the web shell's darkest theme background (see settings/themes.ts). */
-    private static final int APP_BACKGROUND = 0xFF0B0F19;
 
     @Override
     public void onNewIntent(Intent intent) {

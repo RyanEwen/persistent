@@ -201,6 +201,10 @@ would render its header under the status bar. The reverse order is safe: with an
 old APK still insetting the WebView the insets read as 0, so the new web bundle
 looks exactly as before.
 
+The main WebView applies the persisted native palette to its status icons,
+gesture bar, and launch background. Light and dark themes remain readable on
+launch, resume, and appearance changes; see [native appearance](../../docs/alarm-architecture.md#native-appearance).
+
 ## Opening online and offline
 
 The shared web UI waits behind a spinner for the session and visible data to
