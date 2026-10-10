@@ -5,6 +5,12 @@ facing overview is in the root `README.md`.)
 
 ## Stack
 
+Initialize the shared promo submodule after cloning with
+`git submodule update --init --recursive`. Web builds now import its public
+catalog contract, bundled manifest, and icons, as well as desktop builds importing
+its WinUI page. Commit and publish promo changes first, then update Persistent's
+submodule pointer before publishing a consuming release.
+
 - **`apps/api`** — Express + Prisma + PostgreSQL + WebSocket + the scheduling/
   escalation engine.
 - **`apps/web`** — Vite + React + Joy UI PWA (the single UI codebase).
@@ -17,6 +23,19 @@ facing overview is in the root `README.md`.)
   audio while the PC is awake and the process is running. See
   `docs/desktop-architecture.md`.
 - **`packages/shared`** — Zod schemas + inferred types shared by API and web.
+
+## Settings and app catalog
+
+Account details, passkeys, sign-out, and permanent deletion share one Account
+card. Help sits directly before Privacy, and Apps is the final card.
+
+Settings links to "Our other apps" on the shared web/Android UI. The page hides
+Persistent by stable product ID and labels all other apps by platform, including
+Windows apps with HTTPS Store links that can open on Android. Its public GitHub
+catalog refresh is optional and sends no account credentials. Bundled content
+and the last valid public catalog remain available offline; catalog failures do
+not block startup or show account-data errors. New remote icons are cached by the
+service worker, while bundled icons are precached with the web build.
 
 ## The persistence reality
 
@@ -204,6 +223,10 @@ proxy. Deploy from a clean, pushed tree with:
 npm run deploy:prod            # SSH + docker compose up --build; migrations run on start
 npm run deploy:prod -- --dry-run
 ```
+
+The deploy script initializes the pinned promo submodule before the remote Docker
+build. Publish the promo commit before pushing a Persistent commit that references
+it, so fresh checkouts can fetch the required shared catalog.
 
 Deploy target comes from your local `.env` (`DEPLOY_SSH_HOST`, `DEPLOY_REPO_PATH`,
 `DEPLOY_BRANCH`).

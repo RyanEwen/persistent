@@ -29,7 +29,8 @@ const persister = createSyncStoragePersister({
 })
 
 // Revocable cross-user access and credentials must not survive in an offline cache.
-const EXCLUDED_PREFIXES = ['auth', 'shares', 'assignments', 'admin', 'announcements']
+// The public app catalog has its own account-independent last-good cache.
+const EXCLUDED_PREFIXES = ['auth', 'shares', 'assignments', 'admin', 'announcements', 'promoted-apps']
 
 export const persistOptions: Omit<PersistQueryClientOptions, 'queryClient'> = {
   persister,

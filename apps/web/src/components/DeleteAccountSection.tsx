@@ -1,14 +1,13 @@
 /**
- * Settings card for permanent account deletion.
+ * Account settings section for permanent account deletion.
  *
  * Deletion is irreversible and takes every reminder, occurrence, passkey, and
  * native push registration with it, so the dialog requires the user to type their own
- * email address before the button arms — the same "make it deliberate" stance
+ * email address before the button arms, the same "make it deliberate" stance
  * the Done confirm takes, for a much less reversible action. Google Play
  * requires an in-app deletion path; see apps/mobile/store/play-readiness.md.
  */
 import { useState } from 'react'
-import Card from '@mui/joy/Card'
 import Stack from '@mui/joy/Stack'
 import Typography from '@mui/joy/Typography'
 import Button from '@mui/joy/Button'
@@ -24,7 +23,7 @@ import { apiFetch } from '../lib/apiClient.js'
 import { useAuth } from '../auth/useAuth.js'
 import { BackAwareModal } from './BackAwareModal.js'
 
-export function DeleteAccountCard() {
+export function DeleteAccountSection() {
   const { user, refreshAfterDeletion } = useAuth()
   const [open, setOpen] = useState(false)
   const [confirmEmail, setConfirmEmail] = useState('')
@@ -58,7 +57,7 @@ export function DeleteAccountCard() {
   }
 
   return (
-    <Card variant="outlined">
+    <Stack spacing={1.5}>
       <Typography level="title-sm">Delete account</Typography>
       <Typography level="body-sm">
         Permanently deletes your account and every reminder, history entry, and passkey attached to it. This
@@ -105,6 +104,6 @@ export function DeleteAccountCard() {
           </DialogContent>
         </ModalDialog>
       </BackAwareModal>
-    </Card>
+    </Stack>
   )
 }

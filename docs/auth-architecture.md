@@ -19,8 +19,8 @@ on code requests; capped verify attempts per code.
 ## Passkeys (WebAuthn)
 
 An alternative to the email code: a signed-in user can register a passkey
-(Settings → Passkeys), then sign in with a single biometric/PIN gesture — no
-email round-trip. Implemented with `@simplewebauthn/server` + `/browser`
+(Settings > Account > Passkeys), then sign in with a single biometric/PIN gesture
+without an email round-trip. Implemented with `@simplewebauthn/server` + `/browser`
 (`lib/webauthn.ts`, routes under `/api/auth/passkey/*`), credentials stored in
 the `Passkey` model.
 
@@ -241,8 +241,8 @@ irreversible — there is no soft-delete or restore window — so it is delibera
 harder to trigger than any other action: the caller must echo the account's own
 email address in the body (`deleteAccountSchema`), which the server compares
 against the authenticated user's stored email. A session cookie alone is not
-enough. The web entry point is Settings → Delete account, whose confirm button
-stays disabled until the typed address matches.
+enough. The web entry point is Settings > Account > Delete account, whose confirm
+button stays disabled until the typed address matches.
 
 Everything the user owns goes with it. `Session`, `Passkey`, `Reminder`,
 `ReminderOccurrence`, `ReminderShare`, `PushSubscription`, and `AnnouncementView` carry `onDelete: Cascade` on

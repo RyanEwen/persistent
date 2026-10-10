@@ -1,9 +1,8 @@
 /**
- * Settings card to manage passkeys: list registered credentials, add a new one
+ * Account settings section to manage passkeys: list registered credentials, add a new one
  * (WebAuthn registration), and remove them. Passkeys let you sign in without an
  * email code. See docs/auth-architecture.md.
  */
-import Card from '@mui/joy/Card'
 import Stack from '@mui/joy/Stack'
 import Box from '@mui/joy/Box'
 import Typography from '@mui/joy/Typography'
@@ -44,7 +43,7 @@ function KindIcon({ kind }: { kind: PasskeyVisualKind }) {
   }
 }
 
-export function PasskeysCard() {
+export function PasskeysSection() {
   const queryClient = useQueryClient()
   const toast = useToast()
   const passkeys = useQuery({
@@ -83,7 +82,7 @@ export function PasskeysCard() {
   const list = passkeys.data?.passkeys ?? []
 
   return (
-    <Card variant="outlined">
+    <Stack spacing={1.5}>
       <Typography level="title-sm">Passkeys</Typography>
       <Typography level="body-sm">Sign in without an email code using your device's biometrics or PIN.</Typography>
 
@@ -149,6 +148,6 @@ export function PasskeysCard() {
       >
         Add a passkey
       </Button>
-    </Card>
+    </Stack>
   )
 }

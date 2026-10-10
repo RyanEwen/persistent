@@ -49,7 +49,17 @@ export const queryClient = new QueryClient({
   // Surface background failures cleanly instead of swallowing them. Offline-paused
   // mutations don't error, so this only fires on genuine failures.
   queryCache: new QueryCache({
-    onError: (error) => notify(extractErrorMessage(error, "Couldn't load data."), 'danger')
+    onError: (error, query) => {
+      // Optional public catalogs keep their last-good content when refresh fails.
+      if (query.meta?.silentError) {
+        console.warn('Optional public data refresh failed; retaining offline content.', {
+          query: query.queryKey[0],
+          reason: error.name
+        })
+        return
+      }
+      notify(extractErrorMessage(error, "Couldn't load data."), 'danger')
+    }
   }),
   mutationCache: new MutationCache({
     onError: (error) => notify(extractErrorMessage(error, 'Something went wrong.'), 'danger')
@@ -59,6 +69,7 @@ export const queryClient = new QueryClient({
 export const queryKeys = {
   auth: ['auth'] as const,
   announcements: ['announcements'] as const,
+  promotedApps: ['promoted-apps'] as const,
   reminders: ['reminders'] as const,
   receivedShares: ['shares', 'received'] as const,
   assignmentsSent: ['assignments', 'sent'] as const,

@@ -837,6 +837,13 @@ offline first-run fallback. This lets new promotions reach existing installs
 without rebuilding the desktop app. CI still checks out with `submodules: true`
 because the csproj imports the shared page unconditionally.
 
+The same submodule supplies stable product IDs, platform-specific HTTPS links,
+and bundled catalog assets to the hosted web/Android "Our other apps" page.
+Both consumers preserve the manifest's canonical app order while hiding their
+own product. The generator's `appOrder` and name/blurb overrides keep ordering
+and publisher-approved names consistent across refreshes. The WinUI page retains
+its original destination and package-family fields for compatibility.
+
 ## `EnableMsixTooling` is required for the unpackaged build too
 
 `Persistent.Desktop.csproj` sets `<EnableMsixTooling>true</EnableMsixTooling>`

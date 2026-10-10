@@ -43,7 +43,7 @@ const TAB_ROUTES = ['/', '/upcoming', '/notes', '/history', '/settings']
 const HOME_ROUTE = TAB_ROUTES[0]!
 
 /** Screens reached from Settings, so Back returns there rather than to the list. */
-const SETTINGS_CHILDREN = ['/help', '/privacy', '/delete-account']
+const SETTINGS_CHILDREN = ['/help', '/privacy', '/delete-account', '/settings/apps']
 
 /**
  * The screen one level up, or null when already at a tab root.

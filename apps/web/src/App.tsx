@@ -23,6 +23,7 @@ import { AssignmentsPage } from './pages/AssignmentsPage.js'
 import { useReminderDialogs } from './components/reminderDialogContext.js'
 import { HistoryPage } from './pages/HistoryPage.js'
 import { SettingsPage } from './pages/SettingsPage.js'
+import { PromotedAppsPage } from './pages/PromotedAppsPage.js'
 import { AdminPage } from './pages/admin/AdminPage.js'
 import { ReceivedSharesPage } from './pages/ReceivedSharesPage.js'
 import { HelpPage } from './pages/HelpPage.js'
@@ -93,6 +94,7 @@ export function App() {
           <Route path="/reminders/:id/edit" element={<LegacyEditorLink />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/settings/apps" element={<PromotedAppsPage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/settings/shared" element={<ReceivedSharesPage />} />
           <Route path="/help" element={<HelpPage />} />

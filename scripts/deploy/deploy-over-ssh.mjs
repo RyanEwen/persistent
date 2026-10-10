@@ -74,6 +74,7 @@ const remoteScript = [
   `cd ${repoPath}`,
   `git fetch origin ${branch}`,
   `git reset --hard origin/${branch}`,
+  `git submodule update --init --recursive`,
   `docker compose -f compose.server.yml up -d --build`,
   `docker image prune -f`
 ].join(' && ')

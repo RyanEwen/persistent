@@ -1,6 +1,7 @@
 /**
- * Thin fetch wrapper for JSON endpoints. Always sends cookies, throws a typed
+ * Thin fetch wrapper for JSON endpoints. Sends cookies by default, throws a typed
  * ApiError on non-2xx, and parses the JSON body. Use this instead of bare fetch.
+ * Public external requests must explicitly set credentials to 'omit'.
  */
 import { extractErrorMessage } from '@persistent/shared'
 

@@ -34,6 +34,7 @@ jobs:
           # the tag's version name but the branch's code.
           ref: ${{ github.event.inputs.version || github.ref }}
           fetch-depth: 0 # full history + tags so we can build a changelog
+          submodules: true # web build bundles the shared promo catalog and icons
 
       - name: Resolve version
         id: ver

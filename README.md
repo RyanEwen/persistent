@@ -54,6 +54,10 @@ page background follows your theme. Your choices are saved on each device.
 Existing Navy settings and retired Navy variants switch to Match system once,
 keeping their doodle preferences. You can select Navy again afterward.
 
+**Settings > Account** brings your account details, passkeys, sign-out, and
+permanent deletion together. **Settings > Apps > Our other apps** lists our
+other products with platform labels and links, including Windows apps.
+
 ## What makes it different
 
 - **It won't be ignored.** Choose a persistent notification that re-sounds, or a

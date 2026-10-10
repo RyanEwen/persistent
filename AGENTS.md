@@ -86,6 +86,9 @@ See `docs/auth-architecture.md` and `apps/api/AGENTS.md`.
 
 ## Build & validation
 
+- Initialize `apps/desktop/external/promo` with
+  `git submodule update --init --recursive` before validating or building a fresh
+  checkout. Both the web app and desktop app import this shared catalog.
 - The Devkit-managed Compose stack is the complete development environment. It
   provides Node 20, PostgreSQL, and isolated resources for concurrent checkouts.
   The web build's service-worker generation needs Node 20.

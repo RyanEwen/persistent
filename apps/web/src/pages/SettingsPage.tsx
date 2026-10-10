@@ -31,12 +31,11 @@ import { AlarmPlugin, isNative, pickSound } from '../native/alarmBridge.js'
 import { mirrorSyncConfig } from '../native/nativeSync.js'
 import { DesktopSettings } from '../native/desktop-settings/DesktopSettings.js'
 import { UpdateSettings } from '../native/UpdateSettings.js'
-import { PasskeysCard } from '../components/PasskeysCard.js'
-import { DeleteAccountCard } from '../components/DeleteAccountCard.js'
+import { AccountSettingsCard } from '../components/AccountSettingsCard.js'
 import { NativeAppStoreButtons } from '../components/NativeAppStoreButtons.js'
 
 export function SettingsPage() {
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
   const {
     timeFormat,
     setTimeFormat,
@@ -199,19 +198,7 @@ export function SettingsPage() {
         <Typography level="body-xs">Example: {formatDateTime(new Date(), timeFormat, user?.timeZone)}</Typography>
       </Card>
 
-      <Card variant="outlined">
-        <Typography level="title-sm">Account</Typography>
-        <Typography level="body-sm">{user?.email}</Typography>
-        <Typography level="body-xs">Time zone: {user?.timeZone}</Typography>
-        <Link component={RouterLink} to="/settings/shared">
-          Shared with me
-        </Link>
-        <Button variant="soft" color="danger" onClick={() => void logout()} sx={{ mt: 1, alignSelf: 'flex-start' }}>
-          Sign out
-        </Button>
-      </Card>
-
-      <PasskeysCard />
+      <AccountSettingsCard />
 
       <Card variant="outlined">
         <Typography level="title-sm">Help</Typography>
@@ -221,14 +208,6 @@ export function SettingsPage() {
             How Persistent works
           </Link>
         </Typography>
-      </Card>
-
-      <Card variant="outlined">
-        <Typography level="title-sm">Apps</Typography>
-        <Typography level="body-sm">
-          Get alarms that work offline on Android, or persistent alerts while your PC is awake with the Windows app.
-        </Typography>
-        <NativeAppStoreButtons />
       </Card>
 
       <Card variant="outlined">
@@ -247,7 +226,14 @@ export function SettingsPage() {
 
       <UpdateSettings />
 
-      <DeleteAccountCard />
+      <Card variant="outlined">
+        <Typography level="title-sm">Apps</Typography>
+        <Typography level="body-sm">
+          Get alarms that work offline on Android, or persistent alerts while your PC is awake with the Windows app.
+        </Typography>
+        <NativeAppStoreButtons />
+        <Link component={RouterLink} to="/settings/apps">Our other apps</Link>
+      </Card>
     </Stack>
   )
 }

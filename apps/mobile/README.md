@@ -12,6 +12,13 @@ pulls the Capacitor/Android toolchain), so it doesn't affect `npm run validate`.
 Build it from inside this directory in the development container (needs a JDK + Android
 SDK; add them to `docker/dev/Dockerfile` or use Android Studio).
 
+Initialize the shared promo submodule with `git submodule update --init --recursive`
+before building the web bundle. Android's hosted Settings page groups account
+details, passkeys, sign-out, and permanent deletion in Account, and links to
+"Our other apps" in the final Apps card. That catalog lists every other product
+with platform labels, retaining bundled or cached content when offline. These
+hosted UI changes do not require a new APK.
+
 ## Layout
 
 - `capacitor.config.ts` — app id/name; `server.url` loads the UI from production

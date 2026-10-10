@@ -25,6 +25,17 @@ To publish another announcement, add its title and paragraphs to the API's
 `lib/announcements.ts` catalog with a new permanent id, newest first. Editing an
 existing id does not make it reappear for accounts that already dismissed it.
 
+### Public app catalog
+
+Settings' "Our other apps" page reads the public promo manifest using `apiFetch`
+with credentials omitted, then validates it with the shared promo contract.
+This optional query cannot block startup. Its last valid manifest lives in a
+separate, account-independent localStorage entry, with bundled JSON and icons
+as the first offline fallback; it is excluded from the account-bound query cache.
+Refresh failures retain the displayed catalog and log a safe failure category
+without showing a toast. New remote icons use a bounded service-worker cache.
+The catalog has no account data, mutations, or WebSocket invalidations.
+
 ### Reminder data
 
 All data loads over guarded HTTP via `apiFetch` (`apps/web/src/lib/apiClient.ts`)

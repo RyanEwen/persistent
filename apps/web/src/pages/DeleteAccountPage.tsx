@@ -4,7 +4,7 @@
  * logged-out visitor (they check it), so App.tsx routes this ahead of the auth
  * gate exactly like /privacy.
  *
- * The deletion itself lives in Settings (DeleteAccountCard -> DELETE /api/auth/me).
+ * The deletion itself lives in Settings (DeleteAccountSection -> DELETE /api/auth/me).
  * This page exists to explain the route and to give someone who cannot sign in a
  * way to ask. Keep it factually in sync with that endpoint.
  */

@@ -72,6 +72,11 @@
   (`usePastOccurrences` is a `useInfiniteQuery`: read it as `data.pages.flatMap`,
   not `data.map`); it only ever grows, so it loads a page at a time behind "Show
   more". Active and upcoming are small by construction and load whole.
+- **Other apps:** `data/promotedApps.ts` imports the shared public catalog from
+  `apps/desktop/external/promo`. Keep its query optional for startup and separate
+  from account-bound persistence. Refreshes send no credentials and preserve
+  bundled or last-good content on failure; log safe diagnostics without a toast.
+  Preserve manifest order and hide Persistent by its stable `appId`.
 - **Sharing and assignment:** the reminder editor opens `ReminderSharing` from
   the action row beside Save and Cancel. New reminders stage either shared
   recipients or one assignee until creation. An assignee owns their reminder and

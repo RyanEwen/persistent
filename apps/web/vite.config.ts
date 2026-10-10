@@ -36,7 +36,20 @@ export default defineConfig(({ mode }) => {
           navigateFallback: undefined,
           directoryIndex: null,
           globIgnores: ['**/build-id.json'],
-          runtimeCaching: [navigationCaching]
+          runtimeCaching: [
+            navigationCaching,
+            {
+              // Newly added catalog icons also survive offline visits. Bundled icons
+              // use Vite asset imports and are already part of the precache.
+              urlPattern: /^https:\/\/raw\.githubusercontent\.com\/RyanEwen\/technicallyreal-promo\/main\/Assets\/PromotedApps\/[\w-]+\.png$/,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'promoted-app-icons',
+                cacheableResponse: { statuses: [200] },
+                expiration: { maxEntries: 40, maxAgeSeconds: 30 * 24 * 60 * 60 }
+              }
+            }
+          ]
         },
         includeAssets: ['favicon.svg'],
         manifest: {
