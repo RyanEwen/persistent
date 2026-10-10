@@ -42,7 +42,7 @@ const review = `<!doctype html><html lang="en"><meta charset="utf-8"><title>Pers
 <style>
 * { box-sizing: border-box; } body { margin: 0; padding: 28px; width: 1440px; height: 730px; background: #eef0f2; color: #26384a; font: 16px Arial, sans-serif; }
 h1 { font-size: 26px; margin: 0 0 16px; } h2 { font-size: 20px; margin: 20px 0 12px; }
-.play { display: grid; grid-template-columns: repeat(6,1fr); gap: 14px; }
+.play { display: grid; grid-template-columns: repeat(${manifest.play.length},1fr); gap: 14px; }
 .desktop { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; }
 figure { margin: 0; } img { width: 100%; display: block; border-radius: 6px; }
 .play img { height: 390px; object-fit: contain; } .desktop img { height: 178px; object-fit: contain; }

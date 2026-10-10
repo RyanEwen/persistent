@@ -33,8 +33,8 @@
 <!-- These are the same synthetic-data mockups used by the Play listing. -->
 <p align="center">
   <img src="apps/mobile/store/graphics/screenshots/00-current-light.png" alt="Current reminders in Enjoy Light" height="400">
-  <img src="apps/mobile/store/graphics/screenshots/01-checklist-dark.png" alt="Checklist and reminder controls in Enjoy Dark" height="400">
-  <img src="apps/mobile/store/graphics/screenshots/03-sharing-dark.png" alt="Sharing dialog with a staged sample recipient in Enjoy Dark" height="400">
+  <img src="apps/mobile/store/graphics/screenshots/03-checklist-dark.png" alt="Checklist and reminder controls in Enjoy Dark" height="400">
+  <img src="apps/mobile/store/graphics/screenshots/05-sharing-dark.png" alt="Sharing dialog with a staged sample recipient in Enjoy Dark" height="400">
 </p>
 
 Most reminder apps fire once and are easy to swipe away. Persistent keeps

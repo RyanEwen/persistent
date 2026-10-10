@@ -20,14 +20,17 @@ function Draw-ContainedPreview($Image, [int]$Left, [int]$Top, [int]$Width, [int]
 try {
     $graphics.Clear([Drawing.ColorTranslator]::FromHtml('#eef0f2'))
     $graphics.InterpolationMode = [Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-    $graphics.DrawString('Google Play: Enjoy Light and Dark',$heading,$ink,30,18)
+    $graphics.DrawString('Google Play: app screens, notifications, and alarms',$heading,$ink,30,18)
+    # Keep the entire carousel visible when a refresh adds native screenshots.
+    $playCellWidth = [int][Math]::Floor(2140 / $manifest.play.Count)
+    $playPreviewWidth = $playCellWidth - 27
     for ($index=0; $index -lt $manifest.play.Count; $index++) {
         $shot = $manifest.play[$index]
         $image = [Drawing.Image]::FromFile((Join-Path $AssetsRoot $shot.file))
-        try { Draw-ContainedPreview $image (30+$index*357) 78 330 587 }
+        try { Draw-ContainedPreview $image (30+$index*$playCellWidth) 78 $playPreviewWidth 587 }
         finally { $image.Dispose() }
-        $name = [IO.Path]::GetFileNameWithoutExtension($shot.file).Substring(3).Replace('-',' ')
-        $graphics.DrawString($name,$label,$ink,(30+$index*357),674)
+        $name = [IO.Path]::GetFileNameWithoutExtension($shot.file).Substring(3).Replace('-light','').Replace('-dark','').Replace('-',' ')
+        $graphics.DrawString($name,$label,$ink,(30+$index*$playCellWidth),674)
     }
     $graphics.DrawString('Microsoft Store: actual Windows tray flyout',$heading,$ink,30,724)
     for ($index=0; $index -lt $manifest.microsoft.Count; $index++) {

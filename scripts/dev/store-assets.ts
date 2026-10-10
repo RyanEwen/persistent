@@ -92,6 +92,7 @@ function check(): void {
     if (store !== 'play' && store !== 'microsoft') continue
     if (selectedStore && selectedStore !== store) continue
     if (shots.length < 4) throw new Error(`${store}: expected at least four curated screenshots`)
+    if (store === 'play' && shots.length > 8) throw new Error('play: the carousel supports at most eight screenshots')
     for (const shot of shots) {
       const png = readFileSync(resolve('store-assets', shot.file))
       const { width, height } = validateStoreImage(png, store)

@@ -111,7 +111,7 @@ apps/mobile/store/listing.md --check` before publishing.
 | --- | --- | --- |
 | App icon | 512×512 PNG, 32-bit, no transparency | ✅ `graphics/play-icon.png` |
 | Feature graphic | 1024×500 PNG/JPG, no transparency | ✅ `graphics/feature-graphic.png` |
-| Phone screenshots | 2–8, min 320px, 16:9 or 9:16 | ✅ 6 in `graphics/screenshots/` (see below) |
+| Phone screenshots | 2–8, min 320px, 16:9 or 9:16 | ✅ 8 in `graphics/screenshots/` (see below) |
 | 7" / 10" tablet screenshots | optional | ❌ optional |
 
 Sources are `graphics/*.svg`; re-render with
@@ -120,14 +120,15 @@ Sources are `graphics/*.svg`; re-render with
 ### Capturing more
 
 Use the [repeatable store screenshot workflow](../../../store-assets/README.md).
-It prepares a protected synthetic demo account, captures current app screens in
-the shared Paseo browser, and renders reusable phone mockups. `npm run shots`
+It prepares a protected synthetic demo account, captures all eight source screens
+in the isolated Android demo app, and renders reusable phone mockups through the
+shared Paseo browser. `npm run shots`
 prints the workflow entrypoint; it does not launch or install a browser.
 
 **Always capture against the demo account, never a real one.** The owner's real
 account contains actual prescriptions; a Play listing is public and permanent.
-Native alarm and notification-shade shots require a separately requested device
-session. Keep native permission demonstration videos separate from the carousel.
+Native captures require a separately requested device session. Every image
+includes the real status area and gesture bar, with no unrelated notification icons. Keep native permission demonstration videos separate from the carousel.
 
 ---
 
@@ -216,30 +217,37 @@ forms before marking this complete.
 
 ## Captured screenshots
 
-All six live in `graphics/screenshots/`, captured in Paseo against the seeded demo
-account with synthetic health data only. The Enjoy Light/Dark app captures are
-composed inside reusable phone mockups. All exports are 1080 x 1920 RGB PNGs.
+All eight live in `graphics/screenshots/`, using the seeded demo account with
+synthetic health data only. All eight are full-display Pixel 9 Pro captures with
+the real status area and gesture bar, and no unrelated notification icons.
+All are composed in Paseo
+inside reusable phone mockups, with 1080 x 1920 RGB PNG exports. Marketing copy
+describes the feature without theme names.
 Ordered as they should appear in Play:
 
 | File | Shows | Theme |
 | --- | --- | --- |
 | `00-current-light.png` | Current reminders for plants, puppy, and the morning checklist | Enjoy Light |
-| `01-checklist-dark.png` | Reading dialog with a part-completed checklist and reminder controls below it | Enjoy Dark |
-| `02-medication-light.png` | Synthetic vitamin reminder editor with medicine name and 1000 IU dose | Enjoy Light |
-| `03-sharing-dark.png` | Share or assign dialog with a staged sample recipient | Enjoy Dark |
-| `04-notes-light.png` | Trip-packing note checklist, without an alarm | Enjoy Light |
-| `05-assigned-dark.png` | Assigned by me status with a synthetic completion record | Enjoy Dark |
+| `01-notification-shade.png` | Four distinct reminders, native Done and Snooze actions, and copy explaining that swiped notifications return until confirmed | Android system |
+| `02-alarm-dark.png` | Real ignored-reminder escalation into an alarm with Done, Snooze, and De-escalate controls | Enjoy Dark |
+| `03-checklist-dark.png` | Reading dialog with a part-completed checklist and reminder controls below it | Enjoy Dark |
+| `04-medication-light.png` | Synthetic vitamin reminder editor with medicine name and 1000 IU dose | Enjoy Light |
+| `05-sharing-dark.png` | Share or assign dialog with a staged sample recipient | Enjoy Dark |
+| `06-notes-light.png` | Trip-packing note checklist, without an alarm | Enjoy Light |
+| `07-assigned-dark.png` | Assigned by me status with a synthetic completion record | Enjoy Dark |
 
-The root README embeds `00`, `01`, and `03` from this directory, without separate
-copies. Native alarm and notification-shade shots were replaced with current app
-screens for this browser-based refresh. Native permission videos remain separate.
+The root README embeds `00`, `03`, and `05` from this directory, without separate
+copies. Native permission videos remain separate.
 No screen repeats a reminder as two near-identical cards.
 
 ### Regenerating
 
 Use [store-assets/README.md](../../../store-assets/README.md) and its manifest.
-Prepare the synthetic fixture once, capture the six app screens through the shared
-Paseo browser, then render the phone layouts and capture their final exports:
+Prepare the synthetic fixture, capture all eight screens in the isolated Android
+demo app through the authorized device session, then render
+the phone layouts and capture their final exports. If waiting has allowed another
+scheduled firing to create duplicate demo cards, refresh the protected fixture
+before capture and synchronize the demo app again:
 
 ```sh
 npm run shots:prepare -- --email=ryan.ewen+persistentdemo@gmail.com
@@ -248,7 +256,7 @@ npm run shots:check
 npm run shots:sync
 ```
 
-`shots:prepare` runs in the isolated development stack; the browser capture steps
+`shots:prepare` runs in the isolated development stack; the capture and render steps
 between commands are documented in the workflow. `shots:sync` replaces the local
 upload directory only. Publish the listing separately when requested.
 

@@ -79,10 +79,10 @@ RUN printf 'export PATH="$PATH:%s:%s"\n' \
       /opt/android-sdk/platform-tools \
       > /etc/profile.d/android-sdk.sh
 
-# Pin the SDK levels to what Capacitor 6 targets (compileSdk 34).
+# Match the tracked Android overlay's compile SDK and build tools.
 ARG ANDROID_CMDLINE_TOOLS_VERSION=11076708
-ARG ANDROID_COMPILE_SDK=34
-ARG ANDROID_BUILD_TOOLS=34.0.0
+ARG ANDROID_COMPILE_SDK=36
+ARG ANDROID_BUILD_TOOLS=36.0.0
 RUN set -eux; \
     mkdir -p "${ANDROID_HOME}/cmdline-tools"; \
     curl -fsSL -o /tmp/cmdline-tools.zip \

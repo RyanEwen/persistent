@@ -76,10 +76,13 @@ Use the [repeatable store capture workflow](../../store-assets/README.md) and
 `.agents/skills/store-screenshots/SKILL.md`. `npm run shots` prints the entrypoint;
 `shots:prepare` creates only the protected synthetic demo fixture, `shots:render`
 generates reusable phone layouts, and `shots:check` validates final PNG exports.
-Capture app screens and layouts in the shared Paseo browser. Do not install a
-standalone browser for this workflow. Native alarm and notification-shade images
-require an explicitly requested device session; this refresh uses current app
-screens instead. Keep native permission demonstration videos separate.
+Capture all Play source screens in an explicitly requested device session using
+the isolated demo Android app. Preserve the real status area and gesture bar on
+every image, with readable system icons and no unrelated notification icons.
+Render the marketing layouts in the shared Paseo browser; do not install a
+standalone browser for this workflow. Follow the workflow's permission, account, and cleanup
+steps; preserve the signed-in Store app. Keep native permission demonstration
+videos separate.
 
 `store/listing.md` owns the listing copy and published screenshot set. The manual
 `play-listing` workflow (`scripts/play-publish.mjs --listing`) uploads both, only
