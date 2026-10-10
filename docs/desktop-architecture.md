@@ -835,7 +835,8 @@ workflow in `store-assets/README.md` uses synthetic data in the actual default-s
 flyout with wallpaper and taskbar visible. `store-publish` first uploads a package
 draft, then `scripts/deploy/publish-windows-store-assets.mjs` attaches the approved
 screenshots and `store-assets/microsoft/release-notes.txt` before committing in
-publish mode. Other listing fields, logos, languages, pricing, and package policy
+publish mode. The combined upload uses the exact `.msixupload` package name
+registered by the CLI. Other listing fields, logos, languages, pricing, and package policy
 are preserved. Draft mode does not submit for certification. The local `--check`
 path validates assets without credentials or remote calls.
 

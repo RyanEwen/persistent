@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import os from 'node:os'
 import { pngSize } from '../../apps/mobile/scripts/play-publish.mjs'
-import { member, mergeStoreListing } from './windows-store-listing.mjs'
+import { member, mergeStoreListing, assertReleasePackage } from './windows-store-listing.mjs'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const assetsRoot = path.join(root, 'store-assets')
@@ -65,7 +65,7 @@ async function requester() {
   }
 }
 
-/** Stage the matching bundle and image files in one ZIP, matching Partner Center's registered names. */
+/** Stage the exact CLI input package and images in one ZIP using their registered filenames. */
 async function archive(packagePath, assets, directory) {
   const contents = path.join(directory, 'contents')
   await mkdir(contents)
@@ -92,10 +92,7 @@ async function publish(packagePath, commit) {
   const route = `/my/applications/${productId}/submissions/${encodeURIComponent(id)}`
   const draft = await request(route)
   if (member(draft, 'status') !== 'PendingCommit') throw new Error('The Store submission is not an editable pending draft.')
-  const packages = member(draft, 'applicationPackages')
-  if (!Array.isArray(packages) || !packages.some((entry) => member(entry, 'fileName') === path.basename(packagePath))) {
-    throw new Error('The Store draft does not contain the selected release bundle.')
-  }
+  assertReleasePackage(draft, path.basename(packagePath))
   const merged = mergeStoreListing(draft, shots, notes)
   const directory = await mkdtemp(path.join(os.tmpdir(), 'persistent-store-upload-'))
   try {
@@ -136,7 +133,7 @@ try {
   } else if (packageIndex >= 0 && process.argv[packageIndex + 1]) {
     await publish(path.resolve(process.argv[packageIndex + 1]), process.argv.includes('--commit'))
   } else {
-    throw new Error('Usage: publish-windows-store-assets.mjs --check | --package <msixbundle> [--commit]')
+    throw new Error('Usage: publish-windows-store-assets.mjs --check | --package <msixupload> [--commit]')
   }
 } catch (error) {
   console.error(error instanceof Error ? error.message : 'Store publication failed.')

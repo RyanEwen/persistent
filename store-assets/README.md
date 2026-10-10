@@ -78,6 +78,7 @@ No Android version bump is needed for listing assets or hosted UI alone.
 
 The `store-publish` workflow validates the Microsoft manifest and release notes,
 uploads the new native package as a draft, attaches the four ordered screenshots,
+using the same `.msixupload` filename registered by the CLI,
 and commits the combined submission only in publish mode. It preserves other
 listing fields, logos, languages, pricing, and package policy. The approved notes
 are in `microsoft/release-notes.txt`. Draft mode leaves the complete package and

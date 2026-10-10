@@ -172,8 +172,9 @@ jobs:
           AZURE_AD_APPLICATION_CLIENT_ID: ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
           AZURE_AD_APPLICATION_SECRET: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
         run: |
-          $bundle = ".\Persistent.DesktopMSIX\Persistent.Desktop_${{ steps.version.outputs.VERSION }}.msixbundle"
-          $arguments = @('../../scripts/deploy/publish-windows-store-assets.mjs', '--package', $bundle)
+          # Partner Center registers the CLI input name, including its upload wrapper.
+          $package = ".\Persistent.DesktopMSIX\Persistent.Desktop_${{ steps.version.outputs.VERSION }}.msixupload"
+          $arguments = @('../../scripts/deploy/publish-windows-store-assets.mjs', '--package', $package)
           if ("${{ inputs.mode }}" -eq 'publish') { $arguments += '--commit' }
           node @arguments
           if ($LASTEXITCODE -ne 0) { throw 'Store listing upload or submission failed' }

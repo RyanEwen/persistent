@@ -6,6 +6,14 @@ export function member(object, name) {
   return key ? object[key] : undefined
 }
 
+/** Require the exact CLI input filename, not the bundle nested inside an upload wrapper. */
+export function assertReleasePackage(draft, fileName) {
+  const packages = member(draft, 'applicationPackages')
+  if (!Array.isArray(packages) || !packages.some((entry) => member(entry, 'fileName') === fileName)) {
+    throw new Error('The Store draft does not contain the selected release package.')
+  }
+}
+
 /** Write a member while preserving the API response's original property casing. */
 function setMember(object, name, value) {
   const key = Object.keys(object).find((candidate) => candidate.toLowerCase() === name.toLowerCase()) ?? name

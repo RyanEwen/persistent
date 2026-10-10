@@ -2,7 +2,14 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 // @ts-expect-error - the dependency-free release runner module is plain JavaScript.
-import { mergeStoreListing } from './windows-store-listing.mjs'
+import { mergeStoreListing, assertReleasePackage } from './windows-store-listing.mjs'
+
+test('Store package guard matches the CLI upload wrapper rather than its nested bundle', () => {
+  const draft = { applicationPackages: [{ fileName: 'Persistent.Desktop_0.5.8.msixupload', fileStatus: 'PendingUpload' }] }
+  assert.doesNotThrow(() => assertReleasePackage(draft, 'Persistent.Desktop_0.5.8.msixupload'))
+  assert.throws(() => assertReleasePackage(draft, 'Persistent.Desktop_0.5.8.msixbundle'), /selected release package/)
+  assert.throws(() => assertReleasePackage(draft, 'Persistent.Desktop_0.5.7.msixupload'), /selected release package/)
+})
 
 test('Store screenshot refresh preserves packages, logos, policy, other languages and source draft', () => {
   const draft = {
