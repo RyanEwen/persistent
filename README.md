@@ -30,12 +30,11 @@
   </a>
 </p>
 
-<!-- Sized by height, not width: the shade shot is a different aspect ratio to the
-     phone screens, so a shared height is what keeps the row aligned. -->
+<!-- These are the same synthetic-data mockups used by the Play listing. -->
 <p align="center">
-  <img src="apps/mobile/store/graphics/screenshots/00-ringing-alarm.png" alt="Full-screen alarm mid two-tap confirm" height="400">
-  <img src="apps/mobile/store/graphics/screenshots/01-current.png" alt="Current — reminders still waiting to be confirmed, each with its own Done" height="400">
-  <img src="apps/mobile/store/graphics/screenshots/04-notification-actions.png" alt="Notification shade — four reminders nagging at once, each with its own Done and Snooze" height="400">
+  <img src="apps/mobile/store/graphics/screenshots/00-current-light.png" alt="Current reminders in Enjoy Light" height="400">
+  <img src="apps/mobile/store/graphics/screenshots/01-checklist-dark.png" alt="Checklist and reminder controls in Enjoy Dark" height="400">
+  <img src="apps/mobile/store/graphics/screenshots/03-sharing-dark.png" alt="Sharing dialog with a staged sample recipient in Enjoy Dark" height="400">
 </p>
 
 Most reminder apps fire once and are easy to swipe away. Persistent keeps
@@ -43,10 +42,16 @@ nagging — a notification that won't dismiss, or a full alarm that loops — un
 you *actually mark it done*. It's built for the things you can't afford to miss.
 
 Choose your appearance in **Settings > Theme**: **Match system** is the default
-and automatically switches between Light and charcoal Dark with your device.
-Choose Light or Dark to keep one appearance, or try Forest or Plum. Each palette
+and automatically switches between Enjoy Light and Enjoy Dark with your device.
+Choose either Enjoy theme to keep one appearance. Classic Light and Classic Dark
+retain the previous styling, and Forest and Plum offer colored palettes. Each palette
 recolors the whole app, including cards and dialogs. Navy keeps the original
 dark blue surfaces and teal accents. Doodles are enabled by default. The
+Enjoy themes use warm gray surfaces, blue accents,
+rounded headings and controls, quiet surfaces, and soft shadows inspired by
+[Enjoy's app](https://enjoy.dev). Native alarm screens inherit their colors;
+their fonts and shapes follow the platform. For a plain Enjoy appearance,
+choose No doodles without changing your saved palette. The
 **Doodle background** dropdown offers Match theme, No doodles, and doodle line
 colors from pale shades for Light or dark shades for the darker themes. The
 page background follows your theme. Your choices are saved on each device.
@@ -125,7 +130,8 @@ account, check your saved reminders, then remove the old app to avoid duplicate
 alerts. The new app has no Android Auto support or in-app APK updater.
 
 **Windows:** a tray app that keeps Persistent one click from the notification
-area. Install it from the
+area. Its default tall flyout gives reminder editors room similar to the phone
+app, and its size remains adjustable in Settings. Install it from the
 [Microsoft Store](https://apps.microsoft.com/detail/9PCX2XGQ7CJS), which keeps it
 up to date on its own. If you'd rather not install anything, the portable zip for
 your architecture (x64 or ARM64) is on the

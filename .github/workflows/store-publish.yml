@@ -104,6 +104,15 @@ jobs:
           SELLER_ID: ${{ secrets.SELLER_ID }}
           STORE_SECRET_EXPIRES: ${{ vars.STORE_SECRET_EXPIRES }}
 
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      - name: Validate approved listing assets
+        shell: pwsh
+        run: node ../../scripts/deploy/publish-windows-store-assets.mjs --check
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -146,16 +155,25 @@ jobs:
             --clientSecret "${{ secrets.AZURE_AD_APPLICATION_SECRET }}" `
             --sellerId "${{ secrets.SELLER_ID }}"
 
-      # -nc ("no commit") uploads the packages and leaves the submission sitting
-      # in Partner Center instead of sending it to certification.
-      - name: ${{ inputs.mode == 'publish' && 'Submit to the Microsoft Store' || 'Upload a draft submission' }}
+      # Upload the package as a draft first, then attach the approved images and notes.
+      # The API helper preserves the draft's unrelated listing and submission fields.
+      - name: Upload Store package draft
         shell: pwsh
         run: |
           $pkg = ".\Persistent.DesktopMSIX\Persistent.Desktop_${{ steps.version.outputs.VERSION }}.msixupload"
           if (-not (Test-Path $pkg)) { throw "Package not found: $pkg" }
-          if ("${{ inputs.mode }}" -eq 'publish') {
-            msstore publish $pkg -id 9PCX2XGQ7CJS
-          } else {
-            msstore publish $pkg -id 9PCX2XGQ7CJS -nc
-          }
-          if ($LASTEXITCODE -ne 0) { throw 'msstore publish failed' }
+          msstore publish $pkg -id 9PCX2XGQ7CJS -nc
+          if ($LASTEXITCODE -ne 0) { throw 'msstore package upload failed' }
+
+      - name: ${{ inputs.mode == 'publish' && 'Submit package and approved listing' || 'Attach approved listing to draft' }}
+        shell: pwsh
+        env:
+          AZURE_AD_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
+          AZURE_AD_APPLICATION_CLIENT_ID: ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
+          AZURE_AD_APPLICATION_SECRET: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
+        run: |
+          $bundle = ".\Persistent.DesktopMSIX\Persistent.Desktop_${{ steps.version.outputs.VERSION }}.msixbundle"
+          $arguments = @('../../scripts/deploy/publish-windows-store-assets.mjs', '--package', $bundle)
+          if ("${{ inputs.mode }}" -eq 'publish') { $arguments += '--commit' }
+          node @arguments
+          if ($LASTEXITCODE -ne 0) { throw 'Store listing upload or submission failed' }

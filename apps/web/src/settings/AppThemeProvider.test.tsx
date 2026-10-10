@@ -115,17 +115,17 @@ test('native desktop frame follows fixed themes and system changes without repla
   const { portal, hostMessages, selectTheme, setSystemDark } = await mountTheme(context, null, false, true)
   const draft = portal.querySelector('input')!
   draft.value = 'Preserve native-host draft'
-  assert.deepEqual(hostMessages.at(-1), { type: 'appearance', mode: 'light', background: '#f5f5f5' })
+  assert.deepEqual(hostMessages.at(-1), { type: 'appearance', mode: 'light', background: '#fafaf9' })
 
   await setSystemDark(true)
-  assert.deepEqual(hostMessages.at(-1), { type: 'appearance', mode: 'dark', background: '#171717' })
+  assert.deepEqual(hostMessages.at(-1), { type: 'appearance', mode: 'dark', background: '#191a1d' })
   await selectTheme('forest')
   assert.deepEqual(hostMessages.at(-1), { type: 'appearance', mode: 'dark', background: '#0d1210' })
   const count = hostMessages.length
   await setSystemDark(false)
   assert.equal(hostMessages.length, count, 'A fixed theme must not recolor the host when the OS changes')
   await selectTheme('system')
-  assert.deepEqual(hostMessages.at(-1), { type: 'appearance', mode: 'light', background: '#f5f5f5' })
+  assert.deepEqual(hostMessages.at(-1), { type: 'appearance', mode: 'light', background: '#fafaf9' })
   assert.equal(portal.querySelector('input'), draft)
   assert.equal(draft.value, 'Preserve native-host draft')
 })
@@ -158,10 +158,14 @@ test('saved palettes and independent doodles reach portals while preserving moun
     assert.notEqual(portal.dataset.wallpaper, 'none')
     assert.equal(portal.dataset.mode, theme.mode)
     assert.equal(dom.window.document.documentElement.getAttribute('data-joy-color-scheme'), theme.mode)
-    assert.equal(portal.dataset.surface, expectedSurfaces[theme.palette])
+    const expectedSurface = theme.palette === 'enjoy'
+      ? (theme.mode === 'light' ? '#ffffff' : '#242529')
+      : expectedSurfaces[theme.palette]
+    assert.equal(portal.dataset.surface, expectedSurface)
     let expectedAccent = theme.accent?.s500 ?? '#3b82f6'
     if (theme.id === 'light') expectedAccent = 'var(--joy-palette-primary-500, #0B6BCB)'
     if (theme.id === 'dark') expectedAccent = '#2563eb'
+    if (theme.palette === 'enjoy') expectedAccent = theme.mode === 'light' ? '#2454a0' : '#226bd4'
     assert.equal(portal.dataset.accent, expectedAccent)
     assert.equal(portal.querySelector('input'), draft, 'changing themes must not remount a dialog')
     assert.equal(draft.value, 'Keep this draft')
@@ -185,7 +189,7 @@ test('saved palettes and independent doodles reach portals while preserving moun
 test('migrates legacy wallpaper choices and honors explicitly saved doodle preferences', async (context) => {
   const cases: Array<{ name: string; stored: Record<string, unknown> | null; expected: boolean; expectedColor?: DoodleColorId }> = [
     { name: 'new device', stored: null, expected: true },
-    ...APP_THEMES.map((theme) => ({
+    ...APP_THEMES.filter((theme) => theme.palette !== 'enjoy').map((theme) => ({
       name: `legacy ${theme.id}`,
       stored: { themeId: theme.id },
       expected: ['doodle', 'midnight', 'mint', 'bubblegum'].includes(theme.id)
@@ -259,7 +263,7 @@ test('legacy Navy switches once while other settings and a later Navy choice sur
 })
 
 test('only one Navy palette remains and every ink choice follows the required shade', () => {
-  assert.deepEqual(APP_THEMES.map((theme) => theme.name), ['Light', 'Dark', 'Navy', 'Forest', 'Plum'])
+  assert.deepEqual(APP_THEMES.map((theme) => theme.name), ['Enjoy Light', 'Enjoy Dark', 'Classic Light', 'Classic Dark', 'Navy', 'Forest', 'Plum'])
   for (const theme of APP_THEMES) {
     for (const option of doodleColorOptions(theme)) {
       const channels = option.color.slice(1).match(/.{2}/g)!.map((channel) => parseInt(channel, 16))
@@ -272,7 +276,7 @@ test('only one Navy palette remains and every ink choice follows the required sh
 })
 
 
-test('Match system defaults and live changes apply traditional surfaces and ink without replacing drafts', async (context) => {
+test('Match system defaults and live changes apply Enjoy surfaces and ink without replacing drafts', async (context) => {
   const { dom, portal, setSystemDark, selectTheme } = await mountTheme(context, {
     themeId: 'system', doodles: true, doodleColor: 'purple'
   }, false)
@@ -286,8 +290,8 @@ test('Match system defaults and live changes apply traditional surfaces and ink 
   await setSystemDark(true)
   assert.equal(portal.dataset.mode, 'dark')
   assert.equal(dom.window.document.documentElement.getAttribute('data-joy-color-scheme'), 'dark')
-  assert.equal(portal.dataset.surface, '#222222', 'system dark must use charcoal rather than Navy')
-  assert.equal(portal.dataset.accent, '#2563eb')
+  assert.equal(portal.dataset.surface, '#242529', 'system dark must use Enjoy')
+  assert.equal(portal.dataset.accent, '#226bd4')
   assert.match(decodeURIComponent(portal.dataset.wallpaper!), /stroke='#4a3c60'/)
   assert.match(portal.dataset.inkOptions!, /Dark purple/)
   assert.equal(JSON.parse(dom.window.localStorage.getItem('persistent-settings')!).themeId, 'system')
@@ -301,10 +305,14 @@ test('Match system defaults and live changes apply traditional surfaces and ink 
 
   await selectTheme('light')
   await setSystemDark(true)
-  assert.equal(portal.dataset.mode, 'light', 'explicit Light stays light when the system changes')
+  assert.equal(portal.dataset.mode, 'light', 'explicit Classic Light stays light when the system changes')
+  assert.equal(portal.dataset.surface, '#ffffff')
+  assert.equal(portal.dataset.accent, 'var(--joy-palette-primary-500, #0B6BCB)')
   await selectTheme('dark')
   await setSystemDark(false)
-  assert.equal(portal.dataset.mode, 'dark', 'explicit Dark stays dark when the system changes')
+  assert.equal(portal.dataset.mode, 'dark', 'explicit Classic Dark stays dark when the system changes')
+  assert.equal(portal.dataset.surface, '#222222')
+  assert.equal(portal.dataset.accent, '#2563eb')
   await selectTheme('system')
   assert.equal(portal.dataset.mode, 'light', 'returning to Match system reads the current preference')
   assert.equal(portal.querySelector('input'), draft)
@@ -312,7 +320,7 @@ test('Match system defaults and live changes apply traditional surfaces and ink 
 })
 
 test('new users default to Match system and the main choices lead the list', async (context) => {
-  assert.deepEqual(THEME_OPTIONS.slice(0, 3).map((theme) => theme.name), ['Match system', 'Light', 'Dark'])
+  assert.deepEqual(THEME_OPTIONS.slice(0, 3).map((theme) => theme.name), ['Match system', 'Enjoy Light', 'Enjoy Dark'])
   const { portal } = await mountTheme(context, null, false)
   assert.equal(portal.dataset.theme, 'system')
   assert.equal(portal.dataset.mode, 'light')

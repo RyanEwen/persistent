@@ -168,7 +168,7 @@ export async function syncAlarms(): Promise<void> {
   await AlarmPlugin.setAgenda({ entries: data.agenda ?? [] }).catch(() => {})
 }
 
-/** If the user tapped a notification, open the app to that reminder's detail view. */
+/** Drain a notification tap into the shared reminder reading dialog route. */
 async function consumePendingNavigation(): Promise<void> {
   const { reminderId } = await AlarmPlugin.consumePendingNavigation()
   if (reminderId) navigateApp(`/reminders/${reminderId}`)

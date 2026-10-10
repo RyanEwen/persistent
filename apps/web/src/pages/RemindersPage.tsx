@@ -16,7 +16,7 @@
  * Snooze, because there is no occurrence to act on.
  *
  * Tapping a card opens the reading dialog. Its actions live with the full content,
- * while native notification links still resolve to the detail route.
+ * and native notification links open that same dialog.
  */
 import Stack from '@mui/joy/Stack'
 import Typography from '@mui/joy/Typography'

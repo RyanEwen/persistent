@@ -4,6 +4,7 @@
  */
 import { extendTheme } from '@mui/joy/styles'
 import type { AppTheme, AccentRamp } from './settings/themes.js'
+import { createEnjoyTheme } from './enjoyTheme.js'
 
 /** Neutral ramps feed Joy's text, borders, disabled controls, and hover states. */
 const NEUTRALS = {
@@ -41,6 +42,10 @@ function primaryPalette(accent: AccentRamp | null) {
 
 /** Build a complete Joy theme; scheme defaults retain semantic success/danger colors. */
 export function createAppTheme(appTheme: AppTheme) {
+  if (appTheme.palette === 'enjoy') {
+    return createEnjoyTheme()
+  }
+
   const neutral = appTheme.palette === 'navy' ? undefined : NEUTRALS[appTheme.palette]
   // Cards need a clear brightness step above the near-black page backgrounds.
   const surface = neutral?.[900] ?? '#202a38'

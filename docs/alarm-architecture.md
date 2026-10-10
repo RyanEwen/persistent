@@ -7,10 +7,11 @@ anything about how reminders fire.
 
 The hosted app mirrors a display-only `NativeAppearance` palette through
 `AlarmPlugin.setAppearance`, independent of authentication or reminder sync.
-Both traditional palettes are persisted in separate device preferences. Match
+Both resolved palettes are persisted in separate device preferences. Match
 system resolves against Android's current night mode when an alarm appears,
-including while the WebView is closed or offline. Fixed Light, Dark, Navy, Forest,
-and Plum selections retain their chosen colors.
+including while the WebView is closed or offline, and defaults to Enjoy Light
+and Enjoy Dark. Fixed Enjoy, Classic Light, Classic Dark, Navy, Forest, and Plum
+selections retain their chosen colors.
 
 `AlarmUi` uses the same concrete background, surface, text, border and accent
 colors as the web app. Done and Confirm done use the semantic success color.
@@ -227,7 +228,8 @@ drives them lives in `apps/web/src/native`.
       naming: the launching intent always names an occurrence, so the queue could
       never empty and the surface could never close — De-escalate would leave a page
       offering De-escalate again, with Back inert and no way out but Home.
-  - **Tapping a soft nag's body opens the app on that reminder's detail view.**
+  - **Tapping a soft nag's body opens the app's reminder reading dialog**, the
+    same dialog used by in-app card taps.
     The content intent **must be a direct `PendingIntent.getActivity` targeting
     `MainActivity`** — never a broadcast to `AlarmReceiver` that then calls
     `startActivity`. That indirection is a **notification trampoline**, which

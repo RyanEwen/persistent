@@ -72,17 +72,20 @@ on `hasNativeUpdater()` (`apps/web/src/native/alarmBridge.ts`), never
 
 ## Play listing assets
 
-**Regenerated, not hand-made.** From the repo root, `npm run db:seed:demo --
---email=…` fills the **store demo account** with a small set containing synthetic health data
-the screenshots are taken against, and `npm run shots -- --email=…` renders four
-of the six store screenshots from the running dev web app (Playwright, kept out
-of `package.json`; the script prints the one-off install). The full-screen alarm
-and the notification shade are native/OS surfaces and still need a device.
-`store/listing.md` is the source of truth for the copy *and* the screenshot set;
-both are pushed to Play by the manual `play-listing` workflow
-(`scripts/play-publish.mjs --listing`). See `store/play-readiness.md`. Medication
-reminders are available again, so the listing and Play Console's Health apps and
-Data safety declarations must accurately cover medicine names and doses.
+Use the [repeatable store capture workflow](../../store-assets/README.md) and
+`.agents/skills/store-screenshots/SKILL.md`. `npm run shots` prints the entrypoint;
+`shots:prepare` creates only the protected synthetic demo fixture, `shots:render`
+generates reusable phone layouts, and `shots:check` validates final PNG exports.
+Capture app screens and layouts in the shared Paseo browser. Do not install a
+standalone browser for this workflow. Native alarm and notification-shade images
+require an explicitly requested device session; this refresh uses current app
+screens instead. Keep native permission demonstration videos separate.
+
+`store/listing.md` owns the listing copy and published screenshot set. The manual
+`play-listing` workflow (`scripts/play-publish.mjs --listing`) uploads both, only
+when publication is requested. Medication reminders are available, so the listing,
+Health apps declaration, and Data safety declaration must cover medicine names
+and doses accurately.
 
 ## Google Play releases
 

@@ -210,33 +210,21 @@ export function ReminderDetailPage({ reminderId, onClose, onEdit }: {
               const { orphaned, color, variant, doneLabel } = firingTone(reminder, occurrence)
               return (
                 <Card key={occurrence.id} color={color} variant={variant} size="sm">
-                  <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" useFlexGap>
-                    <Box sx={{ flex: '1 1 10rem', minWidth: 0 }}>
-                      <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} flexWrap="wrap" useFlexGap>
-                        <Typography level="body-sm">{formatWhen(occurrence.scheduledFor, timeFormat)}</Typography>
-                        <FiringStatusChip reminder={reminder} occurrence={occurrence} />
-                      </Stack>
-                      {occurrence.status === 'SNOOZED' && occurrence.snoozedUntil && (
-                        <Typography
-                          level="body-xs"
-                          color="primary"
-                          startDecorator={<SnoozeIcon sx={{ fontSize: 14 }} />}
-                        >
-                          Snoozed until {formatWhen(occurrence.snoozedUntil, timeFormat)}
-                        </Typography>
-                      )}
-                    </Box>
-                    <OccurrenceActions
-                      occurrence={occurrence}
-                      size="sm"
-                      doneLabel={doneLabel}
-                      onDone={() => ack.mutate({ id: occurrence.id, arg: undefined })}
-                      doneLoading={ack.isPending}
-                      onSnooze={() => setSnoozeFor(occurrence.id)}
-                      onSilence={() => silence.mutate({ id: occurrence.id, arg: undefined })}
-                      silenceLoading={silence.isPending}
-                    />
-                  </Stack>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Typography level="body-sm">{formatWhen(occurrence.scheduledFor, timeFormat)}</Typography>
+                      <FiringStatusChip reminder={reminder} occurrence={occurrence} />
+                    </Stack>
+                    {occurrence.status === 'SNOOZED' && occurrence.snoozedUntil && (
+                      <Typography
+                        level="body-xs"
+                        color="primary"
+                        startDecorator={<SnoozeIcon sx={{ fontSize: 14 }} />}
+                      >
+                        Snoozed until {formatWhen(occurrence.snoozedUntil, timeFormat)}
+                      </Typography>
+                    )}
+                  </Box>
                   {orphaned && (
                     <Typography level="body-xs" sx={{ color: 'text.tertiary' }}>
                       Notified you before this reminder was rescheduled. Clearing it won't affect the new schedule.
@@ -264,6 +252,17 @@ export function ReminderDetailPage({ reminderId, onClose, onEdit }: {
                       />
                     </Box>
                   )}
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <OccurrenceActions
+                      occurrence={occurrence}
+                      doneLabel={doneLabel}
+                      onDone={() => ack.mutate({ id: occurrence.id, arg: undefined })}
+                      doneLoading={ack.isPending}
+                      onSnooze={() => setSnoozeFor(occurrence.id)}
+                      onSilence={() => silence.mutate({ id: occurrence.id, arg: undefined })}
+                      silenceLoading={silence.isPending}
+                    />
+                  </Box>
                 </Card>
               )
             })}

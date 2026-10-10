@@ -142,7 +142,7 @@ export function useNativeBack(): void {
   // `back` is the flyout's title-bar button, which posts a message rather than
   // navigating itself; exhausting the hierarchy closes the flyout — the same
   // "leave" that exitApp is on Android. `navigate` is a click on a Windows toast,
-  // landing on that reminder's detail view exactly as a notification tap does on
+  // opening the reminder's reading dialog exactly as a notification tap does on
   // every other surface (notification-behavior.md).
   useEffect(() => {
     const unsubscribe = onHostMessage((message) => {

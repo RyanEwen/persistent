@@ -93,7 +93,9 @@ export function ReminderDialogProvider({ children }: { children: ReactNode }) {
             }
           }}
         >
-          <Box sx={{ minHeight: 0, overflowY: 'auto' }}>
+          {/* Scroll clipping needs a small gutter for card shadows at every edge.
+              Negative margin preserves alignment with the dialog heading/footer. */}
+          <Box sx={{ minHeight: 0, overflowY: 'auto', p: 0.5, m: -0.5 }}>
             {dialog?.kind === 'view' && (
               <ReminderDetailPage
                 reminderId={dialog.id}

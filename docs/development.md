@@ -287,6 +287,8 @@ Google plugins, manifest, icon).
 - `$audit-docs`: resync all docs and project guidance with the code.
 - `$verify`: observe web behavior or run the appropriate Android/desktop check.
 - `$desktop`: build, verify or install the working tree through the shared Windows bridge.
+- `$store-screenshots`: prepare synthetic data and refresh both stores' images using
+  Paseo and the actual Windows flyout. See [the repeatable workflow](../store-assets/README.md).
 
 ## Docs
 

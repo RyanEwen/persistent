@@ -20,7 +20,7 @@ function SelectedColorScheme({ mode }: { mode: AppTheme['mode'] | 'system' }) {
 /** Keep the provider mounted so changing appearance preserves dialogs and drafts. */
 export function AppThemeProvider({ children }: { children: ReactNode }) {
   const { themeId } = useSettings()
-  // The system option supplies both traditional palettes; Joy follows the OS.
+  // The system option supplies both Enjoy palettes; Joy follows the OS.
   const selected = getTheme(themeId, 'dark')
   const mode = themeId === 'system' ? 'system' : selected.mode
   const theme = useMemo(() => createAppTheme(selected), [selected])

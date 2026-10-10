@@ -119,18 +119,15 @@ Sources are `graphics/*.svg`; re-render with
 
 ### Capturing more
 
-Wireless ADB is already set up (`scripts/dev/adb-discover.py`; the phone's
-wireless-debug port rotates every time the toggle is flipped):
-
-```
-adb exec-out screencap -p > shot.png
-adb shell screenrecord --time-limit 20 /sdcard/v.mp4 && adb pull /sdcard/v.mp4
-```
+Use the [repeatable store screenshot workflow](../../../store-assets/README.md).
+It prepares a protected synthetic demo account, captures current app screens in
+the shared Paseo browser, and renders reusable phone mockups. `npm run shots`
+prints the workflow entrypoint; it does not launch or install a browser.
 
 **Always capture against the demo account, never a real one.** The owner's real
 account contains actual prescriptions; a Play listing is public and permanent.
-The in-app shots are scripted now (`npm run shots`) and never touch a phone; only
-the alarm and the notification shade still need adb.
+Native alarm and notification-shade shots require a separately requested device
+session. Keep native permission demonstration videos separate from the carousel.
 
 ---
 
@@ -219,61 +216,41 @@ forms before marking this complete.
 
 ## Captured screenshots
 
-All six live in `graphics/screenshots/`, taken against the seeded demo account
-with synthetic health data only. Ordered as they should appear in Play.
+All six live in `graphics/screenshots/`, captured in Paseo against the seeded demo
+account with synthetic health data only. The Enjoy Light/Dark app captures are
+composed inside reusable phone mockups. All exports are 1080 x 1920 RGB PNGs.
+Ordered as they should appear in Play:
 
-The root `README.md` embeds three of them: `00`, `01` and `04`, from this
-directory directly rather than keeping its own copies, so regenerating those
-updates the README too, and renaming one breaks it. That is deliberate: the same
-synthetic-data constraint applies in both places, and two copies would drift.
+| File | Shows | Theme |
+| --- | --- | --- |
+| `00-current-light.png` | Current reminders for plants, puppy, and the morning checklist | Enjoy Light |
+| `01-checklist-dark.png` | Reading dialog with a part-completed checklist and reminder controls below it | Enjoy Dark |
+| `02-medication-light.png` | Synthetic vitamin reminder editor with medicine name and 1000 IU dose | Enjoy Light |
+| `03-sharing-dark.png` | Share or assign dialog with a staged sample recipient | Enjoy Dark |
+| `04-notes-light.png` | Trip-packing note checklist, without an alarm | Enjoy Light |
+| `05-assigned-dark.png` | Assigned by me status with a synthetic completion record | Enjoy Dark |
 
-| File | Shows | Size | Source |
-| --- | --- | --- | --- |
-| `00-ringing-alarm.png` | The full-screen alarm mid two-tap confirm — the thing no other reminder app does. Lead with this. | 960x2142 | device |
-| `01-current.png` | Three distinct reminders still waiting to be confirmed, each with its own Done | 1120x2495 | `npm run shots` |
-| `02-medication-reminder.png` | A synthetic vitamin reminder with medicine name and dose | 1120x2495 | `npm run shots` |
-| `03-sharing.png` | Share or assign dialog with a staged sample recipient | 1120x2495 | `npm run shots` |
-| `04-notification-actions.png` | Notification shade: Done / Snooze on the notification itself, five distinct reminders nagging | 960x1425 | device |
-| `05-assigned.png` | Assigned by me status with a synthetic completion record | 1120x2495 | `npm run shots` |
-
-Sizes differ between the scripted and device shots; the aspect ratios match to
-within a rounding error (0.449 vs 0.448) and Play scales them, so the carousel
-still reads as one set.
-
-**No screen repeats a reminder.** Two cards for one reminder is the app's headline
-behavior, but as a picture it reads as a duplicate bug — two identical cards
-separated only by a timestamp. The copy makes that claim in words instead. Keep it
-that way.
+The root README embeds `00`, `01`, and `03` from this directory, without separate
+copies. Native alarm and notification-shade shots were replaced with current app
+screens for this browser-based refresh. Native permission videos remain separate.
+No screen repeats a reminder as two near-identical cards.
 
 ### Regenerating
 
-Four of the six are scripted. Do the whole set in one go — the copy and the UI both
-move, and this set went stale twice over before anyone noticed (medication content,
-then a fourth nav tab):
+Use [store-assets/README.md](../../../store-assets/README.md) and its manifest.
+Prepare the synthetic fixture once, capture the six app screens through the shared
+Paseo browser, then render the phone layouts and capture their final exports:
 
+```sh
+npm run shots:prepare -- --email=ryan.ewen+persistentdemo@gmail.com
+npm run shots:render
+npm run shots:check
+npm run shots:sync
 ```
-npm run dev                                        # only if Devkit is not already running
-npm run db:seed:demo -- --email=<demo account>     # the reminders the shots need
-npm run shots -- --email=<demo account>            # renders 01/02/03/05
-```
 
-Seed at any hour: each firing is anchored to its own reminder's schedule, so a Due
-card is always already past and a weekly one lands on the weekday it names.
-
-**`00` and `04` need a real device** — the full-screen alarm is a native Kotlin
-activity (`AlarmActivity.kt`) and the shade is Android's own chrome, so no browser
-can produce either. To retake them, sign the phone into the demo account (the
-`REVIEW_ACCOUNT_CODE` fixed code works, so no mailbox is needed), then:
-
-- **`04`**: move two PENDING occurrences of *different* reminders to a minute out
-  and let the live scheduler fire them; pull the shade, expand the group, expand
-  one entry so its Done/Snooze show. Crop the quick-settings band out and stitch
-  the status bar back on (`magick … -crop … -append`).
-- **`00`**: flip a reminder to `ALARM` and add an occurrence a minute out. **A
-  direct database write is not enough** — the device arms its own alarms from
-  `/api/sync/occurrences`, and a row inserted behind the API sends no sync nudge,
-  so nothing rings until the app is foregrounded and syncs. Foreground it, then tap
-  Done once to reach the "Confirm done / Not yet" state before capturing.
+`shots:prepare` runs in the isolated development stack; the browser capture steps
+between commands are documented in the workflow. `shots:sync` replaces the local
+upload directory only. Publish the listing separately when requested.
 
 ### Video
 

@@ -10,7 +10,9 @@
 - **Joy UI only** for components; theme in `src/theme.ts`. Don't pull in MUI
   Material or other component kits.
 - **Reminder lists are previews.** Current, Upcoming, Notes, and History cards open the
-  reading dialog with a full-card tap. Keep Edit, Snooze, Done, and checklist
+  reading dialog with a full-card tap. Notification and saved detail URLs open
+  that same dialog through `components/ReminderDialogLink.tsx`. Keep Edit,
+  Snooze, Done, and checklist
   controls in the dialog. Checklist previews show the saved checked state and
   honor the reminder's hide-checked preference without adding nested buttons.
   The editor opens as a separate dialog, while saved editor URLs continue to
@@ -28,7 +30,9 @@
   **labelled** control on that row: Snooze is icon-only (`aria-label` +
   `title`), which is what makes Done the thing you reach for. Edit and Share sit
   in the reading dialog footer with Close. This row belongs in the reading
-  dialog, where the full reminder and its firings are visible. Don't reverse
+  dialog, after the reminder body and firing checklist. On phones the action row
+  fills the available width; at the `sm` breakpoint it uses compact buttons aligned
+  to the right. Don't reverse
   that trade: an icon-only
   Done would make the app's one terminal action the hardest to find. "New reminder" was
   exactly that mistake: a full-width solid `primary` bar sitting directly on top
@@ -143,7 +147,10 @@
   native resolves it (`docs/alarm-architecture.md`). Both are rendered by the one
   `components/SoundPickerRow.tsx`. Themes are defined in
   `settings/themes.ts`; `settings/AppThemeProvider.tsx` applies their surface and
-  accent palettes globally, including portals. `components/AppLayout.tsx` paints
+  accent palettes globally, including portals. Match system uses Enjoy Light/Dark;
+  saved `light` and `dark` ids retain Classic Light/Dark. The Enjoy palettes also
+  apply typography, radii, borders, and shadows from `enjoyTheme.ts` without
+  changing the established palettes. `components/AppLayout.tsx` paints
   the independent doodle wallpaper and selected line color. The Doodle background
   dropdown combines Match theme, No doodles, and the permitted line colors.
   Format dates/times via `lib/datetime.ts`, never

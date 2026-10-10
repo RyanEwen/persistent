@@ -21,6 +21,9 @@
 AGENTS.md
 **/AGENTS.md
 docs
+# Capture exports and disposable native build artifacts are never runtime inputs.
+store-assets
+.artifacts
 
 # The Android client is built by CI, never by this image, and its generated
 # android/ directory is large.

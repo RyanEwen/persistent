@@ -23,12 +23,16 @@ public partial class UserSettings : ObservableObject
 
     public const string DefaultServerUrl = "https://persistent.dynamic-solutions.ca";
 
+    public const int DefaultFlyoutWidth = 420;
+    public const int DefaultFlyoutHeight = 960;
+
     // ── Flyout geometry ──────────────────────────────────────────────
     /// <summary>Flyout size in DIPs. The PWA is a single phone-width column
     /// (`AppLayout` caps its content at 640), so a narrow window is its natural
-    /// shape rather than a compromise.</summary>
-    [ObservableProperty] public partial int FlyoutWidth { get; set; } = 420;
-    [ObservableProperty] public partial int FlyoutHeight { get; set; } = 680;
+    /// shape rather than a compromise. The taller default gives reminder editors
+    /// phone-like room; placement clamps it to the monitor work area.</summary>
+    [ObservableProperty] public partial int FlyoutWidth { get; set; } = DefaultFlyoutWidth;
+    [ObservableProperty] public partial int FlyoutHeight { get; set; } = DefaultFlyoutHeight;
 
     /// <summary>Where a newly opened flyout appears: tray, last dragged position,
     /// or the center of the tray icon's monitor.</summary>
@@ -111,8 +115,8 @@ public partial class UserSettings : ObservableObject
     {
         ServerUrl ??= DefaultServerUrl;
         LastKnownVersion ??= "";
-        if (FlyoutWidth < 320) FlyoutWidth = 420;
-        if (FlyoutHeight < 400) FlyoutHeight = 680;
+        if (FlyoutWidth < 320) FlyoutWidth = DefaultFlyoutWidth;
+        if (FlyoutHeight < 400) FlyoutHeight = DefaultFlyoutHeight;
         if (FlyoutPlacement is not ("tray" or "last" or "center")) FlyoutPlacement = "tray";
         // A settings file written before this setting existed deserializes it as 0,
         // which would start the toast's picker on nothing. 1440 (a day) is the

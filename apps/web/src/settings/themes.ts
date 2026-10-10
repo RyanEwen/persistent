@@ -6,7 +6,7 @@ import { doodleTile, DOODLE_TILE_CSS_SIZE } from './doodleWallpaper.js'
 import { doodleStroke, type DoodleColorId } from './doodleColors.js'
 import type { SxProps } from '@mui/joy/styles/types'
 
-export type ThemeId = 'system' | 'doodle' | 'light' | 'dark' | 'forest' | 'plum'
+export type ThemeId = 'system' | 'doodle' | 'light' | 'dark' | 'forest' | 'plum' | 'enjoy-light' | 'enjoy-dark'
 
 /** Accent (Joy "primary") color ramp; tints buttons, tabs, chips, nav, etc. */
 export interface AccentRamp {
@@ -25,7 +25,7 @@ export interface AppTheme {
   /** Resolved Joy color scheme. Match system chooses one of these palettes. */
   mode: 'light' | 'dark'
   /** Surface palette, independent of wallpaper and primary accent. */
-  palette: 'navy' | 'light' | 'charcoal' | 'forest' | 'plum'
+  palette: 'navy' | 'light' | 'charcoal' | 'forest' | 'plum' | 'enjoy'
   /** Base background color (empty = use the Joy default body color). */
   background: string
   /** Doodle stroke color, used only when the independent wallpaper setting is on. */
@@ -54,8 +54,10 @@ const PINK: AccentRamp = {
 }
 
 export const APP_THEMES: AppTheme[] = [
-  { id: 'light', name: 'Light', mode: 'light', palette: 'light', background: '#f5f5f5', doodleColor: '#bcc4cc', accent: null },
-  { id: 'dark', name: 'Dark', mode: 'dark', palette: 'charcoal', background: '#171717', doodleColor: '#414141', accent: null },
+  { id: 'enjoy-light', name: 'Enjoy Light', mode: 'light', palette: 'enjoy', background: '#fafaf9', doodleColor: '#d5d5ce', accent: null },
+  { id: 'enjoy-dark', name: 'Enjoy Dark', mode: 'dark', palette: 'enjoy', background: '#191a1d', doodleColor: '#34353a', accent: null },
+  { id: 'light', name: 'Classic Light', mode: 'light', palette: 'light', background: '#f5f5f5', doodleColor: '#bcc4cc', accent: null },
+  { id: 'dark', name: 'Classic Dark', mode: 'dark', palette: 'charcoal', background: '#171717', doodleColor: '#414141', accent: null },
   { id: 'doodle', name: 'Navy', mode: 'dark', palette: 'navy', background: '#0b1017', doodleColor: '#2c3e46', accent: TEAL },
   { id: 'forest', name: 'Forest', mode: 'dark', palette: 'forest', background: '#0d1210', doodleColor: '#304b3d', accent: TEAL },
   { id: 'plum', name: 'Plum', mode: 'dark', palette: 'plum', background: '#130f13', doodleColor: '#513c4e', accent: PINK }
@@ -77,10 +79,11 @@ export function readThemeId(value: unknown): ThemeId {
   return THEME_OPTIONS.find((option) => option.id === value)?.id ?? DEFAULT_THEME_ID
 }
 
-/** Resolve Match system to the traditional palette for the current system scheme. */
+/** Resolve Match system to Enjoy while preserving explicit saved Classic choices. */
 export function getTheme(id: ThemeId, systemMode: AppTheme['mode'] = 'light'): AppTheme {
-  const selected = id === 'system' ? systemMode : id
-  return APP_THEMES.find((theme) => theme.id === selected) ?? APP_THEMES.find((theme) => theme.id === systemMode)!
+  const defaultId = systemMode === 'light' ? 'enjoy-light' : 'enjoy-dark'
+  const selected = id === 'system' ? defaultId : id
+  return APP_THEMES.find((theme) => theme.id === selected) ?? APP_THEMES.find((theme) => theme.id === defaultId)!
 }
 
 /** Wallpaper only; toggling doodles never changes the selected palette. */

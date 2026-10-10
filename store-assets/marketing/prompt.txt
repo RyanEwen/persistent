@@ -1,0 +1,3 @@
+Reusable studio backdrop, generated with the imagegen tool.
+
+Create a premium portrait 9:16 studio background for Persistent app marketing. Warm ivory and very pale powder blue, soft matte surfaces, gentle diffuse studio lighting, a subtle floor and horizon near the bottom. Restrained and calm. Keep the upper 20 percent and central area clean for captions and an actual app screenshot in a phone frame. No phone, app UI, text, logos, people, or decorative objects. Low detail and generous empty space. The final phone and UI are composed separately using the real captures and the reusable HTML renderer.

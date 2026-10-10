@@ -111,7 +111,11 @@ function lastPassedOnDay(dom: number, hhmm: string): Date {
 const puppyDue = lastPassed('08:00')
 const puppyDone = lastPassed('18:00')
 const plantsDue = lastPassed('09:00')
-const outTheDoorDue = lastPassed('08:15')
+// School-day routines must not show a weekend firing in the store screenshots.
+const outTheDoorDay = DateTime.fromJSDate(lastPassed('08:15')).setZone(ZONE)
+const outTheDoorDue = outTheDoorDay.weekday > 5
+  ? outTheDoorDay.minus({ days: outTheDoorDay.weekday - 5 }).toJSDate()
+  : outTheDoorDay.toJSDate()
 const binsDue = lastPassedOn(1, '18:30')
 const timesheetNext = nextOn(5, '16:00')
 const timesheetDone = lastPassedOn(5, '16:00')

@@ -3,7 +3,7 @@
  * gets the app shell (reminders list, editor, settings).
  */
 import { useEffect } from 'react'
-import { Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom'
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import Stack from '@mui/joy/Stack'
 import Typography from '@mui/joy/Typography'
 import Button from '@mui/joy/Button'
@@ -17,10 +17,9 @@ import { SignInPage } from './pages/SignInPage.js'
 import { RemindersPage } from './pages/RemindersPage.js'
 import { UpcomingPage } from './pages/UpcomingPage.js'
 import { NotesPage } from './pages/NotesPage.js'
-import { ReminderDetailPage } from './pages/ReminderDetailPage.js'
+import { ReminderDialogLink } from './components/ReminderDialogLink.js'
 import { SharedReminderPage } from './pages/SharedReminderPage.js'
 import { AssignmentsPage } from './pages/AssignmentsPage.js'
-import { useReminderDialogs } from './components/reminderDialogContext.js'
 import { HistoryPage } from './pages/HistoryPage.js'
 import { SettingsPage } from './pages/SettingsPage.js'
 import { PromotedAppsPage } from './pages/PromotedAppsPage.js'
@@ -87,11 +86,11 @@ export function App() {
           {/* Routed unconditionally even though its tab is hidden without notes: a saved
               note lands here, and a link to it must not fall through to Current. */}
           <Route path="/notes" element={<NotesPage />} />
-          <Route path="/reminders/new" element={<LegacyEditorLink />} />
-          <Route path="/reminders/:id" element={<ReminderDetailPage />} />
+          <Route path="/reminders/new" element={<ReminderDialogLink kind="new" />} />
+          <Route path="/reminders/:id" element={<ReminderDialogLink kind="view" />} />
           <Route path="/shared/:id" element={<SharedReminderPage />} />
           <Route path="/assigned" element={<AssignmentsPage />} />
-          <Route path="/reminders/:id/edit" element={<LegacyEditorLink />} />
+          <Route path="/reminders/:id/edit" element={<ReminderDialogLink kind="edit" />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/settings/apps" element={<PromotedAppsPage />} />
@@ -106,19 +105,4 @@ export function App() {
       </AppLayout>
     </StartupDataGate>
   )
-}
-
-/** Keep saved editor links useful while the editor itself lives in a dialog. */
-function LegacyEditorLink() {
-  const { id } = useParams()
-  const navigate = useNavigate()
-  const dialogs = useReminderDialogs()
-
-  useEffect(() => {
-    navigate('/', { replace: true })
-    if (id) dialogs.edit(id)
-    else dialogs.create()
-  }, [id, navigate, dialogs])
-
-  return null
 }

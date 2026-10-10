@@ -267,9 +267,10 @@ If no universal APK exists or certificate verification fails, publication stops.
 
 The listing is not hand-maintained in the Console: `store/listing.md` (copy) and
 `store/graphics/screenshots/` (images) are the source of truth, pushed together by
-the manual `play-listing` GitHub workflow. Regenerate the scripted screenshots with
-`npm run db:seed:demo` + `npm run shots` from the repo root; only the full-screen
-alarm and the notification shade still need a device.
+the manual `play-listing` GitHub workflow. Refresh screenshots with the repeatable
+Paseo capture and phone mockup workflow in `../../store-assets/README.md` and
+the `store-screenshots` skill. The carousel uses current app screens, including
+light and dark themes, rather than older native alarm and notification-shade shots.
 
 Tagging a version publishes directly to production. The manual `play-promote`
 workflow remains for already-uploaded builds and production rollout adjustments.

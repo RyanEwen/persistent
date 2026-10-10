@@ -38,7 +38,7 @@ export interface ScheduledAlarm {
   nagSoundUri: string
   /** The title `nagSoundUri` was picked under; see `soundTitle`. */
   nagSoundTitle: string
-  /** Parent reminder id, so tapping the notification opens its editor. */
+  /** Parent reminder id, so tapping the notification opens its reading dialog. */
   reminderId: string
   /**
    * This alarm is an escalation that can be silenced — stop the alarm but keep the

@@ -50,7 +50,8 @@ The Nag distinction above still holds on both sides of it.
 Two things hold on every surface regardless of which action the user takes:
 
 - **Tapping the notification body opens the reminder.** A soft nag's body tap
-  brings the app forward on that reminder's detail view (an *alarm's* body tap is
+  brings the app forward in the same reading dialog as an in-app reminder tap
+  (an *alarm's* body tap is
   the exception — it opens the full-screen control surface, so Done/Snooze stay one
   tap away once the heads-up collapses). On Android this must be a direct activity
   start; see the trampoline note in [`alarm-architecture.md`](alarm-architecture.md).
@@ -88,8 +89,8 @@ sibling escalation alarm is cancelled, on every one of the user's devices.
   (escalation) on-device alarms; closes the full-screen alarm activity.
 
 **Done is always a two-tap confirm** on every *tap* surface — the notification, the
-full-screen alarm, and the in-app reading dialog (also available as a detail route
-from a notification). The first tap arms the action (swapping
+full-screen alarm, and the reading dialog opened from the app or a notification.
+The first tap arms the action (swapping
 the controls to *Confirm done* / *Not yet*, with the alarm still ringing); only
 the confirm tap acknowledges. This guards a persistence-grade reminder against a
 stray pocket tap or misclick clearing it by accident. *Not yet* restores the

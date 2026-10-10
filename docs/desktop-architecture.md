@@ -418,6 +418,11 @@ worth keeping straight because fixing one did not fix the other:
 
 ## Tray placement
 
+The default flyout size is 420 x 960 DIPs, giving reminder editors room comparable
+to the phone app. Saved custom dimensions remain unchanged. Placement clamps the
+window to the monitor work area, so the taller preference stays usable on smaller
+displays.
+
 By default the flyout follows the notification-area icon, not a presumed taskbar edge.
 `Shell_NotifyIconGetRect` supplies the icon's physical screen rectangle; the
 flyout chooses the nearest corner of that monitor's work area and keeps a 12-DIP
@@ -822,6 +827,18 @@ in that code are load-bearing and documented at the call site: a listed
 newer means never offering an update at all; and download and install must be two
 separate calls, or a tray app that never exits hides the download behind a wait
 that cannot resolve.
+
+### Approved Store screenshot refreshes
+
+`store-assets/manifest.json` owns the four ordered desktop captures. The capture
+workflow in `store-assets/README.md` uses synthetic data in the actual default-size
+flyout with wallpaper and taskbar visible. `store-publish` first uploads a package
+draft, then `scripts/deploy/publish-windows-store-assets.mjs` attaches the approved
+screenshots and `store-assets/microsoft/release-notes.txt` before committing in
+publish mode. Other listing fields, logos, languages, pricing, and package policy
+are preserved. Draft mode does not submit for certification. The local `--check`
+path validates assets without credentials or remote calls.
+
 
 ## The `external/promo` submodule
 

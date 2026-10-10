@@ -1,0 +1,16 @@
+{
+  "play": [
+    {"file":"play/00-current-light.png","source":"raw/android/enjoy-light/01-current.png","theme":"enjoy-light","headline":"Keep the important things\nin sight.","caption":"Every reminder waits for your confirmation.","alt":"Enjoy Light Current view with plants, puppy, and a part-completed morning checklist."},
+    {"file":"play/01-checklist-dark.png","source":"raw/android/enjoy-dark/02-checklist.png","theme":"enjoy-dark","headline":"Finish the task.\nThen mark it done.","caption":"Checklists, notes, and controls in one clear view.","alt":"Enjoy Dark reading dialog with a morning checklist and Done and Snooze controls below it."},
+    {"file":"play/02-medication-light.png","source":"raw/android/enjoy-light/03-medication.png","theme":"enjoy-light","headline":"Make room for\nyour daily routines.","caption":"Medication reminders with names and doses.","alt":"Synthetic vitamin D reminder editor in Enjoy Light with a 1000 IU dose."},
+    {"file":"play/03-sharing-dark.png","source":"raw/android/enjoy-dark/04-sharing.png","theme":"enjoy-dark","headline":"Share the reminder.\nStay on the same page.","caption":"Plan together, or assign a task to one person.","alt":"Enjoy Dark sharing dialog with a staged synthetic recipient, Alex."},
+    {"file":"play/04-notes-light.png","source":"raw/android/enjoy-light/05-notes.png","theme":"enjoy-light","headline":"A place for the things\nyou want to keep.","caption":"Notes and checklists, without an alarm.","alt":"Enjoy Light Notes view showing a trip-packing checklist."},
+    {"file":"play/05-assigned-dark.png","source":"raw/android/enjoy-dark/06-assigned.png","theme":"enjoy-dark","headline":"Know when\nit is done.","caption":"See progress on tasks you have assigned.","alt":"Enjoy Dark Assigned by me view with synthetic parcel pickup completion."}
+  ],
+  "microsoft": [
+    {"file":"microsoft/01-current-light.png","theme":"enjoy-light","alt":"Default Windows tray flyout with desktop wallpaper and taskbar and chrome showing Current reminders in Enjoy Light."},
+    {"file":"microsoft/02-checklist-dark.png","theme":"enjoy-dark","alt":"Default Windows tray flyout with desktop wallpaper and taskbar showing a checklist reading dialog in Enjoy Dark."},
+    {"file":"microsoft/03-medication-light.png","theme":"enjoy-light","alt":"Default Windows tray flyout with desktop wallpaper and taskbar showing the synthetic vitamin reminder editor with dose and Save action in Enjoy Light."},
+    {"file":"microsoft/04-assigned-dark.png","theme":"enjoy-dark","alt":"Default Windows tray flyout with desktop wallpaper and taskbar showing synthetic assigned-task progress in Enjoy Dark."}
+  ]
+}

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Persistent.Desktop.ViewModels;
 
 namespace Persistent.Desktop.Classes.Settings;
 
@@ -36,7 +37,7 @@ internal static class HostSettings
     [
         ("compact", "Compact", 380, 560),
         ("standard", "Standard", 420, 680),
-        ("tall", "Tall", 460, 820)
+        ("tall", "Tall", UserSettings.DefaultFlyoutWidth, UserSettings.DefaultFlyoutHeight)
     ];
 
     /// <summary>

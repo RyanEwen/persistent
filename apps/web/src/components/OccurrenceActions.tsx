@@ -22,7 +22,6 @@ export function OccurrenceActions({
   onSnooze,
   onSilence,
   silenceLoading,
-  size = 'md',
   doneLabel = 'Done'
 }: {
   occurrence: Occurrence
@@ -31,8 +30,6 @@ export function OccurrenceActions({
   onSnooze: () => void
   onSilence: () => void
   silenceLoading: boolean
-  /** 'sm' on the list card, where the row shares width with the reminder text. */
-  size?: 'sm' | 'md'
   /**
    * Verb for the terminal action. 'Clear' on an occurrence the reminder's schedule
    * no longer covers, where "Done" would claim the user completed something the
@@ -42,49 +39,42 @@ export function OccurrenceActions({
 }) {
   const [confirming, setConfirming] = useState(false)
   return (
-    // Right-anchored, with Done/Confirm done always the rightmost (thumb-nearest)
-    // button and the secondary actions trailing off to its left.
-    <Stack
-      direction="row"
-      spacing={1}
-      flexWrap="wrap"
-      useFlexGap
-      alignItems="center"
-      justifyContent="flex-end"
-    >
-      {confirming ? (
-        <>
-          <Button size={size} variant="outlined" color="neutral" disabled={doneLoading} onClick={() => setConfirming(false)}>
-            Not yet
-          </Button>
-          <Button size={size} color="success" loading={doneLoading} onClick={onDone}>
-            {doneLabel === 'Clear' ? 'Confirm clear' : 'Confirm done'}
-          </Button>
-        </>
-      ) : (
-        <>
-          {/* De-escalate keeps its label: it is rare, it is not the obvious meaning of
-              any icon, and it only ever appears on an alarm the user wants to
-              understand before touching. */}
-          {occurrence.status === 'ESCALATED' && (
-            <Button size={size} variant="outlined" color="warning" loading={silenceLoading} onClick={onSilence}>
-              De-escalate
+    // Fill the phone row, but keep actions compact beside the metadata on wider screens.
+    // Confirmation keeps the same row and never completes anything on the first tap.
+    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ width: { xs: '100%', sm: 'auto' }, flexShrink: 0 }}>
+      <Stack direction="row" spacing={1} alignItems="stretch">
+        {confirming ? (
+          <>
+            <Button variant="outlined" color="neutral" sx={{ flex: { xs: 1, sm: '0 0 auto' }, minHeight: 44 }} disabled={doneLoading} onClick={() => setConfirming(false)}>
+              Not yet
             </Button>
-          )}
-          <IconButton
-            size={size}
-            variant="outlined"
-            color="neutral"
-            aria-label={`Snooze ${occurrence.reminder.title}`}
-            title="Snooze"
-            onClick={onSnooze}
-          >
-            <SnoozeIcon />
-          </IconButton>
-          <Button size={size} color="success" onClick={() => setConfirming(true)}>
-            {doneLabel}
-          </Button>
-        </>
+            <Button color="success" sx={{ flex: { xs: 1, sm: '0 0 auto' }, minHeight: 44 }} loading={doneLoading} onClick={onDone}>
+              {doneLabel === 'Clear' ? 'Confirm clear' : 'Confirm done'}
+            </Button>
+          </>
+        ) : (
+          <>
+            <IconButton
+              variant="outlined"
+              color="neutral"
+              aria-label={`Snooze ${occurrence.reminder.title}`}
+              title="Snooze"
+              onClick={onSnooze}
+              sx={{ minWidth: 44, minHeight: 44 }}
+            >
+              <SnoozeIcon />
+            </IconButton>
+            <Button color="success" sx={{ flex: { xs: 1, sm: '0 0 auto' }, minHeight: 44 }} onClick={() => setConfirming(true)}>
+              {doneLabel}
+            </Button>
+          </>
+        )}
+      </Stack>
+      {/* Keep the secondary action below on phones and before Snooze/Done on wider screens. */}
+      {!confirming && occurrence.status === 'ESCALATED' && (
+        <Button variant="outlined" color="warning" loading={silenceLoading} onClick={onSilence} sx={{ minHeight: 44, order: { sm: -1 } }}>
+          De-escalate
+        </Button>
       )}
     </Stack>
   )

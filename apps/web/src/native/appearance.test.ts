@@ -45,11 +45,11 @@ test('every app palette exports concrete colors with readable text and actions',
 test('Match system provides both palettes for offline native resolution', () => {
   const appearance = nativeAppearance('system')
   assert.equal(appearance.mode, 'system')
-  assert.equal(appearance.light.background, '#f5f5f5')
-  assert.equal(appearance.dark.background, '#171717')
+  assert.equal(appearance.light.background, '#fafaf9')
+  assert.equal(appearance.dark.background, '#191a1d')
   assert.equal(appearance.light.surface, '#ffffff')
-  assert.equal(appearance.dark.surface, '#222222')
-  assert.equal(appearance.dark.secondary, '#d4d4d4', 'Resolve the custom neutral ramp, not the CSS fallback')
+  assert.equal(appearance.dark.surface, '#242529')
+  assert.equal(appearance.dark.secondary, '#c4c5bd', 'Export Enjoy secondary text for native alarms')
 })
 
 test('invalid versions and non-color native input are rejected', () => {
